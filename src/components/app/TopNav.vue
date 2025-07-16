@@ -146,9 +146,9 @@ function handleUnlimitedTopNavRender() {
 		if (prevWidth >= viewWidth) {
 			var finalScrollWidth = prevWidth - viewWidth + controlWidth;
 			if (bodyStyle.getPropertyValue('direction') != 'rtl') {
-				targetMenu.style.marginLeft = '-' + finalScrollWidth + 'px';
+				(targetMenu as HTMLElement).style.marginLeft = '-' + finalScrollWidth + 'px';
 			} else {
-				targetMenu.style.marginRight = '-' + finalScrollWidth + 'px';
+				(targetMenu as HTMLElement).style.marginRight = '-' + finalScrollWidth + 'px';
 			}
 		}
 	}
@@ -156,7 +156,7 @@ function handleUnlimitedTopNavRender() {
 	// handle menu next button click action
 	var elm = document.querySelector('[data-toggle="app-top-nav-next"]');
 	if (elm) {
-		elm.onclick = function(e) {
+		(elm as HTMLElement).onclick = function(e) {
 			e.preventDefault();
 			handleMenuButtonAction(this,'next');
 		};
@@ -165,7 +165,7 @@ function handleUnlimitedTopNavRender() {
 	// handle menu prev button click action
 	var elm = document.querySelector('[data-toggle="app-top-nav-prev"]');
 	if (elm) {
-		elm.onclick = function(e) {
+		(elm as HTMLElement).onclick = function(e) {
 			e.preventDefault();
 			handleMenuButtonAction(this,'prev');
 		};

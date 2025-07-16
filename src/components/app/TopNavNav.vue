@@ -5,11 +5,12 @@ import { onMounted } from 'vue';
 
 defineProps<{
   menu: {
-  	icon: String,
-  	text: String,
-  	url: String,
-  	highlight: Boolean,
-  	children: Object
+  	icon?: string,
+  	text: string,
+  	url?: string,
+  	highlight?: boolean,
+  	children?: any[],
+  	label?: string
   };
 }>();
 
@@ -45,7 +46,7 @@ function subIsActive(urls) {
 	</div>
   
 	<!-- menu without submenu -->
-	<router-link v-else v-bind:to="menu.url" custom v-slot="{ navigate, href, isActive }">
+	<router-link v-else v-bind:to="(menu.url as string) || '/'" custom v-slot="{ navigate, href, isActive }">
 		<div class="menu-item" v-bind:class="{ 'active': isActive }">
 			<a v-bind:href="href" @click="navigate" class="menu-link">
 				<span class="menu-icon" v-if="menu.icon">
