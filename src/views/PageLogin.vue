@@ -11,7 +11,7 @@ const authStore = useAuthStore()
 // 表單數據
 const form = ref({
 	password: 'kiki',
-	email: 'kiki21@sample.ca'
+	email: 'kiki2e1@sample.ca'
 })
 
 const errorMessage = ref('')
