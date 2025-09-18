@@ -1,0 +1,1 @@
+const n=t=>{if(!t)return"0";const e=typeof t=="string"?parseFloat(t):t;if(isNaN(e))return"0";if(e>=1e4){const r=e/1e4;return r>=100?`${Math.round(r)}萬`:`${r.toFixed(1)}萬`}else return e.toLocaleString("zh-TW")},o=t=>t-1911;export{n as f,o as t};
