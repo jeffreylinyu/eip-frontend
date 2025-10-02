@@ -32,6 +32,27 @@ export const useAppSidebarMenuStore = defineStore("appSidebarMenu", () => {
     { text: "用戶管理", is_header: true },
     { text: "用戶管理與權限", url: "/user-management", icon: "bi bi-people" },
 
+    // 工程日報表管理
+    { text: "工程日報表管理", is_header: true },
+    {
+      text: "日報表管理",
+      icon: "bi bi-journal-text",
+      children: [
+        { text: "日報表總覽", url: "/daily-report" },
+        { text: "材料進場", url: "/daily-report/materials" },
+        { text: "出工紀錄", url: "/daily-report/labor" },
+        { text: "機具出工", url: "/daily-report/equipment" },
+        { text: "進場紀錄", url: "/daily-report/incoming" },
+        { text: "材料檢驗", url: "/daily-report/inspection" },
+        { text: "安全衛生", url: "/daily-report/safety" },
+        { text: "施工記錄", url: "/daily-report/construction" },
+        { text: "重要記事", url: "/daily-report/notes" },
+        { text: "明日進度", url: "/daily-report/tomorrow" },
+        { text: "製表人", url: "/daily-report/preparer" },
+        { text: "日報表歷史", url: "/daily-report/history" },
+      ],
+    },
+
     // 文件與表單管理
     { text: "文件與表單管理", is_header: true },
     {
@@ -39,19 +60,21 @@ export const useAppSidebarMenuStore = defineStore("appSidebarMenu", () => {
       icon: "bi bi-file-earmark-text",
       children: [
         { text: "表單匯出中心", url: "/forms/export-center" },
-        { text: "表單列表", url: "/forms/list" },
-        {
-          text: "表單類型",
+        { 
+          text: "A類表單", 
           children: [
-            { text: "A類表單", url: "/forms/type-a" },
-            { text: "B類表單", url: "/forms/type-b" },
-            { text: "C類表單", url: "/forms/type-c" },
-            { text: "D類表單", url: "/forms/type-d" },
-            { text: "H類表單", url: "/forms/type-h" },
-            { text: "I類表單", url: "/forms/type-i" },
-            { text: "L類表單", url: "/forms/type-l" },
-          ],
+            { text: "A-4 工期展延申請總表", url: "/forms/a4-download" },
+            { text: "A-5 估驗請款計價單", url: "/forms/a5-download" },
+            // { text: "A-5 參數化表單", url: "/forms/a5-with-params" },
+            { text: "A-7 職安報備書", url: "/forms/a7-download" },
+          ]
         },
+        { text: "B類表單", url: "/forms/type-b" },
+        { text: "C類表單", url: "/forms/type-c" },
+        { text: "D類表單", url: "/forms/type-d" },
+        { text: "H類表單", url: "/forms/type-h" },
+        { text: "I類表單", url: "/forms/type-i" },
+        { text: "L類表單", url: "/forms/type-l" },
       ],
     },
 

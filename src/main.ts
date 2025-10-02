@@ -26,6 +26,9 @@ import CardFooter from '@/components/bootstrap/CardFooter.vue';
 import CardGroup from '@/components/bootstrap/CardGroup.vue';
 import CardImgOverlay from '@/components/bootstrap/CardImgOverlay.vue';
 import CardExpandToggler from '@/components/bootstrap/CardExpandToggler.vue';
+import Modal from '@/components/bootstrap/Modal.vue';
+import Drawer from '@/components/bootstrap/Drawer.vue';
+import PageHeader from '@/components/bootstrap/PageHeader.vue';
 
 const emitter = mitt();
 const app = createApp(App);
@@ -37,6 +40,9 @@ app.component('CardFooter', CardFooter);
 app.component('CardGroup', CardGroup);
 app.component('CardImgOverlay', CardImgOverlay);
 app.component('CardExpandToggler', CardExpandToggler);
+app.component('Modal', Modal);
+app.component('Drawer', Drawer);
+app.component('PageHeader', PageHeader);
 
 const pinia = createPinia();
 app.use(pinia);

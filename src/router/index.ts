@@ -1,31 +1,87 @@
-import { createRouter, createWebHistory } from "vue-router";
+import { createRouter, createWebHashHistory } from "vue-router";
 import { useAuthStore } from '@/stores/auth';
+import { dailyReportRoutes } from './dailyReport';
 
 const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL),
+  history: createWebHashHistory(import.meta.env.BASE_URL),
   routes: [
     { 
       path: '/', 
+      component: () => import('../views/Dashboard.vue'),
+      meta: { requiresAuth: true }
+    },
+    { 
+      path: '/home', 
       component: () => import('../views/Home.vue'),
-      // meta: { requiresAuth: true }
+      meta: { requiresAuth: true }
     },
     { 
       path: '/page/login', 
       component: () => import('../views/PageLogin.vue'),
-      // meta: { requiresGuest: true }
+      meta: { requiresGuest: true }
+    },
+    { 
+      path: '/page/register', 
+      component: () => import('../views/PageRegister.vue'),
+      meta: { requiresGuest: true }
     },
     {
       path: '/basic/basic-data',
       component: () => import('../views/basic/BasicData.vue'),
+      meta: { requiresAuth: true }
     },
     {
       path: '/forms/export-center',
       component: () => import('../views/forms/ExportCenter.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/forms/a4-download',
+      component: () => import('../views/forms/FormA4Download.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/forms/a5-download',
+      component: () => import('../views/forms/FormA5Download.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/forms/a7-download',
+      component: () => import('../views/forms/FormA7Download.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/forms/a5-with-params',
+      component: () => import('../views/forms/FormA5WithParams.vue'),
+      meta: { requiresAuth: true }
     },
     {
       path: '/basic/site-personnel',
       component: () => import('../views/basic/SitePersonnel.vue'),
+      meta: { requiresAuth: true }
     },
+    {
+      path: '/user-management',
+      component: () => import('../views/user-management/UserManagement.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/workspace/management',
+      component: () => import('../views/workspace/WorkspaceManagement.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/company/management',
+      component: () => import('../views/company/CompanyManagement.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/company/site-personnel',
+      component: () => import('../views/company/SitePersonnelManagement.vue'),
+      meta: { requiresAuth: true }
+    },
+    // 工程日報表路由
+    ...dailyReportRoutes,
     { 
       path: '/:pathMatch(.*)*', 
       component: () => import('../views/PageError.vue') 

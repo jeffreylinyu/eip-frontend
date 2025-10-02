@@ -6,7 +6,7 @@ export interface LoginData {
 }
 
 export interface LoginResponse {
-    id: string
+    id: number
     userId: string
     jwtToken: string
 }
@@ -14,9 +14,22 @@ export interface LoginResponse {
 export interface User {
   id: string
   userId: string
+  username: string
   email: string
+  role: string
+  createdAt: string
+  updatedAt: string
+  verify: boolean
   // 可以添加更多用戶字段
 }
+
+// 個人戶註冊數據
+export interface IndividualRegisterData {
+  username: string
+  email: string
+  password: string
+}
+
 
 export const authApi = {
   // 登入
@@ -24,7 +37,7 @@ export const authApi = {
     return http.post('/management/user/login', data)
   },
 
-  // 登出
+  // 登出（需要傳入 userId）
   logout: (userId: string): Promise<void> => {
     return http.post('/management/user/logout', { userId })
   },
@@ -37,5 +50,10 @@ export const authApi = {
   // 刷新token
   refreshToken: (): Promise<{ jwtToken: string }> => {
     return http.post('/management/user/refresh-token')
+  },
+
+  // 個人戶註冊
+  registerIndividual: (data: IndividualRegisterData): Promise<any> => {
+    return http.post('/management/user/register', data)
   }
 } 

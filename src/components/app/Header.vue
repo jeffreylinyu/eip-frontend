@@ -4,14 +4,13 @@ import { slideToggle } from '@/composables/slideToggle.js';
 import { useAppOptionStore } from '@/stores/app-option';
 import { useAuthStore } from '@/stores/auth';
 import { RouterLink, useRouter } from 'vue-router';
-import { useProjectStore } from '@/stores/project';
-import ProjectSelector from '@/components/project/ProjectSelector.vue';
+import { useWorkspaceStore } from '@/stores/workspace';
 
 const appOption = useAppOptionStore();
 const authStore = useAuthStore();
 const router = useRouter();
 const notificationData = [];
-const projectStore = useProjectStore();
+const workspaceStore = useWorkspaceStore();
 
 // 登出功能
 const handleLogout = async () => {
@@ -47,26 +46,32 @@ function checkForm(event) {
 	this.$router.push({ path: '/extra/search' })
 }
 
-// 項目選擇器相關
-const showProjectSelector = ref(false);
 
-const currentProjectName = computed(() => projectStore.currentProjectName);
-const hasCurrentProject = computed(() => projectStore.hasCurrentProject);
+// 工作空間與項目相關的 computed 變數
+const currentWorkspaceName = computed(() => workspaceStore.getCurrentWorkspaceName);
+const currentProjectName = computed(() => workspaceStore.getCurrentProjectName);
+const hasCurrentWorkspace = computed(() => workspaceStore.hasCurrentWorkspace);
+const hasCurrentProject = computed(() => workspaceStore.hasCurrentProject);
 
-const openProjectSelector = () => {
-	showProjectSelector.value = true;
-};
+// 完整的品牌文字（用於 title 屬性）
+const getFullBrandText = computed(() => {
+  if (hasCurrentWorkspace.value && hasCurrentProject.value) {
+    return `${currentWorkspaceName.value} / ${currentProjectName.value} - 工程智慧平台`;
+  } else if (hasCurrentWorkspace.value) {
+    return `${currentWorkspaceName.value} - 工程智慧平台`;
+  } else if (hasCurrentProject.value) {
+    return `${currentProjectName.value} - 工程智慧平台`;
+  } else {
+    return '工程智慧平台';
+  }
+});
 
-const closeProjectSelector = () => {
-	showProjectSelector.value = false;
-};
 
 const onProjectSelected = (project) => {
-	console.log('Selected project:', project);
 };
 
-// 初始化項目數據
-projectStore.initProjects();
+// 初始化工作空間數據
+workspaceStore.initWorkspaces();
 </script>
 <template>
 	<div id="header" class="app-header">
@@ -91,12 +96,20 @@ projectStore.initProjects();
 		<!-- END mobile-toggler -->
 		
 		<!-- BEGIN brand -->
-		<div class="brand w-450px">
+		<div class="brand">
 			<RouterLink to="/" class="brand-logo">
 				<span class="brand-img">
 					<span class="brand-img-text text-theme">H</span>
 				</span>
-				<span class="brand-text">{{ currentProjectName }} - 工程智慧平台</span>
+				<div class="brand-text-container">
+					<span class="brand-text" :title="getFullBrandText">
+						<span v-if="hasCurrentWorkspace" class="brand-text-part">{{ currentWorkspaceName }}</span>
+						<span v-if="hasCurrentWorkspace && hasCurrentProject" class="brand-text-separator"> / </span>
+						<span v-if="hasCurrentProject" class="brand-text-part">{{ currentProjectName }}</span>
+						<span v-if="!hasCurrentWorkspace && !hasCurrentProject" class="brand-text-default">工程智慧平台</span>
+						<span v-if="hasCurrentWorkspace || hasCurrentProject" class="brand-text-suffix"> - 工程智慧平台</span>
+					</span>
+				</div>
 			</RouterLink>
 		</div>
 		<!-- END brand -->
@@ -108,45 +121,28 @@ projectStore.initProjects();
 					<div class="menu-icon"><i class="bi bi-search nav-icon"></i></div>
 				</a>
 			</div>
+			
+			<!-- 設定下拉選單 -->
 			<div class="menu-item dropdown dropdown-mobile-full">
-				<a href="#" data-bs-toggle="dropdown" data-bs-display="static" class="menu-link">
-					<div class="menu-icon"><i class="bi bi-grid-3x3-gap nav-icon"></i></div>
+				<a href="#" data-bs-toggle="dropdown" data-bs-display="static" class="menu-link" title="設定與管理">
+					<div class="menu-icon"><i class="fa fa-cogs nav-icon"></i></div>
 				</a>
-				<div class="dropdown-menu fade dropdown-menu-end w-200px text-center p-0 mt-1">
-					<div class="row row-grid gx-0">
-						<div class="col-6">
-							<a href="javascript:;" @click="openProjectSelector" class="dropdown-item text-decoration-none p-3 bg-none">
-								<div class="position-relative">
-									<i class="fa fa-project-diagram h2 opacity-5 d-block my-1"></i>
-								</div>
-								<div class="fw-500 fs-10px text-inverse">工程項目</div>
-							</a>
+				<div class="dropdown-menu fade dropdown-menu-end w-280px p-0 mt-1">
+					<RouterLink to="/workspace/management" class="dropdown-item d-flex align-items-center py-2 px-3 text-decoration-none">
+						<i class="fa fa-sitemap text-primary me-3 fs-16px"></i>
+						<div>
+							<div class="fw-semibold">工作空間管理</div>
+							<small class="text-muted">設定與切換工作空間和工程項目</small>
 						</div>
-						<div class="col-6">
-							<RouterLink to="/calendar" class="dropdown-item text-decoration-none p-3 bg-none">
-								<div><i class="bi bi-calendar4 h2 opacity-5 d-block my-1"></i></div>
-								<div class="fw-500 fs-10px text-inverse">CALENDAR</div>
-							</RouterLink>
+					</RouterLink>
+					
+					<RouterLink to="/company/management" class="dropdown-item d-flex align-items-center py-2 px-3 text-decoration-none">
+						<i class="fa fa-building text-success me-3 fs-16px"></i>
+						<div>
+							<div class="fw-semibold">公司管理</div>
+							<small class="text-muted">管理公司信息和人員</small>
 						</div>
-					</div>
-					<div class="row row-grid gx-0">
-						<div class="col-6">
-							<RouterLink to="/helper/css" class="dropdown-item text-decoration-none p-3 bg-none">
-								<div><i class="bi bi-circle-fill position-absolute text-theme top-0 mt-n2 me-n2 fs-6px d-block text-center w-100"></i>
-									<i class="bi bi-gem h2 opacity-5 d-block my-1"></i>
-								</div>
-								<div class="fw-500 fs-10px text-inverse">HELPER</div>
-							</RouterLink>
-						</div>
-						<div class="col-6">
-							<RouterLink to="/widgets" class="dropdown-item text-decoration-none p-3 bg-none">
-								<div><i class="bi bi-circle-fill position-absolute text-theme top-0 mt-n2 me-n2 fs-6px d-block text-center w-100"></i>
-									<i class="bi bi-sliders2 h2 opacity-5 d-block my-1"></i>
-								</div>
-								<div class="fw-500 fs-10px text-inverse">WIDGETS</div>
-							</RouterLink>
-						</div>
-					</div>
+					</RouterLink>
 				</div>
 			</div>
 			<div class="menu-item dropdown dropdown-mobile-full">
@@ -194,12 +190,12 @@ projectStore.initProjects();
 					</div>
 				</a>
 				<div class="dropdown-menu dropdown-menu-end me-lg-3 fs-11px mt-1">
-					<RouterLink to="/profile" class="dropdown-item d-flex align-items-center">PROFILE <i class="bi bi-person-circle ms-auto text-theme fs-16px my-n1"></i></RouterLink>
-					<RouterLink to="/email/inbox" class="dropdown-item d-flex align-items-center">INBOX <i class="bi bi-envelope ms-auto text-theme fs-16px my-n1"></i></RouterLink>
-					<RouterLink to="/calendar" class="dropdown-item d-flex align-items-center">CALENDAR <i class="bi bi-calendar ms-auto text-theme fs-16px my-n1"></i></RouterLink>
-					<RouterLink to="/settings" class="dropdown-item d-flex align-items-center">SETTINGS <i class="bi bi-gear ms-auto text-theme fs-16px my-n1"></i></RouterLink>
+					<RouterLink to="/profile" class="dropdown-item d-flex align-items-center">個人資料 <i class="bi bi-person-circle ms-auto text-theme fs-16px my-n1"></i></RouterLink>
+					<RouterLink to="/email/inbox" class="dropdown-item d-flex align-items-center">收件匣 <i class="bi bi-envelope ms-auto text-theme fs-16px my-n1"></i></RouterLink>
+					<RouterLink to="/calendar" class="dropdown-item d-flex align-items-center">行事曆 <i class="bi bi-calendar ms-auto text-theme fs-16px my-n1"></i></RouterLink>
+					<RouterLink to="/settings" class="dropdown-item d-flex align-items-center">設定 <i class="bi bi-gear ms-auto text-theme fs-16px my-n1"></i></RouterLink>
 					<div class="dropdown-divider"></div>
-					<a href="#" @click.prevent="handleLogout" class="dropdown-item d-flex align-items-center">LOGOUT <i class="bi bi-toggle-off ms-auto text-theme fs-16px my-n1"></i></a>
+					<a href="#" @click.prevent="handleLogout" class="dropdown-item d-flex align-items-center">登出 <i class="bi bi-toggle-off ms-auto text-theme fs-16px my-n1"></i></a>
 				</div>
 			</div>
 		</div>
@@ -220,10 +216,4 @@ projectStore.initProjects();
 		<!-- END menu-search -->
 	</div>
 	
-	<!-- 項目選擇器 Modal -->
-	<ProjectSelector 
-		:show="showProjectSelector" 
-		@update:show="showProjectSelector = $event"
-		@project-selected="onProjectSelected"
-	/>
 </template>

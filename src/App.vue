@@ -2,6 +2,8 @@
 import { getCurrentInstance, onMounted } from 'vue';
 import { RouterLink, RouterView } from 'vue-router';
 import { useAppOptionStore } from '@/stores/app-option';
+import { useWorkspaceStore } from '@/stores/workspace';
+import { useAuthStore } from '@/stores/auth';
 import { ProgressFinisher, useProgress } from '@marcoschulte/vue3-progress';
 import AppSidebar from '@/components/app/Sidebar.vue';
 import AppHeader from '@/components/app/Header.vue';
@@ -11,6 +13,8 @@ import AppThemePanel from '@/components/app/ThemePanel.vue';
 import router from './router';
 
 const appOption = useAppOptionStore();
+const workspaceStore = useWorkspaceStore();
+const authStore = useAuthStore();
 const internalInstance = getCurrentInstance();
 
 const progresses = [] as ProgressFinisher[];
@@ -29,6 +33,18 @@ router.beforeEach(async (to, from) => {
 })
 router.afterEach(async (to, from) => {
 	progresses.pop()?.finish();
+})
+
+// 初始化工作空間
+onMounted(async () => {
+  // 只有在用戶已登入時才初始化工作空間
+  if (authStore.isAuthenticated) {
+    try {
+      await workspaceStore.initWorkspaces()
+    } catch (error) {
+      console.error('❌ 工作空間初始化失敗:', error)
+    }
+  }
 })
 
 document.querySelector('body').classList.add('app-init');

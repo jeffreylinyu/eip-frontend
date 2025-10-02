@@ -9,24 +9,53 @@ import axios, {
    * 建立一個預設的 Axios 實例，所有 API 請求都用它
    */
   const http: AxiosInstance = axios.create({
-    baseURL: import.meta.env.VITE_API_URL,  // 從 .env 讀取 API 根址
-    timeout: 20000,                          // 超時設定：20s
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  })
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8080',  // 從 .env 讀取 API 根址，預設為 localhost:8080
+  timeout: 50000,                          // 超時設定：50s
+  headers: {
+    'Content-Type': 'application/json',
+  },
+})
   
   /**
    * 請求攔截器：每次發請求前都會進來這裡
    */
   http.interceptors.request.use(
     (config: InternalAxiosRequestConfig) => {
-      // 範例：從 localStorage 拿 token，加到 header
+      // console.log('🌐 HTTP 請求:', config.method?.toUpperCase(), config.url)
+      
+      // 從 localStorage 獲取 token，加到 header
       const token = localStorage.getItem('auth_token')
+      // console.log('🎫 請求攔截器 - Token:', token ? '有值' : '無值')
+      
       if (token) {
         // headers 在 InternalAxiosRequestConfig 一定存在
         config.headers!['Authorization'] = `Bearer ${token}`
+        // console.log('✅ Authorization header 已設定')
+      } else {
+        // console.log('⚠️ 沒有 token，跳過 Authorization header')
       }
+      
+      // 從 localStorage 獲取用戶信息，解析出 userId
+      const authUser = localStorage.getItem('auth_user')
+      // console.log('👤 請求攔截器 - 用戶資訊:', authUser ? '有值' : '無值')
+      
+      if (authUser) {
+        try {
+          const user = JSON.parse(authUser)
+          if (user.userId) {
+            config.headers!['userId'] = user.userId
+            // console.log('✅ userId header 已設定:', user.userId)
+          } else {
+            // console.log('⚠️ 用戶資訊中沒有 userId')
+          }
+        } catch (error) {
+          console.error('❌ Failed to parse auth_user from localStorage:', error)
+        }
+      } else {
+        // console.log('⚠️ 沒有用戶資訊，跳過 userId header')
+      }
+      
+      // console.log('📤 完整請求 headers:', config.headers)
       return config
     },
     (error: AxiosError) => {
@@ -41,27 +70,43 @@ import axios, {
   http.interceptors.response.use(
     (response: AxiosResponse) => {
       // 直接回傳 data，省去調用端再寫 .data
-      return response.data.data
+      // 但對於某些 API，我們需要完整的 response.data
+      // console.log('📥 HTTP Response:', response.config.url, '→', response.status)
+      // console.log('📦 Response Data:', response.data)
+      
+      // 如果回應有標準的 { code, message, data } 格式，檢查是否成功
+      if (response.data && typeof response.data === 'object' && 'code' in response.data) {
+        if (response.data.code === 200) {
+          // console.log('✅ API 調用成功')
+          // 對於有 data 欄位的回應，返回 data 內容
+          return response.data.data || response.data
+        } else {
+          console.warn('⚠️ API 回應非成功狀態:', response.data)
+          return response.data
+        }
+      }
+      
+      return response.data
     },
     (error: AxiosError) => {
       // 全域錯誤處理
-      if (error.response) {
-        const status = error.response.status
-        switch (status) {
-          case 401:
-            window.location.href = '/login'
-            break
-          case 403:
-            alert('您沒有權限執行此操作')
-            break
-          case 500:
-            alert('伺服器錯誤，請稍後再試')
-            break
-        }
-      } else {
-        // 無回應（網路問題）
-        alert('無法連上伺服器，請檢查網路或稍後再試')
-      }
+      // if (error.response) {
+      //   const status = error.response.status
+      //   switch (status) {
+      //     case 401:
+      //       window.location.href = '/login'
+      //       break
+      //     case 403:
+      //       alert('您沒有權限執行此操作')
+      //       break
+      //     case 500:
+      //       alert('伺服器錯誤，請稍後再試')
+      //       break
+      //   }
+      // } else {
+      //   // 無回應（網路問題）
+      //   alert('無法連上伺服器，請檢查網路或稍後再試')
+      // }
       return Promise.reject(error)
     }
   )

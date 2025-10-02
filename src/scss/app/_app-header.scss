@@ -124,6 +124,39 @@
 					font-size: $font-size-base * 1.2;
 				}
 			}
+			
+			& .brand-text-container {
+				flex: 1;
+				min-width: 0; // 允許 flex 項目收縮
+				overflow: hidden;
+			}
+			
+			& .brand-text {
+				display: block;
+				white-space: nowrap;
+				overflow: hidden;
+				text-overflow: ellipsis;
+				max-width: 100%;
+				line-height: 1.2;
+			}
+			
+			& .brand-text-part {
+				display: inline;
+			}
+			
+			& .brand-text-separator {
+				display: inline;
+				margin: 0 0.25rem;
+			}
+			
+			& .brand-text-suffix {
+				display: inline;
+				margin-left: 0.25rem;
+			}
+			
+			& .brand-text-default {
+				display: inline;
+			}
 		}
 	}
 	& .menu {

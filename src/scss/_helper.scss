@@ -273,9 +273,17 @@ $visibility-values: (none, initial);
 	background-color: var(--#{$prefix}theme);
 	border-color: var(--#{$prefix}theme);
 }
+
+/* Dropdown active state */
+.dropdown-item:active,
+.dropdown-item.active {
+	background-color: var(--#{$prefix}theme) !important;
+	color: var(--#{$prefix}white) !important;
+}
 .btn-theme {
-	background-color: var(--#{$prefix}theme);
-	border-color: var(--#{$prefix}theme);
+	background-color: var(--#{$prefix}theme) !important;
+	border-color: var(--#{$prefix}theme) !important;
+	color: var(--#{$prefix}white) !important;
 	position: relative;
 	
 	&:before {
@@ -291,15 +299,17 @@ $visibility-values: (none, initial);
 	}
 	&.disabled,
 	&:disabled {
-		background-color: var(--#{$prefix}theme);
-		border-color: var(--#{$prefix}theme);
+		background-color: var(--#{$prefix}theme) !important;
+		border-color: var(--#{$prefix}theme) !important;
+		color: var(--#{$prefix}white) !important;
 	}
 	&:hover,
 	&:focus,
 	&:active,
 	&.active {
-		background-color: var(--#{$prefix}theme);
-		border-color: var(--#{$prefix}theme);
+		background-color: var(--#{$prefix}theme) !important;
+		border-color: var(--#{$prefix}theme) !important;
+		color: var(--#{$prefix}white) !important;
 		
 		&:before {
 			background: rgba($white, .2);
@@ -317,13 +327,17 @@ $visibility-values: (none, initial);
 	border-color: var(--#{$prefix}theme);
 	
 	&:hover,
+	&:active,
 	&.active {
-		background-color: var(--#{$prefix}theme);
-		border-color: var(--#{$prefix}theme);
+		background-color: var(--#{$prefix}theme) !important;
+		border-color: var(--#{$prefix}theme) !important;
+		color: var(--#{$prefix}white) !important;
 	}
 	&.disabled,
 	&:disabled {
-		color: var(--#{$prefix}theme);
+		color: var(--#{$prefix}theme) !important;
+		border-color: var(--#{$prefix}theme) !important;
+		background-color: transparent !important;
 	}
 	&:focus,
 	&:active,
@@ -332,6 +346,156 @@ $visibility-values: (none, initial);
 		@include box-shadow(0 0 0 0.25rem rgba(#{var(--#{$prefix}theme-rgb)}, .5));
 	}
 }
+// 確保其他按鈕樣式的 active 狀態正確
+.btn-secondary:active,
+.btn-secondary.active {
+	background-color: var(--#{$prefix}secondary) !important;
+	border-color: var(--#{$prefix}secondary) !important;
+}
+
+.btn-danger:active,
+.btn-danger.active {
+	background-color: var(--#{$prefix}danger) !important;
+	border-color: var(--#{$prefix}danger) !important;
+}
+
+.btn-outline-secondary:active,
+.btn-outline-secondary.active {
+	background-color: var(--#{$prefix}secondary) !important;
+	border-color: var(--#{$prefix}secondary) !important;
+	color: var(--#{$prefix}white) !important;
+}
+
+.btn-outline-danger:active,
+.btn-outline-danger.active {
+	background-color: var(--#{$prefix}danger) !important;
+	border-color: var(--#{$prefix}danger) !important;
+	color: var(--#{$prefix}white) !important;
+}
+
+.btn-outline-warning:active,
+.btn-outline-warning.active {
+	background-color: var(--#{$prefix}warning) !important;
+	border-color: var(--#{$prefix}warning) !important;
+	color: var(--#{$prefix}dark) !important;
+}
+
+// 禁用狀態的邊框修復
+.btn-secondary.disabled,
+.btn-secondary:disabled {
+	background-color: var(--#{$prefix}secondary) !important;
+	border-color: var(--#{$prefix}secondary) !important;
+	color: var(--#{$prefix}white) !important;
+}
+
+.btn-danger.disabled,
+.btn-danger:disabled {
+	background-color: var(--#{$prefix}danger) !important;
+	border-color: var(--#{$prefix}danger) !important;
+	color: var(--#{$prefix}white) !important;
+}
+
+.btn-outline-secondary.disabled,
+.btn-outline-secondary:disabled {
+	color: var(--#{$prefix}secondary) !important;
+	border-color: var(--#{$prefix}secondary) !important;
+	background-color: transparent !important;
+}
+
+.btn-outline-danger.disabled,
+.btn-outline-danger:disabled {
+	color: var(--#{$prefix}danger) !important;
+	border-color: var(--#{$prefix}danger) !important;
+	background-color: transparent !important;
+}
+
+.btn-outline-warning.disabled,
+.btn-outline-warning:disabled {
+	color: var(--#{$prefix}warning) !important;
+	border-color: var(--#{$prefix}warning) !important;
+	background-color: transparent !important;
+}
+
+// btn-outline-primary 在黑暗模式下的樣式優化
+.btn-outline-primary {
+	color: var(--#{$prefix}primary);
+	border-color: var(--#{$prefix}primary);
+	
+	&:hover,
+	&:active,
+	&.active {
+		background-color: var(--#{$prefix}primary) !important;
+		border-color: var(--#{$prefix}primary) !important;
+		color: var(--#{$prefix}white) !important;
+	}
+	&.disabled,
+	&:disabled {
+		color: var(--#{$prefix}primary) !important;
+		border-color: var(--#{$prefix}primary) !important;
+		background-color: transparent !important;
+		opacity: 0.6;
+	}
+	&:focus,
+	&:active,
+	&.active:focus, 
+	&:active:focus {
+		@include box-shadow(0 0 0 0.25rem rgba(#{var(--#{$prefix}primary-rgb)}, .5));
+	}
+}
+
+// 黑暗模式下的特殊處理
+@if $enable-dark-mode {
+	@include color-mode(dark, true) {
+		.btn-outline-primary {
+			color: var(--#{$prefix}primary);
+			border-color: var(--#{$prefix}primary);
+			background-color: transparent;
+			
+			&:hover,
+			&:active,
+			&.active {
+				background-color: var(--#{$prefix}primary) !important;
+				border-color: var(--#{$prefix}primary) !important;
+				color: var(--#{$prefix}white) !important;
+			}
+			&.disabled,
+			&:disabled {
+				color: var(--#{$prefix}primary) !important;
+				border-color: var(--#{$prefix}primary) !important;
+				background-color: transparent !important;
+				opacity: 0.6;
+			}
+
+		}
+	}
+}
+
+// btn-outline-theme 在黑暗模式下的樣式優化
+@if $enable-dark-mode {
+	@include color-mode(dark, true) {
+		.btn-outline-theme {
+			color: var(--#{$prefix}theme);
+			border-color: var(--#{$prefix}theme);
+			background-color: transparent;
+			
+			&:hover,
+			&:active,
+			&.active {
+				background-color: var(--#{$prefix}theme) !important;
+				border-color: var(--#{$prefix}theme) !important;
+				color: var(--#{$prefix}white) !important;
+			}
+			&.disabled,
+			&:disabled {
+				color: var(--#{$prefix}theme) !important;
+				border-color: var(--#{$prefix}theme) !important;
+				background-color: transparent !important;
+				opacity: 0.6;
+			}
+		}
+	}
+}
+
 .nav-link {
 	color: var(--#{$prefix}theme);
 	

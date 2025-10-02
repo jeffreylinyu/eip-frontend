@@ -31,25 +31,7 @@ export default {
         contractor_name: '',
         construction_period: '',
         project_amount: '',
-        project_grade: '',
-        // 工程專業人員
-        project_manager_name: '',
-        quality_control_name: '',
-        quality_control_license: '',
-        safety_officer_name: '',
-        safety_officer_license: '',
-        engineer_name: '',
-        engineer_license: '',
-        // 營造廠商資訊
-        contractor_company_name: '',
-        contractor_company_id: '',
-        contractor_company_manager_name: '',
-        contractor_company_manager_phone: '',
-        // 監造單位資訊
-        supervision_company_name: '',
-        supervision_company_id: '',
-        supervision_company_manager_name: '',
-        supervision_company_manager_phone: ''
+        project_grade: ''
       },
       isSubmitting: false
     }
@@ -130,29 +112,11 @@ export default {
         contractor_name: '',
         construction_period: '',
         project_amount: '',
-        project_grade: '',
-        // 工程專業人員
-        project_manager_name: '',
-        quality_control_name: '',
-        quality_control_license: '',
-        safety_officer_name: '',
-        safety_officer_license: '',
-        engineer_name: '',
-        engineer_license: '',
-        // 營造廠商資訊
-        contractor_company_name: '',
-        contractor_company_id: '',
-        contractor_company_manager_name: '',
-        contractor_company_manager_phone: '',
-        // 監造單位資訊
-        supervision_company_name: '',
-        supervision_company_id: '',
-        supervision_company_manager_name: '',
-        supervision_company_manager_phone: ''
+        project_grade: ''
       };
     },
     
-    // 新增項目
+    // 新增工程項目
     async addProject() {
       if (!this.validateForm()) {
         return;
@@ -171,8 +135,8 @@ export default {
         await this.refreshProjects();
         
       } catch (error) {
-        console.error('新增項目失敗:', error);
-        toastService.error('新增項目失敗，請重試！');
+        console.error('新增工程項目失敗:', error);
+        toastService.error('新增工程項目失敗，請重試！');
       } finally {
         this.isSubmitting = false;
       }
@@ -181,7 +145,7 @@ export default {
     // 將表單數據轉換為API格式
     convertFormDataToApi(formData) {
       return {
-        username: formData.project_manager_name, // 使用工程負責人作為用戶名
+        username: formData.contractor_name, // 使用承包商名稱作為用戶名
         constructionName: formData.project_name,
         constructionLocation: formData.project_location,
         contractId: formData.contract_number,
@@ -190,10 +154,10 @@ export default {
         leadOrganization: formData.host_agency,
         constructor: formData.contractor_name,
         constructionLevel: formData.project_grade,
-        projectStaff: formData.project_manager_name,
+        projectStaff: formData.contractor_name, // 使用承包商名稱作為項目人員
         constructionStartDate: new Date().toISOString(), // 預設為當前時間
         constructionEndDate: new Date(Date.now() + parseInt(formData.construction_period || 0) * 24 * 60 * 60 * 1000).toISOString(), // 根據工期計算結束日期
-        supervisionManufacturer: formData.supervision_company_name || formData.supervision_unit
+        supervisionManufacturer: formData.supervision_unit
       };
     },
     
@@ -208,18 +172,7 @@ export default {
         { field: 'contractor_name', label: '承包商名稱' },
         { field: 'construction_period', label: '工期' },
         { field: 'project_amount', label: '工程金額' },
-        { field: 'project_grade', label: '工程等級' },
-        { field: 'project_manager_name', label: '工程負責人姓名' },
-        { field: 'quality_control_name', label: '品管人員姓名' },
-        { field: 'quality_control_license', label: '品管人員證號' },
-        { field: 'safety_officer_name', label: '勞安人員姓名' },
-        { field: 'safety_officer_license', label: '勞安人員證號' },
-        { field: 'contractor_company_name', label: '營造廠商公司名稱' },
-        { field: 'contractor_company_id', label: '營造廠商統一編號' },
-        { field: 'contractor_company_manager_name', label: '營造廠商負責人姓名' },
-        { field: 'supervision_company_name', label: '監造單位公司名稱' },
-        { field: 'supervision_company_id', label: '監造單位統一編號' },
-        { field: 'supervision_company_manager_name', label: '監造單位負責人姓名' }
+        { field: 'project_grade', label: '工程等級' }
       ];
       
       for (const { field, label } of requiredFields) {
@@ -295,7 +248,7 @@ export default {
         <div class="modal-header">
           <h5 class="modal-title">
             <i class="fa fa-project-diagram me-2"></i>
-            {{ showAddForm ? '新增項目工程' : '選擇項目工程' }}
+            {{ showAddForm ? '新增工程項目' : '選擇工程項目' }}
           </h5>
           <button type="button" class="btn-close" @click="closeModal"></button>
         </div>
@@ -391,14 +344,15 @@ export default {
             </div>
           </div>
           
-          <!-- 新增項目表單 -->
+          <!-- 新增工程項目表單 -->
           <div v-else>
             <ProjectForm 
               v-model="newProject"
+              :mode="'create'"
               :is-submitting="isSubmitting"
               :show-submit-button="false"
               :show-reset-button="false"
-              submit-button-text="新增項目"
+              submit-button-text="新增工程項目"
               @submit="addProject"
               @reset="resetForm"
             />
@@ -409,11 +363,11 @@ export default {
           <div v-if="!showAddForm" class="d-flex w-100 justify-content-between">
             <button type="button" class="btn btn-theme" @click="showAddProjectForm">
               <i class="fa fa-plus me-1"></i>
-              新增項目工程
+              新增工程項目
             </button>
             <div class="d-flex align-items-center">
               <div class="text-muted small me-3">
-                共 {{ projectStore.projectCount }} 個項目
+                共 {{ projectStore.projectCount }} 個工程項目
               </div>
               <button type="button" class="btn btn-secondary" @click="closeModal">
                 取消
@@ -426,7 +380,7 @@ export default {
             </button>
             <button type="button" class="btn btn-theme" @click="addProject" :disabled="isSubmitting">
               <i class="fa me-1" :class="{ 'fa-spin fa-spinner': isSubmitting, 'fa-save': !isSubmitting }"></i>
-              {{ isSubmitting ? '新增中...' : '新增項目' }}
+              {{ isSubmitting ? '新增中...' : '新增工程項目' }}
             </button>
           </div>
         </div>

@@ -352,29 +352,28 @@ export default {
       return size;
     },
     
-    // 獲取狀態顏色
+    // 獲取狀態樣式
     getStatusColor(status) {
       const colors = {
-        completed: 'success',
-        processing: 'warning',
-        failed: 'danger'
+        completed: 'badge border border-success text-success px-2 pt-5px pb-5px rounded fs-12px d-inline-flex align-items-center',
+        processing: 'badge border border-warning text-warning px-2 pt-5px pb-5px rounded fs-12px d-inline-flex align-items-center',
+        failed: 'badge border border-danger text-danger px-2 pt-5px pb-5px rounded fs-12px d-inline-flex align-items-center'
       };
-      return colors[status] || 'secondary';
+      return colors[status] || 'badge border border-secondary text-secondary px-2 pt-5px pb-5px rounded fs-12px d-inline-flex align-items-center';
     }
   }
 }
 </script>
 
 <template>
-  <div class="d-flex align-items-center mb-3">
-    <div>
-      <ol class="breadcrumb">
-        <li class="breadcrumb-item"><a href="javascript:;">表單生成與管理</a></li>
-        <li class="breadcrumb-item active">匯出中心</li>
-      </ol>
-      <h1 class="page-header mb-0">匯出中心</h1>
-    </div>
-  </div>
+  <PageHeader
+    title="匯出中心"
+    icon="fa fa-download"
+    :breadcrumbs="[
+      { text: '表單生成與管理', href: 'javascript:;' },
+      { text: '匯出中心', active: true }
+    ]"
+  />
 
   <div class="row gx-4">
     <div class="col-lg-12">
@@ -413,7 +412,7 @@ export default {
               >
                 <i class="fa fa-history me-2"></i>
                 匯出歷史
-                <span class="badge bg-theme text-white ms-1">{{ exportHistory.length }}</span>
+                <span class="badge border border-primary text-primary px-2 pt-5px pb-5px rounded fs-12px d-inline-flex align-items-center ms-1">{{ exportHistory.length }}</span>
               </button>
             </li>
                      </ul>
@@ -465,7 +464,7 @@ export default {
                         <span 
                           v-for="(form, index) in scenario.forms" 
                           :key="index"
-                          class="badge bg-light text-dark me-1 mb-1"
+                          class="badge border border-secondary text-secondary px-2 pt-5px pb-5px rounded fs-12px d-inline-flex align-items-center me-1 mb-1"
                         >
                           {{ form }}
                         </span>
@@ -553,7 +552,7 @@ export default {
                 <span 
                   v-for="form in selectedForms" 
                   :key="form.id"
-                  class="badge bg-theme text-white me-1 mb-1"
+                  class="badge border border-primary text-primary px-2 pt-5px pb-5px rounded fs-12px d-inline-flex align-items-center me-1 mb-1"
                 >
                   {{ form.id }} - {{ form.name }}
                   <button 
@@ -585,10 +584,10 @@ export default {
                     <div class="d-flex align-items-start">
                       <div class="flex-grow-1">
                         <div class="d-flex align-items-center mb-2">
-                          <span class="badge bg-secondary me-2">{{ form.id }}</span>
+                          <span class="badge border border-secondary text-secondary px-2 pt-5px pb-5px rounded fs-12px d-inline-flex align-items-center me-2">{{ form.id }}</span>
                           <span 
                             v-if="form.required" 
-                            class="badge bg-warning text-dark me-2"
+                            class="badge border border-warning text-warning px-2 pt-5px pb-5px rounded fs-12px d-inline-flex align-items-center me-2"
                           >
                             必選
                           </span>
@@ -644,7 +643,7 @@ export default {
                       </div>
                     </td>
                     <td>
-                      <span class="badge bg-light text-dark">{{ item.type }}</span>
+                      <span class="badge border border-secondary text-secondary px-2 pt-5px pb-5px rounded fs-12px d-inline-flex align-items-center">{{ item.type }}</span>
                     </td>
                     <td>
                       <small class="text-muted">{{ item.scenario }}</small>
@@ -657,17 +656,16 @@ export default {
                     </td>
                     <td>
                       <span 
-                        class="badge"
-                        :class="`bg-${getStatusColor(item.status)}`"
+                        :class="getStatusColor(item.status)"
                       >
                         {{ item.status === 'completed' ? '已完成' : item.status }}
                       </span>
                     </td>
                     <td>
-                      <div class="btn-group btn-group-sm">
+                      <div class="">
                         <button 
                           type="button" 
-                          class="btn btn-outline-theme"
+                          class="btn btn-sm btn-outline-theme me-1"
                           @click="downloadHistoryFile(item)"
                           :disabled="item.status !== 'completed'"
                         >
@@ -675,7 +673,7 @@ export default {
                         </button>
                         <button 
                           type="button" 
-                          class="btn btn-outline-danger"
+                          class="btn btn-sm btn-outline-danger"
                           @click="deleteHistoryItem(item)"
                         >
                           <i class="fa fa-trash"></i>
@@ -896,7 +894,7 @@ export default {
               <span 
                 v-for="(form, index) in previewData.forms" 
                 :key="index"
-                class="badge bg-light text-dark me-1 mb-1"
+                class="badge border border-secondary text-secondary px-2 pt-5px pb-5px rounded fs-12px d-inline-flex align-items-center me-1 mb-1"
               >
                 {{ form }}
               </span>
