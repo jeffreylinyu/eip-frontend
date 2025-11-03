@@ -14,6 +14,31 @@ import 'bootstrap-icons/font/bootstrap-icons.css';
 import 'bootstrap';
 import './scss/styles.scss';
 
+// Syncfusion License 註冊
+import { registerLicense, setCulture } from '@syncfusion/ej2-base'
+if (import.meta.env.VITE_SYNCFUSION_LICENSE_KEY) {
+    registerLicense(import.meta.env.VITE_SYNCFUSION_LICENSE_KEY);
+  }
+setCulture('zh-TW')
+
+// 2) 載入主題 CSS（擇一主題）- 完整載入所有相依樣式
+// 使用 Bootstrap 暗色主題
+import '@syncfusion/ej2-base/styles/bootstrap5-dark.css'
+import '@syncfusion/ej2-buttons/styles/bootstrap5-dark.css'
+import '@syncfusion/ej2-calendars/styles/bootstrap5-dark.css'
+import '@syncfusion/ej2-dropdowns/styles/bootstrap5-dark.css'
+import '@syncfusion/ej2-inputs/styles/bootstrap5-dark.css'
+import '@syncfusion/ej2-navigations/styles/bootstrap5-dark.css'
+import '@syncfusion/ej2-popups/styles/bootstrap5-dark.css'
+import '@syncfusion/ej2-splitbuttons/styles/bootstrap5-dark.css'
+import '@syncfusion/ej2-layouts/styles/bootstrap5-dark.css'
+import '@syncfusion/ej2-grids/styles/bootstrap5-dark.css'
+import '@syncfusion/ej2-treegrid/styles/bootstrap5-dark.css'
+import '@syncfusion/ej2-vue-gantt/styles/bootstrap5-dark.css'
+import '@syncfusion/ej2-vue-diagrams/styles/bootstrap5-dark.css'
+import '@syncfusion/ej2-vue-treegrid/styles/bootstrap5-dark.css'
+// Charts 使用預設樣式，不需要額外導入
+
 import App from './App.vue';
 import router from './router';
 import { useAuthStore } from '@/stores/auth';
@@ -29,6 +54,9 @@ import CardExpandToggler from '@/components/bootstrap/CardExpandToggler.vue';
 import Modal from '@/components/bootstrap/Modal.vue';
 import Drawer from '@/components/bootstrap/Drawer.vue';
 import PageHeader from '@/components/bootstrap/PageHeader.vue';
+import { TreeGridComponent, ColumnsDirective, ColumnDirective } from '@syncfusion/ej2-vue-treegrid';
+import { Edit, Toolbar, ContextMenu, Filter, Sort, Resize, Reorder } from '@syncfusion/ej2-vue-treegrid';
+import { ChartPlugin, AccumulationChartPlugin } from '@syncfusion/ej2-vue-charts';
 
 const emitter = mitt();
 const app = createApp(App);
@@ -43,6 +71,13 @@ app.component('CardExpandToggler', CardExpandToggler);
 app.component('Modal', Modal);
 app.component('Drawer', Drawer);
 app.component('PageHeader', PageHeader);
+
+// Syncfusion TreeGrid 組件（只註冊 TreeGrid，不註冊 e-columns 和 e-column，避免與 Charts 衝突）
+app.component('ejs-treegrid', TreeGridComponent);
+
+// Syncfusion Charts 插件註冊（會自動註冊 e-column 等組件）
+app.use(ChartPlugin);
+app.use(AccumulationChartPlugin);
 
 const pinia = createPinia();
 app.use(pinia);

@@ -1,4 +1,5 @@
 import { defineStore } from "pinia";
+import { computed, ref } from "vue";
 
 interface MenuItem {
   text?: string;
@@ -9,12 +10,72 @@ interface MenuItem {
   highlight?: boolean;
   children?: MenuItem[];
   label?: string;
+  isTutorial?: boolean; // 標記為教學頁面
 }
 
 export const useAppSidebarMenuStore = defineStore("appSidebarMenu", () => {
-  return [
-    // 系統核心功能
-    { text: "系統核心功能", is_header: true },
+  // 隱藏的教學頁面 URL 列表（從 localStorage 讀取）
+  const getHiddenTutorials = (): string[] => {
+    const stored = localStorage.getItem('hiddenTutorials')
+    return stored ? JSON.parse(stored) : []
+  }
+
+  const hiddenTutorials = ref<string[]>(getHiddenTutorials())
+
+  // 更新隱藏的教學頁面列表
+  const updateHiddenTutorials = (tutorials: string[]) => {
+    hiddenTutorials.value = tutorials
+    localStorage.setItem('hiddenTutorials', JSON.stringify(tutorials))
+  }
+
+  // 隱藏特定教學頁面
+  const hideTutorial = (url: string) => {
+    if (!hiddenTutorials.value.includes(url)) {
+      const updated = [...hiddenTutorials.value, url]
+      updateHiddenTutorials(updated)
+    }
+  }
+
+  // 顯示特定教學頁面
+  const showTutorial = (url: string) => {
+    const updated = hiddenTutorials.value.filter(u => u !== url)
+    updateHiddenTutorials(updated)
+  }
+
+  // 檢查特定 URL 是否被隱藏
+  const isTutorialHidden = (url: string) => {
+    return hiddenTutorials.value.includes(url)
+  }
+
+  // 過濾選單項目（移除被隱藏的教學頁面）
+  const filterTutorials = (items: MenuItem[]): MenuItem[] => {
+    return items.filter(item => {
+      // 如果是教學頁面且被隱藏，則過濾掉
+      if (item.isTutorial && item.url && isTutorialHidden(item.url)) {
+        return false
+      }
+      // 如果有子選單，遞迴過濾
+      if (item.children) {
+        item.children = filterTutorials(item.children)
+      }
+      return true
+    })
+  }
+
+  // 工程排程子選單
+  const scheduleChildren = computed(() => {
+    const children: MenuItem[] = [
+      { text: "使用教學", url: "/schedule/tutorial", isTutorial: true },
+      { text: "版本與工項管理", url: "/schedule/versions" },
+    ]
+    
+    return filterTutorials(children)
+  })
+
+  // 選單項目（使用 computed 以響應 hiddenTutorials 變化）
+  const menuItems = computed(() => [
+    // 工程儀表板
+    { text: "工程儀表板", is_header: true },
     { url: "/", icon: "bi bi-speedometer2", text: "首頁 (Dashboard)" },
 
     //基本資料維護
@@ -31,6 +92,14 @@ export const useAppSidebarMenuStore = defineStore("appSidebarMenu", () => {
     // 用戶管理
     { text: "用戶管理", is_header: true },
     { text: "用戶管理與權限", url: "/user-management", icon: "bi bi-people" },
+
+    // 工程排程
+    { text: "工程排程", is_header: true },
+    {
+      text: "工程排程管理",
+      icon: "bi bi-kanban",
+      children: scheduleChildren.value,
+    },
 
     // 工程日報表管理
     { text: "工程日報表管理", is_header: true },
@@ -60,14 +129,14 @@ export const useAppSidebarMenuStore = defineStore("appSidebarMenu", () => {
       icon: "bi bi-file-earmark-text",
       children: [
         { text: "表單匯出中心", url: "/forms/export-center" },
-        { 
-          text: "A類表單", 
+        {
+          text: "A類表單",
           children: [
             { text: "A-4 工期展延申請總表", url: "/forms/a4-download" },
             { text: "A-5 估驗請款計價單", url: "/forms/a5-download" },
             // { text: "A-5 參數化表單", url: "/forms/a5-with-params" },
             { text: "A-7 職安報備書", url: "/forms/a7-download" },
-          ]
+          ],
         },
         { text: "B類表單", url: "/forms/type-b" },
         { text: "C類表單", url: "/forms/type-c" },
@@ -108,5 +177,12 @@ export const useAppSidebarMenuStore = defineStore("appSidebarMenu", () => {
       icon: "bi bi-globe2",
       text: "網站資料爬蟲",
     },
-  ] as MenuItem[];
+  ] as MenuItem[])
+
+  // 返回數組本身（保持與原有結構兼容）+ 額外方法
+  return Object.assign(menuItems.value, {
+    hideTutorial,
+    showTutorial,
+    isTutorialHidden,
+  })
 });

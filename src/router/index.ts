@@ -80,6 +80,17 @@ const router = createRouter({
       component: () => import('../views/company/SitePersonnelManagement.vue'),
       meta: { requiresAuth: true }
     },
+    // 工程進度排程
+    {
+      path: '/schedule/versions',
+      component: () => import('../views/schedule/ScheduleEditor.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/schedule/tutorial',
+      component: () => import('../views/schedule/ScheduleTutorial.vue'),
+      meta: { requiresAuth: true }
+    },
     // 工程日報表路由
     ...dailyReportRoutes,
     { 
@@ -90,22 +101,22 @@ const router = createRouter({
 });
 
 // 路由守衛
-router.beforeEach((to, from, next) => {
-  const authStore = useAuthStore();
+// router.beforeEach((to, from, next) => {
+//   const authStore = useAuthStore();
   
-  // 需要認證的路由
-  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
-    next('/page/login');
-    return;
-  }
+//   // 需要認證的路由
+//   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
+//     next('/page/login');
+//     return;
+//   }
   
-  // 訪客專用路由（如登入頁）
-  if (to.meta.requiresGuest && authStore.isAuthenticated) {
-    next('/');
-    return;
-  }
+//   // 訪客專用路由（如登入頁）
+//   if (to.meta.requiresGuest && authStore.isAuthenticated) {
+//     next('/');
+//     return;
+//   }
   
-  next();
-});
+//   next();
+// });
 
 export default router;

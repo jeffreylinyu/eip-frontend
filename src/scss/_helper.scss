@@ -190,7 +190,7 @@ $visibility-values: (none, initial);
   	}
   }
 }
-@for $i from 2 through 9 {
+@for $i from 2 through 10 {
 	.bg-cover-#{$i}:after {
 		background-image: url('images/cover-#{$i}.jpg');
 	}

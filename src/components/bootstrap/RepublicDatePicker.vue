@@ -14,6 +14,7 @@
       placeholder="請選擇日期"
       :year-range="yearRange"
       :week-start="1"
+      teleport="body"
       @update:model-value="handleDateUpdate"
       @blur="handleBlur"
       @focus="handleFocus"
@@ -180,7 +181,7 @@ watch(() => props.modelValue, (newValue) => {
   --dp-disabled-color-text: var(--bs-secondary);
 }
 
-/* 確保顏色正確顯示的樣式覆蓋 */
+/* 確保顏色正確顯示的樣式覆蓋 - 輸入框部分 */
 .republic-date-picker :deep(.dp__main) {
   height: 35px !important;
   min-height: 35px !important;
@@ -219,89 +220,6 @@ watch(() => props.modelValue, (newValue) => {
   outline: none !important;
 }
 
-.republic-date-picker :deep(.dp__menu) {
-  background-color: var(--bs-body-bg) !important;
-  border-color: var(--bs-border-color) !important;
-  color: var(--bs-body-color) !important;
-}
-
-.republic-date-picker :deep(.dp__calendar_item) {
-  color: var(--bs-body-color) !important;
-}
-
-.republic-date-picker :deep(.dp__cell_inner) {
-  color: var(--bs-body-color) !important;
-}
-
-.republic-date-picker :deep(.dp__cell_inner:hover) {
-  background-color: rgba(var(--bs-theme-rgb), 0.1) !important;
-  color: var(--bs-theme) !important;
-}
-
-.republic-date-picker :deep(.dp__active_date) {
-  background-color: var(--bs-theme) !important;
-  color: var(--bs-white) !important;
-}
-
-.republic-date-picker :deep(.dp__today) {
-  border-color: var(--bs-theme) !important;
-  color: var(--bs-theme) !important;
-}
-
-.republic-date-picker :deep(.dp__overlay) {
-  background-color: var(--bs-body-bg) !important;
-  color: var(--bs-body-color) !important;
-}
-
-.republic-date-picker :deep(.dp__overlay_cell) {
-  color: var(--bs-body-color) !important;
-}
-
-.republic-date-picker :deep(.dp__overlay_cell:hover) {
-  background-color: rgba(var(--bs-theme-rgb), 0.1) !important;
-  color: var(--bs-theme) !important;
-}
-
-.republic-date-picker :deep(.dp__overlay_cell_active) {
-  background-color: var(--bs-theme) !important;
-  color: var(--bs-white) !important;
-}
-
-/* 年份、月份、星期幾的文字顏色 */
-.republic-date-picker :deep(.dp__month_year_row) {
-  color: var(--bs-body-color) !important;
-}
-
-.republic-date-picker :deep(.dp__month_year_select) {
-  color: var(--bs-body-color) !important;
-}
-
-.republic-date-picker :deep(.dp--year-select) {
-  color: var(--bs-body-color) !important;
-}
-
-.republic-date-picker :deep(.dp__calendar_header) {
-  color: var(--bs-body-color) !important;
-}
-
-.republic-date-picker :deep(.dp__calendar_header_item) {
-  color: var(--bs-body-color) !important;
-}
-
-.republic-date-picker :deep(.dp__month_year_wrap) {
-  color: var(--bs-body-color) !important;
-}
-
-/* 導航按鈕 */
-.republic-date-picker :deep(.dp__inner_nav) {
-  color: var(--bs-secondary) !important;
-}
-
-.republic-date-picker :deep(.dp__inner_nav:hover) {
-  background-color: rgba(var(--bs-theme-rgb), 0.1) !important;
-  color: var(--bs-theme) !important;
-}
-
 /* 輸入框圖示 */
 .republic-date-picker :deep(.dp__input_icon) {
   color: var(--bs-secondary) !important;
@@ -314,23 +232,113 @@ watch(() => props.modelValue, (newValue) => {
 .republic-date-picker :deep(.dp--clear-btn:hover) {
   color: var(--bs-danger) !important;
 }
+</style>
 
-/* 操作按鈕 */
-.republic-date-picker :deep(.dp__action_button) {
-  color: var(--bs-body-color) !important;
+<style>
+/* 全局樣式 - 用於 teleported 到 body 的下拉選單 */
+/* 下拉選單容器 */
+.dp__menu {
+  background-color: var(--bs-body-bg) !important;
   border-color: var(--bs-border-color) !important;
+  color: var(--bs-body-color) !important;
+  z-index: 9999 !important; /* 確保在 Modal 之上 */
 }
 
-.republic-date-picker :deep(.dp__action_button:hover) {
-  border-color: var(--bs-theme) !important;
+/* 日曆項目 */
+.dp__calendar_item {
+  color: var(--bs-body-color) !important;
 }
 
-.republic-date-picker :deep(.dp__action_select) {
+.dp__cell_inner {
+  color: var(--bs-body-color) !important;
+}
+
+.dp__cell_inner:hover {
+  background-color: rgba(var(--bs-theme-rgb), 0.1) !important;
+  color: var(--bs-theme) !important;
+}
+
+.dp__active_date {
   background-color: var(--bs-theme) !important;
   color: var(--bs-white) !important;
 }
 
-.republic-date-picker :deep(.dp__action_select:hover) {
+.dp__today {
+  border-color: var(--bs-theme) !important;
+  color: var(--bs-theme) !important;
+}
+
+/* 年份/月份選擇覆蓋層 */
+.dp__overlay {
+  background-color: var(--bs-body-bg) !important;
+  color: var(--bs-body-color) !important;
+}
+
+.dp__overlay_cell {
+  color: var(--bs-body-color) !important;
+}
+
+.dp__overlay_cell:hover {
+  background-color: rgba(var(--bs-theme-rgb), 0.1) !important;
+  color: var(--bs-theme) !important;
+}
+
+.dp__overlay_cell_active {
+  background-color: var(--bs-theme) !important;
+  color: var(--bs-white) !important;
+}
+
+/* 年份、月份、星期幾的文字顏色 */
+.dp__month_year_row {
+  color: var(--bs-body-color) !important;
+}
+
+.dp__month_year_select {
+  color: var(--bs-body-color) !important;
+}
+
+.dp--year-select {
+  color: var(--bs-body-color) !important;
+}
+
+.dp__calendar_header {
+  color: var(--bs-body-color) !important;
+}
+
+.dp__calendar_header_item {
+  color: var(--bs-body-color) !important;
+}
+
+.dp__month_year_wrap {
+  color: var(--bs-body-color) !important;
+}
+
+/* 導航按鈕 */
+.dp__inner_nav {
+  color: var(--bs-secondary) !important;
+}
+
+.dp__inner_nav:hover {
+  background-color: rgba(var(--bs-theme-rgb), 0.1) !important;
+  color: var(--bs-theme) !important;
+}
+
+/* 操作按鈕 */
+.dp__action_button {
+  color: var(--bs-body-color) !important;
+  border-color: var(--bs-border-color) !important;
+}
+
+.dp__action_button:hover {
+  border-color: var(--bs-theme) !important;
+}
+
+.dp__action_select {
+  background-color: var(--bs-theme) !important;
+  color: var(--bs-white) !important;
+}
+
+.dp__action_select:hover {
   background-color: var(--bs-theme) !important;
 }
 </style>

@@ -907,14 +907,13 @@ defineExpose({
 
     <!-- 變更紀錄 Modal -->
     <Modal
-      :show="showChangeModal"
+      v-model:show="showChangeModal"
       title="契約金額變更紀錄"
       icon="fa fa-history"
       size="xl"
       modal-id="contract-change-modal"
       :hide-confirm-button="true"
       cancel-text="關閉"
-      @update:show="showChangeModal = $event"
     >
       <!-- 變更紀錄表格 -->
       <div class="table-responsive">

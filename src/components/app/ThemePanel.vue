@@ -38,7 +38,8 @@ var coverList = [
 	{ name: 'Cover 6', coverThumbImage: './assets/img/cover/cover-thumb-6.jpg', coverClass: 'bg-cover-6'},
 	{ name: 'Cover 7', coverThumbImage: './assets/img/cover/cover-thumb-7.jpg', coverClass: 'bg-cover-7'},
 	{ name: 'Cover 8', coverThumbImage: './assets/img/cover/cover-thumb-8.jpg', coverClass: 'bg-cover-8'},
-	{ name: 'Cover 9', coverThumbImage: './assets/img/cover/cover-thumb-9.jpg', coverClass: 'bg-cover-9'}
+	{ name: 'Cover 9', coverThumbImage: './assets/img/cover/cover-thumb-9.jpg', coverClass: 'bg-cover-9'},
+	{ name: 'Cover 10', coverThumbImage: './assets/img/cover/cover-thumb-10.jpg', coverClass: 'bg-cover-10'},
 ]
 
 function appThemePanelToggled(event) {

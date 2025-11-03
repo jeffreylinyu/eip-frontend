@@ -876,7 +876,7 @@ onMounted(() => {
 
   <!-- 參數填寫 Modal -->
   <Modal
-    :show="showParamsModal"
+    v-model:show="showParamsModal"
     :title="getCurrentSection()?.title || '參數填寫'"
     :icon="getCurrentSection()?.icon || 'fa fa-edit'"
     size="xl"
@@ -885,7 +885,6 @@ onMounted(() => {
     :cancel-text="'取消'"
     :confirm-icon="'fa fa-save'"
     :is-loading="isSavingParams"
-    @update:show="showParamsModal = $event"
     @confirm="saveParams"
     @hide="closeParamsModal"
   >
