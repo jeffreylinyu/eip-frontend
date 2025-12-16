@@ -97,6 +97,7 @@ const testData = {
     supervision_unit: "中興工程顧問股份有限公司",
     contractor_name: "中華工程股份有限公司",
     construction_period: "180天",
+    duration_type: 'WORKING_DAYS',
     project_amount: "7500000",
     original_contract_amount: "7000000",
     current_contract_amount: "7500000",
@@ -133,6 +134,7 @@ const testData = {
     supervision_unit: "",
     contractor_name: "",
     construction_period: "120天",
+    duration_type: 'WORKING_DAYS',
     project_amount: "5000000",
     original_contract_amount: "5000000",
     current_contract_amount: "5000000",
@@ -168,6 +170,7 @@ const testData = {
     supervision_unit: "",
     contractor_name: "",
     construction_period: "",
+    duration_type: 'WORKING_DAYS',
     project_amount: "",
     project_grade: "",
     original_contract_amount: "",
@@ -227,6 +230,7 @@ const resetForm = () => {
     supervision_unit: '',
     contractor_name: '',
     construction_period: '',
+    duration_type: 'WORKING_DAYS', // 工期計算模式
     project_amount: '',
     original_contract_amount: '',
     current_contract_amount: '',
@@ -434,10 +438,6 @@ const handleSubmit = async (projectFormData: any) => {
       // 編輯模式：調用更新工程案API
       response = await updateConstruction(props.project.id, constructionRequest)
       // console.log('✅ 工程案更新成功:', response)
-      
-      // 清除該工作空間的工程案緩存，強制重新載入
-      const cacheKey = `eip-workspace-projects-${currentWorkspaceId}`
-      localStorage.removeItem(cacheKey)
       
       // 重新查詢最新的工程案資料
       await workspaceStore.getProjectsByWorkspace(currentWorkspaceId)

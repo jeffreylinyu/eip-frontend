@@ -66,15 +66,15 @@
                                      {{ item.isActive ? '啟用' : '停用' }}
                                  </span>
                              </td>
-                             <td class="text-center">
-                                 <button class="btn btn-sm btn-outline-primary me-2" @click="goToStandards(item)" title="維護標準">
-                                     <i class="fa fa-list-check"></i>
+                             <td class="text-center text-nowrap">
+                                 <button class="btn btn-sm btn-outline-primary me-2" @click="goToStandards(item)">
+                                     <i class="fa fa-list-check me-1"></i>施工抽查標準
                                  </button>
-                                 <button class="btn btn-sm btn-outline-secondary me-2" @click="editItem(item)" title="編輯">
-                                     <i class="fa fa-pen"></i>
+                                 <button class="btn btn-sm btn-outline-secondary me-2" @click="editItem(item)">
+                                     <i class="fa fa-pen me-1"></i>編輯
                                  </button>
-                                 <button class="btn btn-sm btn-outline-danger" @click="handleDelete(item)" title="刪除">
-                                     <i class="fa fa-trash"></i>
+                                 <button class="btn btn-sm btn-outline-danger" @click="handleDelete(item)">
+                                     <i class="fa fa-trash me-1"></i>刪除
                                  </button>
                              </td>
                          </tr>

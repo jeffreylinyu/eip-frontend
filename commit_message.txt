@@ -1,0 +1,25 @@
+refactor: 移除工作空間與專案緩存機制並修復相關問題
+
+主要變更：
+
+🗑️ 移除緩存機制
+- 移除工作空間列表的 localStorage 緩存（WORKSPACES_CACHE）
+- 移除專案列表的 localStorage 緩存（workspace-projects-*）
+- 改為直接從 API 獲取最新資料，確保資料即時性
+- 清理所有相關的緩存清除程式碼
+
+🐛 修復 TypeScript 編譯錯誤
+- 修復 ProjectFormModal 缺少 duration_type 屬性的錯誤
+- 修復 MasterDataManagement Modal 組件缺少 show 屬性的錯誤
+- 將 Modal 的 ref 控制改為 v-model:show 綁定
+
+✨ 功能優化
+- WorkspaceManagement 頁面進入時自動載入當前選取工作空間的專案
+- 優化 refreshData 函數，確保刷新後正確載入專案資料
+- 修正 initWorkspaces 函數調用（移除不存在的參數）
+
+📝 程式碼清理
+- 移除 BasicData.vue 中的緩存清除邏輯
+- 移除 ProjectFormModal.vue 中的緩存清除邏輯
+- 移除 FormA4Download.vue 中的緩存清除邏輯
+

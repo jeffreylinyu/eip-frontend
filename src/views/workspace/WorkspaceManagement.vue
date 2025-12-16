@@ -228,8 +228,16 @@ const refreshData = async () => {
   try {
     // 清除緩存，強制重新載入
     workspaceStore.clearAllCache()
+    workspaceStore.isInitialized = false
     await workspaceStore.initWorkspaces()
-    // initWorkspaces 內部已經會調用 loadSavedSelections，不需要重複載入工程案
+    
+    // 如果有當前選取的工作空間，重新載入其專案
+    if (workspaceStore.currentWorkspace) {
+      const currentWorkspaceId = workspaceStore.currentWorkspace.id
+      expandedWorkspaces.value.clear()
+      expandedWorkspaces.value.add(currentWorkspaceId)
+      await workspaceStore.getProjectsByWorkspace(currentWorkspaceId)
+    }
   } catch (error) {
     console.error('Failed to refresh data:', error)
   } finally {
@@ -283,19 +291,20 @@ const completedProjects = computed(() => {
 
 // 生命週期
 onMounted(async () => {
+  // 載入工作空間列表
+  await workspaceStore.initWorkspaces()
   
-  // 檢查是否已經有工作空間資料，避免重複初始化
-  if (!workspaceStore.isInitialized && workspaceStore.workspaces.length === 0 && !workspaceStore.isLoading) {
-    await workspaceStore.initWorkspaces()
-  } else {
-  }
-  
-  // 檢查是否有保存的工作空間選擇，如果有則自動選擇
-  if (workspaceStore.currentWorkspace && workspacesWithProjects.value.length > 0) {
-    const currentWorkspace = workspacesWithProjects.value.find(ws => ws.id === workspaceStore.currentWorkspace?.id)
-    if (currentWorkspace) {
-      expandedWorkspaces.value.clear()
-      expandedWorkspaces.value.add(currentWorkspace.id)
+  // 檢查是否有當前選取的工作空間，如果有則展開並載入其專案
+  if (workspaceStore.currentWorkspace) {
+    const currentWorkspaceId = workspaceStore.currentWorkspace.id
+    expandedWorkspaces.value.clear()
+    expandedWorkspaces.value.add(currentWorkspaceId)
+    
+    // 載入當前工作空間的專案
+    try {
+      await workspaceStore.getProjectsByWorkspace(currentWorkspaceId)
+    } catch (error) {
+      console.error('載入工作空間專案失敗:', error)
     }
   }
 })

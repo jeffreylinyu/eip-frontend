@@ -371,7 +371,7 @@
 
     <!-- 材料標準編輯 Modal -->
     <Modal
-      ref="materialModalRef"
+      v-model:show="showMaterialModal"
       :title="materialFormMode === 'add' ? '新增材料標準' : '編輯材料標準'"
       size="lg"
     >
@@ -477,7 +477,7 @@
 
     <!-- 施工抽查程序編輯 Modal -->
     <Modal
-      ref="workProcessModalRef"
+      v-model:show="showWorkProcessModal"
       :title="workProcessFormMode === 'add' ? '新增抽查程序' : '編輯抽查程序'"
       size="lg"
     >
@@ -627,7 +627,7 @@
 
     <!-- 刪除確認 Modal -->
     <Modal
-      ref="deleteModalRef"
+      v-model:show="showDeleteModal"
       title="確認刪除"
       size="sm"
     >
@@ -714,7 +714,7 @@ const materialPageSize = ref(10)
 const materialTotalElements = ref(0)
 const materialTotalPages = computed(() => Math.ceil(materialTotalElements.value / materialPageSize.value))
 
-const materialModalRef = ref<any>(null)
+const showMaterialModal = ref(false)
 const materialFormMode = ref<'add' | 'edit'>('add')
 const isSubmittingMaterial = ref(false)
 const materialForm = ref<Partial<PccesMaterialStandard>>({
@@ -737,7 +737,7 @@ const workProcessPageSize = ref(10)
 const workProcessTotalElements = ref(0)
 const workProcessTotalPages = computed(() => Math.ceil(workProcessTotalElements.value / workProcessPageSize.value))
 
-const workProcessModalRef = ref<any>(null)
+const showWorkProcessModal = ref(false)
 const workProcessFormMode = ref<'add' | 'edit'>('add')
 const isSubmittingWorkProcess = ref(false)
 const workProcessForm = ref<Partial<PccesWorkProcessStandard>>({
@@ -758,7 +758,7 @@ const workProcessForm = ref<Partial<PccesWorkProcessStandard>>({
 })
 
 // ========== 刪除相關 ==========
-const deleteModalRef = ref<any>(null)
+const showDeleteModal = ref(false)
 const isDeleting = ref(false)
 const deleteType = ref<'material' | 'work-process'>('material')
 const deleteItemId = ref<number | null>(null)
@@ -816,11 +816,11 @@ const openMaterialModal = (item?: PccesMaterialStandard) => {
       failureHandle: '',
     }
   }
-  materialModalRef.value?.show()
+  showMaterialModal.value = true
 }
 
 const closeMaterialModal = () => {
-  materialModalRef.value?.hide()
+  showMaterialModal.value = false
 }
 
 const submitMaterialForm = async () => {
@@ -857,7 +857,7 @@ const confirmDeleteMaterial = (item: PccesMaterialStandard) => {
   if (!item.id) return
   deleteType.value = 'material'
   deleteItemId.value = item.id
-  deleteModalRef.value?.show()
+  showDeleteModal.value = true
 }
 
 // ========== 施工抽查程序方法 ==========
@@ -919,11 +919,11 @@ const openWorkProcessModal = (item?: PccesWorkProcessStandard) => {
       remark: '',
     }
   }
-  workProcessModalRef.value?.show()
+  showWorkProcessModal.value = true
 }
 
 const closeWorkProcessModal = () => {
-  workProcessModalRef.value?.hide()
+  showWorkProcessModal.value = false
 }
 
 const submitWorkProcessForm = async () => {
@@ -960,12 +960,12 @@ const confirmDeleteWorkProcess = (item: PccesWorkProcessStandard) => {
   if (!item.id) return
   deleteType.value = 'work-process'
   deleteItemId.value = item.id
-  deleteModalRef.value?.show()
+  showDeleteModal.value = true
 }
 
 // ========== 刪除方法 ==========
 const closeDeleteModal = () => {
-  deleteModalRef.value?.hide()
+  showDeleteModal.value = false
   deleteItemId.value = null
 }
 

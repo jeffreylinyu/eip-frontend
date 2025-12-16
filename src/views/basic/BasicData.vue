@@ -150,16 +150,7 @@ const loadCurrentProjectData = async () => {
   // console.log('📋 當前工程案:', currentProject)
   
   try {
-    // 清除該工作空間的工程案緩存，確保取得最新資料
-    const cacheKey = `workspace-projects-${currentProject.workspaceId}`
-    try {
-      storage.remove(cacheKey)
-      // console.log('🗑️ 已清除工程案緩存:', cacheKey)
-    } catch (error) {
-      // console.warn('⚠️ 清除緩存失敗:', error)
-    }
-    
-    // 總是重新載入最新的工程案資料
+    // 重新載入最新的工程案資料
     // console.log('🔄 重新載入工程案資料...')
     await workspaceStore.getProjectsByWorkspace(currentProject.workspaceId)
     

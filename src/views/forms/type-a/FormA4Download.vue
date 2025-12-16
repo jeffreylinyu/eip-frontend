@@ -434,10 +434,6 @@ const saveAllExtensionRecords = async () => {
     // 更新展延後，重新查詢工程資料以取得更新後的完工日期和累計展延天數
     if (successCount > 0 && workspaceStore.currentProject) {
       try {
-        // 清除該工作空間的工程案緩存，強制重新載入
-        const cacheKey = `eip-workspace-projects-${workspaceStore.currentProject.workspaceId}`
-        localStorage.removeItem(cacheKey)
-        
         // 重新查詢最新的工程案資料
         await workspaceStore.getProjectsByWorkspace(workspaceStore.currentProject.workspaceId)
         

@@ -257,23 +257,6 @@ export const useWorkspaceStore = defineStore('workspace', () => {
 
   const getProjectsByWorkspace = async (workspaceId: string): Promise<WorkspaceProject[]> => {
     try {
-      // 先檢查 localStorage 中是否有緩存的工程案資料
-      // 先檢查 localStorage 中是否有緩存的工程案資料
-      const cacheKey = `workspace-projects-${workspaceId}`
-      const cachedData = storage.get<{ projects: WorkspaceProject[], timestamp: number }>(cacheKey)
-      
-      if (cachedData) {
-        try {
-          const { projects, timestamp } = cachedData
-          // 檢查緩存是否在 5 分鐘內（300000 毫秒）
-          if (Date.now() - timestamp < 300000) {
-            workspaceProjects.value = projects
-            return projects
-          }
-        } catch (error) {
-        }
-      }
-      
       // 調用 API 獲取工程案
       const constructions = await getConstructionsByWorkspace(workspaceId)
       
@@ -324,15 +307,6 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       
       // 更新本地狀態
       workspaceProjects.value = projects
-      
-      // 將資料緩存到 localStorage
-      try {
-        storage.set(cacheKey, {
-          projects,
-          timestamp: Date.now()
-        })
-      } catch (error) {
-      }
       
       return projects
     } catch (error) {
@@ -438,31 +412,6 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   }
 
   const initWorkspaces = async () => {
-    // 先檢查 localStorage 中是否有緩存的工作空間資料
-    const cachedData = storage.get<{ workspaces: Workspace[], timestamp: number }>(StorageKeys.WORKSPACES_CACHE)
-    
-    if (cachedData) {
-      try {
-        const { workspaces: cachedWorkspaces, timestamp } = cachedData
-        // 檢查緩存是否在 10 分鐘內（600000 毫秒）
-        if (Date.now() - timestamp < 600000) {
-          workspaces.value = cachedWorkspaces
-          isInitialized.value = true
-          
-          // 載入保存的選擇
-          await loadSavedSelections()
-          
-          // 如果沒有保存的選擇且有工作空間，設定預設工作空間
-          if (!currentWorkspace.value && workspaces.value.length > 0) {
-            setCurrentWorkspace(workspaces.value[0])
-          }
-          
-          return
-        }
-      } catch (error) {
-      }
-    }
-    
     // 如果已經初始化過，跳過重複調用
     if (isInitialized.value && workspaces.value.length > 0) {
       return
@@ -491,15 +440,6 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       }
       
       workspaces.value = workspacesList.map(transformWorkspaceFromApi)
-      
-      // 將工作空間資料緩存到 localStorage
-      try {
-        storage.set(StorageKeys.WORKSPACES_CACHE, {
-          workspaces: workspaces.value,
-          timestamp: Date.now()
-        })
-      } catch (error) {
-      }
       
       // 預加載所有工作空間的用戶信息
       const ownerIds = workspaces.value.map(ws => ws.ownerId).filter(Boolean)
