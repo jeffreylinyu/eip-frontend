@@ -3,6 +3,8 @@ import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter, RouterLink } from 'vue-router'
 import { useAppOptionStore } from '@/stores/app-option'
 import { useAuthStore } from '@/stores/auth'
+import { storage, StorageKeys } from '@/utils/storage'
+import { updateBaseURL } from '@/api/http'
 
 const router = useRouter()
 const appOption = useAppOptionStore()
@@ -16,6 +18,27 @@ const form = ref({
 
 const errorMessage = ref('')
 const rememberMe = ref(false)
+
+// 開發者測試用：自訂 API Base URL
+const customApiBaseUrl = ref<string>('')
+
+// 預設 API Base URL（用於顯示）
+const defaultApiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080'
+
+// 更新自訂 API Base URL
+const updateCustomApiBaseUrl = () => {
+	const url = customApiBaseUrl.value.trim()
+	if (url) {
+		// 儲存到 localStorage
+		storage.set(StorageKeys.CUSTOM_API_BASE_URL, url)
+		// 即時更新 HTTP 實例的 baseURL
+		updateBaseURL(url)
+	} else {
+		// 如果清空，移除 localStorage 並使用預設值
+		storage.remove(StorageKeys.CUSTOM_API_BASE_URL)
+		updateBaseURL(null)
+	}
+}
 
 // 提交表單
 const submitForm = async () => {
@@ -35,9 +58,18 @@ const submitForm = async () => {
 }
 
 onMounted(() => {
+	// 設定頁面樣式
 	appOption.appSidebarHide = true
 	appOption.appHeaderHide = true
 	appOption.appContentClass = 'p-0'
+	
+	// 載入已儲存的自訂 API Base URL
+	const savedUrl = storage.get<string>(StorageKeys.CUSTOM_API_BASE_URL)
+	if (savedUrl) {
+		customApiBaseUrl.value = savedUrl
+		// 確保 HTTP 實例使用已儲存的 URL
+		updateBaseURL(savedUrl)
+	}
 })
 
 onBeforeUnmount(() => {
@@ -97,6 +129,24 @@ onBeforeUnmount(() => {
 						/>
 						<label class="form-check-label" for="customCheck1">記住我</label>
 					</div>
+				</div>
+
+				<!-- 開發者測試用：自訂 API Base URL -->
+				<div class="mb-3 border-top pt-3">
+					<label class="form-label text-muted small">
+						<i class="fa fa-code me-1"></i>
+						API Base URL (開發人員填寫)：
+					</label>
+					<input 
+						type="text" 
+						class="form-control form-control-sm bg-white bg-opacity-5" 
+						v-model="customApiBaseUrl"
+						@input="updateCustomApiBaseUrl"
+						@blur="updateCustomApiBaseUrl"
+					/>
+					<small class="text-muted text-opacity-75">
+						留空則使用專案預設設定（{{ defaultApiBaseUrl }}）
+					</small>
 				</div>
 
 				<button 

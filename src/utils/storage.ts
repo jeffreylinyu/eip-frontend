@@ -22,6 +22,9 @@ export const StorageKeys = {
   
   // Cache
   BASIC_DATA_CACHE: 'basic_data_cache',
+  
+  // Developer
+  CUSTOM_API_BASE_URL: 'custom_api_base_url', // 開發者自訂 API Base URL
 } as const;
 
 type StorageKey = typeof StorageKeys[keyof typeof StorageKeys];
