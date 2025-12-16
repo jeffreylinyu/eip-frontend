@@ -7,6 +7,7 @@ import apexchart from '@/components/plugins/Apexcharts.vue'
 import chartjs from '@/components/plugins/Chartjs.vue'
 
 import CalendarWidget from '@/components/dashboard/CalendarWidget.vue'
+import WeatherWidget from '@/components/dashboard/WeatherWidget.vue'
 import { useAppVariableStore } from '@/stores/app-variable'
 
 const appVariable = useAppVariableStore()
@@ -424,6 +425,11 @@ onBeforeUnmount(() => {
         
         <!-- 儀表板內容 -->
         <div>
+          
+          <!-- 天氣資訊 -->
+          <div class="d-flex justify-content-end mb-4">
+            <WeatherWidget />
+          </div>
           
           <!-- 專案關鍵指標卡片 -->
           <div class="row g-4 mb-4">

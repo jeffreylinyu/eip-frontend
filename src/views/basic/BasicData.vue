@@ -2,6 +2,7 @@
 import { ref, reactive, computed, watch, watchEffect, onMounted, onBeforeUnmount, nextTick, getCurrentInstance } from 'vue'
 import { onBeforeRouteLeave } from 'vue-router'
 import { useWorkspaceStore } from '@/stores/workspace'
+import { storage } from '@/utils/storage'
 import { updateConstruction, transformProjectFormToConstructionRequest } from '@/api/construction'
 import tagsInput from '@/components/plugins/TagsInput.vue'
 import quillEditor from '@/components/plugins/QuillEditor.vue'
@@ -27,6 +28,7 @@ const formData = ref({
   supervision_unit: "",
   contractor_name: "",
   construction_period: "",
+  duration_type: "WORKING_DAYS", // 工期計算模式
   project_amount: "",
   current_contract_amount: "",
   // 工程類別/屬性
@@ -102,22 +104,22 @@ const checkForChanges = () => {
   }
 }
 
-// 手動載入工程項目資料的方法
-const loadProjectData = async (project: any) => {
+// 手動載入工程案資料的方法
+const loadProjectData = async (project: any, forceRefresh: boolean = false) => {
   if (!project) {
     return
   }
   
-  // console.log('🔄 手動載入工程項目資料:', project)
+  // console.log('🔄 手動載入工程案資料:', project, 'forceRefresh:', forceRefresh)
   
-  // 檢查是否需要重新載入 API 資料
+  // 如果需要強制刷新或資料不存在，重新載入 API 資料
   const existingProject = workspaceStore.workspaceProjects.find(p => p.id === project.id)
-  if (existingProject) {
-    // 如果資料已存在，直接映射
-    mapProjectDataToForm(existingProject)
-  } else {
-    // 如果資料不存在，才重新載入 API
+  if (forceRefresh || !existingProject) {
+    // 強制重新載入最新的工程案資料
     await loadCurrentProjectData()
+  } else {
+    // 如果資料已存在且不需要強制刷新，直接映射
+    mapProjectDataToForm(existingProject)
   }
   
   // 更新原始數據
@@ -125,52 +127,61 @@ const loadProjectData = async (project: any) => {
   hasUnsavedChanges.value = false
 }
 
-// 監聽當前工程項目變化 - 使用更安全的方式
+// 監聽當前工程案變化 - 使用更安全的方式
 watch(() => workspaceStore.currentProject, async (newProject, oldProject) => {
   if (newProject && newProject.id !== oldProject?.id) {
-    // console.log('🔄 檢測到工程項目變更，重新載入資料:', newProject)
-    await loadProjectData(newProject)
+    // console.log('🔄 檢測到工程案變更，重新載入資料:', newProject)
+    await loadProjectData(newProject, true) // 工程案變更時也強制刷新
   }
 }, { immediate: false })
 
 
 // 方法定義
-// 載入當前工程項目資料
+// 載入當前工程案資料
 const loadCurrentProjectData = async () => {
-  // console.log('🔄 開始載入當前工程項目資料...')
+  // console.log('🔄 開始載入當前工程案資料...')
   
   if (!workspaceStore.currentProject) {
-    // console.log('⚠️ 沒有選中的工程項目')
+    // console.log('⚠️ 沒有選中的工程案')
     return
   }
   
   const currentProject = workspaceStore.currentProject
-  // console.log('📋 當前工程項目:', currentProject)
+  // console.log('📋 當前工程案:', currentProject)
   
   try {
-    // 總是重新載入最新的工程項目資料
-    // console.log('🔄 重新載入工程項目資料...')
+    // 清除該工作空間的工程案緩存，確保取得最新資料
+    const cacheKey = `workspace-projects-${currentProject.workspaceId}`
+    try {
+      storage.remove(cacheKey)
+      // console.log('🗑️ 已清除工程案緩存:', cacheKey)
+    } catch (error) {
+      // console.warn('⚠️ 清除緩存失敗:', error)
+    }
+    
+    // 總是重新載入最新的工程案資料
+    // console.log('🔄 重新載入工程案資料...')
     await workspaceStore.getProjectsByWorkspace(currentProject.workspaceId)
     
-    // 重新獲取更新後的工程項目
+    // 重新獲取更新後的工程案
     const updatedProject = workspaceStore.workspaceProjects.find(p => p.id === currentProject.id)
     if (updatedProject) {
-      // console.log('✅ 工程項目資料已更新，映射到表單:', updatedProject)
+      // console.log('✅ 工程案資料已更新，映射到表單:', updatedProject)
       mapProjectDataToForm(updatedProject)
     } else {
-      // console.log('⚠️ 找不到更新後的工程項目，使用現有資料')
+      // console.log('⚠️ 找不到更新後的工程案，使用現有資料')
       mapProjectDataToForm(currentProject)
     }
   } catch (error) {
-    console.error('❌ 載入工程項目資料失敗:', error)
+    console.error('❌ 載入工程案資料失敗:', error)
     // 如果 API 載入失敗，至少映射現有資料
-    // console.log('🔄 使用現有工程項目資料...')
+    // console.log('🔄 使用現有工程案資料...')
     mapProjectDataToForm(currentProject)
-    proxy.$toast.error('載入工程項目資料失敗')
+    proxy.$toast.error('載入工程案資料失敗')
   }
 }
 
-// 將工程項目資料映射到表單
+// 將工程案資料映射到表單
 const mapProjectDataToForm = (project: any) => {
   // 設置更新標誌，防止觸發 watch 監聽器
   isUpdatingFormData.value = true
@@ -186,7 +197,8 @@ const mapProjectDataToForm = (project: any) => {
       host_agency: project.hostAgency || '',
       supervision_unit: project.supervisionUnit || '',
       contractor_name: project.contractorName || '',
-      construction_period: project.constructionPeriod || '',
+      construction_period: project.constructionPeriod || project.workDay || '',
+      duration_type: project.durationType || 'WORKING_DAYS', // 工期計算模式
       project_amount: project.budget || '',
       current_contract_amount: project.currentContractAmount || project.budget || '',
       // 工程類別/屬性
@@ -279,7 +291,7 @@ const handleProjectFormSubmit = async (data: any) => {
 const submitFormData = async (data?: any) => {
   const currentProject = workspaceStore.currentProject
   if (!currentProject) {
-    throw new Error('沒有選擇工程項目')
+    throw new Error('沒有選擇工程案')
   }
   
   const currentWorkspace = workspaceStore.currentWorkspace
@@ -290,30 +302,107 @@ const submitFormData = async (data?: any) => {
   // 使用表單數據或傳入的數據
   const formDataToSubmit = data || formData.value
   
-  // 轉換為API請求格式
-  const constructionRequest = transformProjectFormToConstructionRequest(formDataToSubmit, currentWorkspace.id)
+  // 取得公司 ID（從當前工作空間）
+  const companyId = currentWorkspace.companyId
+  if (!companyId) {
+    throw new Error('無法獲取公司 ID，請確保工作空間包含公司資訊')
+  }
   
-  // 調用更新工程項目API
+  // 轉換為API請求格式
+  const constructionRequest = transformProjectFormToConstructionRequest(formDataToSubmit, currentWorkspace.id, companyId)
+  
+  // 調用更新工程案API
   const response = await updateConstruction(currentProject.id, constructionRequest)
   
-  // 清除該工作空間的工程項目緩存，強制重新載入
-  const cacheKey = `eip-workspace-projects-${currentWorkspace.id}`
-  localStorage.removeItem(cacheKey)
+  // 檢查後端回傳的資料結構
+  // 後端可能直接回傳完整的 Construction 物件，或包在 construction 欄位中，或只回傳 CreateConstructionResponse
+  let updatedConstruction: any = null
   
-  // 重新查詢最新的工程項目資料
-  await workspaceStore.getProjectsByWorkspace(currentWorkspace.id)
+  // 方式 1：後端直接回傳完整的 Construction 物件（包含 constructionId, constructionName 等欄位）
+  if (response && (response as any).constructionId) {
+    updatedConstruction = response
+  }
+  // 方式 2：後端回傳的資料包在 construction 欄位中
+  else if (response && (response as any).construction) {
+    updatedConstruction = (response as any).construction
+  }
   
-  // 獲取更新後的工程項目資料
-  const updatedProject = workspaceStore.workspaceProjects.find(p => p.id === currentProject.id)
-  if (updatedProject) {
-    // 更新 workspace store 中的工程項目
+  // 如果 API 回傳了完整的工程案資料，直接使用回傳的資料
+  if (updatedConstruction) {
+    // 後端有回傳完整的工程案資料，直接使用
+    
+    // 將 Construction 格式轉換為 WorkspaceProject 格式
+    const updatedProject: any = {
+      id: updatedConstruction.constructionId || currentProject.id,
+      name: updatedConstruction.constructionName || '',
+      workspaceId: currentWorkspace.id,
+      location: updatedConstruction.constructionLocation || '',
+      budget: updatedConstruction.constructionBudget?.toString() || '',
+      status: 'IN_PROGRESS' as const,
+      signDate: updatedConstruction.signDate || '',
+      startDate: updatedConstruction.constructionStartDate || '',
+      endDate: updatedConstruction.constructionEndDate || '',
+      progress: 0,
+      managerName: updatedConstruction.leadOrganization || '',
+      description: `${updatedConstruction.constructionType || ''} - ${updatedConstruction.budgetFrom || ''}`,
+      contractNumber: updatedConstruction.contractId || '',
+      hostAgency: updatedConstruction.leadOrganization || '',
+      constructionPeriod: updatedConstruction.workDay?.toString() || '',
+      currentContractAmount: updatedConstruction.currentContractAmount?.toString() || updatedConstruction.constructionBudget?.toString() || '',
+      projectCategory: updatedConstruction.constructionType || '',
+      paymentMethod: updatedConstruction.payMethod || '',
+      advancePaymentRatio: updatedConstruction.prePayRatio?.toString() || '',
+      retentionRatio: updatedConstruction.retainedRatio?.toString() || '',
+      inspectionMethods: [
+        updatedConstruction.segmentedAcceptance ? '分段驗收' : '',
+        updatedConstruction.partialAcceptance ? '部分驗收' : '',
+        updatedConstruction.completionAcceptance ? '竣工驗收' : ''
+      ].filter(Boolean),
+      insurancePolicyNumber: updatedConstruction.insuranceId || '',
+      insuranceCompany: updatedConstruction.insuranceCompanyName || '',
+      insuranceStartDate: updatedConstruction.insuranceStartDate || '',
+      insuranceEndDate: updatedConstruction.insuranceEndDate || '',
+      insuranceType: updatedConstruction.insuranceType || '',
+      constructionConfirmDate: updatedConstruction.constructionConfirmDate || '',
+      constructionProjectId: updatedConstruction.constructionProjectId || '',
+      segmentedAcceptance: updatedConstruction.segmentedAcceptance || false,
+      partialAcceptance: updatedConstruction.partialAcceptance || false,
+      completionAcceptance: updatedConstruction.completionAcceptance || false,
+      signLevel: updatedConstruction.signLevel || [],
+      workDay: updatedConstruction.workDay || 0,
+      durationType: updatedConstruction.durationType || 'WORKING_DAYS',
+      totalExtensionDays: updatedConstruction.totalExtensionDays || 0 // 累計展延天數
+    }
+    
+    // 更新 workspace store 中的工程案
     workspaceStore.updateProject(currentProject.id, updatedProject)
-
-    // 更新當前選中的工程項目
+    
+    // 更新當前選中的工程案
     workspaceStore.setCurrentProject(updatedProject, false)
     
     // 手動更新表單資料
     mapProjectDataToForm(updatedProject)
+  } else {
+    // 後端沒有回傳完整的工程案資料，重新查詢列表
+  // 清除該工作空間的工程案緩存，強制重新載入
+  const cacheKey = `eip-workspace-projects-${currentWorkspace.id}`
+  storage.remove(cacheKey)
+  
+  // 重新查詢最新的工程案資料
+  await workspaceStore.getProjectsByWorkspace(currentWorkspace.id)
+  
+  // 獲取更新後的工程案資料
+  const updatedProject = workspaceStore.workspaceProjects.find(p => p.id === currentProject.id)
+  if (updatedProject) {
+    // 更新 workspace store 中的工程案
+    workspaceStore.updateProject(currentProject.id, updatedProject)
+
+    // 更新當前選中的工程案
+    workspaceStore.setCurrentProject(updatedProject, false)
+    
+    // 手動更新表單資料
+    mapProjectDataToForm(updatedProject)
+    }
   }
   
   return response
@@ -347,7 +436,7 @@ const resetForm = () => {
 // 生命週期
 onMounted(async () => {
   console.log('🚀 BasicData: 頁面載入...')
-  console.log('🔧 工程項目編輯器開啟 - 模式: edit')
+  console.log('🔧 工程案編輯器開啟 - 模式: edit')
   
   // 等待工作空間初始化完成
   if (!workspaceStore.isInitialized) {
@@ -358,12 +447,12 @@ onMounted(async () => {
     console.log('✅ BasicData: 工作空間已初始化')
   }
   
-  // 手動載入工程項目資料
+  // 手動載入工程案資料（強制刷新，查詢最新資料）
   if (workspaceStore.currentProject) {
-    console.log('🔄 BasicData: 開始載入工程項目資料...')
-    await loadProjectData(workspaceStore.currentProject)
+    console.log('🔄 BasicData: 開始載入工程案資料（強制刷新）...')
+    await loadProjectData(workspaceStore.currentProject, true) // 傳入 true 強制刷新
   } else {
-    console.log('⚠️ BasicData: 沒有當前工程項目')
+    console.log('⚠️ BasicData: 沒有當前工程案')
   }
   
   // 添加瀏覽器離開頁面提示

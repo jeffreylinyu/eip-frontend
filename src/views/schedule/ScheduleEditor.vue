@@ -11,15 +11,32 @@
         ]"
       />
       <div class="d-flex align-items-center gap-2">
-        <VersionSelector />
+        <VersionSelector ref="versionSelectorRef" />
       </div>
     </div>
 
     <!-- 項目編輯區域 -->
     <div class="content-area flex-fill">
-      <div v-if="!currentVersion" class="text-center py-5 text-muted">
-        <i class="fa fa-inbox fa-3x mb-3"></i>
-        <p>請先選擇一個版本</p>
+      <div v-if="!currentVersion" class="empty-state-wrapper d-flex flex-column align-items-center justify-content-center h-100">
+        <div class="empty-state-content text-center">
+          <i class="fa fa-folder-open fa-4x mb-4 text-muted"></i>
+          <h4 class="mb-3">尚未選擇版本</h4>
+          <p class="text-muted mb-4">請先選擇現有版本或建立新版本以開始使用</p>
+          <div class="d-flex gap-3 justify-content-center">
+            <button 
+              class="btn btn-primary btn-lg"
+              @click="openVersionSelector"
+            >
+              <i class="fa fa-list me-2"></i>選擇版本
+            </button>
+            <button 
+              class="btn btn-outline-primary btn-lg"
+              @click="openCreateVersion"
+            >
+              <i class="fa fa-plus me-2"></i>建立新版本
+            </button>
+          </div>
+        </div>
       </div>
 
       <div v-else class="h-100 d-flex flex-column">
@@ -396,6 +413,7 @@ import RepublicDatePicker from "@/components/bootstrap/RepublicDatePicker.vue";
 import GanttEditor from "./components/GanttEditor.vue";
 import CpmChart from "./components/CpmChart.vue";
 import CurveChart from "./components/CurveChart.vue";
+
 import {
   TreeGridComponent,
   ColumnsDirective,
@@ -525,9 +543,25 @@ L10n.load({
   },
 });
 
-const scheduleStore = useScheduleStore();
 const fileInput = ref<HTMLInputElement | null>(null);
 const searchText = ref("");
+const versionSelectorRef = ref<InstanceType<typeof VersionSelector> | null>(null);
+
+const scheduleStore = useScheduleStore();
+
+// 開啟版本選擇器
+const openVersionSelector = () => {
+  if (versionSelectorRef.value && typeof versionSelectorRef.value.openModal === 'function') {
+    versionSelectorRef.value.openModal();
+  }
+};
+
+// 開啟建立版本對話框
+const openCreateVersion = () => {
+  if (versionSelectorRef.value && typeof versionSelectorRef.value.openCreate === 'function') {
+    versionSelectorRef.value.openCreate();
+  }
+};
 
 // 版本建立功能已移至 VersionSelector 組件
 
@@ -1689,6 +1723,25 @@ updateTreeGridData();
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+/* 空狀態樣式 */
+.empty-state-wrapper {
+  min-height: 400px;
+  padding: 3rem;
+}
+
+.empty-state-content {
+  max-width: 500px;
+}
+
+.empty-state-content h4 {
+  color: var(--bs-body-color);
+  font-weight: 600;
+}
+
+.empty-state-content .fa-folder-open {
+  opacity: 0.4;
 }
 
 /* Tab 樣式 */

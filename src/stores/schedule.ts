@@ -1,6 +1,7 @@
 // src/stores/schedule.ts
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { storage, StorageKeys } from '@/utils/storage'
 
 export interface ScheduleVersion {
   id: number
@@ -42,9 +43,9 @@ const CURRENT_VERSION_KEY = 'eip-schedule-current-version'
 // 從 localStorage 載入資料
 const loadFromStorage = (): ScheduleVersion[] => {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY)
+    const stored = storage.get<ScheduleVersion[]>(StorageKeys.SCHEDULE_DATA)
     if (stored) {
-      const parsed = JSON.parse(stored)
+      const parsed = stored // storage.get 已經解析了 JSON
       const ensureUid = (obj: any) => {
         if (!obj) return
         if (!obj.Uid) {
@@ -89,7 +90,7 @@ const loadFromStorage = (): ScheduleVersion[] => {
 // 儲存到 localStorage
 const saveToStorage = (versions: ScheduleVersion[]) => {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(versions))
+    storage.set(StorageKeys.SCHEDULE_DATA, versions)
     console.log('排程資料已儲存到 localStorage')
   } catch (error) {
     console.error('儲存排程資料失敗:', error)
@@ -99,8 +100,8 @@ const saveToStorage = (versions: ScheduleVersion[]) => {
 // 載入當前版本 ID
 const loadCurrentVersionId = (): number => {
   try {
-    const stored = localStorage.getItem(CURRENT_VERSION_KEY)
-    return stored ? parseInt(stored) : 1
+    const stored = storage.get<string | number>(StorageKeys.SCHEDULE_VERSION)
+    return stored ? Number(stored) : 1
   } catch (error) {
     console.error('載入當前版本 ID 失敗:', error)
     return 1
@@ -110,7 +111,7 @@ const loadCurrentVersionId = (): number => {
 // 儲存當前版本 ID
 const saveCurrentVersionId = (id: number) => {
   try {
-    localStorage.setItem(CURRENT_VERSION_KEY, id.toString())
+    storage.set(StorageKeys.SCHEDULE_VERSION, id)
   } catch (error) {
     console.error('儲存當前版本 ID 失敗:', error)
   }

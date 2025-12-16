@@ -486,7 +486,7 @@ onMounted(() => {
                   <i class="fa fa-hard-hat"></i>
                 </div>
                 <h6 class="text-muted">尚未邀請營造單位</h6>
-                <p class="text-muted small">邀請營造單位來管理工程項目</p>
+                <p class="text-muted small">邀請營造單位來管理工程案</p>
               </div>
             </div>
           </div>
@@ -639,7 +639,7 @@ onMounted(() => {
             <i class="fa fa-users"></i>
           </div>
           <h6 class="text-muted">尚未邀請第三方公司</h6>
-          <p class="text-muted small">邀請第三方公司來協助工程項目</p>
+          <p class="text-muted small">邀請第三方公司來協助工程案</p>
         </div>
       </div>
     </div>

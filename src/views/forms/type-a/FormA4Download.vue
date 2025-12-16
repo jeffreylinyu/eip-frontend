@@ -7,7 +7,7 @@ import CardHeader from '@/components/bootstrap/CardHeader.vue'
 import Toast from '@/components/bootstrap/Toast.vue'
 import Modal from '@/components/bootstrap/Modal.vue'
 import { formA4Api, downloadBlobAsFile, formatFileSize, handleApiError, type FormDownloadRequest } from '@/api/forms'
-import { getExtensionList, createExtension, updateExtension, deleteExtension, batchUpdateExtensions, type ExtensionRecord } from '@/api/extension'
+import { getExtensionList, createExtension, updateExtension, deleteExtension, batchUpdateExtensions, type ExtensionRecord, ExtensionStatus, ExtensionType } from '@/api/extension'
 
 const workspaceStore = useWorkspaceStore()
 
@@ -316,7 +316,10 @@ const hasRecordChanged = (currentRecord: ExtensionRecord, originalRecord: Extens
     currentRecord.verifyNumber !== originalRecord.verifyNumber ||
     currentRecord.extendContent !== originalRecord.extendContent ||
     currentRecord.completionDateAfterExtension !== originalRecord.completionDateAfterExtension ||
-    currentRecord.extendDay !== originalRecord.extendDay
+    currentRecord.extendDay !== originalRecord.extendDay ||
+    currentRecord.status !== originalRecord.status ||
+    currentRecord.extensionType !== originalRecord.extensionType ||
+    JSON.stringify(currentRecord.specificDates || []) !== JSON.stringify(originalRecord.specificDates || [])
   )
 }
 
@@ -324,7 +327,7 @@ const hasRecordChanged = (currentRecord: ExtensionRecord, originalRecord: Extens
 const saveAllExtensionRecords = async () => {
   const constructionId = workspaceStore.currentProject?.id || ''
   if (!constructionId) {
-    showToast('錯誤', '請先選擇工程項目', 'error')
+    showToast('錯誤', '請先選擇工程案', 'error')
     return
   }
 
@@ -341,13 +344,29 @@ const saveAllExtensionRecords = async () => {
       
       if (isNewRecord) {
         // 新增記錄
-        const createRequest = {
+        const createRequest: any = {
           constructionId: constructionId,
           verifyNumber: record.verifyNumber || '',
           extendReason: record.extendReason || '',
           extendContent: record.extendContent,
-          extendDate: formatDateToISO(record.completionDateAfterExtension || record.extendDate || new Date()),
-          extendDay: record.extendDay
+          status: record.status || ExtensionStatus.DRAFT,
+          extensionType: record.extensionType || ExtensionType.ADD_DAYS
+        }
+        
+        // 根據展延模式添加對應的欄位
+        if (record.extensionType === ExtensionType.SPECIFIC_DATES) {
+          // 模式 A：指定日期免計
+          createRequest.specificDates = record.specificDates || []
+          // 如果沒有 extendDay，根據 specificDates 數量計算
+          if (!record.extendDay && record.specificDates && record.specificDates.length > 0) {
+            createRequest.extendDay = record.specificDates.length
+          } else {
+            createRequest.extendDay = record.extendDay || 0
+          }
+        } else {
+          // 模式 B：直接追加天數
+          createRequest.extendDate = formatDateToISO(record.completionDateAfterExtension || record.extendDate || new Date())
+          createRequest.extendDay = record.extendDay || 0
         }
         
         const response = await createExtension(createRequest)
@@ -366,12 +385,33 @@ const saveAllExtensionRecords = async () => {
         
         if (hasChanged) {
           // 只有有變更的記錄才調用更新 API
-          const updateRequest = {
+          const updateRequest: any = {
             extensionId: record.extensionId,
             verifyNumber: record.verifyNumber || '',
-            extendContent: record.extendContent,
-            extendDate: formatDateToISO(record.completionDateAfterExtension || record.extendDate || new Date()),
-            extendDay: record.extendDay
+            extendContent: record.extendContent
+          }
+          
+          // 如果狀態有變更，允許更新（管理員/主管）
+          if (record.status) {
+            updateRequest.status = record.status
+          }
+          
+          // 根據展延模式添加對應的欄位
+          if (record.extensionType === ExtensionType.SPECIFIC_DATES) {
+            // 模式 A：指定日期免計
+            updateRequest.extensionType = ExtensionType.SPECIFIC_DATES
+            updateRequest.specificDates = record.specificDates || []
+            // 如果沒有 extendDay，根據 specificDates 數量計算
+            if (!record.extendDay && record.specificDates && record.specificDates.length > 0) {
+              updateRequest.extendDay = record.specificDates.length
+            } else {
+              updateRequest.extendDay = record.extendDay || 0
+            }
+          } else {
+            // 模式 B：直接追加天數
+            updateRequest.extensionType = ExtensionType.ADD_DAYS
+            updateRequest.extendDate = formatDateToISO(record.completionDateAfterExtension || record.extendDate || new Date())
+            updateRequest.extendDay = record.extendDay || 0
           }
           
           await updateExtension(updateRequest)
@@ -390,6 +430,31 @@ const saveAllExtensionRecords = async () => {
   // 顯示詳細的保存結果
   if (errorCount === 0) {
     showToast('保存成功', `成功保存 ${successCount} 筆記錄（新增 ${createCount} 筆，修改 ${updateCount} 筆）`, 'success')
+    
+    // 更新展延後，重新查詢工程資料以取得更新後的完工日期和累計展延天數
+    if (successCount > 0 && workspaceStore.currentProject) {
+      try {
+        // 清除該工作空間的工程案緩存，強制重新載入
+        const cacheKey = `eip-workspace-projects-${workspaceStore.currentProject.workspaceId}`
+        localStorage.removeItem(cacheKey)
+        
+        // 重新查詢最新的工程案資料
+        await workspaceStore.getProjectsByWorkspace(workspaceStore.currentProject.workspaceId)
+        
+        // 獲取更新後的工程案資料
+        const updatedProject = workspaceStore.workspaceProjects.find(p => p.id === workspaceStore.currentProject?.id)
+        if (updatedProject) {
+          // 更新當前選中的工程案（不觸發重新載入）
+          workspaceStore.setCurrentProject(updatedProject, false)
+          
+          // 重新載入展延列表以取得更新後的資料
+          await loadExtensionHistory()
+        }
+      } catch (error) {
+        console.error('重新載入工程資料失敗:', error)
+        // 即使重新載入失敗，也不影響保存成功的提示
+      }
+    }
   } else {
     showToast('部分保存失敗', `成功 ${successCount} 筆，失敗 ${errorCount} 筆`, 'warning')
   }
@@ -450,7 +515,11 @@ const addExtensionRecord = () => {
     extendDay: 0,
     approvalDocumentNumber: '',
     completionDateAfterExtension: '',
-    isApproved: false // 預設為未通過
+    isApproved: false, // 預設為未通過
+    // 新增欄位（審核流程與計算模式）
+    status: ExtensionStatus.DRAFT, // 預設為草稿
+    extensionType: ExtensionType.ADD_DAYS, // 預設為直接追加天數
+    specificDates: [] // 指定日期陣列（模式 A 使用）
   }
   
   // 添加到本地列表，用戶可以直接在表格中編輯
@@ -483,6 +552,106 @@ const updateExtensionRecord = (extensionId: string, field: string, value: any) =
   const record = extensionHistory.value.find(r => r.extensionId === extensionId)
   if (record) {
     (record as any)[field] = value
+    
+    // 如果變更了展延模式，需要重置相關欄位
+    if (field === 'extensionType') {
+      if (value === ExtensionType.SPECIFIC_DATES) {
+        // 切換到指定日期模式，清空 extendDay，初始化 specificDates
+        record.extendDay = 0
+        record.specificDates = record.specificDates || []
+      } else {
+        // 切換到追加天數模式，清空 specificDates
+        record.specificDates = []
+      }
+    }
+    
+    // 如果變更了 specificDates，自動計算 extendDay
+    if (field === 'specificDates' && record.extensionType === ExtensionType.SPECIFIC_DATES) {
+      record.extendDay = Array.isArray(value) ? value.length : 0
+    }
+  }
+}
+
+// 獲取狀態標籤樣式
+const getStatusBadgeClass = (status?: ExtensionStatus) => {
+  switch (status) {
+    case ExtensionStatus.APPROVED:
+      return 'border-success text-success'
+    case ExtensionStatus.PENDING:
+      return 'border-warning text-warning'
+    case ExtensionStatus.REJECTED:
+      return 'border-danger text-danger'
+    case ExtensionStatus.DRAFT:
+    default:
+      return 'border-secondary text-secondary'
+  }
+}
+
+// 獲取狀態文字
+const getStatusText = (status?: ExtensionStatus) => {
+  switch (status) {
+    case ExtensionStatus.APPROVED:
+      return '已核准'
+    case ExtensionStatus.PENDING:
+      return '待審核'
+    case ExtensionStatus.REJECTED:
+      return '已退回'
+    case ExtensionStatus.DRAFT:
+    default:
+      return '草稿'
+  }
+}
+
+// 獲取展延模式標籤樣式
+const getExtensionTypeBadgeClass = (extensionType?: ExtensionType) => {
+  switch (extensionType) {
+    case ExtensionType.SPECIFIC_DATES:
+      return 'border-info text-info'
+    case ExtensionType.ADD_DAYS:
+    default:
+      return 'border-primary text-primary'
+  }
+}
+
+// 獲取展延模式文字
+const getExtensionTypeText = (extensionType?: ExtensionType) => {
+  switch (extensionType) {
+    case ExtensionType.SPECIFIC_DATES:
+      return '指定日期免計'
+    case ExtensionType.ADD_DAYS:
+    default:
+      return '直接追加天數'
+  }
+}
+
+// 添加指定日期
+const addSpecificDate = (extensionId: string, dateString: string) => {
+  if (!dateString) return
+  
+  const record = extensionHistory.value.find(r => r.extensionId === extensionId)
+  if (record) {
+    // 確保 specificDates 陣列存在
+    if (!record.specificDates) {
+      record.specificDates = []
+    }
+    
+    // 轉換為 ISO 格式並檢查是否已存在
+    const isoDate = `${dateString}T00:00:00`
+    if (!record.specificDates.includes(isoDate)) {
+      record.specificDates.push(isoDate)
+      // 自動計算 extendDay
+      record.extendDay = record.specificDates.length
+    }
+  }
+}
+
+// 移除指定日期
+const removeSpecificDate = (extensionId: string, index: number) => {
+  const record = extensionHistory.value.find(r => r.extensionId === extensionId)
+  if (record && record.specificDates) {
+    record.specificDates.splice(index, 1)
+    // 自動計算 extendDay
+    record.extendDay = record.specificDates.length
   }
 }
 
@@ -532,7 +701,11 @@ const loadExtensionHistory = async () => {
           extendDate: record.extendDate ? formatISOToDateTimeLocal(record.extendDate) : '',
           // 展延後竣工日期只顯示日期，不顯示時間
           completionDateAfterExtension: record.completionDateAfterExtension ? formatISOToDate(record.completionDateAfterExtension) : (record.extendDate ? formatISOToDate(record.extendDate) : ''),
-          verifyNumber: record.verifyNumber || ''
+          verifyNumber: record.verifyNumber || '',
+          // 確保新欄位有預設值
+          status: record.status || ExtensionStatus.DRAFT,
+          extensionType: record.extensionType || ExtensionType.ADD_DAYS,
+          specificDates: record.specificDates || []
         }
       })
       
@@ -553,7 +726,7 @@ const loadExtensionHistory = async () => {
   }
 }
 
-// 監聽工程項目變化
+// 監聽工程案變化
 watch(() => workspaceStore.currentProject, (newProject) => {
   if (newProject && newProject.id) {
     loadExtensionHistory()
@@ -914,28 +1087,39 @@ onMounted(() => {
             <table class="table table-bordered table-hover">
             <thead class="table-light">
               <tr>
-                <th style="width: 100px;">是否通過</th>
+                <th style="width: 80px;">序次</th>
+                <th style="width: 100px;">狀態</th>
+                <th style="width: 120px;">展延模式</th>
                 <th>展延因素概要</th>
                 <th style="width: 120px;">核准文號</th>
                 <th style="width: 100px;">展延天數</th>
+                <th style="width: 120px;">展延後總工期</th>
+                <th style="width: 150px;">展延後預計完工日期</th>
                 <th style="width: 150px;">展延後竣工日期</th>
               </tr>
             </thead>
               <tbody v-if="!isLoadingExtensionHistory">
                 <tr v-for="(record, index) in extensionHistory" :key="record.extensionId">
+                  <td class="text-center">
+                    <span class="badge border border-primary text-primary">
+                      {{ record.sequence || (index + 1) }}
+                    </span>
+                  </td>
                   <td>
-                    <div class="form-check d-flex justify-content-center">
-                      <input 
-                        class="form-check-input" 
-                        type="checkbox" 
-                        :id="`approved-${record.extensionId}`"
-                        v-model="record.isApproved"
-                        @change="updateExtensionRecord(record.extensionId, 'isApproved', ($event.target as HTMLInputElement).checked)"
-                      />
-                      <label class="form-check-label small ms-1" :for="`approved-${record.extensionId}`">
-                        通過
-                      </label>
-                    </div>
+                    <span 
+                      class="badge border px-2 pt-5px pb-5px rounded fs-12px d-inline-flex align-items-center"
+                      :class="getStatusBadgeClass(record.status)"
+                    >
+                      {{ getStatusText(record.status) }}
+                    </span>
+                  </td>
+                  <td>
+                    <span 
+                      class="badge border px-2 pt-5px pb-5px rounded fs-12px d-inline-flex align-items-center"
+                      :class="getExtensionTypeBadgeClass(record.extensionType)"
+                    >
+                      {{ getExtensionTypeText(record.extensionType) }}
+                    </span>
                   </td>
                   <td>
                     <textarea 
@@ -945,20 +1129,110 @@ onMounted(() => {
                       @input="updateExtensionRecord(record.extensionId, 'extendContent', ($event.target as HTMLTextAreaElement).value)"
                       placeholder="請輸入展延因素概要"
                     ></textarea>
+                    <!-- 展延模式選擇 -->
+                    <div class="mt-2">
+                      <label class="form-label small mb-1">展延計算模式：</label>
+                      <div class="d-flex gap-3">
+                        <div class="form-check">
+                          <input 
+                            class="form-check-input" 
+                            type="radio" 
+                            :name="`extensionType-${record.extensionId}`"
+                            :id="`extensionType-add-${record.extensionId}`"
+                            :value="ExtensionType.ADD_DAYS"
+                            :checked="record.extensionType === ExtensionType.ADD_DAYS || !record.extensionType"
+                            @change="updateExtensionRecord(record.extensionId, 'extensionType', ExtensionType.ADD_DAYS)"
+                          />
+                          <label class="form-check-label small" :for="`extensionType-add-${record.extensionId}`">
+                            直接追加天數
+                          </label>
+                        </div>
+                        <div class="form-check">
+                          <input 
+                            class="form-check-input" 
+                            type="radio" 
+                            :name="`extensionType-${record.extensionId}`"
+                            :id="`extensionType-specific-${record.extensionId}`"
+                            :value="ExtensionType.SPECIFIC_DATES"
+                            :checked="record.extensionType === ExtensionType.SPECIFIC_DATES"
+                            @change="updateExtensionRecord(record.extensionId, 'extensionType', ExtensionType.SPECIFIC_DATES)"
+                          />
+                          <label class="form-check-label small" :for="`extensionType-specific-${record.extensionId}`">
+                            指定日期免計
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                    <!-- 指定日期選擇器（模式 A） -->
+                    <div v-if="record.extensionType === ExtensionType.SPECIFIC_DATES" class="mt-2">
+                      <label class="form-label small mb-1">選取免計日期：</label>
+                      <div class="d-flex flex-column gap-2">
+                        <input 
+                          type="date" 
+                          class="form-control form-control-sm" 
+                          @change="addSpecificDate(record.extensionId, ($event.target as HTMLInputElement).value)"
+                          placeholder="選擇日期"
+                        />
+                        <div v-if="record.specificDates && record.specificDates.length > 0" class="d-flex flex-wrap gap-1">
+                          <span 
+                            v-for="(date, idx) in record.specificDates" 
+                            :key="idx"
+                            class="badge border border-info text-info px-2 pt-5px pb-5px rounded fs-11px d-inline-flex align-items-center gap-1"
+                          >
+                            {{ formatISOToDate(date) }}
+                            <button 
+                              type="button"
+                              class="btn-close btn-close-sm"
+                              style="font-size: 0.6rem;"
+                              @click="removeSpecificDate(record.extensionId, idx)"
+                              aria-label="移除"
+                            ></button>
+                          </span>
+                        </div>
+                        <small class="text-muted">已選取 {{ record.specificDates?.length || 0 }} 天</small>
+                      </div>
+                    </div>
+                    <!-- 狀態選擇（管理員模式） -->
+                    <div class="mt-2">
+                      <label class="form-label small mb-1">審核狀態：</label>
+                      <select 
+                        class="form-select form-select-sm" 
+                        :value="record.status || ExtensionStatus.DRAFT"
+                        @change="updateExtensionRecord(record.extensionId, 'status', ($event.target as HTMLSelectElement).value as ExtensionStatus)"
+                      >
+                        <option :value="ExtensionStatus.DRAFT">草稿</option>
+                        <option :value="ExtensionStatus.PENDING">待審核</option>
+                        <option :value="ExtensionStatus.APPROVED">已核准</option>
+                        <option :value="ExtensionStatus.REJECTED">已退回</option>
+                      </select>
+                    </div>
                   </td>
                   <td>
                     <input 
                       type="text" 
                       class="form-control form-control-sm" 
-                      :class="{ 'bg-light': !record.isApproved }"
+                      :class="{ 'bg-light': record.status !== ExtensionStatus.APPROVED }"
                       v-model="record.verifyNumber"
                       @input="updateExtensionRecord(record.extensionId, 'verifyNumber', ($event.target as HTMLInputElement).value)"
                       placeholder="核准文號"
-                      :disabled="!record.isApproved"
+                      :disabled="record.status !== ExtensionStatus.APPROVED"
                     />
                   </td>
                   <td>
+                    <!-- 根據模式顯示不同的輸入方式 -->
+                    <div v-if="record.extensionType === ExtensionType.SPECIFIC_DATES" class="d-flex align-items-center gap-2">
                     <input 
+                        type="text" 
+                        class="form-control form-control-sm" 
+                        :value="record.specificDates?.length || 0"
+                        readonly
+                        style="width: 60px; cursor: not-allowed;"
+                        title="根據選取的日期數量自動計算"
+                      />
+                      <span class="small text-muted">天</span>
+                    </div>
+                    <input 
+                      v-else
                       type="number" 
                       class="form-control form-control-sm" 
                       v-model="record.extendDay"
@@ -968,6 +1242,41 @@ onMounted(() => {
                   </td>
                   <td>
                     <input 
+                      type="text" 
+                      class="form-control form-control-sm bg-light" 
+                      :value="record.totalDurationAfterExtension || ''"
+                      readonly
+                      placeholder="系統計算"
+                      style="cursor: not-allowed;"
+                    />
+                  </td>
+                  <td>
+                    <input 
+                      type="text" 
+                      class="form-control form-control-sm bg-light" 
+                      :value="record.calculatedEndDateAfterExtension ? formatISOToDate(record.calculatedEndDateAfterExtension) : ''"
+                      readonly
+                      placeholder="系統計算"
+                      style="cursor: not-allowed;"
+                    />
+                  </td>
+                  <td>
+                    <!-- 模式 A：顯示選取的日期列表 -->
+                    <div v-if="record.extensionType === ExtensionType.SPECIFIC_DATES" class="small">
+                      <div v-if="record.specificDates && record.specificDates.length > 0" class="d-flex flex-wrap gap-1">
+                        <span 
+                          v-for="(date, idx) in record.specificDates" 
+                          :key="idx"
+                          class="badge border border-secondary text-secondary px-2 pt-5px pb-5px rounded fs-11px"
+                        >
+                          {{ formatISOToDate(date) }}
+                        </span>
+                      </div>
+                      <span v-else class="text-muted">未選取日期</span>
+                    </div>
+                    <!-- 模式 B：顯示日期輸入 -->
+                    <input 
+                      v-else
                       type="date" 
                       class="form-control form-control-sm" 
                       v-model="record.completionDateAfterExtension"

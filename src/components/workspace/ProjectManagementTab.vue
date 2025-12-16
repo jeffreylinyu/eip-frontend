@@ -199,11 +199,11 @@ const closeProjectForm = () => {
 const confirmDeleteProject = (project: WorkspaceProject) => {
   const workspace = workspaceStore.workspaces.find(ws => ws.id === project.workspaceId)
   if (!workspace || (workspace.role !== 'OWNER' && workspace.role !== 'ADMIN')) {
-    toastService.error('您沒有權限刪除此工程項目')
+    toastService.error('您沒有權限刪除此工程案')
     return
   }
 
-  if (confirm(`確定要刪除工程項目 "${project.name}" 嗎？\n這個操作將無法復原。`)) {
+  if (confirm(`確定要刪除工程案 "${project.name}" 嗎？\n這個操作將無法復原。`)) {
     deleteProject(project)
   }
 }
@@ -216,10 +216,10 @@ const deleteProject = async (project: WorkspaceProject) => {
     
     // 使用store方法移除
     workspaceStore.removeProject(project.id)
-    toastService.success('工程項目刪除成功')
+    toastService.success('工程案刪除成功')
   } catch (error) {
     console.error('Delete project error:', error)
-    toastService.error('刪除工程項目失敗')
+    toastService.error('刪除工程案失敗')
   } finally {
     isLoading.value = false
   }
@@ -288,22 +288,22 @@ const onProjectFormSubmit = async (formData: any) => {
     }
 
     if (editingProject.value) {
-      // 編輯工程項目
+      // 編輯工程案
       workspaceStore.updateProject(editingProject.value.id, projectData)
-      toastService.success('工程項目更新成功')
+      toastService.success('工程案更新成功')
     } else {
-      // 新增工程項目
+      // 新增工程案
       const newProject: WorkspaceProject = {
         id: `proj-${Date.now()}`,
         ...projectData
       }
       workspaceStore.addProject(newProject)
-      toastService.success('工程項目創建成功')
+      toastService.success('工程案創建成功')
     }
     closeProjectForm()
   } catch (error) {
     console.error('Project form submit error:', error)
-    toastService.error(editingProject.value ? '更新工程項目失敗' : '創建工程項目失敗')
+    toastService.error(editingProject.value ? '更新工程案失敗' : '創建工程案失敗')
   } finally {
     isLoading.value = false
   }
@@ -370,7 +370,7 @@ onBeforeUnmount(() => {
         :disabled="isLoading"
       >
         <i class="fa fa-plus me-2"></i>
-        新增工程項目
+        新增工程案
       </button>
     </div>
 
@@ -490,7 +490,7 @@ onBeforeUnmount(() => {
                 @click="openEditProject(project)"
               >
                 <i class="fa fa-edit me-1"></i>
-                編輯工程項目
+                編輯工程案
               </button>
             </div>
           </card-body>
@@ -509,11 +509,11 @@ onBeforeUnmount(() => {
     <!-- 無結果 -->
     <div v-if="!isLoading && filteredProjects.length === 0" class="text-center py-5">
       <i class="fa fa-search fa-3x text-muted mb-3"></i>
-      <h5 class="text-muted">找不到相關工程項目</h5>
-      <p class="text-muted">請嘗試調整搜索條件或創建新的工程項目</p>
+      <h5 class="text-muted">找不到相關工程案</h5>
+      <p class="text-muted">請嘗試調整搜索條件或創建新的工程案</p>
       <button class="btn btn-outline-theme" @click="openAddProject">
         <i class="fa fa-plus me-2"></i>
-        創建工程項目
+        創建工程案
       </button>
     </div>
   </div>
@@ -521,7 +521,7 @@ onBeforeUnmount(() => {
   <!-- 項目表單Modal -->
   <Modal
     v-model:show="showProjectForm"
-    :title="editingProject ? '編輯工程項目' : '新增工程項目'"
+    :title="editingProject ? '編輯工程案' : '新增工程案'"
     icon="fa fa-project-diagram"
     size="xl"
     modal-id="projectFormModal"

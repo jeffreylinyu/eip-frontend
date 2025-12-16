@@ -1,12 +1,12 @@
 /**
- * 工程項目表單驗證規則
- * 定義所有工程項目相關表單的驗證規則
+ * 工程案表單驗證規則
+ * 定義所有工程案相關表單的驗證規則
  */
 
 import type { FieldValidationRules } from './validation'
 
 /**
- * 工程項目基本資訊驗證規則
+ * 工程案基本資訊驗證規則
  */
 export const projectFormValidationRules: FieldValidationRules = {
   // 工程基本資訊
@@ -84,12 +84,13 @@ export const projectFormValidationRules: FieldValidationRules = {
   },
   
   completion_date: {
-    required: true,
-    date: true,
-    dateRange: {
-      startField: 'start_date',
-      endField: 'completion_date',
-    },
+    // 完工日期已改為只讀，由系統自動計算，不再需要驗證
+    // required: true,
+    // date: true,
+    // dateRange: {
+    //   startField: 'start_date',
+    //   endField: 'completion_date',
+    // },
   },
   
   // 付款方式

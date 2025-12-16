@@ -53,6 +53,18 @@ const currentProjectName = computed(() => workspaceStore.getCurrentProjectName);
 const hasCurrentWorkspace = computed(() => workspaceStore.hasCurrentWorkspace);
 const hasCurrentProject = computed(() => workspaceStore.hasCurrentProject);
 
+// 檢查是否為系統管理員
+const hasAdminPermission = computed(() => {
+	const user = authStore.user;
+	if (!user) return false;
+	return user.role === 'ADMIN' || user.role === 'SUPER_ADMIN';
+});
+
+// 檢查是否為系統維護模式（路由以 /admin 開頭）
+const isAdminMode = computed(() => {
+	return router.currentRoute.value.path.startsWith('/admin');
+});
+
 // 完整的品牌文字（用於 title 屬性）
 const getFullBrandText = computed(() => {
   if (hasCurrentWorkspace.value && hasCurrentProject.value) {
@@ -97,7 +109,25 @@ workspaceStore.initWorkspaces();
 		
 		<!-- BEGIN brand -->
 		<div class="brand">
-			<RouterLink to="/" class="brand-logo">
+			<!-- 系統維護模式顯示 -->
+			<template v-if="isAdminMode">
+				<div class="d-flex align-items-center w-100">
+					<span class="brand-img me-2">
+						<span class="brand-img-text text-warning">
+							<i class="fa fa-shield-alt"></i>
+						</span>
+					</span>
+					<div class="brand-text-container flex-grow-1">
+						<span class="brand-text text-warning fw-semibold">系統維護模式</span>
+					</div>
+					<RouterLink to="/" class="btn btn-sm btn-outline-secondary ms-2">
+						<i class="fa fa-arrow-left me-1"></i>
+						退出系統維護模式
+					</RouterLink>
+				</div>
+			</template>
+			<!-- 一般模式顯示 -->
+			<RouterLink v-else to="/" class="brand-logo">
 				<span class="brand-img">
 					<span class="brand-img-text text-theme">H</span>
 				</span>
@@ -128,11 +158,12 @@ workspaceStore.initWorkspaces();
 					<div class="menu-icon"><i class="fa fa-cogs nav-icon"></i></div>
 				</a>
 				<div class="dropdown-menu fade dropdown-menu-end w-280px p-0 mt-1">
+					<!-- 一般設定區塊 -->
 					<RouterLink to="/workspace/management" class="dropdown-item d-flex align-items-center py-2 px-3 text-decoration-none">
 						<i class="fa fa-sitemap text-primary me-3 fs-16px"></i>
 						<div>
 							<div class="fw-semibold">工作空間管理</div>
-							<small class="text-muted">設定與切換工作空間和工程項目</small>
+							<small class="text-muted">設定與切換工作空間和工程案</small>
 						</div>
 					</RouterLink>
 					
@@ -143,6 +174,18 @@ workspaceStore.initWorkspaces();
 							<small class="text-muted">管理公司信息和人員</small>
 						</div>
 					</RouterLink>
+					
+					<!-- 系統維護（僅管理員可見） -->
+					<template v-if="hasAdminPermission">
+						<div class="dropdown-divider my-1"></div>
+						<RouterLink to="/admin/pcces-catalog" class="dropdown-item d-flex align-items-center py-2 px-3 text-decoration-none">
+							<i class="fa fa-cog text-warning me-3 fs-16px"></i>
+							<div>
+								<div class="fw-semibold">系統維護</div>
+								<small class="text-muted">進入系統層級管理</small>
+							</div>
+						</RouterLink>
+					</template>
 				</div>
 			</div>
 			<div class="menu-item dropdown dropdown-mobile-full">

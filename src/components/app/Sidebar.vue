@@ -1,11 +1,26 @@
 <script setup lang="ts">
+import { computed } from 'vue';
+import { useRoute } from 'vue-router';
 import { useAppSidebarMenuStore } from '@/stores/app-sidebar-menu';
+import { useAppAdminSidebarMenuStore } from '@/stores/app-admin-sidebar-menu';
 import { useAppOptionStore } from '@/stores/app-option';
 import { onMounted } from 'vue';
 import SidebarNav from '@/components/app/SidebarNav.vue';
 
+const route = useRoute();
 const appSidebarMenu = useAppSidebarMenuStore();
+const appAdminSidebarMenu = useAppAdminSidebarMenuStore();
 const appOption = useAppOptionStore();
+
+// 判斷是否為系統管理頁面
+const isAdminPage = computed(() => {
+  return route.path.startsWith('/admin');
+});
+
+// 根據路由選擇使用哪個側邊欄
+const currentSidebarMenu = computed(() => {
+  return isAdminPage.value ? appAdminSidebarMenu : appSidebarMenu;
+});
 
 function appSidebarMobileToggled() {
 	appOption.appSidebarMobileToggled = !appOption.appSidebarMobileToggled;
@@ -62,7 +77,7 @@ onMounted(() => {
 	<div id="sidebar" class="app-sidebar">
 		<perfect-scrollbar class="app-sidebar-content">
 			<div class="menu">
-				<template v-for="menu in appSidebarMenu">
+				<template v-for="menu in currentSidebarMenu">
 					<div class="menu-header" v-if="menu.is_header">{{ menu.text }}</div>
 					<div class="menu-divider" v-else-if="menu.is_divider"></div>
 					<template v-else>

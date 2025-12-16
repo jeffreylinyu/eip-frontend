@@ -105,7 +105,7 @@
           @click="completeReport"
           :disabled="isLoading"
         >
-          <i class="fa fa-check me-1"></i>完成日報表
+          <i class="fa fa-check me-1"></i>完成日誌
         </button>
       </div>
     </div>

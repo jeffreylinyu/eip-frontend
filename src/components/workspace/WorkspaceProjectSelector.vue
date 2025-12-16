@@ -76,12 +76,12 @@ const toggleWorkspace = async (workspaceId: string) => {
   } else {
     expandedWorkspaces.value.add(workspaceId);
     
-    // 當展開工作空間時，載入該工作空間的工程項目
+    // 當展開工作空間時，載入該工作空間的工程案
     try {
       loadingProjects.value.add(workspaceId);
       await workspaceStore.getProjectsByWorkspace(workspaceId);
     } catch (error) {
-      console.error('載入工作空間工程項目失敗:', error);
+      console.error('載入工作空間工程案失敗:', error);
     } finally {
       loadingProjects.value.delete(workspaceId);
     }
@@ -114,7 +114,7 @@ const goToManagement = () => {
 };
 
 const getProjectsByWorkspace = (workspaceId: string) => {
-  // 從本地狀態獲取工程項目，而不是調用 async 方法
+  // 從本地狀態獲取工程案，而不是調用 async 方法
   return workspaceStore.workspaceProjects.filter(p => p.workspaceId === workspaceId);
 };
 
@@ -172,12 +172,12 @@ onMounted(async () => {
   if (workspaceStore.currentWorkspace) {
     expandedWorkspaces.value.add(workspaceStore.currentWorkspace.id);
     
-    // 預載入當前工作空間的工程項目
+    // 預載入當前工作空間的工程案
     try {
       loadingProjects.value.add(workspaceStore.currentWorkspace.id);
       await workspaceStore.getProjectsByWorkspace(workspaceStore.currentWorkspace.id);
     } catch (error) {
-      console.error('預載入工程項目失敗:', error);
+      console.error('預載入工程案失敗:', error);
     } finally {
       loadingProjects.value.delete(workspaceStore.currentWorkspace.id);
     }
@@ -312,12 +312,12 @@ watch(
                     <i
                       class="fa fa-project-diagram text-muted me-2 fs-14px"
                     ></i>
-                    <span class="small">{{ workspace.projectCount }} 工程項目</span>
+                    <span class="small">{{ workspace.projectCount }} 工程案</span>
                   </div>
                 </div>
               </div>
 
-              <!-- 工程項目列表 -->
+              <!-- 工程案列表 -->
               <div
                 v-if="expandedWorkspaces.has(workspace.id)"
                 class="projects-section mt-3 pt-3 border-top"
@@ -327,10 +327,10 @@ watch(
                   <div class="spinner-border spinner-border-sm text-theme me-2" role="status">
                     <span class="visually-hidden">載入中...</span>
                   </div>
-                  <span class="text-muted small">載入工程項目中...</span>
+                  <span class="text-muted small">載入工程案中...</span>
                 </div>
                 
-                <!-- 工程項目列表 -->
+                <!-- 工程案列表 -->
                 <div
                   v-else-if="getProjectsByWorkspace(workspace.id).length > 0"
                   class="row g-2"
@@ -438,7 +438,7 @@ watch(
           </span>
           <span v-else class="text-warning">
             <i class="fa fa-exclamation-triangle me-1"></i>
-            請選擇工程項目
+            請選擇工程案
           </span>
         </div>
         <div class="d-flex gap-2">

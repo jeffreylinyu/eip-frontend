@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { ref, watch, computed, nextTick } from 'vue'
+import { useRouter } from 'vue-router'
+import { useWorkspaceStore } from '@/stores/workspace'
 import { useValidation } from '@/composables/useValidation'
 import { projectFormValidationRules } from '@/utils/projectValidationRules'
-import { formatNumber } from '@/utils/format'
+import { formatNumber, toRepublicYear } from '@/utils/format'
 import RepublicDatePicker from '@/components/bootstrap/RepublicDatePicker.vue'
 import Modal from '@/components/bootstrap/Modal.vue'
+import { calculateEndDate } from '@/api/construction'
 
 // Props
 const props = defineProps<{
@@ -32,6 +35,12 @@ const propValues = computed(() => ({
   ...props
 }))
 
+// Router
+const router = useRouter()
+
+// Workspace Store（用於獲取當前工程編號）
+const workspaceStore = useWorkspaceStore()
+
 // Emits
 const emit = defineEmits<{
   'update:modelValue': [value: any]
@@ -47,6 +56,7 @@ const formData = ref({
   project_location: "",
   host_agency: "",
   construction_period: "",
+  duration_type: "WORKING_DAYS", // 工期計算模式：CALENDAR_DAYS（日曆天）或 WORKING_DAYS（工作天）
   project_amount: "",
   // 契約金額相關
   current_contract_amount: "",
@@ -93,6 +103,134 @@ const isReadonlyMode = computed(() => propValues.value.mode === 'readonly')
 
 // Modal 狀態
 const showChangeModal = ref(false)
+
+// 完工日期計算相關
+const calculatedEndDate = ref<string>('')
+const isCalculatingEndDate = ref(false)
+
+// 計算完工日期
+const calculateCompletionDate = async () => {
+  if (!formData.value.start_date || !formData.value.construction_period) {
+    calculatedEndDate.value = ''
+    return
+  }
+  
+  const startDate = formData.value.start_date
+  const durationDays = parseInt(formData.value.construction_period) || 0
+  
+  if (durationDays <= 0) {
+    calculatedEndDate.value = ''
+    return
+  }
+  
+  // constructionId 是必填的，需要從 props、modelValue 或 workspace store 獲取
+  const constructionId = props.modelValue?.constructionId 
+    || props.modelValue?.id 
+    || workspaceStore.currentProject?.id
+  
+  // 如果是創建模式，可能還沒有 constructionId，需要先創建工程案才能計算
+  // 或者使用一個臨時的 constructionId（如果後端支援）
+  if (!constructionId && isCreateMode.value) {
+    // 創建模式下，如果還沒有 constructionId，無法計算
+    // 可以選擇不計算，或者使用預設值
+    calculatedEndDate.value = ''
+    return
+  }
+  
+  if (!constructionId) {
+    console.warn('無法計算完工日期：缺少工程編號', {
+      modelValue: props.modelValue,
+      currentProject: workspaceStore.currentProject
+    })
+    calculatedEndDate.value = ''
+    return
+  }
+  
+  // 獲取 durationType（可選）
+  // 如果用戶在表單中選擇了 durationType，就傳遞它
+  // 如果沒有選擇或為空，不傳遞，讓後端使用工程的預設值
+  const durationType = formData.value.duration_type 
+    ? (formData.value.duration_type as 'CALENDAR_DAYS' | 'WORKING_DAYS')
+    : undefined
+  
+  isCalculatingEndDate.value = true
+  try {
+    // 如果提供了 durationType，會使用提供的值
+    // 如果未提供，後端會使用工程的 durationType 或預設值 WORKING_DAYS
+    const result = await calculateEndDate(constructionId, startDate, durationDays, durationType)
+    calculatedEndDate.value = result.completionDate
+    // 更新表單數據中的完工日期（用於顯示）
+    formData.value.completion_date = result.completionDate
+  } catch (error) {
+    console.error('計算完工日期失敗:', error)
+    calculatedEndDate.value = ''
+  } finally {
+    isCalculatingEndDate.value = false
+  }
+}
+
+// 監聽開工日期、工期和計算模式的變化，自動計算完工日期
+watch(
+  () => [formData.value.start_date, formData.value.construction_period, formData.value.duration_type],
+  () => {
+    if (isCreateMode.value || isEditMode.value) {
+      // 只在創建或編輯模式時計算
+      calculateCompletionDate()
+    }
+  },
+  { immediate: false }
+)
+
+// 監聽 modelValue 變化時，如果有完工日期，顯示它
+watch(
+  () => props.modelValue?.completion_date,
+  (newVal) => {
+    if (newVal && (isEditMode.value || isReadonlyMode.value)) {
+      // 編輯或只讀模式下，如果有完工日期，直接顯示（來自後端）
+      calculatedEndDate.value = newVal
+      formData.value.completion_date = newVal
+    }
+  },
+  { immediate: true }
+)
+
+// 格式化完工日期為民國年月日
+const formatCompletionDateToRepublic = (dateString: string | null | undefined): string => {
+  if (!dateString) return ''
+  
+  try {
+    const date = new Date(dateString)
+    if (isNaN(date.getTime())) return dateString
+    
+    const year = date.getFullYear()
+    const republicYear = toRepublicYear(year)
+    const month = date.getMonth() + 1
+    const day = date.getDate()
+    
+    return `民國${republicYear}年${month}月${day}日`
+  } catch (error) {
+    return dateString
+  }
+}
+
+// 計算屬性：格式化後的完工日期
+const formattedCompletionDate = computed(() => {
+  const dateValue = calculatedEndDate.value || formData.value.completion_date
+  return formatCompletionDateToRepublic(dateValue)
+})
+
+// 累計展延天數（從 modelValue 或 workspaceStore 獲取）
+const totalExtensionDays = computed(() => {
+  return props.modelValue?.totalExtensionDays 
+    || workspaceStore.currentProject?.totalExtensionDays 
+    || 0
+})
+
+// 總工期計算（原工期 + 累計展延天數）
+const totalDuration = computed(() => {
+  const originalPeriod = parseInt(formData.value.construction_period) || 0
+  return originalPeriod + totalExtensionDays.value
+})
 
 // 變更紀錄假資料
 const mockContractChanges = ref([
@@ -429,7 +567,7 @@ defineExpose({
           </div>
         </div>
         
-        <!-- 第三列：訂約日期，開工日期，完工日期，工期（天） -->
+        <!-- 第三列：訂約日期，開工日期，工期（天），完工日期 -->
         <div class="row g-3 mb-3">
           <div class="col-lg-3 col-md-6 col-sm-12" style="max-width: 250px;">
             <label class="form-label" for="sign_date"
@@ -466,31 +604,96 @@ defineExpose({
             />
           </div>
           <div class="col-lg-3 col-md-6 col-sm-12" style="max-width: 250px;">
-            <label class="form-label" for="completion_date"
-              >完工日期 <span class="text-danger">*</span></label
-            >
-            <RepublicDatePicker
-              id="completion_date"
-              aria-label="完工日期"
-              v-model="formData.completion_date"
-              :input-class="getFieldClass('completion_date')"
-              :disabled="propValues.isSubmitting || isReadonlyMode"
-              :show-error="validation.hasError('completion_date')"
-              :error-message="validation.getFieldError('completion_date')"
-              :use-republic-year="true"
-              @update:model-value="handleFieldInput('completion_date')"
-              @blur="handleFieldBlur('completion_date')"
-            />
-          </div>
-          <div class="col-lg-3 col-md-6 col-sm-12" style="max-width: 250px;">
-            <label class="form-label">工期（天）</label>
+            <label class="form-label">原合約工期（天）</label>
             <input
               type="number"
               class="form-control"
               v-model="formData.construction_period"
               name="construction_period"
               placeholder="請輸入工期"
+              :disabled="propValues.isSubmitting || isReadonlyMode"
             />
+            <!-- 展延資訊顯示（只讀模式或編輯模式時顯示） -->
+            <div v-if="(isEditMode || isReadonlyMode) && totalExtensionDays > 0" class="mt-2">
+              <div class="d-flex flex-column gap-1 small text-muted">
+                <div>
+                  <i class="fa fa-calendar-plus me-1"></i>
+                  累計展延天數：<span class="text-warning fw-bold">{{ totalExtensionDays }}</span> 天
+                </div>
+                <div>
+                  <i class="fa fa-calculator me-1"></i>
+                  總工期：<span class="text-primary fw-bold">{{ totalDuration }}</span> 天
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-3 col-md-6 col-sm-12" style="max-width: 250px;">
+            <label class="form-label">
+              工期計算模式
+              <i class="fa fa-info-circle text-muted ms-1" 
+                 title="日曆天：以自然日曆計算，包含週六、週日及國定假日&#10;工作天：僅計算實際可施工的日子，排除週末和假日"
+                 style="font-size: 0.875rem; cursor: help;"></i>
+            </label>
+            <select
+              class="form-select"
+              v-model="formData.duration_type"
+              :disabled="propValues.isSubmitting || isReadonlyMode"
+            >
+              <option value="WORKING_DAYS">工作天</option>
+              <option value="CALENDAR_DAYS">日曆天</option>
+            </select>
+            <small class="form-text text-muted d-block mt-1">
+              <span v-if="formData.duration_type === 'WORKING_DAYS'">
+                <i class="fa fa-info-circle me-1"></i>
+                僅計算實際可施工的日子，排除週末和假日
+              </span>
+              <span v-else>
+                <i class="fa fa-info-circle me-1"></i>
+                以自然日曆計算，包含週六、週日及國定假日
+              </span>
+            </small>
+          </div>
+          <div class="col-lg-3 col-md-6 col-sm-12" style="max-width: 250px;">
+            <label class="form-label" for="completion_date">
+              完工日期
+              <i class="fa fa-info-circle text-muted ms-1" 
+                 title="此日期由系統根據開工日期和工作天數自動計算"
+                 style="font-size: 0.875rem;"></i>
+            </label>
+            <div class="input-group">
+              <input
+                type="text"
+                class="form-control"
+                id="completion_date"
+                :value="formattedCompletionDate"
+                readonly
+                placeholder="自動計算"
+                style="background-color: var(--bs-secondary-bg); cursor: not-allowed;"
+              />
+              <span v-if="isCalculatingEndDate" class="input-group-text">
+                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+              </span>
+              <span v-else-if="formattedCompletionDate" class="input-group-text">
+                <i class="fa fa-calendar-check text-success"></i>
+              </span>
+            </div>
+            <small class="form-text text-muted d-block mt-1">
+              <i class="fa fa-info-circle me-1"></i>
+              根據開工日期和總工期自動計算
+              <span v-if="totalExtensionDays > 0" class="text-warning">
+                （含展延 {{ totalExtensionDays }} 天）
+              </span>
+              （包含
+              <a 
+                href="javascript:void(0)" 
+                class="text-primary text-decoration-underline"
+                @click.prevent="router.push('/calendar')"
+                style="cursor: pointer;"
+              >
+                假日設定
+              </a>
+              ）
+            </small>
           </div>
         </div>
 
@@ -795,7 +998,7 @@ defineExpose({
         </h6>
         <div class="row mb-3">
           <div class="col-12">
-            <p class="text-muted mb-3">設定工程項目的簽核層級，按層級順序進行審核。<strong>層級數字越小代表職位越高</strong>，例如：1-局長、2-副局長、3-技正、4-課長、5-承辦、6-協辦。</p>
+            <p class="text-muted mb-3">設定工程案的簽核層級，按層級順序進行審核。<strong>層級數字越小代表職位越高</strong>，例如：1-局長、2-副局長、3-技正、4-課長、5-承辦、6-協辦。</p>
             
             <div class="sign-level-list">
               <div class="row g-3 mb-3">

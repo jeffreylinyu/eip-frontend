@@ -65,11 +65,25 @@
                   <i class="fa fa-check me-1"></i>使用
                 </button>
                 <button 
+                  class="btn btn-sm btn-outline-info"
+                  @click="handleDuplicateVersion(version)"
+                  title="複製版本"
+                >
+                  <i class="fa fa-copy"></i>
+                </button>
+                <button 
                   class="btn btn-sm btn-outline-secondary"
                   @click="handleEditVersion(version)"
                   title="編輯版本"
                 >
                   <i class="fa fa-edit"></i>
+                </button>
+                <button 
+                  class="btn btn-sm btn-outline-danger"
+                  @click="handleDeleteVersion(version)"
+                  title="刪除版本"
+                >
+                  <i class="fa fa-trash"></i>
                 </button>
               </div>
             </div>
@@ -154,6 +168,31 @@
       <button class="btn btn-primary" @click="handleCreate" :disabled="!createForm.name">建立</button>
     </template>
   </Modal>
+
+  <!-- 刪除確認對話框 -->
+  <Modal
+    v-model:show="showDeleteConfirm"
+    title="確認刪除版本"
+    :backdrop="true"
+    icon="fa fa-exclamation-triangle"
+  >
+    <template #body>
+      <div v-if="deletingVersion">
+        <p class="mb-3">確定要刪除版本「<strong>{{ deletingVersion.name }}</strong>」嗎？</p>
+        <div class="alert alert-warning mb-0">
+          <i class="fa fa-warning me-2"></i>
+          此操作無法復原，版本內的所有任務資料都將被刪除。
+          <template v-if="deletingVersion.id === scheduleStore.currentVersionId">
+            <br><strong class="mt-2 d-block">注意：此版本為目前使用中的版本，刪除後將自動切換到其他版本。</strong>
+          </template>
+        </div>
+      </div>
+    </template>
+    <template #footer>
+      <button class="btn btn-secondary" @click="showDeleteConfirm = false; deletingVersion = null">取消</button>
+      <button class="btn btn-danger" @click="confirmDelete">確認刪除</button>
+    </template>
+  </Modal>
 </template>
 
 <script setup lang="ts">
@@ -169,6 +208,8 @@ const scheduleStore = useScheduleStore()
 const showModal = ref(false)
 const showEditDialog = ref(false)
 const showCreateDialog = ref(false)
+const showDeleteConfirm = ref(false)
+const deletingVersion = ref<ScheduleVersion | null>(null)
 
 // 編輯表單
 const editForm = ref({
@@ -179,7 +220,7 @@ const editForm = ref({
 })
 const createForm = ref({
   name: '',
-  withSample: true
+  withSample: false
 })
 
 const currentVersion = computed(() => scheduleStore.currentVersion)
@@ -314,7 +355,7 @@ const handleSaveEdit = () => {
 
 // 開啟建立版本
 const openCreate = () => {
-  createForm.value = { name: '', withSample: true }
+  createForm.value = { name: '', withSample: false }
   showCreateDialog.value = true
 }
 
@@ -329,7 +370,7 @@ const createSampleTasks = (): any[] => {
   const a1 = make('1.1', '臨設搭建', '2025-10-01', 3)
   const a2 = make('1.2', '材料進場', '2025-10-04', 2)
   const A = { Uid: genUid(), TaskID: '1', TaskName: '動員準備', StartDate: a1.StartDate, EndDate: a2.EndDate, Duration: 5, Progress: 0, Predecessor: '', CostRatio: 0, ActualAmount: 0, subtasks: [a1, a2] }
-  const b1 = make('2.1', '基礎開挖', '2025-10-07', 5, '1.2 FS')
+  const b1 = make('2.1', '基礎開挖', '2025-10-07', 5)
   const b2 = make('2.2', '基礎鋼筋', '2025-10-13', 4, '2.1 FS')
   const B = { Uid: genUid(), TaskID: '2', TaskName: '基礎工程', StartDate: b1.StartDate, EndDate: b2.EndDate, Duration: 9, Progress: 0, Predecessor: '', CostRatio: 0, ActualAmount: 0, subtasks: [b1, b2] }
   const c1 = make('3.1', '回填夯實', '2025-10-18', 3, '2.2 FF')
@@ -349,6 +390,51 @@ const handleCreate = () => {
   showCreateDialog.value = false
   showModal.value = false
 }
+
+// 複製版本
+const handleDuplicateVersion = (version: ScheduleVersion) => {
+  const duplicated = scheduleStore.duplicateVersion(version.id)
+  if (duplicated) {
+    scheduleStore.setCurrentVersion(duplicated.id)
+    showModal.value = false
+  }
+}
+
+// 刪除版本（顯示確認對話框）
+const handleDeleteVersion = (version: ScheduleVersion) => {
+  // 如果只有一個版本，不允許刪除
+  if (scheduleStore.versions.length <= 1) {
+    alert('至少需要保留一個版本，無法刪除')
+    return
+  }
+  deletingVersion.value = version
+  showDeleteConfirm.value = true
+}
+
+// 確認刪除
+const confirmDelete = () => {
+  if (!deletingVersion.value) return
+  
+  const versionId = deletingVersion.value.id
+  const isCurrentVersion = versionId === scheduleStore.currentVersionId
+  
+  const success = scheduleStore.deleteVersion(versionId)
+  if (success) {
+    // 如果刪除的是當前版本，會自動切換到第一個版本
+    if (isCurrentVersion && scheduleStore.versions.length > 0) {
+      scheduleStore.setCurrentVersion(scheduleStore.versions[0].id)
+    }
+  }
+  
+  deletingVersion.value = null
+  showDeleteConfirm.value = false
+}
+
+// 暴露方法供父組件調用
+defineExpose({
+  openModal: () => { showModal.value = true },
+  openCreate: () => { openCreate() }
+})
 </script>
 
 <style scoped>

@@ -39,12 +39,9 @@
 
         <div class="vr"></div>
 
-        <!-- 匯出按鈕（這是這次加的） -->
+        <!-- 匯出按鈕 -->
         <button class="btn btn-sm btn-outline-secondary" @click="handleExportPdf">
           <i class="fa fa-file-pdf me-1"></i>{{ pdfFontLoading ? '載入字型中…' : '匯出 PDF' }}
-        </button>
-        <button class="btn btn-sm btn-outline-secondary" @click="handleExportExcel">
-          <i class="fa fa-file-excel me-1"></i>匯出 Excel
         </button>
       </div>
 
@@ -93,11 +90,11 @@
         :autoCalculateDateScheduling="true"
         :allowParentDependency="false"
         :allowPdfExport="true"
-        :allowExcelExport="true"
         :queryCellInfo="onQueryCellInfo"
         @actionComplete="onActionComplete"
         @actionBegin="onActionBegin"
         @taskbarEditing="onTaskbarEditing"
+        @taskbarEdited="onTaskbarEdited"
         @dataBound="onDataBound"
         :beforePdfExport="onBeforePdfExport"
         :pdfQueryCellInfo="onPdfQueryCellInfo"
@@ -414,7 +411,6 @@ import {
   DayMarkers,
   CriticalPath,
   PdfExport,
-  ExcelExport,
 } from '@syncfusion/ej2-gantt'
 import { L10n, setCulture } from '@syncfusion/ej2-base'
 import {
@@ -431,7 +427,7 @@ import RepublicDatePicker from '@/components/bootstrap/RepublicDatePicker.vue'
 // 設定文化
 setCulture('zh')
 
-// ✅ 注入 Gantt 服務（這裡加上 PdfExport / ExcelExport）
+// ✅ 注入 Gantt 服務（這裡加上 PdfExport）
 provide('gantt', [
   Edit,
   Selection,
@@ -440,7 +436,6 @@ provide('gantt', [
   DayMarkers,
   CriticalPath,
   PdfExport,
-  ExcelExport,
 ])
 
 // Props
@@ -1190,6 +1185,17 @@ const formatPredecessorBase = (text: string): string => {
   return normalized
 }
 
+const normalizePredecessorToken = (token: string): string => {
+  if (!token) return ''
+  const base = formatPredecessorBase(token)
+  return base
+    .replace(/([+-]?\d+)\s*天/g, '$1')
+    .replace(/(FS|SS|FF|SF)/gi, ' $1 ')
+    .replace(/\s*([+-])\s*/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 const formatPredecessorDisplay = (
   predecessor: string | Array<{ from: string; type?: string; offset?: number }> | null | undefined,
 ): string => {
@@ -1207,7 +1213,13 @@ const formatPredecessorDisplay = (
   const out: string[] = []
 
   for (const part of parts) {
-    const m = part.match(/^([^\s]+)\s*(FS|SS|FF|SF)?\s*([+-]\d+)?$/i)
+    const normalized = normalizePredecessorToken(part)
+    if (!normalized) {
+      out.push(part)
+      continue
+    }
+
+    const m = normalized.match(/^([^\s]+)\s*(FS|SS|FF|SF)?\s*([+-]\d+)?$/i)
     if (!m) {
       out.push(part)
       continue
@@ -1786,6 +1798,34 @@ const scheduleSyncAfterDependencyChange = (retries = 8, delay = 160) => {
   }
 }
 
+// 拖動 Taskbar 後的安全同步（與依賴線相同的 retry 策略）
+const scheduleSyncAfterTaskbarEdit = (retries = 8, delay = 160) => {
+  const gi = getGantt()
+  if (!gi) return
+
+  if (
+    gi.isEdit ||
+    gi.isDrag ||
+    gi.isResize ||
+    gi.isLoading ||
+    gi.isRefreshing ||
+    gi.isRendering
+  ) {
+    if (retries > 0) {
+      setTimeout(() => scheduleSyncAfterTaskbarEdit(retries - 1, delay), delay)
+    }
+    return
+  }
+
+  try {
+    normalizeGanttPredecessors(gi)
+    syncToStore()
+    scheduleStore.saveToLocalStorage()
+  } catch (err) {
+    console.error('拖動工期後同步失敗', err)
+  }
+}
+
 // 把 ganttProperties.predecessor 轉成「TaskID TYPE(+offset)」字串，並去重/避免自指
 const normalizePredecessors = (
   raw: any[] | string | null | undefined,
@@ -2086,7 +2126,7 @@ const handleExportPdf = async () => {
     gridWidth: '55%',
     chartWidth: '45%',
     fitToWidthSettings: {
-      isFitToWidth: false,
+      isFitToWidth: true,
     },
     document: { font: chineseFont },
     theme: {
@@ -2136,19 +2176,6 @@ const onPdfExportComplete = (args: any) => {
     a.click()
     URL.revokeObjectURL(url)
   }
-}
-
-// 匯出 Excel
-const handleExportExcel = () => {
-  const ganttInstance = (gantt.value as any)?.ej2Instances
-  if (!ganttInstance) {
-    alert('甘特圖尚未初始化，無法匯出')
-    return
-  }
-  // Excel 同理，要 allowExcelExport，加上 ExcelExport 模組 :contentReference[oaicite:2]{index=2}
-  ganttInstance.excelExport({
-    fileName: `工程排程-${new Date().toISOString().slice(0, 10)}.xlsx`,
-  })
 }
 
 // 儲存資料
@@ -2646,6 +2673,12 @@ const onTaskbarEditing = (args: any) => {
   }
 }
 
+// 拖動任務條完成事件
+const onTaskbarEdited = (_args: any) => {
+  // 拖完條就走與依賴相同的同步流程
+  scheduleSyncAfterTaskbarEdit()
+}
+
 // 操作開始事件
 const onActionBegin = (args: any) => {
   if (args.data && args.data.hasChildRecords) {
@@ -2727,18 +2760,13 @@ const onActionComplete = (args: any) => {
       }, 200)
     }
 
-    if (args.requestType === 'taskbarEdited' || args.requestType === 'progressChanged') {
-      setTimeout(() => {
-        try {
-          const gi = (gantt.value as any)?.ej2Instances
-          if (gi && !gi.isEdit && !gi.isDrag && !gi.isResize) {
-            syncToStore()
-            scheduleStore.saveToLocalStorage()
-          }
-        } catch (error) {
-          console.error('任務拖曳儲存錯誤:', error)
-        }
-      }, 300)
+    if (
+      args.requestType === 'taskbarEdited' ||
+      args.requestType === 'progressChanged' ||
+      (args.requestType === 'save' && args.action === 'TaskbarEditing')
+    ) {
+      // 使用與依賴相同的 retry 策略，避免競態
+      scheduleSyncAfterTaskbarEdit()
     }
 
     if (

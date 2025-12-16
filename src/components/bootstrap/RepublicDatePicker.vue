@@ -15,21 +15,25 @@
       :year-range="yearRange"
       :week-start="1"
       teleport="body"
+      :disabled-dates="checkIsHoliday"
+      :day-class="getDayClass"
+      @update-month-year="handleMonthYearChange"
+      @open="handleOpen"
       @update:model-value="handleDateUpdate"
       @blur="handleBlur"
       @focus="handleFocus"
     >
-      <!-- 自訂年份選擇器的每個選項 - 根據 useRepublicYear 決定顯示格式 -->
+      <!-- 自訂年份選擇器的每個選項 -->
       <template #year="{ value }" v-if="useRepublicYear">
         民國{{ toRepublicYear(value) }}
       </template>
       
-      <!-- 自訂年份選擇器覆蓋層 - 根據 useRepublicYear 決定顯示格式 -->
+      <!-- 自訂年份選擇器覆蓋層 -->
       <template #year-overlay-value="{ text }" v-if="useRepublicYear">
         民國{{ toRepublicYear(parseInt(text)) }}
       </template>
       
-      <!-- 自訂星期標題 - 移除「週」字 -->
+      <!-- 自訂星期標題 -->
       <template #calendar-header="{ index, day }">
         {{ getWeekDayName(index) }}
       </template>
@@ -48,10 +52,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, onMounted } from 'vue'
 import VueDatePicker from '@vuepic/vue-datepicker'
 import '@vuepic/vue-datepicker/dist/main.css'
 import { toRepublicYear } from '@/utils/format'
+import { getCalendarEvents, type CalendarEvent } from '@/api/construction' 
 
 interface Props {
   modelValue?: string
@@ -61,7 +66,11 @@ interface Props {
   errorMessage?: string
   minDate?: string | Date
   maxDate?: string | Date
-  useRepublicYear?: boolean // 新增：是否使用民國年
+  useRepublicYear?: boolean
+  
+  // --- 新增 Props ---
+  disableHolidays?: boolean        // 是否啟用假日禁用功能
+  constructionId?: number | string // 若有傳入，則查詢該工程專屬假日；若無則查通用
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -72,7 +81,11 @@ const props = withDefaults(defineProps<Props>(), {
   errorMessage: '',
   minDate: undefined,
   maxDate: undefined,
-  useRepublicYear: true // 預設使用民國年
+  useRepublicYear: true,
+  
+  // --- 新增預設值 ---
+  disableHolidays: false,
+  constructionId: undefined
 })
 
 const emit = defineEmits<{
@@ -84,13 +97,134 @@ const emit = defineEmits<{
 // 內部日期值 (Date 對象)
 const internalDate = ref<Date | null>(null)
 
+// --- 新增：假日處理邏輯 Start ---
+const holidaySet = ref(new Set<string>())   // 儲存 "YYYY-MM-DD" 字串
+const loadedYears = ref(new Set<number>())  // 儲存已載入的年份 (快取用)
+const isLoading = ref(false)
+
+// 輔助：將 Date 轉為 YYYY-MM-DD (處理時區問題)
+const formatDateKey = (date: Date): string => {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+// 核心：判斷某天是否禁用 (VueDatePicker 會對每一天呼叫此函式)
+const checkIsHoliday = (date: Date): boolean => {
+  if (!props.disableHolidays) return false
+  const dateStr = formatDateKey(date)
+  return holidaySet.value.has(dateStr)
+}
+
+// 樣式：給假日加上特殊 class (即便禁用了，也可以讓它顯示紅字)
+const getDayClass = (date: Date) => {
+  if (!props.disableHolidays) return ''
+  const dateStr = formatDateKey(date)
+  return holidaySet.value.has(dateStr) ? 'is-holiday-cell' : ''
+}
+
+// API：撈取特定年份的假日資料
+const fetchHolidaysForYear = async (year: number) => {
+  if (!props.disableHolidays) return
+  
+  // 快取檢查：如果該年份已經抓過，就不再發 API
+  if (loadedYears.value.has(year)) return
+
+  // 如果沒有 constructionId，無法載入專案特定的假日，直接返回
+  if (!props.constructionId) {
+    console.warn('[RepublicDatePicker] 無法載入假日：缺少 constructionId')
+    return
+  }
+
+  try {
+    isLoading.value = true
+    const start = `${year}-01-01`
+    const end = `${year}-12-31`
+    
+    // 調用實際的 API
+    const events: CalendarEvent[] = await getCalendarEvents(
+      String(props.constructionId),
+      start,
+      end
+    )
+
+    // 將資料 "追加" 到 Set 中 (保留其他年份的資料)
+    // 只添加 isHoliday 為 true 的日期
+    events.forEach((event: CalendarEvent) => {
+      if (event.isHoliday) {
+        holidaySet.value.add(event.date)
+      }
+    })
+    
+    // 標記該年份已完成載入
+    loadedYears.value.add(year)
+    
+  } catch (e) {
+    console.error(`[RepublicDatePicker] 載入 ${year} 年假日資料失敗:`, e)
+    // 載入失敗時不標記為已載入，以便下次重試
+  } finally {
+    isLoading.value = false
+  }
+}
+
+// 初始化邏輯
+const initHolidays = () => {
+  if (!props.disableHolidays) return
+
+  const currentYear = new Date().getFullYear()
+  
+  // 優先載入 modelValue 所在的年份 (若有值)
+  let targetYear = currentYear
+  if (props.modelValue) {
+    targetYear = new Date(props.modelValue).getFullYear()
+  }
+
+  // 預載策略：目標年份 + 明年
+  fetchHolidaysForYear(targetYear)
+  fetchHolidaysForYear(targetYear + 1)
+  
+  // 如果目標年份不是今年，順便把今年也載入
+  if (targetYear !== currentYear) {
+    fetchHolidaysForYear(currentYear)
+  }
+}
+
+// 事件：當用戶切換月曆的年月時
+const handleMonthYearChange = (instance: { instance: number, month: number, year: number }) => {
+  fetchHolidaysForYear(instance.year)
+}
+
+// 事件：當打開選單時，確保當前年份資料已載入
+const handleOpen = () => {
+  if (internalDate.value) {
+    fetchHolidaysForYear(internalDate.value.getFullYear())
+  } else {
+    fetchHolidaysForYear(new Date().getFullYear())
+  }
+}
+
+// Watch：當 constructionId 改變時 (切換專案)，清空快取重抓
+watch(() => props.constructionId, () => {
+  holidaySet.value.clear()
+  loadedYears.value.clear()
+  initHolidays()
+})
+
+// Lifecycle
+onMounted(() => {
+  initHolidays()
+})
+// --- 新增：假日處理邏輯 End ---
+
+
 // 年份範圍 (西元年，用於內部計算)
 const yearRange = computed(() => {
   const currentYear = new Date().getFullYear()
   return [currentYear - 20, currentYear + 50] // 前後各20年
 })
 
-// 格式化顯示日期 - 根據 useRepublicYear 決定格式
+// 格式化顯示日期
 const formatDisplayDate = (date: Date): string => {
   if (!date) return ''
   
@@ -109,7 +243,6 @@ const formatDisplayDate = (date: Date): string => {
 // 處理日期更新
 const handleDateUpdate = (date: Date | null) => {
   if (date) {
-    // 轉換為 YYYY-MM-DD 格式
     const year = date.getFullYear()
     const month = String(date.getMonth() + 1).padStart(2, '0')
     const day = String(date.getDate()).padStart(2, '0')
@@ -121,23 +254,15 @@ const handleDateUpdate = (date: Date | null) => {
   }
 }
 
-// 處理失焦事件
-const handleBlur = () => {
-  emit('blur')
-}
+const handleBlur = () => emit('blur')
+const handleFocus = () => emit('focus')
 
-// 處理聚焦事件
-const handleFocus = () => {
-  emit('focus')
-}
-
-// 自訂星期名稱 - 移除「週」字
 const getWeekDayName = (index: number): string => {
   const weekDays = ['一', '二', '三', '四', '五', '六', '日']
   return weekDays[index] || ''
 }
 
-// 監聽 modelValue 變化，轉換為 Date 對象
+// 監聽 modelValue 變化
 watch(() => props.modelValue, (newValue) => {
   if (newValue) {
     try {
@@ -157,7 +282,31 @@ watch(() => props.modelValue, (newValue) => {
   max-width: 240px; /* 設定最大寬度 */
 }
 
-/* 覆蓋 VueDatePicker 的 CSS 變數以符合專案主題 */
+/* 手機版樣式 */
+@media (max-width: 767.98px) {
+  .republic-date-picker {
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+  
+  .republic-date-picker :deep(.dp__input_wrap) {
+    padding-left: 0.75rem !important;
+    padding-right: 0 !important;
+    justify-content: flex-start !important;
+  }
+  
+  .republic-date-picker :deep(.dp__input) {
+    text-align: left !important;
+    padding-left: 0 !important;
+    padding-right: 40px !important;
+  }
+  
+  .republic-date-picker :deep(.dp__input_icon) {
+    right: 12px !important;
+  }
+}
+
+/* CSS 變數覆蓋 */
 .republic-date-picker {
   --dp-border-color: var(--bs-border-color);
   --dp-border-color-hover: var(--bs-theme);
@@ -189,6 +338,7 @@ watch(() => props.modelValue, (newValue) => {
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
+  position: relative !important;
 }
 
 .republic-date-picker :deep(.dp__input_wrap) {
@@ -197,6 +347,7 @@ watch(() => props.modelValue, (newValue) => {
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
+  position: relative !important;
 }
 
 .republic-date-picker :deep(.dp__input) {
@@ -207,6 +358,10 @@ watch(() => props.modelValue, (newValue) => {
   outline: none !important;
   height: 100% !important;
   text-align: center !important;
+  flex: 1 !important;
+  min-width: 0 !important;
+  padding-right: 40px !important; /* 為圖示預留空間 */
+  padding-left: 0 !important;
 }
 
 .republic-date-picker :deep(.dp__input:hover) {
@@ -223,6 +378,15 @@ watch(() => props.modelValue, (newValue) => {
 /* 輸入框圖示 */
 .republic-date-picker :deep(.dp__input_icon) {
   color: var(--bs-secondary) !important;
+  position: absolute !important;
+  right: 12px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  pointer-events: none !important;
+  z-index: 1 !important;
+  flex-shrink: 0 !important;
+  width: auto !important;
+  height: auto !important;
 }
 
 .republic-date-picker :deep(.dp--clear-btn) {
@@ -236,29 +400,28 @@ watch(() => props.modelValue, (newValue) => {
 
 <style>
 /* 全局樣式 - 用於 teleported 到 body 的下拉選單 */
-/* 下拉選單容器 */
 .dp__menu {
   background-color: var(--bs-body-bg) !important;
   border-color: var(--bs-border-color) !important;
   color: var(--bs-body-color) !important;
-  z-index: 9999 !important; /* 確保在 Modal 之上 */
+  z-index: 9999 !important;
 }
 
-/* 日曆項目 */
-.dp__calendar_item {
+.dp__calendar_item, .dp__cell_inner, .dp__month_year_row, 
+.dp__month_year_select, .dp--year-select, .dp__calendar_header, 
+.dp__calendar_header_item, .dp__month_year_wrap, .dp__overlay_cell,
+.dp__overlay {
   color: var(--bs-body-color) !important;
 }
 
-.dp__cell_inner {
-  color: var(--bs-body-color) !important;
-}
-
-.dp__cell_inner:hover {
+.dp__cell_inner:hover, .dp__inner_nav:hover, 
+.dp__overlay_cell:hover {
   background-color: rgba(var(--bs-theme-rgb), 0.1) !important;
   color: var(--bs-theme) !important;
 }
 
-.dp__active_date {
+.dp__active_date, .dp__overlay_cell_active, .dp__action_select, 
+.dp__action_select:hover {
   background-color: var(--bs-theme) !important;
   color: var(--bs-white) !important;
 }
@@ -268,62 +431,14 @@ watch(() => props.modelValue, (newValue) => {
   color: var(--bs-theme) !important;
 }
 
-/* 年份/月份選擇覆蓋層 */
 .dp__overlay {
   background-color: var(--bs-body-bg) !important;
-  color: var(--bs-body-color) !important;
 }
 
-.dp__overlay_cell {
-  color: var(--bs-body-color) !important;
-}
-
-.dp__overlay_cell:hover {
-  background-color: rgba(var(--bs-theme-rgb), 0.1) !important;
-  color: var(--bs-theme) !important;
-}
-
-.dp__overlay_cell_active {
-  background-color: var(--bs-theme) !important;
-  color: var(--bs-white) !important;
-}
-
-/* 年份、月份、星期幾的文字顏色 */
-.dp__month_year_row {
-  color: var(--bs-body-color) !important;
-}
-
-.dp__month_year_select {
-  color: var(--bs-body-color) !important;
-}
-
-.dp--year-select {
-  color: var(--bs-body-color) !important;
-}
-
-.dp__calendar_header {
-  color: var(--bs-body-color) !important;
-}
-
-.dp__calendar_header_item {
-  color: var(--bs-body-color) !important;
-}
-
-.dp__month_year_wrap {
-  color: var(--bs-body-color) !important;
-}
-
-/* 導航按鈕 */
 .dp__inner_nav {
   color: var(--bs-secondary) !important;
 }
 
-.dp__inner_nav:hover {
-  background-color: rgba(var(--bs-theme-rgb), 0.1) !important;
-  color: var(--bs-theme) !important;
-}
-
-/* 操作按鈕 */
 .dp__action_button {
   color: var(--bs-body-color) !important;
   border-color: var(--bs-border-color) !important;
@@ -333,12 +448,29 @@ watch(() => props.modelValue, (newValue) => {
   border-color: var(--bs-theme) !important;
 }
 
-.dp__action_select {
-  background-color: var(--bs-theme) !important;
-  color: var(--bs-white) !important;
+/* --- 新增：假日紅字樣式 --- */
+/* 注意：.is-holiday-cell 是透過 :day-class 注入的 
+   VueDatePicker 會自動在這些 class 後面加上 .dp__cell_disabled (如果被 disable 的話)
+*/
+
+/* 1. 基本假日樣式 (紅字) */
+.is-holiday-cell {
+  color: var(--bs-danger) !important;
+  font-weight: bold;
 }
 
-.dp__action_select:hover {
-  background-color: var(--bs-theme) !important;
+/* 2. 當假日被禁用時的樣式 (紅字 + 淺紅背景 + 禁止游標) */
+.dp__cell_disabled.is-holiday-cell {
+  background-color: rgba(var(--bs-danger-rgb), 0.1) !important;
+  color: var(--bs-danger) !important;
+  opacity: 0.8 !important; /* 讓文字清楚一點 */
+  text-decoration: none !important;
+  cursor: not-allowed !important;
+}
+
+/* 3. 確保禁用狀態下的 Hover 不會變色 */
+.dp__cell_disabled.is-holiday-cell:hover {
+  background-color: rgba(var(--bs-danger-rgb), 0.1) !important;
+  color: var(--bs-danger) !important;
 }
 </style>

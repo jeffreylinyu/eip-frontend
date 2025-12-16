@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { storage, StorageKeys } from '@/utils/storage'
 import { workspaceApi, transformWorkspaceFromApi, transformWorkspaceToApi, type WorkspaceDetailResponse, type WorkspaceCompany, type InviteCompanyRequest, type RemoveCompanyRequest } from '@/api/workspace'
 import { useUserCacheStore, type UserBasicInfo } from '@/stores/user-cache'
 import { getConstructionsByWorkspace, type Construction, type SignLevel } from '@/api/construction'
@@ -20,7 +21,7 @@ export interface Workspace {
   role: 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER'
 }
 
-// 工程項目介面定義  
+// 工程案介面定義  
 export interface WorkspaceProject {
   id: string
   name: string
@@ -58,6 +59,8 @@ export interface WorkspaceProject {
   completionAcceptance?: boolean
   signLevel?: SignLevel[]
   workDay?: number
+  durationType?: 'CALENDAR_DAYS' | 'WORKING_DAYS' // 工期計算模式
+  totalExtensionDays?: number // 累計展延天數（新增）
 }
 
 export const useWorkspaceStore = defineStore('workspace', () => {
@@ -140,7 +143,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       }
     ]
 
-    // 模擬工程項目資料
+    // 模擬工程案資料
     workspaceProjects.value = [
       // 台北市政府工務局的項目
       {
@@ -241,7 +244,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   )
 
   const getCurrentProjectName = computed(() => 
-    currentProject.value?.name || '請選擇工程項目'
+    currentProject.value?.name || '請選擇工程案'
   )
 
   const hasCurrentWorkspace = computed(() => 
@@ -254,13 +257,14 @@ export const useWorkspaceStore = defineStore('workspace', () => {
 
   const getProjectsByWorkspace = async (workspaceId: string): Promise<WorkspaceProject[]> => {
     try {
-      // 先檢查 localStorage 中是否有緩存的工程項目資料
-      const cacheKey = `eip-workspace-projects-${workspaceId}`
-      const cachedData = localStorage.getItem(cacheKey)
+      // 先檢查 localStorage 中是否有緩存的工程案資料
+      // 先檢查 localStorage 中是否有緩存的工程案資料
+      const cacheKey = `workspace-projects-${workspaceId}`
+      const cachedData = storage.get<{ projects: WorkspaceProject[], timestamp: number }>(cacheKey)
       
       if (cachedData) {
         try {
-          const { projects, timestamp } = JSON.parse(cachedData)
+          const { projects, timestamp } = cachedData
           // 檢查緩存是否在 5 分鐘內（300000 毫秒）
           if (Date.now() - timestamp < 300000) {
             workspaceProjects.value = projects
@@ -270,7 +274,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         }
       }
       
-      // 調用 API 獲取工程項目
+      // 調用 API 獲取工程案
       const constructions = await getConstructionsByWorkspace(workspaceId)
       
       // 將 Construction 格式轉換為 WorkspaceProject 格式
@@ -287,7 +291,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         progress: 0, // 預設進度，可以根據實際 API 回應調整
         managerName: construction.leadOrganization || '',
         description: `${construction.constructionType || ''} - ${construction.budgetFrom || ''}`,
-        // 額外的工程項目詳細資訊
+        // 額外的工程案詳細資訊
         contractNumber: construction.contractId || '',
         hostAgency: construction.leadOrganization || '',
         constructionPeriod: construction.workDay?.toString() || '', // 工期天數
@@ -313,7 +317,9 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         partialAcceptance: construction.partialAcceptance || false,
         completionAcceptance: construction.completionAcceptance || false,
         signLevel: construction.signLevel || [],
-        workDay: construction.workDay || 0
+        workDay: construction.workDay || 0,
+        durationType: construction.durationType || 'WORKING_DAYS', // 工期計算模式
+        totalExtensionDays: construction.totalExtensionDays || 0 // 累計展延天數
       }))
       
       // 更新本地狀態
@@ -321,16 +327,16 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       
       // 將資料緩存到 localStorage
       try {
-        localStorage.setItem(cacheKey, JSON.stringify({
+        storage.set(cacheKey, {
           projects,
           timestamp: Date.now()
-        }))
+        })
       } catch (error) {
       }
       
       return projects
     } catch (error) {
-      console.error('❌ 獲取工作空間工程項目失敗:', error)
+      console.error('❌ 獲取工作空間工程案失敗:', error)
       // 如果 API 失敗，返回空陣列
       return []
     }
@@ -367,9 +373,9 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     // 切換工作空間時清除當前項目
     currentProject.value = null
     
-    // 清除工程項目選擇（因為工作空間變了）
+    // 清除工程案選擇（因為工作空間變了）
     try {
-      localStorage.removeItem('eip-selected-project')
+      storage.remove(StorageKeys.SELECTED_PROJECT)
     } catch (error) {
     }
   }
@@ -384,11 +390,11 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     
     // 保存到 localStorage
     try {
-      localStorage.setItem('eip-selected-project', JSON.stringify({
+      storage.set(StorageKeys.SELECTED_PROJECT, {
         projectId: project.id,
         workspaceId: project.workspaceId,
         timestamp: Date.now()
-      }))
+      })
     } catch (error) {
     }
     
@@ -401,10 +407,10 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   // 從 localStorage 載入保存的選擇
   const loadSavedSelections = async () => {
     try {
-      // 直接從工程項目選擇中獲取工作空間信息
-      const savedProject = localStorage.getItem('eip-selected-project')
+      // 直接從工程案選擇中獲取工作空間信息
+      const savedProject = storage.get<{ projectId: string, workspaceId: string }>(StorageKeys.SELECTED_PROJECT)
       if (savedProject) {
-        const { projectId, workspaceId } = JSON.parse(savedProject)
+        const { projectId, workspaceId } = savedProject
         
         // 設定工作空間
         const workspace = workspaces.value.find(ws => ws.id === workspaceId)
@@ -414,13 +420,13 @@ export const useWorkspaceStore = defineStore('workspace', () => {
             currentWorkspace.value = workspace
           }
           
-          // 載入該工作空間的工程項目
+          // 載入該工作空間的工程案
           await getProjectsByWorkspace(workspaceId)
           
-          // 設定工程項目
+          // 設定工程案
           const project = workspaceProjects.value.find(proj => proj.id === projectId)
           if (project) {
-            // 只在工程項目不同時才更新
+            // 只在工程案不同時才更新
             if (currentProject.value?.id !== projectId) {
               currentProject.value = project
             }
@@ -433,12 +439,11 @@ export const useWorkspaceStore = defineStore('workspace', () => {
 
   const initWorkspaces = async () => {
     // 先檢查 localStorage 中是否有緩存的工作空間資料
-    const cacheKey = 'eip-workspaces-cache'
-    const cachedData = localStorage.getItem(cacheKey)
+    const cachedData = storage.get<{ workspaces: Workspace[], timestamp: number }>(StorageKeys.WORKSPACES_CACHE)
     
     if (cachedData) {
       try {
-        const { workspaces: cachedWorkspaces, timestamp } = JSON.parse(cachedData)
+        const { workspaces: cachedWorkspaces, timestamp } = cachedData
         // 檢查緩存是否在 10 分鐘內（600000 毫秒）
         if (Date.now() - timestamp < 600000) {
           workspaces.value = cachedWorkspaces
@@ -489,10 +494,10 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       
       // 將工作空間資料緩存到 localStorage
       try {
-        localStorage.setItem(cacheKey, JSON.stringify({
+        storage.set(StorageKeys.WORKSPACES_CACHE, {
           workspaces: workspaces.value,
           timestamp: Date.now()
-        }))
+        })
       } catch (error) {
       }
       
@@ -852,30 +857,29 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   })
 
   // 清除 localStorage 中的選擇
+  // 清除 localStorage 中的選擇
   const clearSavedSelections = () => {
     try {
-      localStorage.removeItem('eip-selected-workspace')
-      localStorage.removeItem('eip-selected-project')
+      storage.remove(StorageKeys.SELECTED_WORKSPACE)
+      storage.remove(StorageKeys.SELECTED_PROJECT)
     } catch (error) {
       console.warn('⚠️ 清除 localStorage 失敗:', error)
     }
   }
 
   // 清除所有緩存
+  // 清除所有緩存
   const clearAllCache = () => {
     try {
-      localStorage.removeItem('eip-workspaces-cache')
-      localStorage.removeItem('eip-selected-workspace')
-      localStorage.removeItem('eip-selected-project')
-      // 清除工程項目緩存
-      const keys = Object.keys(localStorage)
-      keys.forEach(key => {
-        if (key.startsWith('eip-workspace-projects-')) {
-          localStorage.removeItem(key)
-        }
-      })
+      storage.remove(StorageKeys.WORKSPACES_CACHE)
+      storage.remove(StorageKeys.SELECTED_WORKSPACE)
+      storage.remove(StorageKeys.SELECTED_PROJECT)
+      // 清除工程案緩存
+      storage.removeByPattern('workspace-projects-')
+      
       isInitialized.value = false
     } catch (error) {
+      console.error('Failed to clear cache:', error)
     }
   }
 

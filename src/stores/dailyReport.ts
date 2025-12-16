@@ -1,6 +1,11 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { DailyReport, MaterialRecord, LaborRecord, EquipmentRecord } from '@/types/dailyReport'
+import type {
+  DailyReport,
+  MaterialRecord,
+  LaborRecord,
+  EquipmentRecord
+} from '@/types/dailyReport'
 
 export const useDailyReportStore = defineStore('dailyReport', () => {
   // 狀態
@@ -43,17 +48,64 @@ export const useDailyReportStore = defineStore('dailyReport', () => {
       status: 'DRAFT',
       basicInfo: {
         projectName: '',
+        contractorName: '',
         contractPeriod: 0,
         cumulativePeriod: 0,
-        todayPeriod: 0,
-        todayLaborCount: 0,
-        todayEquipmentCount: 0,
-        todayMaterialInbound: 0
+        remainingPeriod: 0,
+        extensionDays: 0,
+        startDate: '',
+        endDate: '',
+        plannedProgress: 0,
+        actualProgress: 0
       },
       weather: {
         morning: '',
         afternoon: ''
       },
+      executionSummary: [
+        {
+          id: 'A',
+          code: '',
+          item: '',
+          unit: '',
+          contractQuantity: null,
+          todayQuantity: null,
+          cumulativeQuantity: null,
+          remark: ''
+        },
+        {
+          id: 'B',
+          code: '',
+          item: '',
+          unit: '',
+          contractQuantity: null,
+          todayQuantity: null,
+          cumulativeQuantity: null,
+          remark: ''
+        }
+      ],
+      materialUsageSummary: [
+        {
+          id: '1',
+          materialName: '',
+          unit: '',
+          contractQuantity: null,
+          todayUsage: null,
+          cumulativeUsage: null,
+          remark: ''
+        }
+      ],
+      laborEquipmentSummary: [
+        {
+          id: '1',
+          laborType: '',
+          todayLaborCount: null,
+          cumulativeLaborCount: null,
+          equipmentName: '',
+          todayEquipmentUsage: null,
+          cumulativeEquipmentUsage: null
+        }
+      ],
       materials: [],
       laborRecords: [],
       equipmentRecords: [],
@@ -61,6 +113,22 @@ export const useDailyReportStore = defineStore('dailyReport', () => {
       materialInspections: [],
       safetyRecords: [],
       constructionRecords: [],
+      siteCheck: {
+        hasRequiredTechnician: ''
+      },
+      safetyChecklist: {
+        preConstructionEducation: '',
+        newWorkerInsurance: '',
+        personalProtectionEquipment: '',
+        otherNotes: ''
+      },
+      qualityInspectionRecord: '',
+      subcontractorNotice: '',
+      importantRecord: '',
+      technicianSignatureProject: '',
+      technicianSignatureRequiredCount: null,
+      technicianSignatureRecords: [],
+      safetyInspectionRecords: [],
       importantNotes: [],
       tomorrowPlans: [],
       preparer: {

@@ -3,15 +3,15 @@
     <!-- 頁面標題 -->
     <div class="d-flex justify-content-between align-items-center mb-4">
       <div>
-        <h4 class="mb-1">日報表歷史記錄</h4>
-        <p class="text-muted mb-0">瀏覽和管理歷史日報表</p>
+        <h4 class="mb-1">日誌歷史記錄</h4>
+        <p class="text-muted mb-0">瀏覽和管理歷史日誌</p>
       </div>
       <div class="d-flex gap-2">
         <button 
           class="btn btn-outline-primary"
           @click="createNewReport"
         >
-          <i class="fa fa-plus me-1"></i>新增日報表
+          <i class="fa fa-plus me-1"></i>新增日誌
         </button>
         <button 
           class="btn btn-outline-success"
@@ -84,12 +84,12 @@
       </CardBody>
     </Card>
 
-    <!-- 日報表列表 -->
+    <!-- 日誌列表 -->
     <Card>
       <CardHeader>
         <div class="d-flex justify-content-between align-items-center">
           <h6 class="mb-0">
-            <i class="fa fa-list me-2"></i>日報表列表
+            <i class="fa fa-list me-2"></i>日誌列表
           </h6>
           <div class="d-flex align-items-center gap-2">
             <span class="text-muted fs-sm">共 {{ totalReports }} 筆記錄</span>
@@ -197,7 +197,7 @@
               <tr v-if="reports.length === 0">
                 <td colspan="10" class="text-center text-muted py-4">
                   <i class="fa fa-inbox fa-2x mb-2"></i>
-                  <p class="mb-0">沒有找到符合條件的日報表</p>
+                  <p class="mb-0">沒有找到符合條件的日誌</p>
                 </td>
               </tr>
             </tbody>

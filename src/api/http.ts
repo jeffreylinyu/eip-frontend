@@ -19,50 +19,51 @@ import axios, {
   /**
    * 請求攔截器：每次發請求前都會進來這裡
    */
-  http.interceptors.request.use(
-    (config: InternalAxiosRequestConfig) => {
-      // console.log('🌐 HTTP 請求:', config.method?.toUpperCase(), config.url)
-      
-      // 從 localStorage 獲取 token，加到 header
-      const token = localStorage.getItem('auth_token')
-      // console.log('🎫 請求攔截器 - Token:', token ? '有值' : '無值')
-      
-      if (token) {
-        // headers 在 InternalAxiosRequestConfig 一定存在
-        config.headers!['Authorization'] = `Bearer ${token}`
-        // console.log('✅ Authorization header 已設定')
-      } else {
-        // console.log('⚠️ 沒有 token，跳過 Authorization header')
-      }
-      
-      // 從 localStorage 獲取用戶信息，解析出 userId
-      const authUser = localStorage.getItem('auth_user')
-      // console.log('👤 請求攔截器 - 用戶資訊:', authUser ? '有值' : '無值')
-      
-      if (authUser) {
-        try {
-          const user = JSON.parse(authUser)
-          if (user.userId) {
-            config.headers!['userId'] = user.userId
-            // console.log('✅ userId header 已設定:', user.userId)
-          } else {
-            // console.log('⚠️ 用戶資訊中沒有 userId')
-          }
-        } catch (error) {
-          console.error('❌ Failed to parse auth_user from localStorage:', error)
-        }
-      } else {
-        // console.log('⚠️ 沒有用戶資訊，跳過 userId header')
-      }
-      
-      // console.log('📤 完整請求 headers:', config.headers)
-      return config
-    },
-    (error: AxiosError) => {
-      // 請求送出錯誤時（如網路斷線）
-      return Promise.reject(error)
+import { storage, StorageKeys } from '@/utils/storage'
+
+// ... (imports)
+
+// ... (http instance creation)
+
+/**
+ * 請求攔截器：每次發請求前都會進來這裡
+ */
+http.interceptors.request.use(
+  (config: InternalAxiosRequestConfig) => {
+    // console.log('🌐 HTTP 請求:', config.method?.toUpperCase(), config.url)
+    
+    // 從 localStorage 獲取 token，加到 header
+    const token = storage.get<string>(StorageKeys.AUTH_TOKEN)
+    // console.log('🎫 請求攔截器 - Token:', token ? '有值' : '無值')
+    
+    if (token) {
+      // headers 在 InternalAxiosRequestConfig 一定存在
+      config.headers!['Authorization'] = `Bearer ${token}`
+      // console.log('✅ Authorization header 已設定')
+    } else {
+      // console.log('⚠️ 沒有 token，跳過 Authorization header')
     }
-  )
+    
+    // 從 localStorage 獲取用戶信息，解析出 userId
+    // 注意：這裡我們需要定義一個簡單的 User 介面或使用 any，因為 http.ts 不應該依賴完整的 User 類型以免循環依賴
+    const authUser = storage.get<{ userId?: string }>(StorageKeys.AUTH_USER)
+    // console.log('👤 請求攔截器 - 用戶資訊:', authUser ? '有值' : '無值')
+    
+    if (authUser && authUser.userId) {
+      config.headers!['userId'] = authUser.userId
+      // console.log('✅ userId header 已設定:', authUser.userId)
+    } else {
+      // console.log('⚠️ 用戶資訊中沒有 userId 或無用戶資訊')
+    }
+    
+    // console.log('📤 完整請求 headers:', config.headers)
+    return config
+  },
+  (error: AxiosError) => {
+    // 請求送出錯誤時（如網路斷線）
+    return Promise.reject(error)
+  }
+)
   
   /**
    * 回應攔截器：收到回應後都會進來這裡

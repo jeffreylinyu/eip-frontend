@@ -1,4 +1,5 @@
 import http from './http'
+import { downloadBlob } from '@/utils/blobDownload'
 
 // 擴展 Navigator 介面以支援 IE/Edge 的下載方法
 declare global {
@@ -70,6 +71,25 @@ export interface FormUpdateRequest {
   workspaceId?: string
 }
 
+// B類表單匯出（監造計畫書）請求
+export interface ExportConstructionReportRequest {
+  itemNumber?: number
+  valueMap: {
+    reportData: {
+      constructionId: string
+      companyId?: string
+      fileId?: string
+      freeVersion?: boolean
+      address?: string
+      phone?: string
+      itemNumber?: number
+      singleMap?: Record<string, any>
+      defaultMap?: Record<string, any>
+      inputMap?: Record<string, any>
+    }
+  }
+}
+
 export interface FormDownloadResponse {
   success: boolean
   message?: string
@@ -113,32 +133,20 @@ export const formA5Api = {
           }
         }
         
-        // 使用 axios 直接調用，避免 http 攔截器處理 blob 資料
-        response = await import('axios').then(axios => 
-          axios.default.post(`${import.meta.env.VITE_API_URL}/management/construction/export/report/AFive`, apiData, {
-            responseType: 'blob',
-            headers: {
-              'Accept': 'application/octet-stream, application/vnd.openxmlformats-officedocument.wordprocessingml.document, */*',
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-              'userId': JSON.parse(localStorage.getItem('auth_user') || '{}').userId || ''
-            },
+        // 使用共用的 blob 下載工具
+        response = await downloadBlob({
+          url: '/management/construction/export/report/AFive',
+          method: 'POST',
+          data: apiData,
             timeout: 30000
           })
-        )
       } else {
-        // 無參數時使用 GET 請求，同樣避免攔截器
-        response = await import('axios').then(axios => 
-          axios.default.get(`${import.meta.env.VITE_API_URL}/management/construction/export/report/AFive`, {
-            responseType: 'blob',
-            headers: {
-              'Accept': 'application/octet-stream, application/vnd.openxmlformats-officedocument.wordprocessingml.document, */*',
-              'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-              'userId': JSON.parse(localStorage.getItem('auth_user') || '{}').userId || ''
-            },
+        // 無參數時使用 GET 請求
+        response = await downloadBlob({
+          url: '/management/construction/export/report/AFive',
+          method: 'GET',
             timeout: 30000
           })
-        )
       }
       
       // 檢查回應是否為有效的 Blob
@@ -177,6 +185,23 @@ export const formA5Api = {
   }
 }
 
+// B類表單 - 監造計畫書匯出
+export const formBApi = {
+  /**
+   * 匯出監造計畫書（B 類表單）
+   * @param request ExportConstructionReportRequest
+   * @returns AxiosResponse<Blob>
+   */
+  exportSupervisoryPlan: async (request: ExportConstructionReportRequest) => {
+    const response = await downloadBlob({
+      url: '/management/generate/export/report/BOne',
+      method: 'POST',
+      data: request
+    })
+    return response
+  }
+}
+
 // A-4 工期展延申請總表 API
 export const formA4Api = {
   // 下載 A-4 表單報告
@@ -211,40 +236,23 @@ export const formA4Api = {
           }
         }
         
-        // 使用 axios 直接調用，避免 http 攔截器處理 blob 資料
-        response = await import('axios').then(axios => 
-          axios.default.post(`${import.meta.env.VITE_API_URL}/management/construction/export/report/AFour`, apiData, {
-            responseType: 'blob',
-            headers: {
-              'Accept': 'application/octet-stream, application/vnd.openxmlformats-officedocument.wordprocessingml.document, */*',
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-              'userId': JSON.parse(localStorage.getItem('auth_user') || '{}').userId || ''
-            },
+        // 使用共用的 blob 下載工具
+        response = await downloadBlob({
+          url: '/management/construction/export/report/AFour',
+          method: 'POST',
+          data: apiData,
             timeout: 30000
           })
-        )
       } else {
-        // 無參數時使用 GET 請求，同樣避免攔截器
-        response = await import('axios').then(axios => 
-          axios.default.get(`${import.meta.env.VITE_API_URL}/management/construction/export/report/AFour`, {
-            responseType: 'blob',
-            headers: {
-              'Accept': 'application/octet-stream, application/vnd.openxmlformats-officedocument.wordprocessingml.document, */*',
-              'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-              'userId': JSON.parse(localStorage.getItem('auth_user') || '{}').userId || ''
-            },
+        // 無參數時使用 GET 請求
+        response = await downloadBlob({
+          url: '/management/construction/export/report/AFour',
+          method: 'GET',
             timeout: 30000
           })
-        )
       }
       
-      // 檢查回應是否為有效的 Blob
-      if (!(response.data instanceof Blob)) {
-        console.error('A-4 回應不是 Blob 類型:', response.data)
-        throw new Error('A-4 API 回應格式錯誤')
-      }
-      
+      // downloadBlob 已經檢查過 Blob 類型，直接返回
       return response.data
     } catch (error) {
       console.error(`[A-4 API] 請求失敗 ${requestId}:`, error)
@@ -296,40 +304,23 @@ export const formA7Api = {
           }
         }
         
-        // 使用 axios 直接調用，避免 http 攔截器處理 blob 資料
-        response = await import('axios').then(axios => 
-          axios.default.post(`${import.meta.env.VITE_API_URL}/management/construction/export/report/ASeven`, apiData, {
-            responseType: 'blob',
-            headers: {
-              'Accept': 'application/octet-stream, application/vnd.openxmlformats-officedocument.wordprocessingml.document, */*',
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-              'userId': JSON.parse(localStorage.getItem('auth_user') || '{}').userId || ''
-            },
+        // 使用共用的 blob 下載工具
+        response = await downloadBlob({
+          url: '/management/construction/export/report/ASeven',
+          method: 'POST',
+          data: apiData,
             timeout: 30000
           })
-        )
       } else {
-        // 無參數時使用 GET 請求，同樣避免攔截器
-        response = await import('axios').then(axios => 
-          axios.default.get(`${import.meta.env.VITE_API_URL}/management/construction/export/report/ASeven`, {
-            responseType: 'blob',
-            headers: {
-              'Accept': 'application/octet-stream, application/vnd.openxmlformats-officedocument.wordprocessingml.document, */*',
-              'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-              'userId': JSON.parse(localStorage.getItem('auth_user') || '{}').userId || ''
-            },
+        // 無參數時使用 GET 請求
+        response = await downloadBlob({
+          url: '/management/construction/export/report/ASeven',
+          method: 'GET',
             timeout: 30000
           })
-        )
       }
       
-      // 檢查回應是否為有效的 Blob
-      if (!(response.data instanceof Blob)) {
-        console.error('A-7 回應不是 Blob 類型:', response.data)
-        throw new Error('A-7 API 回應格式錯誤')
-      }
-      
+      // downloadBlob 已經檢查過 Blob 類型，直接返回
       return response.data
     } catch (error) {
       console.error(`[A-7 API] 請求失敗 ${requestId}:`, error)
@@ -418,27 +409,8 @@ export const downloadBlobAsFile = (blob: Blob, fileName: string): void => {
   }
 }
 
-// 從響應標頭中提取檔案名稱
-export const extractFileNameFromResponse = (response: any): string => {
-  try {
-    const contentDisposition = response.headers['content-disposition']
-    if (contentDisposition) {
-      // 解析 Content-Disposition 標頭中的檔案名稱
-      const fileNameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/)
-      if (fileNameMatch) {
-        return fileNameMatch[1].replace(/['"]/g, '')
-      }
-    }
-    
-    // 如果無法從標頭中提取，返回預設名稱
-    const now = new Date().toISOString().split('T')[0]
-    return `form_${now}.docx`
-  } catch (error) {
-    console.error('檔案名稱提取失敗:', error)
-    const now = new Date().toISOString().split('T')[0]
-    return `form_${now}.docx`
-  }
-}
+// 注意：extractFileNameFromResponse 已移至 @/utils/blobDownload
+// 如需使用，請從該模組導入
 
 // 檔案大小格式化
 export const formatFileSize = (bytes: number): string => {

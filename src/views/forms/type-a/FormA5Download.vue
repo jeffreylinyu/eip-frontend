@@ -392,7 +392,7 @@ const loadEstimateDetails = async () => {
 const addEstimateRecord = async () => {
   const constructionId = workspaceStore.currentProject?.id || ''
   if (!constructionId) {
-    showToast('錯誤', '請先選擇工程項目', 'error')
+    showToast('錯誤', '請先選擇工程案', 'error')
     return
   }
 

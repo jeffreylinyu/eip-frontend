@@ -1,11 +1,12 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { storage, StorageKeys } from '@/utils/storage'
 import { authApi, type LoginData, type User } from '@/api/user'
 import { useWorkspaceStore } from '@/stores/workspace'
 
 export const useAuthStore = defineStore('auth', () => {
   // 狀態
-  const token = ref<string | null>(localStorage.getItem('auth_token'))
+  const token = ref<string | null>(storage.get<string>(StorageKeys.AUTH_TOKEN))
   const user = ref<User | null>(null)
   const isLoading = ref(false)
 
@@ -24,18 +25,19 @@ export const useAuthStore = defineStore('auth', () => {
       const response = await authApi.login(loginData)
       // console.log('✅ 登入 API 回應:', response)
       
-      // 根據實際後端返回格式調整: 直接回傳 { id, userId, jwtToken }
+      // 根據實際後端返回格式調整: 直接回傳 { userId, jwtToken, role }
       // console.log('📦 解析回應資料:', response)
       
       token.value = response.jwtToken
       // console.log('🎫 Token 已設定:', token.value ? '有值' : '無值')
       
+      // 從 API 回應中直接讀取 role（後端已包含在登入回應中）
       user.value = {
-        id: response.id.toString(), // 轉換為字串以匹配 User 介面
+        id: response.id?.toString() || response.userId, // 如果有 id 就用 id，否則用 userId
         userId: response.userId,
         username: '', // 將在 fetchCurrentUser 中填充
         email: loginData.email,
-        role: '',
+        role: response.role || '', // 直接從登入回應中讀取 role
         createdAt: '',
         updatedAt: '',
         verify: false
@@ -44,12 +46,12 @@ export const useAuthStore = defineStore('auth', () => {
       
       // 保存token和用戶信息到localStorage
       // console.log('💾 開始保存到 localStorage...')
-      localStorage.setItem('auth_token', response.jwtToken)
-      localStorage.setItem('auth_user', JSON.stringify(user.value))
+      storage.set(StorageKeys.AUTH_TOKEN, response.jwtToken)
+      storage.set(StorageKeys.AUTH_USER, user.value)
       
       // 驗證是否成功保存
-      const savedToken = localStorage.getItem('auth_token')
-      const savedUser = localStorage.getItem('auth_user')
+      const savedToken = storage.get<string>(StorageKeys.AUTH_TOKEN)
+      const savedUser = storage.get<User>(StorageKeys.AUTH_USER)
       // console.log('✅ localStorage 驗證:')
       // console.log('  - auth_token:', savedToken ? '已保存' : '未保存')
       // console.log('  - auth_user:', savedUser ? '已保存' : '未保存')
@@ -95,12 +97,12 @@ export const useAuthStore = defineStore('auth', () => {
       // console.log('🧹 清除本地認證狀態...')
       token.value = null
       user.value = null
-      localStorage.removeItem('auth_token')
-      localStorage.removeItem('auth_user')
+      storage.remove(StorageKeys.AUTH_TOKEN)
+      storage.remove(StorageKeys.AUTH_USER)
       
       // 驗證是否成功清除
-      const remainingToken = localStorage.getItem('auth_token')
-      const remainingUser = localStorage.getItem('auth_user')
+      const remainingToken = storage.get<string>(StorageKeys.AUTH_TOKEN)
+      const remainingUser = storage.get<User>(StorageKeys.AUTH_USER)
       // console.log('✅ 清除驗證:')
       // console.log('  - auth_token:', remainingToken ? '仍存在' : '已清除')
       // console.log('  - auth_user:', remainingUser ? '仍存在' : '已清除')
@@ -130,7 +132,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   const initAuth = async () => {
     // console.log('🔄 初始化認證狀態...')
-    const savedToken = localStorage.getItem('auth_token')
+    const savedToken = storage.get<string>(StorageKeys.AUTH_TOKEN)
     // console.log('🎫 從 localStorage 讀取 token:', savedToken ? '有值' : '無值')
     
     if (savedToken) {
@@ -138,18 +140,17 @@ export const useAuthStore = defineStore('auth', () => {
       // console.log('✅ Token 已載入到 store')
       
       // 如果有保存的用戶信息，使用其userId獲取最新信息
-      const savedUser = localStorage.getItem('auth_user')
+      const savedUser = storage.get<User>(StorageKeys.AUTH_USER)
       // console.log('👤 從 localStorage 讀取用戶資訊:', savedUser ? '有值' : '無值')
       
       if (savedUser) {
         try {
-          const userData = JSON.parse(savedUser)
-          user.value = userData
-          // console.log('✅ 用戶資訊已載入到 store:', userData)
+          user.value = savedUser
+          // console.log('✅ 用戶資訊已載入到 store:', savedUser)
           
           // 驗證token是否有效並獲取最新用戶信息
           // console.log('🔍 開始驗證 token 並獲取最新用戶資訊...')
-          await fetchCurrentUser(userData.userId)
+          await fetchCurrentUser(savedUser.userId)
           
           // 初始化工作空間
           try {

@@ -252,75 +252,123 @@ const computeCPM = (flat: LeafTask[]): CpmTask[] => {
     isCritical: false,
     deps: parseDeps(t.predecessors || '')
   }))
-  const byId = (id: string) => tasks.find(t => t.id === id)
+
+  const taskMap = new Map<string, CpmTask>()
+  tasks.forEach(task => {
+    taskMap.set(task.id, task)
+  })
 
   const idSet = new Set(tasks.map(t => t.id))
   for (const t of tasks) {
     t.deps = t.deps.filter(d => d.id !== t.id && idSet.has(d.id))
   }
 
-  // forward
-  for (const t of tasks) {
-    if (!t.deps.length) t.earlyStart = 0
-    else {
-      const starts = t.deps.map(d => {
-        const p = byId(d.id)
-        if (!p) return 0
-        switch (d.type) {
-          case 'FS':
-            return p.earlyFinish + d.lag
-          case 'SS':
-            return p.earlyStart + d.lag
-          case 'FF':
-            return p.earlyFinish + d.lag - t.duration
-          case 'SF':
-            return p.earlyStart + d.lag - t.duration
-        }
-      })
-      t.earlyStart = Math.max(...starts)
+  const indegree = new Map<string, number>()
+  const successorMap = new Map<string, CpmTask[]>()
+
+  tasks.forEach(t => indegree.set(t.id, 0))
+
+  tasks.forEach(t => {
+    t.deps.forEach(dep => {
+      indegree.set(t.id, (indegree.get(t.id) || 0) + 1)
+      if (!successorMap.has(dep.id)) successorMap.set(dep.id, [])
+      successorMap.get(dep.id)!.push(t)
+    })
+  })
+
+  const topoOrder: CpmTask[] = []
+  const queue: CpmTask[] = []
+  indegree.forEach((deg, id) => {
+    if (deg === 0) {
+      const task = taskMap.get(id)
+      if (task) queue.push(task)
     }
-    t.earlyFinish = t.earlyStart + t.duration
+  })
+
+  for (let i = 0; i < queue.length; i++) {
+    const current = queue[i]
+    topoOrder.push(current)
+    const successors = successorMap.get(current.id) || []
+    successors.forEach(s => {
+      const nextDegree = (indegree.get(s.id) || 0) - 1
+      indegree.set(s.id, nextDegree)
+      if (nextDegree === 0) queue.push(s)
+    })
   }
 
-  // backward
-  const proj = Math.max(...tasks.map(t => t.earlyFinish))
-  for (const t of [...tasks].reverse()) {
-    const succ = tasks.filter(x => x.deps.some(d => d.id === t.id))
-    if (!succ.length) {
-      t.lateFinish = proj
-      t.lateStart = t.lateFinish - t.duration
-      t.float = t.lateStart - t.earlyStart
-      continue
-    }
-    const candidateLFs: number[] = []
-    for (const s of succ) {
-      const d = s.deps.find(dd => dd.id === t.id)!
-      switch (d.type) {
-        case 'FS': {
-          candidateLFs.push(s.lateStart - d.lag)
-          break
-        }
-        case 'FF': {
-          candidateLFs.push(s.lateFinish - d.lag)
-          break
-        }
-        case 'SS': {
-          const ls = s.lateStart - d.lag
-          candidateLFs.push(ls + t.duration)
-          break
-        }
-        case 'SF': {
-          const ls = s.lateFinish - d.lag
-          candidateLFs.push(ls + t.duration)
-          break
-        }
-      }
-    }
-    t.lateFinish = Math.min(...candidateLFs)
-    t.lateStart = t.lateFinish - t.duration
-    t.float = t.lateStart - t.earlyStart
+  if (topoOrder.length !== tasks.length) {
+    const remaining = tasks.filter(t => !topoOrder.includes(t))
+    topoOrder.push(...remaining)
   }
+
   const EPS = 1e-9
+
+  topoOrder.forEach(t => {
+    if (!t.deps.length) {
+      t.earlyStart = 0
+    } else {
+      const starts = t.deps.map(dep => {
+        const p = taskMap.get(dep.id)
+        if (!p) return 0
+        switch (dep.type) {
+          case 'FS':
+            return p.earlyFinish + dep.lag
+          case 'SS':
+            return p.earlyStart + dep.lag
+          case 'FF':
+            return p.earlyFinish + dep.lag - t.duration
+          case 'SF':
+            return p.earlyStart + dep.lag - t.duration
+          default:
+            return p.earlyFinish
+        }
+      })
+      t.earlyStart = starts.length ? Math.max(...starts) : 0
+    }
+    t.earlyFinish = t.earlyStart + t.duration
+  })
+
+  const proj = Math.max(...tasks.map(t => t.earlyFinish))
+  const backwardOrder = [...topoOrder].reverse()
+
+  backwardOrder.forEach(t => {
+    const successors = successorMap.get(t.id) || []
+    if (!successors.length) {
+      t.lateFinish = proj
+    } else {
+      const candidateLFs: number[] = []
+      successors.forEach(s => {
+        const dep = s.deps.find(d => d.id === t.id)
+        if (!dep) return
+        switch (dep.type) {
+          case 'FS':
+            candidateLFs.push(s.lateStart - dep.lag)
+            break
+          case 'FF':
+            candidateLFs.push(s.lateFinish - dep.lag)
+            break
+          case 'SS': {
+            const ls = s.lateStart - dep.lag
+            candidateLFs.push(ls + t.duration)
+            break
+          }
+          case 'SF': {
+            const ls = s.lateFinish - dep.lag
+            candidateLFs.push(ls + t.duration)
+            break
+          }
+          default:
+            candidateLFs.push(s.lateStart)
+            break
+        }
+      })
+      t.lateFinish = candidateLFs.length ? Math.min(...candidateLFs) : proj
+    }
+    t.lateStart = t.lateFinish - t.duration
+    const slack = t.lateStart - t.earlyStart
+    t.float = Math.abs(slack) < EPS ? 0 : slack
+  })
+
   tasks.forEach(t => {
     t.isCritical = Math.abs(t.float) < EPS
   })
@@ -1097,8 +1145,8 @@ onMounted(() => {
   border: 1px solid rgba(0, 0, 0, 0.03);
   border-radius: 0.75rem;
   padding: 0.25rem 0.5rem;
+  z-index: 999;
   position: relative;
-  z-index: 2100;
   gap: 0.5rem;
 }
 

@@ -1,5 +1,19 @@
 import http from './http';
 
+// 展延狀態枚舉
+export enum ExtensionStatus {
+  DRAFT = 'DRAFT',       // 草稿
+  PENDING = 'PENDING',   // 待審核
+  APPROVED = 'APPROVED', // 已核准
+  REJECTED = 'REJECTED'  // 退回
+}
+
+// 展延模式枚舉
+export enum ExtensionType {
+  SPECIFIC_DATES = 'SPECIFIC_DATES', // 模式 A：指定日期免計
+  ADD_DAYS = 'ADD_DAYS'              // 模式 B：直接追加天數
+}
+
 // 展延記錄數據接口
 export interface ExtensionRecord {
   extensionId: string;
@@ -12,6 +26,16 @@ export interface ExtensionRecord {
   approvalDocumentNumber?: string;
   completionDateAfterExtension?: string;
   isApproved?: boolean; // 是否通過
+  // 新增欄位（第二階段）
+  totalDurationAfterExtension?: number; // 展延後總工期
+  calculatedEndDateAfterExtension?: string; // 展延後預計完工日期
+  sequence?: number; // 序次
+  approvedAt?: string; // 核准時間
+  createdAt?: string; // 建立時間
+  // 新增欄位（審核流程與計算模式）
+  status?: ExtensionStatus;       // 審核狀態，建立時預設為 DRAFT
+  extensionType?: ExtensionType;  // 展延模式，預設為 ADD_DAYS
+  specificDates?: string[];       // 日期字串陣列 (YYYY-MM-DD)，當模式為 SPECIFIC_DATES 時必填
 }
 
 // 展延列表查詢參數
@@ -34,13 +58,17 @@ export interface ExtensionListResponse {
 // 創建展延記錄請求
 export interface CreateExtensionRequest {
   constructionId: string;
-  verifyNumber: string;
+  verifyNumber?: string;
   extendReason?: string;
   extendContent: string;
-  extendDate: string;
-  extendDay: number;
+  extendDate?: string;
+  extendDay?: number; // 用於 ADD_DAYS 模式
   approvalDocumentNumber?: string;
   completionDateAfterExtension?: string;
+  // 新增欄位
+  status?: ExtensionStatus;       // 建立時預設為 DRAFT
+  extensionType?: ExtensionType; // 預設為 ADD_DAYS
+  specificDates?: string[];      // 日期字串陣列 (YYYY-MM-DD)，當模式為 SPECIFIC_DATES 時必填
 }
 
 // 更新展延記錄請求
@@ -50,6 +78,10 @@ export interface UpdateExtensionRequest {
   extendContent?: string;
   extendDate?: string;
   extendDay?: number;
+  // 新增欄位
+  status?: ExtensionStatus;       // 允許變更審核狀態（管理員/主管）
+  extensionType?: ExtensionType;  // 允許變更展延模式
+  specificDates?: string[];       // 日期字串陣列 (YYYY-MM-DD)
 }
 
 // 展延操作回應
@@ -173,10 +205,66 @@ export const batchUpdateExtensions = async (extensions: ExtensionRecord[]): Prom
   }
 };
 
+// 展延歷程記錄接口
+export interface ExtensionHistoryRecord {
+  sequence: number; // 序次
+  extensionId: string; // 展延記錄 ID
+  extendReason: string; // 展延原因
+  approvedDays: number; // 核准天數
+  totalDurationAfterExtension: number; // 展延後總工期
+  calculatedEndDate: string; // 展延後預計完工日期
+  verifyNumber?: string; // 驗證編號
+  approvedAt: string; // 核准時間
+  createdAt: string; // 建立時間
+}
+
+// 展延歷程查詢回應
+export interface ExtensionHistoryResponse {
+  code: number;
+  message: string;
+  data: ExtensionHistoryRecord[];
+}
+
+/**
+ * 獲取展延歷程
+ * @param constructionId 工程編號
+ * @returns Promise<ExtensionHistoryResponse>
+ */
+export const getExtensionHistory = async (constructionId: string): Promise<ExtensionHistoryResponse> => {
+  try {
+    const response = await http.get('/management/extension/history', {
+      params: {
+        constructionId
+      }
+    });
+    
+    // 處理不同的回應格式
+    let data: ExtensionHistoryRecord[] = []
+    
+    if (response.data && Array.isArray(response.data)) {
+      data = response.data
+    } else if (response.data && response.data.data && Array.isArray(response.data.data)) {
+      data = response.data.data
+    } else if (response && Array.isArray(response)) {
+      data = response
+    }
+    
+    return {
+      code: 200,
+      message: 'get extension history success',
+      data: data
+    } as ExtensionHistoryResponse;
+  } catch (error) {
+    console.error('❌ 獲取展延歷程失敗:', error);
+    throw error;
+  }
+};
+
 export default {
   getExtensionList,
   createExtension,
   updateExtension,
   deleteExtension,
-  batchUpdateExtensions
+  batchUpdateExtensions,
+  getExtensionHistory
 };

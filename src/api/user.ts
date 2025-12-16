@@ -6,9 +6,10 @@ export interface LoginData {
 }
 
 export interface LoginResponse {
-    id: number
+    id?: number
     userId: string
     jwtToken: string
+    role: string  // 用戶角色：ADMIN, SUPER_ADMIN, 等
 }
 
 export interface User {

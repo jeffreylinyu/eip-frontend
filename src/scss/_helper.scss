@@ -467,6 +467,27 @@ $visibility-values: (none, initial);
 			}
 
 		}
+
+		.btn-outline-danger {
+			color: var(--#{$prefix}danger);
+			border-color: var(--#{$prefix}danger);
+			background-color: rgba(var(--#{$prefix}danger-rgb), .12);
+
+			&:hover,
+			&:active,
+			&.active {
+				background-color: var(--#{$prefix}danger) !important;
+				border-color: var(--#{$prefix}danger) !important;
+				color: var(--#{$prefix}white) !important;
+			}
+			&.disabled,
+			&:disabled {
+				color: var(--#{$prefix}danger) !important;
+				border-color: var(--#{$prefix}danger) !important;
+				background-color: transparent !important;
+				opacity: 0.6;
+			}
+		}
 	}
 }
 

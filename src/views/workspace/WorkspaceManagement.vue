@@ -35,7 +35,7 @@ const managingWorkspace = ref<Workspace | null>(null)
 // 計算屬性 - 使用真實資料
 const workspacesWithProjects = computed(() => {
   return workspaceStore.workspaces.map(workspace => {
-    // 從本地狀態獲取該工作空間的工程項目
+    // 從本地狀態獲取該工作空間的工程案
     const projects = workspaceStore.workspaceProjects.filter(p => p.workspaceId === workspace.id)
     
     // 計算項目統計
@@ -63,7 +63,7 @@ const toggleWorkspace = async (workspaceId: string) => {
   expandedWorkspaces.value.clear()
   expandedWorkspaces.value.add(workspaceId)
   
-  // 檢查是否已經有該工作空間的工程項目資料
+  // 檢查是否已經有該工作空間的工程案資料
   const workspace = workspacesWithProjects.value.find(ws => ws.id === workspaceId)
   if (workspace && workspace.projects && workspace.projects.length > 0) {
     // 如果已經有資料，不需要重新載入
@@ -74,7 +74,7 @@ const toggleWorkspace = async (workspaceId: string) => {
   switchingWorkspace.value = true
   switchingWorkspaceId.value = workspaceId
   
-  // 在背景載入工程項目
+  // 在背景載入工程案
   try {
     await workspaceStore.getProjectsByWorkspace(workspaceId)
   } catch (error) {
@@ -166,7 +166,7 @@ const saveProject = async (projectData: any) => {
       // 更新項目
       workspaceStore.updateProject(editingProject.value.id, projectData)
     } else {
-      // 新增工程項目
+      // 新增工程案
       workspaceStore.addProject(projectData)
     }
     closeProjectModal()
@@ -180,15 +180,15 @@ const saveProject = async (projectData: any) => {
 
 const deleteProject = async (project: any, event: Event) => {
   event.stopPropagation()
-  const confirmed = window.confirm(`確定要刪除工程項目「${project.name}」嗎？此操作無法撤銷。`)
+  const confirmed = window.confirm(`確定要刪除工程案「${project.name}」嗎？此操作無法撤銷。`)
   if (confirmed) {
     try {
       workspaceStore.removeProject(project.id)
       // 重新載入資料
       await refreshData()
     } catch (error) {
-      console.error('刪除工程項目失敗:', error)
-      alert('刪除工程項目失敗，請稍後再試')
+      console.error('刪除工程案失敗:', error)
+      alert('刪除工程案失敗，請稍後再試')
     }
   }
 }
@@ -197,16 +197,16 @@ const setCurrentProject = (project: any, event: Event) => {
   event.stopPropagation()
   try {
     workspaceStore.setCurrentProject(project)
-    proxy.$toast.success(`已切換至工程項目：${project.name}`)
+    proxy.$toast.success(`已切換至工程案：${project.name}`)
   } catch (error) {
     console.error('設定目前項目失敗:', error)
-    proxy.$toast.error('切換工程項目失敗')
+    proxy.$toast.error('切換工程案失敗')
   }
 }
 
 const addProject = (workspace: any, event: Event) => {
   event.stopPropagation()
-  // 設定新增工程項目模式，並設定工作空間 ID
+  // 設定新增工程案模式，並設定工作空間 ID
   editingProject.value = null
   showProjectModal.value = true
 }
@@ -229,7 +229,7 @@ const refreshData = async () => {
     // 清除緩存，強制重新載入
     workspaceStore.clearAllCache()
     await workspaceStore.initWorkspaces()
-    // initWorkspaces 內部已經會調用 loadSavedSelections，不需要重複載入工程項目
+    // initWorkspaces 內部已經會調用 loadSavedSelections，不需要重複載入工程案
   } catch (error) {
     console.error('Failed to refresh data:', error)
   } finally {
@@ -430,7 +430,7 @@ onMounted(async () => {
                           <div class="spinner-border spinner-border-sm text-theme me-2" role="status">
                             <span class="visually-hidden">載入中...</span>
                           </div>
-                          <span class="loading-text">載入工程項目中...</span>
+                          <span class="loading-text">載入工程案中...</span>
                         </div>
                       </div>
                       
@@ -541,7 +541,7 @@ onMounted(async () => {
                               <button 
                                 class="btn btn-sm btn-outline-primary me-1"
                                 @click="editProject(project, $event)"
-                                title="編輯工程項目"
+                                title="編輯工程案"
                               >
                                 <i class="fa fa-edit me-1"></i>
                                 編輯
@@ -549,7 +549,7 @@ onMounted(async () => {
                               <button 
                                 class="btn btn-sm btn-outline-danger"
                                 @click="deleteProject(project, $event)"
-                                title="刪除工程項目"
+                                title="刪除工程案"
                               >
                                 <i class="fa fa-trash"></i>
                               </button>
@@ -602,8 +602,8 @@ onMounted(async () => {
                     <div v-else class="project-empty-state">
                       <div class="empty-state-content">
                         <i class="fa fa-project-diagram fa-3x text-muted mb-3"></i>
-                        <h6 class="text-muted mb-2">此工作空間尚未建立任何工程項目</h6>
-                        <p class="text-muted mb-3">開始建立您的第一個工程項目</p>
+                        <h6 class="text-muted mb-2">此工作空間尚未建立任何工程案</h6>
+                        <p class="text-muted mb-3">開始建立您的第一個工程案</p>
                         <button 
                           v-if="canEditProject(workspace)"
                           class="btn btn-theme"
@@ -622,7 +622,7 @@ onMounted(async () => {
                   <div class="select-prompt-content">
                     <i class="fa fa-mouse-pointer fa-3x text-muted mb-3"></i>
                     <h5 class="text-muted mb-2">選擇工作空間</h5>
-                    <p class="text-muted">點擊左側的工作空間來查看其工程項目</p>
+                    <p class="text-muted">點擊左側的工作空間來查看其工程案</p>
                   </div>
                 </div>
               </div>

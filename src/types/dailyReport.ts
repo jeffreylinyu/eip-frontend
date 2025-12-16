@@ -8,12 +8,15 @@ export interface DailyReport {
   // 基本資訊
   basicInfo: {
     projectName: string
+    contractorName: string
     contractPeriod: number
     cumulativePeriod: number
-    todayPeriod: number
-    todayLaborCount: number
-    todayEquipmentCount: number
-    todayMaterialInbound: number
+    remainingPeriod: number
+    extensionDays: number
+    startDate: string
+    endDate: string
+    plannedProgress: number
+    actualProgress: number
   }
   
   // 天氣資訊
@@ -21,6 +24,15 @@ export interface DailyReport {
     morning: string
     afternoon: string
   }
+  
+  // 施工概況（表一）
+  executionSummary: ExecutionSummaryItem[]
+  
+  // 工程材料概況（表二）
+  materialUsageSummary: MaterialUsageSummaryItem[]
+  
+  // 人員與機具概況（表三）
+  laborEquipmentSummary: LaborEquipmentSummaryItem[]
   
   // 材料進場與使用（更新為更詳細的格式）
   materials: MaterialRecord[]
@@ -42,6 +54,23 @@ export interface DailyReport {
   
   // 每日施工記錄（包含數量）
   constructionRecords: ConstructionRecord[]
+  
+  // 施工查核與安全衛生檢點
+  siteCheck: SiteCheck
+  safetyChecklist: SafetyChecklist
+  
+  // 施工工務檢驗紀錄 / 通知協力廠商 / 重要事項
+  qualityInspectionRecord: string
+  subcontractorNotice: string
+  importantRecord: string
+  
+  // 公共工程施工日誌之技術士簽章表
+  technicianSignatureProject: string
+  technicianSignatureRequiredCount: number | null
+  technicianSignatureRecords: TechnicianSignatureRecord[]
+  
+  // 工地職業安全衛生施工前檢查紀錄表
+  safetyInspectionRecords: SafetyInspectionRecord[]
   
   // 重要記事
   importantNotes: ImportantNote[]
@@ -65,6 +94,78 @@ export interface DailyReport {
   updatedAt?: string
   createdBy?: string
   updatedBy?: string
+}
+
+export interface ExecutionSummaryItem {
+  id: string
+  code: string  // PCCES 代碼
+  item: string  // PCCES 項目名稱
+  unit: string
+  contractQuantity: number | null
+  todayQuantity: number | null
+  cumulativeQuantity: number | null
+  remark: string
+  logicalId?: string  // 用於跨版本追蹤（優先使用）
+  constructionPccesCodeId?: number  // 向後兼容
+}
+
+export interface MaterialUsageSummaryItem {
+  id: string
+  materialName: string
+  unit: string
+  contractQuantity: number | null
+  todayUsage: number | null
+  cumulativeUsage: number | null
+  remark: string
+  logicalId?: string  // 用於跨版本追蹤（優先使用）
+  constructionPccesCodeId?: number  // 向後兼容
+}
+
+export interface LaborEquipmentSummaryItem {
+  id: string
+  laborType: string
+  todayLaborCount: number | null
+  cumulativeLaborCount: number | null
+  equipmentName: string
+  todayEquipmentUsage: number | null
+  cumulativeEquipmentUsage: number | null
+}
+
+export interface SiteCheck {
+  hasRequiredTechnician: 'YES' | 'NO' | ''
+}
+
+export interface SafetyChecklist {
+  preConstructionEducation: 'YES' | 'NO' | ''  // 實施勤前教育(含工地預防災變及危害告知)
+  newWorkerInsurance: 'YES' | 'NO' | 'NO_NEW_WORKER' | ''  // 確認新進勞工是否提報勞工保險資料及安全衛生教育訓練紀錄
+  personalProtectionEquipment: 'YES' | 'NO' | ''  // 檢查勞工個人防護具
+  otherNotes: string  // 其他事項
+}
+
+
+
+// 工地職業安全衛生施工前檢查紀錄
+export interface SafetyInspectionRecord {
+  id: string
+  inspectionItem: string  // 檢查項目
+  result: 'PASS' | 'FAIL' | ''  // 檢查結果：合格/不合格
+  deficiencies: string  // 缺失及改善情形
+}
+
+// 技術士簽章表
+export interface TechnicianSignatureRecord {
+  id: string
+  technicianType: string  // 技術士種類 (A, B, C)
+  count: number | null  // 人數
+  technicians: TechnicianInfo[]  // 技術士資訊列表
+}
+
+export interface TechnicianInfo {
+  id: string
+  name: string  // 技術士姓名
+  certificateNumber: string  // 技術士證書字號
+  signature: string  // 技術士簽名或蓋章
+  remark: string  // 備註
 }
 
 // 材料記錄（更新為更詳細的格式）

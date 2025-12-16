@@ -116,7 +116,7 @@ export default {
       };
     },
     
-    // 新增工程項目
+    // 新增工程案
     async addProject() {
       if (!this.validateForm()) {
         return;
@@ -135,8 +135,8 @@ export default {
         await this.refreshProjects();
         
       } catch (error) {
-        console.error('新增工程項目失敗:', error);
-        toastService.error('新增工程項目失敗，請重試！');
+        console.error('新增工程案失敗:', error);
+        toastService.error('新增工程案失敗，請重試！');
       } finally {
         this.isSubmitting = false;
       }
@@ -248,7 +248,7 @@ export default {
         <div class="modal-header">
           <h5 class="modal-title">
             <i class="fa fa-project-diagram me-2"></i>
-            {{ showAddForm ? '新增工程項目' : '選擇工程項目' }}
+            {{ showAddForm ? '新增工程案' : '選擇工程案' }}
           </h5>
           <button type="button" class="btn-close" @click="closeModal"></button>
         </div>
@@ -344,7 +344,7 @@ export default {
             </div>
           </div>
           
-          <!-- 新增工程項目表單 -->
+          <!-- 新增工程案表單 -->
           <div v-else>
             <ProjectForm 
               v-model="newProject"
@@ -352,7 +352,7 @@ export default {
               :is-submitting="isSubmitting"
               :show-submit-button="false"
               :show-reset-button="false"
-              submit-button-text="新增工程項目"
+              submit-button-text="新增工程案"
               @submit="addProject"
               @reset="resetForm"
             />
@@ -363,11 +363,11 @@ export default {
           <div v-if="!showAddForm" class="d-flex w-100 justify-content-between">
             <button type="button" class="btn btn-theme" @click="showAddProjectForm">
               <i class="fa fa-plus me-1"></i>
-              新增工程項目
+              新增工程案
             </button>
             <div class="d-flex align-items-center">
               <div class="text-muted small me-3">
-                共 {{ projectStore.projectCount }} 個工程項目
+                共 {{ projectStore.projectCount }} 個工程案
               </div>
               <button type="button" class="btn btn-secondary" @click="closeModal">
                 取消
@@ -380,7 +380,7 @@ export default {
             </button>
             <button type="button" class="btn btn-theme" @click="addProject" :disabled="isSubmitting">
               <i class="fa me-1" :class="{ 'fa-spin fa-spinner': isSubmitting, 'fa-save': !isSubmitting }"></i>
-              {{ isSubmitting ? '新增中...' : '新增工程項目' }}
+              {{ isSubmitting ? '新增中...' : '新增工程案' }}
             </button>
           </div>
         </div>

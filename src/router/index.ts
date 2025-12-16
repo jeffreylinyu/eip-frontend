@@ -37,22 +37,42 @@ const router = createRouter({
     },
     {
       path: '/forms/a4-download',
-      component: () => import('../views/forms/FormA4Download.vue'),
+      component: () => import('../views/forms/type-a/FormA4Download.vue'),
       meta: { requiresAuth: true }
     },
     {
       path: '/forms/a5-download',
-      component: () => import('../views/forms/FormA5Download.vue'),
+      component: () => import('../views/forms/type-a/FormA5Download.vue'),
       meta: { requiresAuth: true }
     },
     {
       path: '/forms/a7-download',
-      component: () => import('../views/forms/FormA7Download.vue'),
+      component: () => import('../views/forms/type-a/FormA7Download.vue'),
       meta: { requiresAuth: true }
     },
     {
       path: '/forms/a5-with-params',
-      component: () => import('../views/forms/FormA5WithParams.vue'),
+      component: () => import('../views/forms/type-a/FormA5WithParams.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/forms/b-construction-maintenance',
+      component: () => import('../views/forms/type-b/FormBConstructionMaintenance.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/forms/b-construction-maintenance/:id/standards',
+      component: () => import('../views/forms/type-b/FormBInspectionStandards.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/forms/b-inspection',
+      component: () => import('../views/forms/type-b/FormBInspection.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/forms/b-export-test',
+      component: () => import('../views/forms/type-b/FormBExportTest.vue'),
       meta: { requiresAuth: true }
     },
     {
@@ -61,9 +81,29 @@ const router = createRouter({
       meta: { requiresAuth: true }
     },
     {
+      path: '/basic/project-item-database',
+      component: () => import('../views/basic/ProjectItemDatabase.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/calendar',
+      component: () => import('../views/Calendar.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
       path: '/user-management',
       component: () => import('../views/user-management/UserManagement.vue'),
       meta: { requiresAuth: true }
+    },
+    {
+      path: '/admin/pcces-catalog',
+      component: () => import('../views/admin/PccesCatalogImport.vue'),
+      meta: { requiresAuth: true, requiresAdmin: true }
+    },
+    {
+      path: '/admin/inspection-standard',
+      component: () => import('../views/admin/InspectionStandard.vue'),
+      meta: { requiresAuth: true, requiresAdmin: true }
     },
     {
       path: '/workspace/management',
