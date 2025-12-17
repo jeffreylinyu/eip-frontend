@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, watch, nextTick } from 'vue';
 import { useRoute } from 'vue-router';
 import { useAppSidebarMenuStore } from '@/stores/app-sidebar-menu';
 import { useAppAdminSidebarMenuStore } from '@/stores/app-admin-sidebar-menu';
@@ -26,51 +26,63 @@ function appSidebarMobileToggled() {
 	appOption.appSidebarMobileToggled = !appOption.appSidebarMobileToggled;
 }
 
+const handleSidebarMenuToggle = function(menus) {
+    menus.map(function(menu) {
+        menu.onclick = function(e) {
+            e.preventDefault();
+            var target = this.nextElementSibling;
+            
+            // Close other menus at the same level
+            menus.map(function(m) {
+                var otherTarget = m.nextElementSibling;
+                if (otherTarget !== target) {
+                    otherTarget.style.display = 'none';
+                    otherTarget.closest('.menu-item').classList.remove('expand');
+                }
+            });
+
+            var targetItemElm = target.closest('.menu-item');
+
+            if (targetItemElm.classList.contains('expand') || (targetItemElm.classList.contains('active') && !target.style.display)) {
+                targetItemElm.classList.remove('expand');
+                target.style.display = 'none';
+            } else {
+                targetItemElm.classList.add('expand');
+                target.style.display = 'block';
+            }
+        }
+    });
+};
+
+const initSidebarHandles = () => {
+    var menuBaseSelector = '.app-sidebar .menu > .menu-item.has-sub';
+    var submenuBaseSelector = ' > .menu-submenu > .menu-item.has-sub';
+
+    // menu
+    var menuLinkSelector =  menuBaseSelector + ' > .menu-link';
+    var menus = [].slice.call(document.querySelectorAll(menuLinkSelector));
+    handleSidebarMenuToggle(menus);
+
+    // submenu lvl 1
+    var submenuLvl1Selector = menuBaseSelector + submenuBaseSelector;
+    var submenusLvl1 = [].slice.call(document.querySelectorAll(submenuLvl1Selector + ' > .menu-link'));
+    handleSidebarMenuToggle(submenusLvl1);
+
+    // submenu lvl 2
+    var submenuLvl2Selector = menuBaseSelector + submenuBaseSelector + submenuBaseSelector;
+    var submenusLvl2 = [].slice.call(document.querySelectorAll(submenuLvl2Selector + ' > .menu-link'));
+    handleSidebarMenuToggle(submenusLvl2);
+};
+
+// 重設監聽器當選單變更時 (例如切換 Admin/User 模式)
+watch(currentSidebarMenu, () => {
+    nextTick(() => {
+        initSidebarHandles();
+    });
+});
+
 onMounted(() => {
-	var handleSidebarMenuToggle = function(menus) {
-		menus.map(function(menu) {
-			menu.onclick = function(e) {
-				e.preventDefault();
-				var target = this.nextElementSibling;
-
-				menus.map(function(m) {
-					var otherTarget = m.nextElementSibling;
-					if (otherTarget !== target) {
-						otherTarget.style.display = 'none';
-						otherTarget.closest('.menu-item').classList.remove('expand');
-					}
-				});
-
-				var targetItemElm = target.closest('.menu-item');
-
-				if (targetItemElm.classList.contains('expand') || (targetItemElm.classList.contains('active') && !target.style.display)) {
-					targetItemElm.classList.remove('expand');
-					target.style.display = 'none';
-				} else {
-					targetItemElm.classList.add('expand');
-					target.style.display = 'block';
-				}
-			}
-		});
-	};
-	
-	var menuBaseSelector = '.app-sidebar .menu > .menu-item.has-sub';
-	var submenuBaseSelector = ' > .menu-submenu > .menu-item.has-sub';
-
-	// menu
-	var menuLinkSelector =  menuBaseSelector + ' > .menu-link';
-	var menus = [].slice.call(document.querySelectorAll(menuLinkSelector));
-	handleSidebarMenuToggle(menus);
-
-	// submenu lvl 1
-	var submenuLvl1Selector = menuBaseSelector + submenuBaseSelector;
-	var submenusLvl1 = [].slice.call(document.querySelectorAll(submenuLvl1Selector + ' > .menu-link'));
-	handleSidebarMenuToggle(submenusLvl1);
-
-	// submenu lvl 2
-	var submenuLvl2Selector = menuBaseSelector + submenuBaseSelector + submenuBaseSelector;
-	var submenusLvl2 = [].slice.call(document.querySelectorAll(submenuLvl2Selector + ' > .menu-link'));
-	handleSidebarMenuToggle(submenusLvl2);
+	initSidebarHandles();
 });
 </script>
 <template>

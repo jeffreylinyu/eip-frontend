@@ -44,10 +44,9 @@ export interface PccesWorkProcessStandard {
   stepOrder?: number
   itemName?: string
   dataSource?: string  // 資料來源機關
-  progress?: string
   workProcess?: string
   manageProject?: string
-  inspectionMethod?: string
+  checkPoint?: string
   checkStandard?: string
   checkTiming?: string
   checkMethod?: string

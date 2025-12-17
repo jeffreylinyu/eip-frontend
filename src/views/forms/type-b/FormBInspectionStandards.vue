@@ -17,71 +17,62 @@
       </div>
 
       <!-- 工項資訊摘要 & 標準來源搜尋 -->
-      <div class="card bg-dark text-white border-0 shadow-sm">
-        <div class="card-body py-3">
-          <div v-if="loadingItem" class="d-flex align-items-center gap-2">
-            <div class="spinner-border spinner-border-sm" role="status"></div>
-            <span>載入工項資訊中...</span>
+      <div class="card border-0 shadow-sm">
+        <div class="card-body">
+          <div v-if="loadingItem" class="d-flex align-items-center gap-2 py-3">
+            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+            <span class="text-muted">載入工項資訊中...</span>
           </div>
           <div v-else>
-            <!-- 當前工項資訊 -->
-            <div class="mb-3">
-               <div class="d-flex align-items-center gap-2 mb-2">
-                   <h4 class="m-0 fw-bold">{{ currentItem?.name || '載入中...' }}</h4>
-                   <span v-if="currentItem?.isActive !== undefined" class="badge" :class="currentItem?.isActive ? 'bg-success' : 'bg-secondary'">
-                       {{ currentItem?.isActive ? '啟用' : '停用' }}
-                   </span>
-               </div>
-               
-               <div class="text-white-50 small">
-                  <div class="row g-2">
-                      <div class="col-auto">
-                          <i class="fa fa-code-branch me-1"></i>版本: v{{ currentItem?.version || 1 }}
-                      </div>
-                      <div class="col-auto border-start border-white-50 ps-2" v-if="currentItem?.copiedFromPccesCode">
-                          <i class="fa fa-file-import me-1"></i>來源 PCCES: {{ currentItem?.copiedFromPccesCode }}
-                      </div>
-                      <div class="col-auto border-start border-white-50 ps-2" v-if="currentItem?.effectiveStartDate">
-                          <i class="fa fa-calendar-alt me-1"></i>效期: {{ currentItem?.effectiveStartDate }} ~ {{ currentItem?.effectiveEndDate || '無期限' }}
-                      </div>
-                  </div>
-                  <div class="mt-2" v-if="currentItem?.description">
-                      <i class="fa fa-info-circle me-1"></i>{{ currentItem?.description }}
-                  </div>
-               </div>
+            <!-- 上半部：資訊呈現 -->
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-start gap-3 mb-3">
+                <div>
+                    <h4 class="fw-bold mb-1 d-flex align-items-center gap-2">
+                        {{ currentItem?.name || '載入中...' }}
+                        <span v-if="currentItem?.isActive !== undefined" class="badge rounded-pill fs-6" 
+                              :class="currentItem?.isActive ? 'bg-success-subtle text-success border border-success' : 'bg-secondary-subtle text-secondary border border-secondary'">
+                            {{ currentItem?.isActive ? '啟用' : '停用' }}
+                        </span>
+                    </h4>
+                    <div class="text-muted small mb-2">{{ currentItem?.description || '無描述' }}</div>
+                    
+                    <div class="d-flex flex-wrap gap-3 text-secondary small">
+                        <span><i class="fa fa-code-branch me-1"></i>版本: v{{ currentItem?.version || 1 }}</span>
+                        <span class="border-start ps-3"><i class="fa fa-calendar-alt me-1"></i>效期: {{ currentItem?.effectiveStartDate || '未設定' }} ~ {{ currentItem?.effectiveEndDate || '無期限' }}</span>
+                        <span v-if="currentItem?.copiedFromPccesCode" class="border-start ps-3 text-primary">
+                            <i class="fa fa-file-import me-1"></i>來源 PCCES: {{ currentItem?.copiedFromPccesCode }}
+                        </span>
+                    </div>
+                </div>
             </div>
 
-            <hr class="border-secondary opacity-50 my-3">
+            <!-- 分隔線 -->
+            <hr class="my-3 border-light-subtle">
 
-            <!-- 搜尋區塊 -->
-            <div class="row gx-3 align-items-center">
-               <div class="col-auto">
-                   <span class="text-white-50"><i class="fa fa-link me-1"></i> 套用標準來源：</span>
-               </div>
-               <div class="col flex-grow-1">
-                   <PccesAutocomplete 
-                      v-model="searchCatalogId" 
-                      placeholder="輸入關鍵字搜尋 PCCES 來源項目..." 
-                      @select="onSearchResultSelect"
-                   />
-               </div>
-               <div class="col-auto" v-if="selectedSearchResult">
-                  <div class="d-flex align-items-center gap-2">
-                      <span class="badge bg-success">已預選</span>
-                      <button class="btn btn-sm btn-success" @click="confirmApplyStandard">
-                          <i class="fa fa-download me-1"></i> 確認套用
-                      </button>
-                      <button class="btn btn-sm btn-outline-light" @click="clearSearch" title="清除選擇">
-                          <i class="fa fa-times"></i>
-                      </button>
-                  </div>
-               </div>
-            </div>
-            
-            <!-- 選項預覽 (Optional: 如果需要更詳細資訊) -->
-            <div v-if="selectedSearchResult" class="mt-2 small text-success">
-               <i class="fa fa-check me-1"></i> 
-               已選擇來源：<strong>{{ selectedSearchResult.code }} {{ selectedSearchResult.name }}</strong>
+            <!-- 下半部：標準搜尋工具列 -->
+            <div class="d-flex align-items-center gap-2 mt-3">
+                <div class="flex-shrink-0 fw-bold text-secondary">
+                    <i class="fa fa-search me-1"></i>套用 PCCES 標準來源：
+                </div>
+                <div class="flex-grow-1">
+                    <PccesAutocomplete 
+                       v-model="searchCatalogId" 
+                       placeholder="輸入代碼或名稱搜尋..." 
+                       @select="onSearchResultSelect"
+                    />
+                </div>
+                
+                <div v-if="selectedSearchResult" class="d-flex align-items-center gap-2 ms-2">
+                    <span class="text-success small fw-bold">
+                        <i class="fa fa-check-circle me-1"></i>{{ selectedSearchResult.code }} {{ selectedSearchResult.name }}
+                    </span>
+                    <button class="btn btn-sm btn-primary" @click="confirmApplyStandard">
+                        <i class="fa fa-download me-1"></i>確認套用
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" @click="clearSearch" title="取消">
+                        <i class="fa fa-times"></i>
+                    </button>
+                </div>
             </div>
 
           </div>
@@ -125,11 +116,10 @@
                              <template v-if="mgmtItem.子項 && mgmtItem.子項.length > 0">
                                  <tr v-for="(subItem, subIndex) in mgmtItem.子項" :key="subIndex">
                                      <!-- 管理項目 (RowSpan) -->
-                                     <!-- 管理項目 (RowSpan) -->
                                      <td v-if="subIndex === 0" :rowspan="mgmtItem.子項.length" 
-                                         class="fw-bold cursor-pointer position-relative hover-highlight"
+                                         class="fw-bold position-relative cursor-pointer hover-highlight"
                                          @click="editMgmtItem(String(phaseKey), mgmtIndex)"
-                                         title="點擊編輯管理項目">
+                                         title="點擊編輯管理項目名稱">
                                          {{ mgmtItem.名稱 || mgmtItem.name }}
                                      </td>
                                      
@@ -159,23 +149,18 @@
                              </template>
                              <!-- 無子項的情況 -->
                              <tr v-else>
-                                 <td class="fw-bold cursor-pointer hover-highlight" 
-                                     @click="editMgmtItem(String(phaseKey), mgmtIndex)"
-                                     title="點擊編輯管理項目">
-                                     {{ mgmtItem.名稱 || mgmtItem.name }}
-                                 </td>
+                                  <td class="fw-bold">
+                                      {{ mgmtItem.名稱 || mgmtItem.name }}
+                                  </td>
                                  <td colspan="6" class="text-center text-muted">暫無檢查項目</td>
                              </tr>
                          </template>
                       </template>
-                      <tr v-else>
-                         <td colspan="7" class="text-center text-muted p-3">
-                            此階段暫無管理項目 
-                            <button class="btn btn-sm btn-outline-primary ms-2" @click="addMgmtItem(String(phaseKey))">
-                                <i class="fa fa-plus me-1"></i>新增管理項目
-                            </button>
-                         </td>
-                      </tr>
+                       <tr v-else>
+                          <td colspan="7" class="text-center text-muted p-3">
+                             此階段暫無管理項目 
+                          </td>
+                       </tr>
                    </tbody>
                 </table>
              </div>
@@ -211,13 +196,21 @@
                 <textarea class="form-control" rows="2" v-model="editValue.note"></textarea>
              </div>
           </div>
+          <div v-else-if="editingField === '施工檢查點'">
+              <label class="form-label">{{ editingField }}</label>
+              <select class="form-select" v-model="editValue.current">
+                  <option value="">(無)</option>
+                  <option value="★">★</option>
+                  <option value="※">※</option>
+                  <option value="★※">★※</option>
+              </select>
+          </div>
           <div v-else>
              <label class="form-label">{{ editingField }}</label>
              <textarea class="form-control" rows="5" v-model="editValue.current"></textarea>
           </div>
       </template>
     </Modal>
-
   </div>
 </template>
 
@@ -227,9 +220,11 @@ import { useRoute, useRouter } from 'vue-router'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { 
     getConstructionMajorItemById, 
-    getStandardByPccesCode, 
+    getConstructionMajorItemStandards,
+    copyStandardFromPcces,
+    updateConstructionMajorItemStandard,
     type ConstructionMajorItem, 
-    type ConstructionStandard 
+    type ConstructionMajorItemStandardResponse
 } from '@/api/pcces'
 import Modal from '@/components/bootstrap/Modal.vue'
 import PccesAutocomplete from '@/components/common/PccesAutocomplete.vue'
@@ -259,26 +254,16 @@ const editValue = ref<any>({})
 const loadData = async () => {
     loadingItem.value = true
     try {
+        // 1. 取得基本資訊
         const item = await getConstructionMajorItemById(itemId)
         if (item) {
             currentItem.value = item
-            // 如果 API 回傳有 standards (明細), 可以在這裡初始化 itemData
-            // 根據 API 文件， GET /construction-major-items/{id} 會回傳 standards 陣列
-            // 我們可以嘗試直接將 standards 轉換為 UI 需要的 hierarchy
-            if (item.standards && item.standards.length > 0) {
-                 // Reuse applyStandard logic or similar mapping
-                 // API standards structure: { stepOrder, itemName, workProcess, manageProject, ... }
-                 // We need to pass this to applyStandard logic
-                 // applyStandard expects ConstructionStandard[], let's map it if field names differ or pass directly if match
-                 // Based on API MD, field names in 'standards' array match mostly (checkStandard, etc).
-                 // However, 'standards' in API response is mixed snake/camel depending on viewing entity vs json.
-                 // Let's assume response JSON keys are camelCase as per typical Spring/Jackson.
-                 applyStandard(item.standards)
-            }
         }
+        // 2. 取得標準明細
+        const standards = await getConstructionMajorItemStandards(itemId)
+        applyStandard(standards)
     } catch (e) {
-        console.error('List item failed', e)
-        // 保持空或者是錯誤提示
+        console.error('Load data failed', e)
     } finally {
         loadingItem.value = false
     }
@@ -298,49 +283,38 @@ const clearSearch = () => {
 const confirmApplyStandard = async () => {
     if (!selectedSearchResult.value) return
 
+    if(!confirm('確定要套用此標準嗎？這將覆蓋目前的標準明細。')) return
+
     try {
         loadingItem.value = true
-        console.log('Fetching standard for code:', selectedSearchResult.value.code)
-        // 使用 API 取得標準
-        const standardData = await getStandardByPccesCode(selectedSearchResult.value.code)
-        console.log('API Response Standard Data:', standardData)
+        // 呼叫 Copy API
+        await copyStandardFromPcces(itemId, selectedSearchResult.value.code)
         
-        applyStandard(standardData)
+        // 重新載入
+        const standards = await getConstructionMajorItemStandards(itemId)
+        applyStandard(standards)
+        
+        // 清除搜尋
+        clearSearch()
+        alert('標準套用成功')
     } catch (e) {
-        console.error('Failed to load standard:', e)
-        alert('取得標準失敗，請稍後再試')
+        console.error('Copy standard failed:', e)
+        alert('套用標準失敗，請稍後再試')
     } finally {
         loadingItem.value = false
     }
 }
 
-const applyStandard = (response: ConstructionStandard[] | any) => {
-    
-    // 1. Extract the array from the response
-    let rawList: any[] = []
-    if (Array.isArray(response)) {
-        rawList = response
-    } else if (response && Array.isArray(response.data)) {
-        rawList = response.data
-    } else if (response && typeof response === 'object') {
-        // Fallback: try to see if it's the phases object directly (legacy/mock support)
-         if (response.phases) {
-             itemData.value = JSON.parse(JSON.stringify(response))
-             return
-         }
-    }
-
-    if (rawList.length === 0) {
-        console.warn('No standard items found')
-        // 保留原本的邏輯，或者是顯示空狀態
+const applyStandard = (list: ConstructionMajorItemStandardResponse[]) => {
+    if (!list || list.length === 0) {
         itemData.value = { phases: {} } 
         return
     }
 
-    // 2. Group by workProcess (Phase) -> manageProject (Management Item)
+    // Group by workProcess (Phase) -> manageProject (Management Item)
     const phases: Record<string, any> = {}
 
-    rawList.forEach(item => {
+    list.forEach(item => {
         const phaseName = item.workProcess || '未分類階段'
         const mgmtName = item.manageProject || '未命名項目'
 
@@ -364,7 +338,8 @@ const applyStandard = (response: ConstructionStandard[] | any) => {
 
         // Map Fields to Sub Item
         const subItem = {
-            施工檢查點: item.checkPoint || '', // JSON spec doesn't show this, keep empty or map if exists
+            id: item.id, // Important for updates
+            施工檢查點: item.checkPoint || '', 
             抽查標準: item.checkStandard || '',
             抽查時機: item.checkTiming || '',
             抽查頻率: item.checkFeq || '',
@@ -377,7 +352,6 @@ const applyStandard = (response: ConstructionStandard[] | any) => {
         mgmtItem.子項.push(subItem)
     })
 
-    // 3. Update State
     itemData.value = { phases }
 }
 
@@ -402,57 +376,98 @@ const editField = (phaseKey: string, mgmtIdx: number, subIdx: number, fieldName:
     showEditModal.value = true
 }
 
-const saveEdit = () => {
+const saveEdit = async () => {
     if (!editTarget.value) return 
     const { phase, mgmtIdx, subIdx } = editTarget.value
+    
+    // 批次修改管理項目名稱
+    if (editingField.value === '管理項目') {
+        const mgmtItem = itemData.value.phases[phase].管理項目[mgmtIdx]
+        const newVal = editValue.value.current
+        
+        if (!newVal || !mgmtItem.子項 || mgmtItem.子項.length === 0) return
+
+        try {
+            loadingItem.value = true
+            // 同步更新該群組下所有子項的 manageProject
+            const promises = mgmtItem.子項.map((sub: any) => {
+                if (!sub.id) return Promise.resolve()
+                return updateConstructionMajorItemStandard(itemId, sub.id, { manageProject: newVal })
+            })
+            
+            await Promise.all(promises)
+            
+            // 更新本地資料
+            mgmtItem.名稱 = newVal
+            showEditModal.value = false
+            alert('管理項目名稱更新成功')
+        } catch(e) {
+            console.error(e)
+            alert('更新失敗，部分項目可能未同步')
+        } finally {
+            loadingItem.value = false
+        }
+        return
+    }
+
     const subItem = itemData.value.phases[phase].管理項目[mgmtIdx].子項[subIdx]
     
+    if (!subItem.id) {
+        alert('無法編輯：缺少 ID')
+        return
+    }
+
+    const payload: Partial<ConstructionMajorItemStandardResponse> = {}
+
     if (editingField.value === '其他資訊') {
-        subItem.不符合之處理方式 = editValue.value.failure
-        subItem.管理紀錄 = editValue.value.record
-        subItem.備註 = editValue.value.note
+        payload.failureHandle = editValue.value.failure
+        payload.manageRecord = editValue.value.record
+        payload.remark = editValue.value.note
     } else {
-        subItem[editingField.value] = editValue.value.current
+        // Mapping UI fields to API fields
+        switch(editingField.value) {
+            case '施工檢查點': payload.checkPoint = editValue.value.current; break;
+            case '抽查標準': payload.checkStandard = editValue.value.current; break;
+            case '抽查時機': payload.checkTiming = editValue.value.current; break;
+            case '抽查頻率': payload.checkFeq = editValue.value.current; break;
+            case '抽查方法': payload.checkMethod = editValue.value.current; break;
+        }
     }
-    showEditModal.value = false
-}
 
-const deleteSubItem = (phaseKey: string, mgmtIdx: number, subIdx: number) => {
-    if(confirm('確定刪除此檢查項目？')) {
-        const mgmtItem = itemData.value.phases[phaseKey].管理項目[mgmtIdx]
-        mgmtItem.子項.splice(subIdx, 1)
+    try {
+        await updateConstructionMajorItemStandard(itemId, subItem.id, payload)
+        
+        // Update local state
+        if (editingField.value === '其他資訊') {
+            subItem.不符合之處理方式 = payload.failureHandle
+            subItem.管理紀錄 = payload.manageRecord
+            subItem.備註 = payload.remark
+        } else {
+            subItem[editingField.value] = editValue.value.current
+        }
+        
+        showEditModal.value = false
+    } catch(e) {
+        console.error(e)
+        alert('儲存失敗')
     }
 }
 
-const addSubItem = (phaseKey: string, mgmtIdx: number) => {
-    const mgmtItem = itemData.value.phases[phaseKey].管理項目[mgmtIdx]
-    if (!mgmtItem.子項) mgmtItem.子項 = []
-    mgmtItem.子項.push({
-        "施工檢查點": "",
-        "抽查標準": "新檢查項目",
-        "抽查時機": "",
-        "抽查頻率": "",
-        "抽查方法": "",
-    })
-}
-
-// 管理項目編輯
+// 管理項目編輯 (Not fully supported by single item PATCH if it implies batch update)
 const editMgmtItem = (phaseKey: string, mgmtIdx: number) => {
+    editingField.value = '管理項目'
+    editModalTitle.value = '編輯管理項目名稱'
+    // subIdx -1 indicates management item group
+    editTarget.value = { phase: phaseKey, mgmtIdx, subIdx: -1 }
+    
     const mgmtItem = itemData.value.phases[phaseKey].管理項目[mgmtIdx]
-    const newName = prompt('請輸入管理項目名稱', mgmtItem.名稱 || mgmtItem.name)
-    if (newName) mgmtItem.名稱 = newName
+    editValue.value = { current: mgmtItem.名稱 || mgmtItem.name }
+    
+    showEditModal.value = true
 }
 
-const addMgmtItem = (phaseKey: string) => {
-    const name = prompt('新管理項目名稱')
-    if (name) {
-        if (!itemData.value.phases[phaseKey].管理項目) itemData.value.phases[phaseKey].管理項目 = []
-        itemData.value.phases[phaseKey].管理項目.push({
-            名稱: name,
-            子項: []
-        })
-    }
-}
+// Add/Delete functions removed as per API capabilities (Overwrite/Edit only)
+const addMgmtItem = (phaseKey: string) => {}
 
 onMounted(() => {
   loadData()

@@ -408,9 +408,52 @@ export async function updateConstructionMajorItem(id: string, data: Partial<Cons
     return response as unknown as ConstructionMajorItem;
 }
 
+export interface ConstructionMajorItemStandardResponse {
+    id: number;
+    stepOrder: number;
+    itemName?: string;
+    workProcess?: string;
+    manageProject?: string;
+    checkStandard?: string;
+    checkTiming?: string;
+    checkMethod?: string;
+    checkFeq?: string;
+    failureHandle?: string;
+    manageRecord?: string;
+    remark?: string;
+    isActive?: boolean;
+    checkPoint?: string;
+}
+
+// ... existing code ...
+
 /**
  * 刪除施工大項
  */
 export async function deleteConstructionMajorItem(id: string): Promise<void> {
     await http.delete(`/management/construction-major-items/${id}`);
+}
+
+/**
+ * 1) 查詢某施工大項的施工抽查標準明細
+ */
+export async function getConstructionMajorItemStandards(id: string): Promise<ConstructionMajorItemStandardResponse[]> {
+    const response = await http.get(`/management/construction-major-items/${id}/standards`);
+    return response as unknown as ConstructionMajorItemStandardResponse[];
+}
+
+/**
+ * 2) 覆蓋式複製（從 PCCES 工項複製標準到施工大項）
+ */
+export async function copyStandardFromPcces(id: string, sourcePccesCode: string): Promise<ConstructionMajorItemStandardResponse[]> {
+    const response = await http.post(`/management/construction-major-items/${id}/standards/copy`, { sourcePccesCode });
+    return response as unknown as ConstructionMajorItemStandardResponse[];
+}
+
+/**
+ * 3) 編輯單筆施工抽查標準明細
+ */
+export async function updateConstructionMajorItemStandard(id: string, standardId: number, data: Partial<ConstructionMajorItemStandardResponse>): Promise<ConstructionMajorItemStandardResponse> {
+    const response = await http.patch(`/management/construction-major-items/${id}/standards/${standardId}`, data);
+    return response as unknown as ConstructionMajorItemStandardResponse;
 }

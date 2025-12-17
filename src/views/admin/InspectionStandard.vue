@@ -248,15 +248,16 @@
           >
             <e-columns>
               <e-column
+                field="id"
+                headerText="ID"
+                width="80"
+                textAlign="Center"
+                :visible="false"
+              ></e-column>
+              <e-column
                 field="pccesCode"
                 headerText="PCCES 代碼"
                 width="150"
-                textAlign="Left"
-              ></e-column>
-              <e-column
-                field="itemName"
-                headerText="工項名稱"
-                width="250"
                 textAlign="Left"
               ></e-column>
               <e-column
@@ -266,21 +267,21 @@
                 textAlign="Center"
               ></e-column>
               <e-column
-                field="dataSource"
-                headerText="資料來源"
-                width="180"
+                field="itemName"
+                headerText="工項名稱"
+                width="200"
                 textAlign="Left"
               ></e-column>
               <e-column
-                field="progress"
-                headerText="進度"
-                width="100"
+                field="dataSource"
+                headerText="資料來源"
+                width="150"
                 textAlign="Left"
               ></e-column>
               <e-column
                 field="workProcess"
                 headerText="施工流程"
-                width="150"
+                width="120"
                 textAlign="Left"
               ></e-column>
               <e-column
@@ -288,6 +289,12 @@
                 headerText="管理項目"
                 width="120"
                 textAlign="Left"
+              ></e-column>
+              <e-column
+                field="checkPoint"
+                headerText="檢查點"
+                width="100"
+                textAlign="Center"
               ></e-column>
               <e-column
                 field="checkStandard"
@@ -312,6 +319,31 @@
                 headerText="抽查頻率"
                 width="120"
                 textAlign="Left"
+              ></e-column>
+              <e-column
+                field="failureHandle"
+                headerText="不符合處理"
+                width="150"
+                textAlign="Left"
+              ></e-column>
+              <e-column
+                field="manageRecord"
+                headerText="管理紀錄"
+                width="150"
+                textAlign="Left"
+              ></e-column>
+              <e-column
+                field="remark"
+                headerText="備註"
+                width="150"
+                textAlign="Left"
+              ></e-column>
+              <e-column
+                field="isActive"
+                headerText="啟用"
+                width="100"
+                textAlign="Center"
+                displayAsCheckBox="true"
               ></e-column>
             </e-columns>
           </ejs-treegrid>
