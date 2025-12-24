@@ -166,6 +166,7 @@ export const useAppSidebarMenuStore = defineStore("appSidebarMenu", () => {
       icon: "bi bi-file-earmark-text",
       children: [
         { text: "表單匯出中心", url: "/forms/export-center" },
+        { text: "標單材料設定", url: "/forms/tender-material-settings" },
         {
           text: "A類表單",
           children: [

@@ -36,6 +36,11 @@ const router = createRouter({
       meta: { requiresAuth: true }
     },
     {
+      path: '/forms/tender-material-settings',
+      component: () => import('../views/forms/TenderMaterialSettings.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
       path: '/forms/a4-download',
       component: () => import('../views/forms/type-a/FormA4Download.vue'),
       meta: { requiresAuth: true }
