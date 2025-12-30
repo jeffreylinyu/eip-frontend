@@ -11,6 +11,7 @@ export interface MaterialDetail {
   hasSample: boolean;
   hasOther: boolean;
   plannedSubmissionDate: string | null;
+  plannedArrivalDate: string | null;
   updatedAt?: string | null;
 }
 
@@ -46,5 +47,68 @@ export const tenderMaterialApi = {
   async updateMaterialDetail(request: UpdateMaterialDetailRequest): Promise<MaterialDetail> {
     const response = await http.put('/management/construction/material-detail', request);
     return response as unknown as MaterialDetail;
+  },
+
+  // --- 工程材料抽查標準 API ---
+
+  // 1. 查詢工程材料抽查標準
+  async getMaterialStandards(pccesCode: string, contractVersionId: string | number): Promise<ConstructionMaterialStandardResponse[]> {
+    const response = await http.get('/management/construction/material-detail/standards', {
+      params: { pccesCode, contractVersionId }
+    });
+    return response as unknown as ConstructionMaterialStandardResponse[];
+  },
+
+  // 2. 複製材料抽查標準
+  async copyMaterialStandards(pccesCode: string, contractVersionId: string | number, sourcePccesCode: string): Promise<ConstructionMaterialStandardResponse[]> {
+    const response = await http.post('/management/construction/material-detail/standards/copy', 
+      { sourcePccesCode },
+      { params: { pccesCode, contractVersionId } }
+    );
+    return response as unknown as ConstructionMaterialStandardResponse[];
+  },
+
+  // 3. 更新單筆材料抽查標準
+  async updateMaterialStandard(
+    standardId: number, 
+    pccesCode: string, 
+    contractVersionId: string | number, 
+    request: ConstructionMaterialStandardUpdateRequest
+  ): Promise<ConstructionMaterialStandardResponse> {
+    const response = await http.put(`/management/construction/material-detail/standards/${standardId}`, request, {
+      params: { pccesCode, contractVersionId }
+    });
+    return response as unknown as ConstructionMaterialStandardResponse;
   }
 };
+
+// --- Interfaces for Material Standard ---
+
+export interface ConstructionMaterialStandardResponse {
+    id: number | null;
+    itemNo?: number;
+    itemName?: string;
+    checkStandard?: string;
+    checkMethod?: string;
+    applyFirstLevel?: string;
+    feqCheckFirstLevel?: string;
+    checkRatioSecondLevel?: string;
+    failureHandle?: string;
+    isActive: boolean;
+}
+
+export interface ConstructionMaterialStandardCopyRequest {
+    sourcePccesCode: string;
+}
+
+export interface ConstructionMaterialStandardUpdateRequest {
+    itemNo?: number;
+    itemName?: string;
+    checkStandard?: string;
+    checkMethod?: string;
+    applyFirstLevel?: string;
+    feqCheckFirstLevel?: string;
+    checkRatioSecondLevel?: string;
+    failureHandle?: string;
+    isActive?: boolean;
+}

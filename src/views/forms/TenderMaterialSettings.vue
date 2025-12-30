@@ -1,6 +1,6 @@
 <script lang="ts">
 import { defineComponent, onMounted, ref, watch, computed } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 // import { useProjectStore } from '@/stores/project'; // 假設有 project store 可以取得當前專案資訊
 import { tenderMaterialApi, type MaterialItem, type UpdateMaterialDetailRequest, type MaterialDetail } from '@/api/tenderMaterial';
 import toastService from '@/components/bootstrap/ToastService.js';
@@ -8,11 +8,16 @@ import { debounce, throttle } from 'lodash';
 // 引入 Store 與 API
 import { useWorkspaceStore } from '@/stores/workspace';
 import { getContractVersions, type ContractVersion } from '@/api/pcces';
+import RepublicDatePicker from '@/components/bootstrap/RepublicDatePicker.vue';
 
 export default defineComponent({
   name: 'TenderMaterialSettings',
+  components: {
+    RepublicDatePicker
+  },
   setup() {
     const route = useRoute();
+    const router = useRouter();
     const workspaceStore = useWorkspaceStore();
     
     // Throttled success toast to prevent spam (max once every 3 seconds)
@@ -213,8 +218,20 @@ export default defineComponent({
       savingStatus,
       handleTextChange,
       handleCheckboxChange,
+      saveItem,
       fetchMaterials: loadVersionsAndMaterials, // Expose as fetchMaterials for the refresh button
       groupedMaterials,
+      goToQualityControl: (pccesCode: string) => {
+        if (pccesCode) {
+           // Encode just in case, though pccesCode is usually safe
+           router.push({
+             path: `/forms/tender-material-settings/${pccesCode}/quality-control`,
+             query: { versionId: currentVersionId.value }
+           });
+        } else {
+           toastService.warning('此項目無 PCCES 編碼，無法進入管控表設定');
+        }
+      }
     };
   }
 });
@@ -266,6 +283,7 @@ export default defineComponent({
                       <th class="text-center" style="width: 80px;">項次</th>
                       <th style="width: 120px;">工項編碼</th>
                       <th style="min-width: 200px;">材料名稱/數量</th>
+                      <th style="width: 200px;">預定進場日期</th>
                       <th class="text-center" style="width: 100px;">取樣試驗</th>
                       <th style="width: 150px;">預定送審日期</th>
                       <th class="text-center" style="width: 100px;">驗廠</th>
@@ -275,7 +293,7 @@ export default defineComponent({
                   </thead>
                   <tbody>
                     <tr v-if="groupedMaterials.length === 0">
-                      <td colspan="8" class="text-center py-4 text-muted">
+                      <td colspan="9" class="text-center py-4 text-muted">
                         {{ materials.length === 0 ? '目前尚無資料' : '查無符合條件的資料' }}
                       </td>
                     </tr>
@@ -296,6 +314,20 @@ export default defineComponent({
                         </div>
                       </td>
                       
+                      <!-- 預定進場日期 -->
+                      <td>
+                        <div class="border rounded bg-body d-flex align-items-center w-100" style="min-height: 38px;">
+                            <RepublicDatePicker
+                              v-model="group.detail.plannedArrivalDate"
+                              placeholder="請選擇"
+                              @update:model-value="saveItem(group.items[0])"
+                              input-class="form-control-sm border-0 shadow-none w-100 h-100"
+                              class="w-100 border-0"
+                              :hide-icon="true"
+                            />
+                        </div>
+                      </td>
+
                       <!-- Checkboxes bind to group.detail (effectively the first item's detail) -->
                       <!-- Because all items in group share pccesCode, updating one updates all via our save logic/backend -->
                       
@@ -321,6 +353,8 @@ export default defineComponent({
                           @input="handleTextChange(group.items[0])"
                         >
                       </td>
+
+
                       
                       <!-- 是否驗廠 -->
                       <td class="text-center">
@@ -362,7 +396,10 @@ export default defineComponent({
                       
                       <!-- 操作 -->
                       <td class="text-center">
-                         <button class="btn btn-sm btn-outline-primary text-nowrap">
+                         <button 
+                           class="btn btn-sm btn-outline-primary text-nowrap"
+                           @click="goToQualityControl(group.pccesCode)"
+                         >
                            <i class="fa fa-list-check me-1"></i>品質抽驗管控表
                          </button>
                       </td>

@@ -3,7 +3,7 @@
     <VueDatePicker
       v-model="internalDate"
       :disabled="disabled"
-      :class="inputClass"
+      :class="[inputClass, { 'hide-icon': hideIcon }]"
       :state="showError ? false : null"
       locale="zh-TW"
       :format="formatDisplayDate"
@@ -71,6 +71,7 @@ interface Props {
   // --- 新增 Props ---
   disableHolidays?: boolean        // 是否啟用假日禁用功能
   constructionId?: number | string // 若有傳入，則查詢該工程專屬假日；若無則查通用
+  hideIcon?: boolean              // 是否隱藏輸入框圖示
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -85,7 +86,8 @@ const props = withDefaults(defineProps<Props>(), {
   
   // --- 新增預設值 ---
   disableHolidays: false,
-  constructionId: undefined
+  constructionId: undefined,
+  hideIcon: false
 })
 
 const emit = defineEmits<{
@@ -301,6 +303,10 @@ watch(() => props.modelValue, (newValue) => {
     padding-right: 40px !important;
   }
   
+  .republic-date-picker :deep(.hide-icon .dp__input) {
+    padding-right: 12px !important; /* Reset padding when icon is hidden */
+  }
+
   .republic-date-picker :deep(.dp__input_icon) {
     right: 12px !important;
   }
@@ -362,6 +368,16 @@ watch(() => props.modelValue, (newValue) => {
   min-width: 0 !important;
   padding-right: 40px !important; /* 為圖示預留空間 */
   padding-left: 0 !important;
+}
+
+.republic-date-picker :deep(.hide-icon .dp__input) {
+  padding-right: 0 !important; /* Reset padding when icon is hidden */
+  padding-left: 10px !important;
+  text-align: left !important;
+}
+
+.republic-date-picker :deep(.hide-icon .dp__input_icon) {
+  display: none !important;
 }
 
 .republic-date-picker :deep(.dp__input:hover) {

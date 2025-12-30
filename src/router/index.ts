@@ -111,6 +111,16 @@ const router = createRouter({
       meta: { requiresAuth: true, requiresAdmin: true }
     },
     {
+      path: '/admin/material-inspection-standard',
+      component: () => import('../views/admin/MaterialInspectionStandard.vue'),
+      meta: { requiresAuth: true, requiresAdmin: true }
+    },
+    {
+      path: '/forms/tender-material-settings/:pccesCode/quality-control',
+      component: () => import('../views/forms/type-b/FormBMaterialQualityControl.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
       path: '/workspace/management',
       component: () => import('../views/workspace/WorkspaceManagement.vue'),
       meta: { requiresAuth: true }

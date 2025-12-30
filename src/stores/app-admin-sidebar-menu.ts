@@ -39,6 +39,11 @@ export const useAppAdminSidebarMenuStore = defineStore("appAdminSidebarMenu", ()
         icon: "bi bi-clipboard-check",
         url: "/admin/inspection-standard",
       },
+      {
+        text: "材料抽查標準表",
+        icon: "bi bi-box-seam",
+        url: "/admin/material-inspection-standard",
+      },
       
       // 未來可以添加更多系統管理功能
       // { text: "帳號權限管理", url: "/admin/user-roles", icon: "bi bi-person-shield" },

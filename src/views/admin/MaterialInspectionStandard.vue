@@ -1,11 +1,11 @@
 <template>
-  <div class="inspection-standard-page">
+  <div class="material-standard-page">
     <PageHeader
-      title="施工抽查標準表"
-      icon="fa fa-clipboard-check"
+      title="材料抽查標準表"
+      icon="fa fa-cubes"
       :breadcrumbs="[
         { text: '系統維護', href: 'javascript:;' },
-        { text: '施工抽查標準表', active: true }
+        { text: '材料抽查標準表', active: true }
       ]"
     />
 
@@ -40,7 +40,7 @@
               </div>
 
               <!-- 關鍵字搜尋 -->
-              <div class="col-md-2">
+              <div class="col-md-3">
                 <label class="form-label small text-muted">關鍵字</label>
                 <div class="input-group input-group-sm">
                   <span class="input-group-text">
@@ -50,25 +50,10 @@
                     type="text"
                     class="form-control"
                     v-model="searchKeyword"
-                    placeholder="工項名稱..."
+                    placeholder="材料名稱..."
                     @keyup.enter="handleSearch"
                   />
                 </div>
-              </div>
-
-              <!-- 資料來源篩選 -->
-              <div class="col-md-2">
-                <label class="form-label small text-muted">資料來源</label>
-                <select class="form-select form-select-sm" v-model="searchDataSource">
-                  <option value="">全部</option>
-                  <option
-                    v-for="source in dataSourceList"
-                    :key="source"
-                    :value="source"
-                  >
-                    {{ source }}
-                  </option>
-                </select>
               </div>
 
               <!-- 搜尋按鈕 -->
@@ -84,7 +69,7 @@
               </div>
 
               <!-- 清除與操作按鈕 -->
-              <div class="col-md-4 d-flex gap-2 justify-content-end">
+              <div class="col-md-5 d-flex gap-2 justify-content-end">
                 <button
                   type="button"
                   class="btn btn-outline-secondary btn-sm"
@@ -108,7 +93,7 @@
                   @click="openImportModal" 
                   :disabled="isLoading"
                 >
-                  <i class="fa fa-file-import me-1"></i>匯入
+                  <i class="fa fa-file-import me-1"></i>資料夾匯入
                 </button>
               </div>
             </div>
@@ -124,7 +109,7 @@
         <p class="mt-2 text-muted">載入中...</p>
       </div>
 
-      <!-- 列表 - 使用 Syncfusion TreeGrid -->
+      <!-- 列表 - 使用 Syncfusion Grid -->
       <div
         v-else
         class="grid-wrapper"
@@ -137,7 +122,7 @@
         >
           <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
             <div class="fw-semibold">
-              <i class="fa fa-clipboard-check me-2"></i>施工抽查標準表
+              <i class="fa fa-cubes me-2"></i>材料抽查標準表
             </div>
             <div class="d-flex gap-2">
               <button
@@ -147,14 +132,6 @@
                 title="退出全螢幕"
               >
                 <i class="fa fa-compress me-1"></i>退出全螢幕
-              </button>
-              <button 
-                class="btn btn-success btn-sm" 
-                type="button" 
-                @click="openImportModal" 
-                :disabled="isLoading"
-              >
-                <i class="fa fa-file-import me-1"></i>匯入
               </button>
             </div>
           </div>
@@ -191,19 +168,6 @@
                     @keyup.enter="handleSearch"
                   />
                 </div>
-              </div>
-              <div class="col-md-2">
-                <label class="form-label small text-muted mb-1">資料來源</label>
-                <select class="form-select form-select-sm" v-model="searchDataSource">
-                  <option value="">全部</option>
-                  <option
-                    v-for="source in dataSourceList"
-                    :key="source"
-                    :value="source"
-                  >
-                    {{ source }}
-                  </option>
-                </select>
               </div>
               <div class="col-md-2">
                 <button
@@ -255,87 +219,57 @@
                 :visible="false"
               ></e-column>
               <e-column
+                field="itemNo"
+                headerText="排序"
+                width="80"
+                textAlign="Center"
+              ></e-column>
+              <e-column
                 field="pccesCode"
                 headerText="PCCES 代碼"
                 width="150"
                 textAlign="Left"
               ></e-column>
               <e-column
-                field="stepOrder"
-                headerText="步驟順序"
-                width="100"
-                textAlign="Center"
-              ></e-column>
-              <e-column
                 field="itemName"
-                headerText="工項名稱"
+                headerText="材料名稱"
                 width="200"
                 textAlign="Left"
-              ></e-column>
-              <e-column
-                field="dataSource"
-                headerText="資料來源"
-                width="150"
-                textAlign="Left"
-              ></e-column>
-              <e-column
-                field="workProcess"
-                headerText="施工流程"
-                width="120"
-                textAlign="Left"
-              ></e-column>
-              <e-column
-                field="manageProject"
-                headerText="管理項目"
-                width="120"
-                textAlign="Left"
-              ></e-column>
-              <e-column
-                field="checkPoint"
-                headerText="檢查點"
-                width="100"
-                textAlign="Center"
               ></e-column>
               <e-column
                 field="checkStandard"
                 headerText="抽查標準"
-                width="200"
-                textAlign="Left"
-              ></e-column>
-              <e-column
-                field="checkTiming"
-                headerText="抽查時機"
-                width="150"
+                width="250"
                 textAlign="Left"
               ></e-column>
               <e-column
                 field="checkMethod"
                 headerText="抽查方法"
-                width="120"
+                width="150"
                 textAlign="Left"
               ></e-column>
               <e-column
-                field="checkFeq"
-                headerText="抽查頻率"
-                width="120"
+                field="applyFirstLevel"
+                headerText="一級辦理時機"
+                width="150"
+                textAlign="Left"
+              ></e-column>
+              <e-column
+                field="feqCheckFirstLevel"
+                headerText="一級試驗頻率"
+                width="150"
+                textAlign="Left"
+              ></e-column>
+              <e-column
+                field="checkRatioSecondLevel"
+                headerText="二級抽驗比例(%)"
+                width="150"
                 textAlign="Left"
               ></e-column>
               <e-column
                 field="failureHandle"
-                headerText="不符合處理"
-                width="150"
-                textAlign="Left"
-              ></e-column>
-              <e-column
-                field="manageRecord"
-                headerText="管理紀錄"
-                width="150"
-                textAlign="Left"
-              ></e-column>
-              <e-column
-                field="remark"
-                headerText="備註"
-                width="150"
+                headerText="不合格處理"
+                width="200"
                 textAlign="Left"
               ></e-column>
               <e-column
@@ -354,7 +288,7 @@
     <!-- 匯入 Modal -->
     <Modal
       :show="showImportModal"
-      title="匯入施工抽查標準"
+      title="匯入材料標準"
       icon="fa fa-file-import"
       size="lg"
       @update:show="showImportModal = $event"
@@ -362,6 +296,7 @@
       cancelText="取消"
     >
       <template #body>
+        <!-- 檔案上傳模式 -->
         <div class="mb-3">
           <label class="form-label fw-semibold">
             資料來源機關 <span class="text-danger">*</span>
@@ -390,25 +325,27 @@
             ref="fileInput"
           />
           <div class="form-text">
-            可選擇多個 JSON 檔案進行批次匯入。檔案格式請參考 API 文檔。
+            可選擇多個 JSON 檔案進行批次匯入。
           </div>
         </div>
 
         <div v-if="selectedFiles.length > 0" class="mb-3">
           <label class="form-label fw-semibold">已選擇的檔案</label>
-          <ul class="list-group">
+          <ul class="list-group" style="max-height: 200px; overflow-y: auto;">
             <li
               v-for="(file, index) in selectedFiles"
               :key="index"
-              class="list-group-item d-flex justify-content-between align-items-center"
+              class="list-group-item d-flex justify-content-between align-items-center py-2"
             >
-              <span>{{ file.name }}</span>
-              <span class="badge bg-secondary rounded-pill">{{ formatFileSize(file.size) }}</span>
+              <small>{{ file.name }}</small>
+              <span class="badge bg-secondary rounded-pill" style="font-size: 0.7em;">
+                {{ (file.size / 1024).toFixed(1) }} KB
+              </span>
             </li>
           </ul>
         </div>
 
-        <div class="alert alert-info d-flex align-items-start gap-2">
+        <div class="alert alert-info d-flex align-items-start gap-2 mt-3">
           <i class="fa fa-info-circle mt-1"></i>
           <div>
             <div class="fw-semibold">注意事項</div>
@@ -427,7 +364,7 @@
           <i class="fa fa-check-circle mt-1"></i>
           <div>
             <div class="fw-semibold">匯入成功</div>
-            成功匯入 {{ importResult }} 筆資料。
+            {{ importResult }}
           </div>
         </div>
 
@@ -450,7 +387,7 @@
         <button
           class="btn btn-primary"
           @click="startImport"
-          :disabled="!importDataSource.trim() || selectedFiles.length === 0 || isImporting"
+          :disabled="isImportDisabled"
         >
           <span v-if="isImporting" class="spinner-border spinner-border-sm me-2"></span>
           <i v-else class="fa fa-upload me-2"></i>
@@ -464,7 +401,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onActivated, nextTick, provide } from 'vue'
 import { useAuthStore } from '@/stores/auth'
-import { masterDataApi, type PccesWorkProcessStandard } from '@/api/masterData'
+import { materialStandardApi, type PccesMaterialStandard } from '@/api/materialStandard'
 import PageHeader from '@/components/bootstrap/PageHeader.vue'
 import Modal from '@/components/bootstrap/Modal.vue'
 import Card from '@/components/bootstrap/Card.vue'
@@ -473,6 +410,9 @@ import { GridComponent as EjsGrid, ColumnsDirective as EColumns, ColumnDirective
 import type { GridComponent } from '@syncfusion/ej2-vue-grids'
 import { L10n } from '@syncfusion/ej2-base'
 import { getCurrentInstance } from 'vue'
+
+const { proxy } = getCurrentInstance() as any
+const authStore = useAuthStore()
 
 L10n.load({
   'zh': {
@@ -521,9 +461,6 @@ L10n.load({
   }
 })
 
-const { proxy } = getCurrentInstance() as any
-const authStore = useAuthStore()
-
 // 權限檢查
 const hasAdminPermission = computed(() => {
   const user = authStore.user
@@ -533,7 +470,7 @@ const hasAdminPermission = computed(() => {
 
 // Grid 相關
 const grid = ref<GridComponent | null>(null)
-const gridData = ref<PccesWorkProcessStandard[]>([])
+const gridData = ref<PccesMaterialStandard[]>([])
 const isLoading = ref(false)
 
 // 全螢幕狀態
@@ -557,10 +494,6 @@ const filterSettings = ref({
 // 搜尋條件
 const searchPccesCode = ref('')
 const searchKeyword = ref('')
-const searchDataSource = ref('')
-
-// 資料來源列表
-const dataSourceList = ref<string[]>([])
 
 // 匯入相關
 const showImportModal = ref(false)
@@ -568,21 +501,17 @@ const importDataSource = ref('')
 const selectedFiles = ref<File[]>([])
 const fileInput = ref<HTMLInputElement | null>(null)
 const isImporting = ref(false)
-const importResult = ref<number | null>(null)
+const importResult = ref<string | null>(null)
 const errorMessage = ref('')
+
+// 匯入按鈕禁用狀態
+const isImportDisabled = computed(() => {
+  return isImporting.value || !importDataSource.value.trim() || selectedFiles.value.length === 0
+})
 
 // 切換全螢幕
 const toggleFullscreen = () => {
   isFullscreen.value = !isFullscreen.value
-}
-
-// 格式化檔案大小
-const formatFileSize = (bytes: number): string => {
-  if (bytes === 0) return '0 Bytes'
-  const k = 1024
-  const sizes = ['Bytes', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i]
 }
 
 // 載入資料
@@ -591,78 +520,44 @@ const loadData = async (useSearchParams: boolean = false) => {
 
   isLoading.value = true
   try {
-    // 先取得總筆數
-    const countParams: any = {
-      page: 0,
-      size: 1,
-    }
-    
-    // 如果有搜尋條件，加入參數
-    if (useSearchParams) {
-      if (searchPccesCode.value.trim()) {
-        countParams.pccesCode = searchPccesCode.value.trim()
-      }
-      if (searchKeyword.value.trim()) {
-        countParams.keyword = searchKeyword.value.trim()
-      }
-      if (searchDataSource.value.trim()) {
-        countParams.dataSource = searchDataSource.value.trim()
-      }
-    }
-
-    // 先取得總筆數
-    const countResponse = await masterDataApi.searchWorkProcesses(countParams)
-    const totalElements = countResponse.totalElements || 0
-
-    // 如果沒有資料，直接返回
-    if (totalElements === 0) {
-      gridData.value = []
-      isLoading.value = false
-      return
-    }
-
-    // 使用總筆數作為 size，一次取得全部資料
     const params: any = {
       page: 0,
-      size: totalElements, // 使用總筆數，取得全部資料
+      size: 1000, 
     }
-
+    
     // 如果有搜尋條件，加入參數
+    const keywordParts = [];
     if (useSearchParams) {
       if (searchPccesCode.value.trim()) {
-        params.pccesCode = searchPccesCode.value.trim()
+        keywordParts.push(searchPccesCode.value.trim());
       }
       if (searchKeyword.value.trim()) {
-        params.keyword = searchKeyword.value.trim()
+        keywordParts.push(searchKeyword.value.trim());
       }
-      if (searchDataSource.value.trim()) {
-        params.dataSource = searchDataSource.value.trim()
+      
+      if (keywordParts.length > 0) {
+        params.keyword = keywordParts.join(' ');
       }
     }
 
-    const response = await masterDataApi.searchWorkProcesses(params)
-    gridData.value = response.content || []
-    
-    // 更新資料來源列表（從所有資料中提取唯一的資料來源）
-    if (!useSearchParams) {
-      // 只在載入全部資料時更新資料來源列表
-      const uniqueDataSources = new Set<string>()
-      gridData.value.forEach(item => {
-        if (item.dataSource && item.dataSource.trim()) {
-          uniqueDataSources.add(item.dataSource.trim())
-        }
-      })
-      dataSourceList.value = Array.from(uniqueDataSources).sort()
-    }
-    
-    // 如果有搜尋條件，顯示結果提示
-    if (useSearchParams && (searchPccesCode.value || searchKeyword.value || searchDataSource.value)) {
-      const resultCount = gridData.value.length
-      proxy?.$toast?.info(`找到 ${resultCount} 筆符合條件的資料`)
+    const response = await materialStandardApi.searchStandards(params)
+    // Add safety check for response
+    if (response && response.content) {
+      gridData.value = response.content
+      
+      // 如果有搜尋條件，顯示結果提示
+      if (useSearchParams && keywordParts.length > 0) {
+        const resultCount = gridData.value.length
+        proxy?.$toast?.info(`找到 ${resultCount} 筆符合條件的資料`)
+      }
+    } else {
+      gridData.value = []
     }
   } catch (error: any) {
     console.error('載入資料失敗:', error)
-    proxy?.$toast?.error(error.response?.data?.message || '載入資料失敗')
+    if (error.status !== 404) {
+       proxy?.$toast?.error(error.response?.data?.message || '載入資料失敗')
+    }
     gridData.value = []
   } finally {
     isLoading.value = false
@@ -678,7 +573,6 @@ const handleSearch = () => {
 const resetSearch = () => {
   searchPccesCode.value = ''
   searchKeyword.value = ''
-  searchDataSource.value = ''
   loadData(false)
 }
 
@@ -688,9 +582,11 @@ const openImportModal = () => {
   selectedFiles.value = []
   importResult.value = null
   errorMessage.value = ''
+  
   if (fileInput.value) {
     fileInput.value.value = ''
   }
+  
   showImportModal.value = true
 }
 
@@ -710,33 +606,26 @@ const startImport = async () => {
   importResult.value = null
   errorMessage.value = ''
 
-  const dataSource = importDataSource.value.trim()
-  if (!dataSource) {
-    errorMessage.value = '請填入資料來源機關'
-    return
-  }
-
-  if (selectedFiles.value.length === 0) {
-    errorMessage.value = '請選擇至少一個 JSON 檔案'
-    return
-  }
-
   try {
     isImporting.value = true
-    const result = await masterDataApi.importWorkProcessStandards(selectedFiles.value, dataSource)
-    importResult.value = typeof result === 'number' ? result : 0
-    proxy?.$toast?.success(`匯入成功，筆數：${importResult.value}`)
+    
+    // 檔案上傳模式
+    const result = await materialStandardApi.importFiles(
+      selectedFiles.value,
+      importDataSource.value.trim()
+    )
+    // 結果是數字 (匯入筆數)
+    importResult.value = `匯入完成，共 ${result} 筆資料`
+    
+    proxy?.$toast?.success('資料匯入完成')
     
     // 匯入成功後重新載入列表
     await loadData(false)
-    
-    // 關閉 Modal
-    showImportModal.value = false
   } catch (err: any) {
     const status = err?.response?.status
     const backendMsg = err?.response?.data?.message
     if (status === 403) {
-      errorMessage.value = backendMsg || '權限不足，請確認已登入且具有系統管理員權限'
+      errorMessage.value = backendMsg || '權限不足或密鑰錯誤'
     } else {
       errorMessage.value = backendMsg || err?.message || '匯入失敗，請稍後重試'
     }
@@ -757,23 +646,14 @@ onMounted(() => {
 onActivated(() => {
   if (grid.value) {
     nextTick(() => {
-      if (isFullscreen.value) {
-        // 如果是全螢幕模式，重新計算高度
-        const gridElement = (grid.value as any).$el
-        if (gridElement) {
-          const windowHeight = window.innerHeight
-          const topOffset = gridElement.getBoundingClientRect().top
-          gridElement.style.height = `${windowHeight - topOffset}px`
-        }
-      }
-      (grid.value as any).refresh()
+      // 可以在這裡處理大小重算等邏輯
     })
   }
 })
 </script>
 
 <style scoped>
-.inspection-standard-page {
+.material-standard-page {
   padding: 1rem;
 }
 
@@ -838,11 +718,11 @@ onActivated(() => {
 }
 
 @media (max-width: 575.98px) {
-  .inspection-standard-page {
+  .material-standard-page {
     padding: 0.5rem;
   }
   
-  .treegrid-wrapper {
+  .grid-wrapper {
     height: 400px;
   }
 }
