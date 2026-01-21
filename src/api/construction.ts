@@ -1,9 +1,11 @@
 import http from './http';
+import { useAuthStore } from '@/stores/auth';
 
 // 工程案數據接口
 export interface Construction {
   userId?: string;
   authUserId?: string[];
+  workspaceId?: string; // 新增：關聯的工作空間 ID
   constructionId: string;
   constructionName: string;
   constructionLocation: string;
@@ -13,6 +15,7 @@ export interface Construction {
   constructionBudget: number;
   // 新增缺少的欄位
   contractId?: string;
+  constructionScaleOverview?: string | null; // 新增：工程規模概述
   currentContractAmount?: number;
   leadOrganization?: string;
   constructionLevel?: string;
@@ -28,13 +31,22 @@ export interface Construction {
   partialAcceptance?: boolean;
   completionAcceptance?: boolean;
   budgetFrom?: string;
-  prePayRatio?: string;
-  retainedRatio?: string;
+  prePayRatio?: number;
+  retainedRatio?: number;
   constructionType?: string;
   signLevel?: SignLevel[];
   workDay?: number;
   durationType?: 'CALENDAR_DAYS' | 'WORKING_DAYS'; // 工期計算模式
   totalExtensionDays?: number; // 累計展延天數（新增）
+  supervisoryCompany?: string; // 舊的監造公司欄位（手動輸入）
+  supervisoryCompanyName?: string | null; // 監造公司名稱（從工作空間設定自動取得）
+  contractorCompanyName?: string | null; // 營造公司名稱（從工作空間設定自動取得）
+  designCompany?: string | null; // 設計公司（工程案層級的基本資料，可手動填寫或選擇監造公司）
+  constructor?: string; // 承攬廠商（舊欄位）
+  fixedFields?: Record<string, boolean>; // 新增：鎖定欄位清單 (key: fieldName, value: isLocked)
+  version?: number; // 新增：樂觀鎖版本號
+  permission?: 'ADMIN' | 'MEMBER' | 'VIEWER'; // 新增：工程案權限 (覆蓋 user_workspace role)
+  // role?: string; // 注意：API 回傳的 role 現在代表職稱 (Job Title)
 }
 
 // 簽核層級接口
@@ -46,10 +58,14 @@ export interface SignLevel {
 // 創建工程案的數據接口
 export interface CreateConstructionRequest {
   workspaceId: string;
-  companyId: string; // 新增：公司 ID（必填）
+  companyId: string; // 新增：公司 ID（必填，通常為營造廠ID 或 當前創建者所屬公司ID）
+  contractorCompanyId?: string; // 新增：指定營造廠
+  supervisionCompanyId?: string; // 新增：指定監造單位
+  designCompany?: string; // 新增：設計公司（工程案層級的基本資料，可手動填寫或選擇監造公司）
   contractId: string;
   constructionName: string;
   constructionLocation: string;
+  constructionScaleOverview?: string | null; // 新增：工程規模概述
   leadOrganization: string;
   constructionBudget: number;
   currentContractAmount: number;
@@ -67,8 +83,8 @@ export interface CreateConstructionRequest {
   segmentedAcceptance: boolean;
   partialAcceptance: boolean;
   completionAcceptance: boolean;
-  prePayRatio: string;
-  retainedRatio: string;
+  prePayRatio: number;
+  retainedRatio: number;
   constructionType: string;
   signLevel: SignLevel[];
   workDay: number;
@@ -108,6 +124,7 @@ export const transformProjectFormToConstructionRequest = (
     contractId: projectFormData.contract_number || '',
     constructionName: projectFormData.project_name || '',
     constructionLocation: projectFormData.project_location || '',
+    constructionScaleOverview: projectFormData.project_scale_overview || null, // 新增
     leadOrganization: projectFormData.host_agency || '',
     constructionBudget: parseFloat(projectFormData.project_amount) || 0,
     currentContractAmount: parseFloat(projectFormData.current_contract_amount) || parseFloat(projectFormData.project_amount) || 0,
@@ -125,8 +142,8 @@ export const transformProjectFormToConstructionRequest = (
     segmentedAcceptance: projectFormData.inspection_methods?.includes('分段驗收') || false,
     partialAcceptance: projectFormData.inspection_methods?.includes('部分驗收') || false,
     completionAcceptance: projectFormData.inspection_methods?.includes('竣工驗收') || true,
-    prePayRatio: projectFormData.advance_payment_ratio || '15',
-    retainedRatio: projectFormData.retention_ratio || '5',
+    prePayRatio: parseFloat(projectFormData.advance_payment_ratio) || 30.0,
+    retainedRatio: parseFloat(projectFormData.retention_ratio) || 5.0,
     constructionType: projectFormData.project_category || '',
     // 確保 signLevel 是正確的陣列格式（jsonb 類型）
     signLevel: (() => {
@@ -154,10 +171,19 @@ export const transformProjectFormToConstructionRequest = (
       return [];
     })(),
     workDay: parseInt(projectFormData.construction_period) || 0, // 工期天數
-    durationType: projectFormData.duration_type || 'WORKING_DAYS' // 工期計算模式（預設為工作天）
+    durationType: projectFormData.duration_type || 'WORKING_DAYS', // 工期計算模式（預設為工作天）
+    designCompany: projectFormData.design_company || null // 設計公司（工程案層級的基本資料，可手動填寫或選擇監造公司）
   };
 }
 
+/**
+ * 獲取所有工程案
+ * @returns Promise<Construction[]>
+ */
+/**
+ * 獲取所有工程案 (SUPER_ADMIN 專用，或用於取得全部列表)
+ * @returns Promise<Construction[]>
+ */
 /**
  * 獲取所有工程案
  * @returns Promise<Construction[]>
@@ -167,7 +193,37 @@ export const getAllConstructions = async (): Promise<Construction[]> => {
     const data = await http.get('/management/construction/getAll');
     return data as unknown as Construction[];
   } catch (error) {
-    console.error('獲取工程案失敗:', error);
+    console.error('獲取所有工程案失敗:', error);
+    throw error;
+  }
+};
+
+/**
+ * [Admin] 獲取系統所有工程案
+ * @returns Promise<Construction[]>
+ */
+export const adminGetAllConstructions = async (): Promise<Construction[]> => {
+  try {
+    const data = await http.get('/management/admin/construction/all');
+    return data as unknown as Construction[];
+  } catch (error) {
+    console.error('Admin獲取所有工程案失敗:', error);
+    throw error;
+  }
+};
+
+/**
+ * 根據公司獲取工程案列表
+ * @param companyId 公司 ID
+ * @returns Promise<Construction[]>
+ */
+export const getConstructionsByCompany = async (companyId: string): Promise<Construction[]> => {
+  try {
+    const url = `/management/construction/list?companyId=${encodeURIComponent(companyId)}`;
+    const data = await http.get(url);
+    return data as unknown as Construction[];
+  } catch (error) {
+    console.error('獲取公司工程案失敗:', error);
     throw error;
   }
 };
@@ -188,6 +244,21 @@ export const createConstruction = async (constructionData: CreateConstructionReq
 };
 
 /**
+ * [Admin] 系統管理員創建工程案
+ */
+export const adminCreateConstruction = async (constructionData: CreateConstructionRequest): Promise<CreateConstructionResponse> => {
+   try {
+    const data = await http.post('/management/admin/construction/create', constructionData);
+    return data as unknown as CreateConstructionResponse;
+  } catch (error) {
+    console.error('❌ Admin創建工程案失敗:', error);
+    throw error;
+  }
+}
+
+
+
+/**
  * 根據工作空間 ID 獲取工程案
  * @param workspaceId 工作空間 ID
  * @returns Promise<Construction[]>
@@ -200,6 +271,30 @@ export const getConstructionsByWorkspace = async (workspaceId: string): Promise<
     return data as unknown as Construction[];
   } catch (error) {
     console.error('❌ 獲取工作空間工程案失敗:', error);
+    throw error;
+  }
+};
+
+/**
+ * 取得單一工程案詳情
+ * @param constructionId 工程編號
+ * @param workspaceId (可選) 工作空間編號
+ * @returns Promise<Construction>
+ */
+export const getConstructionDetail = async (constructionId: string, workspaceId?: string): Promise<Construction> => {
+  try {
+    const params: any = { constructionId };
+    if (workspaceId) {
+      params.workspaceId = workspaceId;
+    }
+    
+    // 注意：根據 API 文件，回傳格式是 { code, message, data: Construction }
+    // 如果 http.get 已經處理了 response.data，那這裡回傳的可能直接是 payload
+    // 假設 http client 已經處理過外層結構，直接回傳 data
+    const data = await http.get('/management/construction/get', { params });
+    return data as unknown as Construction;
+  } catch (error) {
+    console.error('❌ 獲取工程案詳情失敗:', error);
     throw error;
   }
 };
@@ -224,6 +319,37 @@ export const updateConstruction = async (
     return data as unknown as CreateConstructionResponse | Construction;
   } catch (error) {
     console.error('❌ 更新工程案失敗:', error);
+    throw error;
+  }
+};
+
+/**
+ * 刪除工程案
+ * @param constructionId 工程案 ID
+ * @returns Promise<void>
+ */
+export const deleteConstruction = async (constructionId: string): Promise<void> => {
+  try {
+    await http.delete(`/management/construction/delete`, {
+      params: { constructionId }
+    });
+  } catch (error) {
+    console.error('❌ 刪除工程案失敗:', error);
+    throw error;
+  }
+};
+
+/**
+ * [Admin] 系統管理員刪除工程案
+ */
+export const adminDeleteConstruction = async (constructionId: string): Promise<void> => {
+  try {
+    // 根據 API 文件，Admin 刪除使用 query param
+    await http.delete(`/management/admin/construction/delete`, {
+      params: { constructionId }
+    });
+  } catch (error) {
+    console.error('❌ Admin刪除工程案失敗:', error);
     throw error;
   }
 };
@@ -354,9 +480,11 @@ export default {
   getAllConstructions,
   createConstruction,
   updateConstruction,
+  deleteConstruction,
   transformProjectFormToConstructionRequest,
   getConstructionsByWorkspace,
   getCalendarEvents,
   createOrUpdateCalendarEvent,
-  calculateEndDate
+  calculateEndDate,
+  getConstructionDetail
 };

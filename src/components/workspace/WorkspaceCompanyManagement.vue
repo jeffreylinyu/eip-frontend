@@ -41,7 +41,7 @@ const searchedCompany = ref<{
   companyId: string
   companyName: string
   companyUnifiedNumber: string
-  companyType: 'CONTRACTOR' | 'SUPERVISOR' | 'CONSULTING' | 'OTHER'
+  companyType: 'CONTRACTOR' | 'SUPERVISION' | 'CONSULTING' | 'OTHER'
   contractorLevel?: 'CLASS_A' | 'CLASS_B' | 'CLASS_C' | 'SPECIAL'
 } | null>(null)
 

@@ -4,12 +4,14 @@ import { onBeforeRouteLeave } from 'vue-router'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { storage } from '@/utils/storage'
 import { updateConstruction, transformProjectFormToConstructionRequest } from '@/api/construction'
+import { useAuthStore } from '@/stores/auth' // Import auth store
 import tagsInput from '@/components/plugins/TagsInput.vue'
 import quillEditor from '@/components/plugins/QuillEditor.vue'
 import ProjectForm from '@/components/project/ProjectForm.vue'
 import Card from '@/components/bootstrap/Card.vue'
 import CardBody from '@/components/bootstrap/CardBody.vue'
 import CardHeader from '@/components/bootstrap/CardHeader.vue'
+import VerificationLogList from '@/components/common/VerificationLogList.vue' // Import
 
 
 // 獲取當前實例以訪問 $toast
@@ -17,6 +19,7 @@ const { proxy } = getCurrentInstance() as any
 
 // 使用 workspace store
 const workspaceStore = useWorkspaceStore()
+const authStore = useAuthStore() // Init auth store
 
 // 表單數據
 const formData = ref({
@@ -24,9 +27,14 @@ const formData = ref({
   project_name: "",
   contract_number: "",
   project_location: "",
+  project_scale_overview: "", // 新增：工程規模概述
   host_agency: "",
   supervision_unit: "",
   contractor_name: "",
+  // 新增：公司名稱顯示欄位
+  supervisory_company_name: "",
+  contractor_company_name: "",
+  design_company: "", // 設計公司（工程案層級的基本資料，可手動填寫或選擇監造公司）
   construction_period: "",
   duration_type: "WORKING_DAYS", // 工期計算模式
   project_amount: "",
@@ -57,7 +65,16 @@ const formData = ref({
   insurance_type: "",
   // 簽核層級
   signLevel: [],
+  // 樂觀鎖版本
+  version: 0,
 })
+
+// 審核紀錄 (從專案資料中讀取)
+// 這裡先定義結構，後續 mapProjectDataToForm 會填充
+const verificationLogs = ref([])
+
+// 鎖定欄位狀態
+const lockedFields = ref<Record<string, boolean>>({})
 
       // 原始數據副本，用於比較是否有變更
 const originalFormData = ref({})
@@ -65,6 +82,8 @@ const originalFormData = ref({})
 const isSaving = ref(false)
 const hasUnsavedChanges = ref(false)
 const isUpdatingFormData = ref(false)
+const isAutoSaving = ref(false)
+const autoSaveTimer = ref<number | null>(null)
       // 標籤相關
 const tag = ref('')
 const tags = ref([{
@@ -136,6 +155,25 @@ watch(() => workspaceStore.currentProject, async (newProject, oldProject) => {
 }, { immediate: false })
 
 
+// 監聽表單數據變化，觸發自動儲存
+watch(
+  formData,
+  (newVal) => {
+    if (isUpdatingFormData.value) return
+    
+    // 檢查是否有實質變更
+    const hasChange = JSON.stringify(newVal) !== JSON.stringify(originalFormData.value)
+    
+    if (hasChange) {
+      hasUnsavedChanges.value = true
+      debouncedAutoSave()
+    } else {
+      hasUnsavedChanges.value = false
+    }
+  },
+  { deep: true }
+)
+
 // 方法定義
 // 載入當前工程案資料
 const loadCurrentProjectData = async () => {
@@ -150,12 +188,10 @@ const loadCurrentProjectData = async () => {
   // console.log('📋 當前工程案:', currentProject)
   
   try {
-    // 重新載入最新的工程案資料
+    // 重新載入最新的工程案資料（包含詳細資訊）
     // console.log('🔄 重新載入工程案資料...')
-    await workspaceStore.getProjectsByWorkspace(currentProject.workspaceId)
+    const updatedProject = await workspaceStore.fetchProjectDetail(currentProject.id, currentProject.workspaceId)
     
-    // 重新獲取更新後的工程案
-    const updatedProject = workspaceStore.workspaceProjects.find(p => p.id === currentProject.id)
     if (updatedProject) {
       // console.log('✅ 工程案資料已更新，映射到表單:', updatedProject)
       mapProjectDataToForm(updatedProject)
@@ -163,8 +199,21 @@ const loadCurrentProjectData = async () => {
       // console.log('⚠️ 找不到更新後的工程案，使用現有資料')
       mapProjectDataToForm(currentProject)
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ 載入工程案資料失敗:', error)
+    
+    // 如果是 SUPER_ADMIN 且遇到 401/403 權限問題 (因為 API 限制非成員存取詳情)
+    // 但我們已經有列表傳來的基本資料，則使用現有資料並隱藏錯誤提示
+    const isSuperAdmin = authStore.user?.role === 'SUPER_ADMIN';
+    const isAuthError = error.response?.status === 401 || error.response?.status === 403;
+    
+    if (isSuperAdmin && isAuthError && currentProject) {
+        console.warn('⚠️ 管理員權限受限，使用現有緩存資料顯示表單');
+        mapProjectDataToForm(currentProject);
+        // 不顯示錯誤 Toast，避免干擾使用者
+        return;
+    }
+
     // 如果 API 載入失敗，至少映射現有資料
     // console.log('🔄 使用現有工程案資料...')
     mapProjectDataToForm(currentProject)
@@ -185,9 +234,14 @@ const mapProjectDataToForm = (project: any) => {
       project_name: project.name || '',
       contract_number: project.contractNumber || '',
       project_location: project.location || '',
+      project_scale_overview: project.constructionScaleOverview || '', // 新增
       host_agency: project.hostAgency || '',
       supervision_unit: project.supervisionUnit || '',
       contractor_name: project.contractorName || '',
+      // 新增：映射公司名稱
+      supervisory_company_name: project.supervisoryCompanyName || '',
+      contractor_company_name: project.contractorCompanyName || '',
+      design_company: project.designCompany || '',
       construction_period: project.constructionPeriod || project.workDay || '',
       duration_type: project.durationType || 'WORKING_DAYS', // 工期計算模式
       project_amount: project.budget || '',
@@ -217,8 +271,19 @@ const mapProjectDataToForm = (project: any) => {
       insurance_end_date: project.insuranceEndDate ? project.insuranceEndDate.split('T')[0] : '',
       insurance_type: project.insuranceType || '',
       // 簽核層級
-      signLevel: project.signLevel || []
+      signLevel: project.signLevel || [],
+      // 映射版本號 (若無則預設 0)
+      version: project.version || 0
     }
+    
+    // 映射審核紀錄 (假設 API 回傳結構中有 verificationLogs)
+    // 若後端尚未實作，可暂時給空陣列或 Fake Data
+    verificationLogs.value = project.verificationLogs || [] 
+
+    // 設定鎖定欄位
+    // 只有非 SUPER_ADMIN 才需要套用鎖定 (雖然前端防護，後端也會檢核)
+    // 但為了 UI 一致性，這裡直接存下來，由 ProjectForm 決定是否顯示鎖定 (或在此過濾)
+    lockedFields.value = project.fixedFields || {}
     
     // console.log('✅ 表單資料映射完成:', formData.value)
   } finally {
@@ -237,6 +302,28 @@ const beforeUnloadHandler = (event) => {
     return '您有未保存的變更，確定要離開嗎？'
   }
 }
+const debouncedAutoSave = () => {
+    if (autoSaveTimer.value) {
+        clearTimeout(autoSaveTimer.value)
+    }
+    
+    // 3秒後自動儲存
+    autoSaveTimer.value = window.setTimeout(async () => {
+        if (!hasUnsavedChanges.value) return
+        
+        // 進入自動儲存狀態
+        isAutoSaving.value = true
+        try {
+             if (projectFormRef.value) {
+                 // 使用靜默模式提交
+                 await (projectFormRef.value as any).handleSubmit(true)
+             }
+        } finally {
+            isAutoSaving.value = false
+        }
+    }, 3000)
+}
+
     // 保存表單
 const saveForm = async () => {
   // console.log('🚀 開始保存表單...')
@@ -257,6 +344,7 @@ const saveForm = async () => {
 // 處理 ProjectForm 的提交事件
 const handleProjectFormSubmit = async (data: any) => {
   // console.log('📤 接收到 ProjectForm 提交的數據:', data)
+  const isAuto = isAutoSaving.value // 保存當前是否為自動儲存狀態
   isSaving.value = true
   
   try {
@@ -267,12 +355,17 @@ const handleProjectFormSubmit = async (data: any) => {
     originalFormData.value = JSON.parse(JSON.stringify(formData.value))
     hasUnsavedChanges.value = false
     
-    // 顯示成功提示
-    proxy.$toast.success('工程資料保存成功！')
+    // 只有在手動保存時顯示成功提示
+    if (!isAuto) {
+        proxy.$toast.success('工程資料保存成功！')
+    }
     
   } catch (error) {
     console.error('保存失敗:', error)
-    proxy.$toast.error('保存失敗，請重試！')
+    // 自動儲存失敗時不顯示錯誤提示，以免打斷用戶，僅在控制台記錄
+    if (!isAuto) {
+        proxy.$toast.error('保存失敗，請重試！')
+    }
   } finally {
     isSaving.value = false
   }
@@ -302,6 +395,12 @@ const submitFormData = async (data?: any) => {
   // 轉換為API請求格式
   const constructionRequest = transformProjectFormToConstructionRequest(formDataToSubmit, currentWorkspace.id, companyId)
   
+  // 確保 Payload 包含 version
+  // 如果是 formDataToSubmit 有 version 則使用，否則使用原始 version
+  if ('version' in formDataToSubmit) {
+    (constructionRequest as any).version = formDataToSubmit.version
+  }
+
   // 調用更新工程案API
   const response = await updateConstruction(currentProject.id, constructionRequest)
   
@@ -328,6 +427,7 @@ const submitFormData = async (data?: any) => {
       name: updatedConstruction.constructionName || '',
       workspaceId: currentWorkspace.id,
       location: updatedConstruction.constructionLocation || '',
+      constructionScaleOverview: updatedConstruction.constructionScaleOverview || null, // 新增
       budget: updatedConstruction.constructionBudget?.toString() || '',
       status: 'IN_PROGRESS' as const,
       signDate: updatedConstruction.signDate || '',
@@ -356,6 +456,9 @@ const submitFormData = async (data?: any) => {
       insuranceType: updatedConstruction.insuranceType || '',
       constructionConfirmDate: updatedConstruction.constructionConfirmDate || '',
       constructionProjectId: updatedConstruction.constructionProjectId || '',
+      supervisoryCompanyName: updatedConstruction.supervisoryCompanyName || null,
+      contractorCompanyName: updatedConstruction.contractorCompanyName || null,
+      designCompany: updatedConstruction.designCompany || null, // 設計公司（工程案層級的基本資料）
       segmentedAcceptance: updatedConstruction.segmentedAcceptance || false,
       partialAcceptance: updatedConstruction.partialAcceptance || false,
       completionAcceptance: updatedConstruction.completionAcceptance || false,
@@ -368,8 +471,8 @@ const submitFormData = async (data?: any) => {
     // 更新 workspace store 中的工程案
     workspaceStore.updateProject(currentProject.id, updatedProject)
     
-    // 更新當前選中的工程案
-    workspaceStore.setCurrentProject(updatedProject, false)
+    // 更新當前選中的工程案（會自動選擇工作空間）
+    await workspaceStore.setCurrentProject(updatedProject, false)
     
     // 手動更新表單資料
     mapProjectDataToForm(updatedProject)
@@ -388,8 +491,8 @@ const submitFormData = async (data?: any) => {
     // 更新 workspace store 中的工程案
     workspaceStore.updateProject(currentProject.id, updatedProject)
 
-    // 更新當前選中的工程案
-    workspaceStore.setCurrentProject(updatedProject, false)
+    // 更新當前選中的工程案（會自動選擇工作空間）
+    await workspaceStore.setCurrentProject(updatedProject, false)
     
     // 手動更新表單資料
     mapProjectDataToForm(updatedProject)
@@ -484,6 +587,13 @@ onBeforeRouteLeave((to, from, next) => {
 	
 	<div class="row gx-4">
 		<div class="col-lg-12">
+            <!-- 審核紀錄顯示區塊 -->
+            <Card class="mb-4" v-if="verificationLogs.length > 0">
+                <CardBody>
+                    <VerificationLogList :logs="verificationLogs" />
+                </CardBody>
+            </Card>
+
 			<!-- 工程基本資料 -->
 			<ProjectForm 
 				ref="projectFormRef"
@@ -493,6 +603,7 @@ onBeforeRouteLeave((to, from, next) => {
 				:is-submitting="isSaving"
 				:show-submit-button="false"
 				:show-reset-button="false"
+				:locked-fields="lockedFields"
 				@submit="handleProjectFormSubmit"
 			/>
 
@@ -500,7 +611,13 @@ onBeforeRouteLeave((to, from, next) => {
 
 
 			<!-- 操作按鈕 -->
-			<div class="d-flex justify-content-end gap-2">
+			<div class="d-flex justify-content-end gap-2 align-items-center">
+                <span v-if="isAutoSaving" class="text-muted small me-2">
+                    <i class="fa fa-spinner fa-spin me-1"></i>自動儲存中...
+                </span>
+                <span v-else-if="!hasUnsavedChanges && !isSaving" class="text-success small me-2">
+                    <i class="fa fa-check me-1"></i>已儲存
+                </span>
 				<button
 					type="button"
 					class="btn btn-outline-secondary"

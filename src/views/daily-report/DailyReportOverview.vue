@@ -2561,11 +2561,11 @@ onMounted(() => {
 
   .report-table tbody tr {
     display: block;
-    border: 1px solid var(--bs-border-color);
+    border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 0.5rem;
     padding: 0;
     margin-bottom: 1rem;
-    background-color: var(--bs-body-bg);
+    background-color: rgba(255, 255, 255, 0.05); /* Transparent dark background */
     overflow: hidden;
   }
 
@@ -2575,11 +2575,11 @@ onMounted(() => {
 
   /* 未填寫項目的視覺區分 */
   .report-table tbody tr.row-unfilled {
-    background-color: #f8f9fa;
+    background-color: rgba(255, 255, 255, 0.02);
   }
 
   .report-table tbody tr.row-unfilled:hover {
-    background-color: #e9ecef;
+    background-color: rgba(255, 255, 255, 0.08);
   }
 
   .report-table tbody td {
@@ -2588,25 +2588,27 @@ onMounted(() => {
     align-items: stretch;
     padding: 0.5rem 0;
     border: none;
+    color: var(--bs-white); /* Ensure text is white */
   }
 
   .report-table tbody td.row-header {
     cursor: pointer;
     padding: 0.75rem;
     margin: 0;
-    border-bottom: 1px solid var(--bs-border-color);
-    background-color: var(--bs-secondary-bg);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    background-color: rgba(255, 255, 255, 0.1);
     border-radius: 0.5rem;
     user-select: none;
+    color: var(--bs-white);
   }
 
   .report-table tbody tr.row-expanded td.row-header {
     border-radius: 0.5rem 0.5rem 0 0;
-    border-bottom: 1px solid var(--bs-border-color);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   }
 
   .report-table tbody td.row-header:hover {
-    background-color: var(--bs-tertiary-bg);
+    background-color: rgba(255, 255, 255, 0.15);
   }
 
   .report-table tbody td.row-header::before {
@@ -2616,6 +2618,9 @@ onMounted(() => {
   .report-table tbody td.row-header input {
     flex: 1;
     margin-right: 0.5rem;
+    background-color: rgba(0, 0, 0, 0.2);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: white;
   }
 
   .report-table tbody td.mobile-collapsible {
@@ -2623,12 +2628,41 @@ onMounted(() => {
     padding: 0.5rem 0.75rem;
   }
 
+  /* Flex row layout for equal height cells */
   .report-table tbody tr.row-expanded {
+    display: flex;
+    flex-wrap: wrap;
     padding: 0 0 0.75rem 0;
+  }
+
+  /* Force header to take full width */
+  .report-table tbody tr.row-expanded td.row-header {
+    width: 100%;
+    margin-bottom: 0.5rem; /* Add spacing between header and content */
   }
 
   .report-table tbody tr.row-expanded td.mobile-collapsible {
     display: flex;
+    flex-direction: column; /* Ensure label stays above content */
+    width: 100%; /* Default to full width */
+    align-items: flex-start; /* Force left alignment */
+  }
+
+  /* Compact layout for Unit and Contract Quantity */
+  .report-table tbody tr.row-expanded td[data-label="單位"],
+  .report-table tbody tr.row-expanded td[data-label="契約數量"] {
+    width: 50%;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  
+  .report-table tbody tr.row-expanded td[data-label="單位"] {
+    border-right: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  /* Unify Alignment: Force left alignment for inner content */
+  .report-table tbody tr.row-expanded td[data-label="契約數量"] .text-end {
+    text-align: left !important;
+    width: 100%;
   }
 
   .report-table tbody td.mobile-collapsible::before {
@@ -2636,18 +2670,18 @@ onMounted(() => {
     font-weight: 600;
     margin-bottom: 0.35rem;
     text-align: left;
-    color: var(--bs-body-color);
+    color: rgba(255, 255, 255, 0.7);
     font-size: 0.875rem;
   }
 
   .report-table tbody td.mobile-collapsible.text-center {
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start !important; /* Override center alignment */
   }
 
   .report-table tbody td.mobile-collapsible.text-center::before {
-    margin-bottom: 0;
-    margin-right: 0.5rem;
+    margin-bottom: 0.35rem; /* Match other cells */
+    margin-right: 0;
   }
 
   .report-table tbody td input.form-control,
@@ -2655,6 +2689,9 @@ onMounted(() => {
     min-width: 0;
     width: 100%;
     font-size: 16px; /* 防止 iOS 自動縮放 */
+    background-color: rgba(0, 0, 0, 0.2);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: white;
   }
 
   .report-table tbody td:last-child input.form-control {

@@ -103,7 +103,7 @@ const selectProject = (project: WorkspaceProject) => {
     workspaceStore.setCurrentWorkspace(workspace);
   }
 
-  workspaceStore.setCurrentProject(project);
+  workspaceStore.switchProject(project.id);
   emit("projectSelected", project);
   hideDrawer();
 };

@@ -28,9 +28,14 @@ const formData = ref({
   project_name: '',
   contract_number: '',
   project_location: '',
+  project_scale_overview: '', // 新增：工程規模概述
   host_agency: '',
   supervision_unit: '',
   contractor_name: '',
+  // 新增：公司名稱顯示欄位
+  supervisory_company_name: '',
+  contractor_company_name: '',
+  design_company: '', // 設計公司（工程案層級的基本資料，可手動填寫或選擇監造公司）
   construction_period: '',
   duration_type: 'WORKING_DAYS', // 工期計算模式
   project_amount: '',
@@ -93,9 +98,14 @@ const testData = {
     project_name: "新北市蘆洲區社區公園改善計畫",
     contract_number: "CONTRACT-2024-001",
     project_location: "新北市蘆洲區中正路1號",
+    project_scale_overview: "本工程位於蘆洲區...", // 新增
     host_agency: "新北市政府工務局",
     supervision_unit: "中興工程顧問股份有限公司",
     contractor_name: "中華工程股份有限公司",
+    // 新增：公司名稱顯示欄位
+    supervisory_company_name: "中興工程顧問股份有限公司",
+    contractor_company_name: "中華工程股份有限公司",
+    design_company: "林同棪工程顧問股份有限公司",
     construction_period: "180天",
     duration_type: 'WORKING_DAYS',
     project_amount: "7500000",
@@ -130,9 +140,14 @@ const testData = {
     project_name: "台北市信義區道路改善工程",
     contract_number: "CONTRACT-2024-002",
     project_location: "台北市信義區信義路五段",
+    project_scale_overview: "", // 新增
     host_agency: "台北市政府工務局",
     supervision_unit: "",
     contractor_name: "",
+    // 新增：公司名稱顯示欄位
+    supervisory_company_name: "",
+    contractor_company_name: "",
+    design_company: "",
     construction_period: "120天",
     duration_type: 'WORKING_DAYS',
     project_amount: "5000000",
@@ -166,9 +181,14 @@ const testData = {
     project_name: "",
     contract_number: "",
     project_location: "",
+    project_scale_overview: "", // 新增
     host_agency: "",
     supervision_unit: "",
     contractor_name: "",
+    // 新增：公司名稱顯示欄位
+    supervisory_company_name: "",
+    contractor_company_name: "",
+    design_company: "",
     construction_period: "",
     duration_type: 'WORKING_DAYS',
     project_amount: "",
@@ -226,9 +246,14 @@ const resetForm = () => {
     project_name: '',
     contract_number: '',
     project_location: '',
+    project_scale_overview: '', // 新增
     host_agency: '',
     supervision_unit: '',
     contractor_name: '',
+    // 新增：公司名稱顯示欄位
+    supervisory_company_name: '',
+    contractor_company_name: '',
+    design_company: '', // 設計公司（工程案層級的基本資料，可手動填寫或選擇監造公司）
     construction_period: '',
     duration_type: 'WORKING_DAYS', // 工期計算模式
     project_amount: '',
@@ -274,9 +299,14 @@ const mapProjectDataToForm = (project: any) => {
     formData.value.project_name = project.name || ''
     formData.value.contract_number = project.contractNumber || ''
     formData.value.project_location = project.location || ''
+    formData.value.project_scale_overview = project.constructionScaleOverview || '' // 新增
     formData.value.host_agency = project.hostAgency || ''
     formData.value.supervision_unit = project.supervisionUnit || ''
     formData.value.contractor_name = project.contractorName || ''
+    // 新增：映射公司名稱
+    formData.value.supervisory_company_name = project.supervisoryCompanyName || ''
+    formData.value.contractor_company_name = project.contractorCompanyName || ''
+    formData.value.design_company = project.designCompany || ''
     formData.value.construction_period = project.constructionPeriod || project.workDay || ''
     formData.value.duration_type = project.durationType || 'WORKING_DAYS' // 工期計算模式
     formData.value.project_amount = project.budget || ''
@@ -448,8 +478,8 @@ const handleSubmit = async (projectFormData: any) => {
         // 使用從 API 獲取的最新資料
         submitData = updatedProject
         
-        // 更新當前選中的工程案（不觸發重新載入）
-        workspaceStore.setCurrentProject(updatedProject, false)
+        // 更新當前選中的工程案（不觸發重新載入，會自動選擇工作空間）
+        await workspaceStore.setCurrentProject(updatedProject, false)
       } else {
         // 如果找不到更新後的資料，使用原有邏輯
         submitData = {
@@ -461,6 +491,7 @@ const handleSubmit = async (projectFormData: any) => {
           endDate: projectFormData.completion_date,
           managerName: projectFormData.contractor_name,
           description: `${projectFormData.project_category} - ${projectFormData.funding_source}`,
+          constructionScaleOverview: projectFormData.project_scale_overview, // 新增
           // 額外的工程案詳細資訊
           contractNumber: projectFormData.contract_number,
           hostAgency: projectFormData.host_agency,
@@ -498,6 +529,7 @@ const handleSubmit = async (projectFormData: any) => {
         endDate: projectFormData.completion_date,
         managerName: projectFormData.contractor_name,
         description: `${projectFormData.project_category} - ${projectFormData.funding_source}`,
+        constructionScaleOverview: projectFormData.project_scale_overview, // 新增
         progress: 0,
         // 額外的工程案詳細資訊
         contractNumber: projectFormData.contract_number,

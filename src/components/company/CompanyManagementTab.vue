@@ -3,8 +3,6 @@ import { ref, computed, onMounted, getCurrentInstance } from 'vue'
 import { useCompanyStore, type Company } from '@/stores/company'
 import { COMPANY_TYPE_OPTIONS, CONTRACTOR_LEVEL_OPTIONS, COMPANY_STATUS_OPTIONS, type CreateCompanyRequest } from '@/api/company'
 import CompanyFormModal from './CompanyFormModal.vue'
-import Card from '@/components/bootstrap/Card.vue'
-import CardBody from '@/components/bootstrap/CardBody.vue'
 
 const instance = getCurrentInstance()
 const proxy = instance?.proxy as any
@@ -189,82 +187,7 @@ onMounted(() => {
 <template>
   <div class="company-management-tab">
     
-    <!-- 頂部工具列 -->
-    <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4 gap-3">
-      
-      <!-- 搜索和過濾 -->
-      <div class="d-flex flex-column flex-md-row gap-3 flex-grow-1">
-        <!-- 搜索框 -->
-        <div class="flex-grow-1" style="max-width: 400px;">
-          <div class="input-group">
-            <span class="input-group-text">
-              <i class="fa fa-search"></i>
-            </span>
-            <input
-              type="text"
-              class="form-control"
-              placeholder="搜索公司名稱、統編、聯絡人或信箱..."
-              v-model="searchQuery"
-            />
-            <button 
-              v-if="searchQuery"
-              class="btn btn-outline-secondary"
-              type="button"
-              @click="searchQuery = ''"
-            >
-              <i class="fa fa-times"></i>
-            </button>
-          </div>
-        </div>
-        
-        <!-- 類型過濾 -->
-        <div style="min-width: 150px;">
-          <select class="form-select" v-model="selectedType">
-            <option value="">所有類型</option>
-            <option 
-              v-for="option in COMPANY_TYPE_OPTIONS" 
-              :key="option.value" 
-              :value="option.value"
-            >
-              {{ option.label }}
-            </option>
-          </select>
-        </div>
-        
-        <!-- 狀態過濾 -->
-        <div style="min-width: 120px;">
-          <select class="form-select" v-model="selectedStatus">
-            <option value="">所有狀態</option>
-            <option 
-              v-for="option in COMPANY_STATUS_OPTIONS" 
-              :key="option.value" 
-              :value="option.value"
-            >
-              {{ option.label }}
-            </option>
-          </select>
-        </div>
-        
-        <!-- 清除過濾器 -->
-        <button 
-          v-if="searchQuery || selectedType || selectedStatus"
-          class="btn btn-outline-secondary"
-          @click="clearFilters"
-        >
-          <i class="fa fa-eraser me-1"></i>
-          清除
-        </button>
-      </div>
-      
-      <!-- 新增按鈕 -->
-      <button 
-        class="btn btn-theme"
-        @click="openCompanyForm()"
-      >
-        <i class="fa fa-plus me-2"></i>
-        新增公司
-      </button>
-    </div>
+    <!-- 頂部工具列 (Removed) -->
 
     <!-- 載入狀態 -->
     <div v-if="companyStore.isLoading" class="text-center py-4">
@@ -307,134 +230,75 @@ onMounted(() => {
     </div>
 
     <!-- 公司列表 -->
-    <div v-else class="row g-3">
+    <div v-else class="project-grid">
       <div 
         v-for="company in filteredCompanies" 
         :key="company.companyId"
-        class="col-xl-4 col-lg-6 col-md-6"
+        class="project-card"
+        @mouseenter="handleCardMouseEnter(company.companyId)"
+        @mouseleave="handleCardMouseLeave"
       >
-        <Card 
-          class="h-100"
-          :class="{ 
-            'dropdown-open': showDropdown === company.companyId,
-            'card-hover': hoveredCard === company.companyId && showDropdown !== company.companyId
-          }"
-          @mouseenter="handleCardMouseEnter(company.companyId)"
-          @mouseleave="handleCardMouseLeave"
-        >
-          <CardBody>
-            
-            <!-- 公司標題和操作 -->
+        <div class="card-body">
+            <!-- Header: Title and Status -->
             <div class="d-flex justify-content-between align-items-start mb-3">
-              <div class="flex-grow-1">
-                <h6 class="card-title mb-1 text-truncate" :title="company.companyName">
-                  {{ company.companyName }}
-                </h6>
-                <div class="text-muted small">
-                  統編：{{ company.companyCode }}
-                </div>
-              </div>
-              
-              <!-- 操作下拉選單 -->
-              <div class="dropdown">
-                <button
-                  class="btn btn-sm btn-outline-secondary dropdown-toggle"
-                  type="button"
-                  @click.stop="toggleDropdown(company.companyId)"
-                >
-                  <i class="fa fa-cog"></i>
-                </button>
-                <ul 
-                  v-show="showDropdown === company.companyId"
-                  class="dropdown-menu dropdown-menu-end show"
-                  @click.stop
-                  @mouseenter.stop
-                  @mouseleave.stop
-                >
-                  <li>
-                    <button 
-                      class="dropdown-item"
-                      @click="openCompanyForm(company); closeDropdown()"
-                    >
-                      <i class="fa fa-edit me-2"></i>
-                      編輯公司
-                    </button>
-                  </li>
-                  <li>
-                    <button 
-                      class="dropdown-item"
-                      @click="handleManageMembers(company); closeDropdown()"
-                    >
-                      <i class="fa fa-users me-2"></i>
-                      管理成員
-                    </button>
-                  </li>
-                  <li>
-                    <button 
-                      class="dropdown-item"
-                      @click="handleManageSitePersonnel(company); closeDropdown()"
-                    >
-                      <i class="fa fa-hard-hat me-2"></i>
-                      工地人員管理
-                    </button>
-                  </li>
-                  <li><hr class="dropdown-divider"></li>
-                  <li>
-                    <button 
-                      class="dropdown-item text-danger"
-                      @click="handleDeleteCompany(company); closeDropdown()"
-                    >
-                      <i class="fa fa-trash me-2"></i>
-                      刪除公司
-                    </button>
-                  </li>
-                </ul>
-              </div>
-            </div>
-
-            <!-- 公司資訊 -->
-            <div class="company-info">
-              
-              <!-- 類型和狀態 -->
-              <div class="d-flex gap-2 mb-2">
+                <h5 class="card-title mb-0 fw-bold text-truncate flex-grow-1 me-2" :title="company.companyName">
+                    {{ company.companyName }}
+                </h5>
                 <span 
-                  class="badge border px-2 pt-5px pb-5px rounded fs-12px d-inline-flex align-items-center"
-                  :class="`border-${getTypeColor(company.companyType)} text-${getTypeColor(company.companyType)}`"
-                >
-                  {{ getTypeLabel(company.companyType) }}
-                </span>
-                <span 
-                  class="badge border px-2 pt-5px pb-5px rounded fs-12px d-inline-flex align-items-center"
-                  :class="`border-${getStatusColor(company.status)} text-${getStatusColor(company.status)}`"
+                  class="badge rounded-pill"
+                  :class="`bg-${getStatusColor(company.status)}`"
                 >
                   {{ getStatusLabel(company.status) }}
                 </span>
-              </div>
-              
-              <!-- 營造等級（僅當公司類型為營造廠商時顯示） -->
-              <div v-if="company.companyType === 'CONTRACTOR' && company.contractorLevel" class="text-muted small mb-2 d-flex align-items-center">
-                <i class="fa fa-star me-1" style="width: 16px; text-align: center;"></i>
-                營造等級：{{ getContractorLevelLabel(company.contractorLevel) }}
-              </div>
-              
-              <!-- 用戶角色和加入時間 -->
-              <div class="text-muted small">
-                <div class="mb-2 d-flex align-items-center">
-                  <i class="fa fa-user-tag me-1" style="width: 16px; text-align: center;"></i>
-                  用戶角色：{{ company.userRole === 'OWNER' ? '擁有者' :
-                           company.userRole === 'ADMIN' ? '管理員' :
-                           company.userRole === 'MEMBER' ? '成員' :
-                           company.userRole === 'VIEWER' ? '檢視者' : company.userRole }}
-                </div>
-                <div class="d-flex align-items-center">
-                  <i class="fa fa-calendar me-1" style="width: 16px; text-align: center;"></i>
-                  加入時間：{{ new Date(company.joinedAt || company.createdAt).toLocaleDateString() }}
-                </div>
-              </div>
             </div>
 
-          </CardBody>
-        </Card>
+            <!-- Tax ID Info -->
+            <div class="project-info mb-3">
+                <div class="d-flex align-items-center mb-2 text-gray-400">
+                    <i class="fa fa-university me-2 text-theme"></i>
+                    <small>統編：{{ company.companyCode }}</small>
+                </div>
+                <div class="d-flex align-items-center mb-2 text-gray-400">
+                    <i class="fa fa-calendar me-2 text-muted"></i>
+                    <small>加入：{{ new Date(company.joinedAt || company.createdAt).toLocaleDateString() }}</small>
+                </div>
+            </div>
+
+            <!-- Role Badge -->
+            <div class="user-role-section mb-3 d-flex gap-2">
+                 <span 
+                  class="badge border px-2 pt-1 pb-1 rounded d-inline-flex align-items-center"
+                   :class="`border-${getTypeColor(company.companyType)} text-${getTypeColor(company.companyType)}`"
+                >
+                  {{ getTypeLabel(company.companyType) }}
+                </span>
+                
+                <span class="badge bg-light text-dark border" title="角色">
+                    <i class="fa fa-user-tag me-1 text-muted"></i>
+                    {{ company.userRole === 'OWNER' ? '擁有者' :
+                       company.userRole === 'ADMIN' ? '管理員' :
+                       company.userRole === 'MEMBER' ? '成員' :
+                       company.userRole === 'VIEWER' ? '檢視者' : company.userRole }}
+                </span>
+            </div>
+            
+            <!-- Actions Section -->
+            <div class="companies-section p-2 rounded d-flex justify-content-end gap-2 align-items-center">
+                 <button 
+                   class="btn btn-sm btn-outline-light"
+                   @click="handleManageMembers(company)"
+                 >
+                   <i class="fa fa-users me-1"></i> 人員管理
+                 </button>
+
+                 <button 
+                   class="btn btn-sm btn-outline-light"
+                   @click="handleManageSitePersonnel(company)"
+                 >
+                   <i class="fa fa-hard-hat me-1"></i> 工地人員
+                 </button>
+            </div>
+        </div>
       </div>
     </div>
 
@@ -451,30 +315,46 @@ onMounted(() => {
 
 <style scoped>
 .company-management-tab {
-  padding: 1.5rem;
+  padding: 0;
 }
 
-.card-hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 15px rgba(var(--bs-theme-rgb), 0.15);
-  border-color: rgba(var(--bs-theme-rgb), 0.3);
+.project-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1.5rem;
+    padding-bottom: 2rem;
 }
 
-.dropdown-open {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 15px rgba(var(--bs-theme-rgb), 0.15);
-  border-color: var(--bs-theme);
-  z-index: 10000;
+.project-card {
+    background: #1e1e1e;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    transition: all 0.3s ease;
+    cursor: default;
+    border: 1px solid #333;
+    position: relative;
+    /* overflow: hidden; Removed to allow dropdowns */
 }
 
-.company-info {
-  font-size: 0.9rem;
+
+
+.project-card .card-body {
+    padding: 1.25rem;
+    color: #fff;
 }
 
 .card-title {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: var(--bs-body-color);
+    font-size: 1.1rem;
+    color: #ffffff;
+    font-weight: 600;
+}
+
+.companies-section {
+    background-color: #2c2c2c;
+    border: 1px solid #444;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-top: 1rem;
 }
 
 .dropdown-menu {
@@ -484,31 +364,24 @@ onMounted(() => {
 .dropdown-item {
   padding: 0.5rem 1rem;
   font-size: 0.9rem;
+  cursor: pointer;
 }
 
 .dropdown-item:hover {
-  background-color: var(--bs-secondary-bg);
+  background-color: var(--bs-light); 
+}
+
+.text-gray-400 {
+    color: #ced4da !important;
 }
 
 .text-truncate {
-  max-width: 100%;
-}
-
-.badge {
-  font-size: 0.75rem;
+    max-width: 100%;
 }
 
 @media (max-width: 768px) {
   .company-management-tab {
     padding: 1rem;
-  }
-  
-  .d-flex.gap-3 {
-    gap: 1rem !important;
-  }
-  
-  .company-info {
-    font-size: 0.85rem;
   }
 }
 </style>

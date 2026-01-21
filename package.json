@@ -86,7 +86,8 @@
     "vue3-google-map": "^0.21.1",
     "vue3-perfect-scrollbar": "^2.0.0",
     "vue3-simple-typeahead": "^1.0.11",
-    "vue3-table-lite": "^1.4.3"
+    "vue3-table-lite": "^1.4.3",
+    "vuedraggable": "^4.1.0"
   },
   "devDependencies": {
     "@rushstack/eslint-patch": "^1.11.0",

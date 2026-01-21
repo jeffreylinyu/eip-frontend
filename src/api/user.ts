@@ -9,7 +9,8 @@ export interface LoginResponse {
     id?: number
     userId: string
     jwtToken: string
-    role: string  // 用戶角色：ADMIN, SUPER_ADMIN, 等
+    role: string  // 系統角色：SUPER_ADMIN, ADMIN, USER（向後兼容）
+    systemRole?: string  // 新欄位：系統角色（優先使用）
 }
 
 export interface User {
@@ -17,10 +18,15 @@ export interface User {
   userId: string
   username: string
   email: string
-  role: string
+  role: string  // 系統角色：SUPER_ADMIN, ADMIN, USER（向後兼容）
+  systemRole?: string  // 新欄位：系統角色（優先使用）
   createdAt: string
   updatedAt: string
   verify: boolean
+  companyId?: string // 新增：所屬公司ID
+  companyIds?: string[] // 新增：後端回傳的公司 ID 列表
+  currentConstructionId?: string | null // 新增：使用者目前使用的工程案 ID
+  currentWorkspaceId?: string | null // 新增：使用者目前使用的工作空間 ID
   // 可以添加更多用戶字段
 }
 
@@ -31,6 +37,80 @@ export interface IndividualRegisterData {
   password: string
 }
 
+
+export const userApi = {
+  // 系統管理員建立新帳號 (並關聯公司)
+  create: async (data: { 
+    username: string; 
+    email: string; 
+    companyId: string; 
+    role?: string;
+    password?: string;
+    companyRole?: string;
+  }): Promise<User> => {
+    // 1. 建立 User (後端會回傳 userId)
+    const registerResponse: any = await http.post('/management/user/register', {
+        username: data.username,
+        email: data.email,
+        password: data.password,
+        role: data.role || 'USER',
+        isPaidUser: 'N'
+    });
+    
+    // 獲取 userId (http interceptor 會自動解包 data.data)
+    const userId = registerResponse?.userId;
+
+    if (!userId) {
+        throw new Error('帳號建立成功，但無法獲取 User ID，請手動綁定公司。');
+    }
+
+    // 2. 綁定公司
+    if (data.companyId) {
+        // 動態導入避免循環依賴
+        const { companyApi } = await import('./company'); 
+        await companyApi.inviteMember({
+            userId,
+            companyId: data.companyId,
+            role: data.companyRole || 'ADMIN_STAFF' // 預設角色
+        });
+    }
+
+    return { userId, username: data.username, email: data.email, role: data.role || 'USER' } as User;
+  },
+
+  // 授權專案 (User-Workspace Binding)
+  grantProjectAccess: (data: {
+    userId: string;
+    workspaceId: string;
+    role: string;
+    companyId?: string; // 新增 companyId 用於檢核
+  }): Promise<void> => {
+    // 根據新需求使用 userWorkspace/invite 並帶入 companyId
+    const url = data.companyId 
+      ? `/management/userWorkspace/invite?companyId=${data.companyId}`
+      : '/management/userWorkspace/invite';
+      
+    return http.post(url, {
+      userId: data.userId,
+      workspaceId: data.workspaceId,
+      role: data.role
+    })
+  },
+  
+  // 獲取使用者已加入的專案
+  getJoinedProjects: (userId: string): Promise<any[]> => {
+    return http.get(`/management/user/${userId}/projects`)
+  },
+
+  // 搜尋用戶
+  search: async (keyword: string, limit: number = 20): Promise<User[]> => {
+    const response = await http.get('/management/user/search', {
+      params: { keyword, limit }
+    })
+    const data = (response as any).data || response
+    return Array.isArray(data) ? data : []
+  }
+}
 
 export const authApi = {
   // 登入
@@ -46,6 +126,14 @@ export const authApi = {
   // 獲取指定用戶信息
   getCurrentUser: (userId: string): Promise<User> => {
     return http.get(`/management/user/${userId}`)
+  },
+
+  // 更新使用者目前使用的工程案和工作空間
+  updateCurrentConstruction: (constructionId: string | null, workspaceId?: string | null): Promise<void> => {
+    return http.patch('/management/user/current-construction', {
+      constructionId,
+      workspaceId
+    })
   },
 
   // 刷新token

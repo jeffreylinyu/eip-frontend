@@ -2,11 +2,13 @@
 import { ref, watch, computed, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useWorkspaceStore } from '@/stores/workspace'
+import { useAuthStore } from '@/stores/auth' // Import auth store
 import { useValidation } from '@/composables/useValidation'
 import { projectFormValidationRules } from '@/utils/projectValidationRules'
 import { formatNumber, toRepublicYear } from '@/utils/format'
 import RepublicDatePicker from '@/components/bootstrap/RepublicDatePicker.vue'
 import Modal from '@/components/bootstrap/Modal.vue'
+import { validateForm, isFormValid } from '@/utils/validation'
 import { calculateEndDate } from '@/api/construction'
 
 // Props
@@ -17,6 +19,7 @@ const props = defineProps<{
   submitButtonText?: string
   showResetButton?: boolean
   mode?: 'create' | 'edit' | 'readonly' // 新增：組件使用模式
+  lockedFields?: Record<string, boolean> // 新增：鎖定欄位
 }>()
 
 // 默認值
@@ -27,6 +30,7 @@ const defaultProps = {
   submitButtonText: "保存",
   showResetButton: true,
   mode: 'create' as const,
+  lockedFields: () => ({})
 }
 
 // 應用默認值
@@ -40,6 +44,7 @@ const router = useRouter()
 
 // Workspace Store（用於獲取當前工程編號）
 const workspaceStore = useWorkspaceStore()
+const authStore = useAuthStore() // Init auth store
 
 // Emits
 const emit = defineEmits<{
@@ -54,7 +59,12 @@ const formData = ref({
   project_name: "",
   contract_number: "",
   project_location: "",
+  project_scale_overview: "", // 新增：工程規模概述
   host_agency: "",
+  // 新增：公司名稱顯示欄位
+  supervisory_company_name: "",
+  contractor_company_name: "",
+  design_company: "", // 設計公司（工程案層級的基本資料，可手動填寫或選擇監造公司）
   construction_period: "",
   duration_type: "WORKING_DAYS", // 工期計算模式：CALENDAR_DAYS（日曆天）或 WORKING_DAYS（工作天）
   project_amount: "",
@@ -275,6 +285,19 @@ const viewContractChange = (change: any) => {
   console.log('查看變更紀錄:', change)
 }
 
+// 新增：處理公司編輯跳轉（目前僅為佔位符）
+const handleEditCompany = (type: string) => {
+  console.log('編輯公司跳轉:', type)
+  // TODO: 實作跳轉至編輯公司畫面的邏輯
+}
+
+// 使用監造公司作為設計公司
+const useSupervisoryCompanyAsDesign = () => {
+  if (formData.value.supervisory_company_name) {
+    formData.value.design_company = formData.value.supervisory_company_name
+  }
+}
+
 // 格式化契約金額顯示（帶千分位逗點）
 const formattedContractAmount = computed({
   get: () => {
@@ -362,10 +385,21 @@ const removeSignLevel = (index: number) => {
 }
 
 // 方法
-const handleSubmit = async () => {
+const handleSubmit = async (silent: boolean = false) => {
   // console.log('🔍 開始表單驗證...')
   // console.log('📊 ProjectForm 當前數據:', formData.value)
   
+  if (silent) {
+    // 靜默模式：只檢查驗證結果，不更新 UI
+    const errors = validateForm(formData.value, projectFormValidationRules)
+    const isValid = isFormValid(errors)
+    
+    if (isValid) {
+      emit('submit', formData.value)
+    }
+    return
+  }
+
   // 先進行完整驗證
   const isValid = validation.validateAll()
 
@@ -431,6 +465,7 @@ const getFieldDisplayName = (fieldName: string): string => {
     project_name: '工程名稱',
     contract_number: '契約編號',
     project_location: '工程地點',
+    project_scale_overview: '工程規模概述',
     host_agency: '主辦機關',
     construction_period: '工期天數',
     project_amount: '工程金額',
@@ -453,6 +488,18 @@ const getFieldDisplayName = (fieldName: string): string => {
   }
   
   return fieldNameMap[fieldName] || fieldName
+}
+
+// 判斷欄位是否鎖定
+const isFieldLocked = (fieldName: string): boolean => {
+  // 全局唯讀或提交中
+  if (propValues.value.isSubmitting || isReadonlyMode.value) return true
+  
+  // SUPER_ADMIN 豁免
+  if (authStore.user?.role === 'SUPER_ADMIN') return false
+  
+  // 檢查個別欄位鎖定
+  return !!propValues.value.lockedFields?.[fieldName]
 }
 
 // 暴露方法讓父組件可以調用
@@ -482,7 +529,7 @@ defineExpose({
               v-model="formData.project_name"
               name="project_name"
               placeholder="請輸入工程名稱"
-              :disabled="propValues.isSubmitting || isReadonlyMode"
+              :disabled="isFieldLocked('project_name')"
               @input="handleFieldInput('project_name')"
               @blur="handleFieldBlur('project_name')"
             />
@@ -504,7 +551,7 @@ defineExpose({
               v-model="formData.contract_number"
               name="contract_number"
               placeholder="請輸入契約編號"
-              :disabled="propValues.isSubmitting || isReadonlyMode"
+              :disabled="isFieldLocked('contract_number')"
               @input="handleFieldInput('contract_number')"
               @blur="handleFieldBlur('contract_number')"
             />
@@ -554,7 +601,7 @@ defineExpose({
               v-model="formData.project_location"
               name="project_location"
               placeholder="請輸入工程地點"
-              :disabled="propValues.isSubmitting || isReadonlyMode"
+              :disabled="isFieldLocked('project_location')"
               @input="handleFieldInput('project_location')"
               @blur="handleFieldBlur('project_location')"
             />
@@ -696,6 +743,23 @@ defineExpose({
             </small>
           </div>
         </div>
+        
+        <!-- 第四列：工程規模概述 -->
+        <div class="row g-3 mb-3">
+          <div class="col-12">
+            <label class="form-label">工程規模概述</label>
+            <textarea
+              :class="getFieldClass('project_scale_overview')"
+              v-model="formData.project_scale_overview"
+              name="project_scale_overview"
+              rows="4"
+              placeholder="請輸入工程規模概述內容..."
+              :disabled="propValues.isSubmitting || isReadonlyMode"
+              @input="handleFieldInput('project_scale_overview')"
+              @blur="handleFieldBlur('project_scale_overview')"
+            ></textarea>
+          </div>
+        </div>
 
         <!-- 參與單位資訊 -->
         <h6 class="fw-bold text-theme mb-3 mt-4">
@@ -723,6 +787,77 @@ defineExpose({
               {{ validation.getFieldError('host_agency') }}
             </div>
           </div>
+
+          <!-- 監造公司 -->
+          <div class="col-lg-6 col-md-12 col-sm-12">
+            <label class="form-label">監造公司</label>
+            <div class="input-group">
+              <input
+                type="text"
+                class="form-control"
+                v-model="formData.supervisory_company_name"
+                disabled
+                placeholder="由工作空間設定自動帶入"
+              />
+              <button 
+                class="btn btn-outline-primary" 
+                type="button" 
+                @click="handleEditCompany('SUPERVISION')"
+                :disabled="propValues.isSubmitting || isReadonlyMode"
+              >
+                <i class="fa fa-edit me-1"></i>編輯公司
+              </button>
+            </div>
+          </div>
+
+          <!-- 營造公司 -->
+          <div class="col-lg-6 col-md-12 col-sm-12">
+            <label class="form-label">營造公司</label>
+            <div class="input-group">
+              <input
+                type="text"
+                class="form-control"
+                v-model="formData.contractor_company_name"
+                disabled
+                placeholder="由工作空間設定自動帶入"
+              />
+              <button 
+                class="btn btn-outline-primary" 
+                type="button" 
+                @click="handleEditCompany('CONTRACTOR')"
+                :disabled="propValues.isSubmitting || isReadonlyMode"
+              >
+                <i class="fa fa-edit me-1"></i>編輯公司
+              </button>
+            </div>
+          </div>
+
+          <!-- 設計公司（工程案層級的基本資料，可手動填寫或選擇監造公司） -->
+          <div class="col-lg-6 col-md-12 col-sm-12">
+            <label class="form-label">設計公司</label>
+            <div class="input-group">
+              <input
+                type="text"
+                class="form-control"
+                v-model="formData.design_company"
+                :disabled="propValues.isSubmitting || isReadonlyMode"
+                placeholder="請輸入設計公司名稱或選擇監造公司"
+              />
+              <button 
+                class="btn btn-outline-secondary" 
+                type="button" 
+                @click="useSupervisoryCompanyAsDesign"
+                :disabled="propValues.isSubmitting || isReadonlyMode || !formData.supervisory_company_name"
+                title="使用監造公司作為設計公司"
+              >
+                <i class="fa fa-copy me-1"></i>同監造公司
+              </button>
+            </div>
+            <div class="form-text">
+              可手動輸入設計公司名稱，或點擊「同監造公司」按鈕自動填入監造公司名稱
+            </div>
+          </div>
+
         </div>
 
         
@@ -1090,7 +1225,7 @@ defineExpose({
         v-if="propValues.showSubmitButton"
         type="button"
         class="btn btn-theme"
-        @click="handleSubmit"
+        @click="handleSubmit(false)"
         :disabled="propValues.isSubmitting || validation.isValidating.value"
       >
         <i

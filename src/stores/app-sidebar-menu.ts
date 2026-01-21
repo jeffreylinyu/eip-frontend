@@ -117,14 +117,12 @@ export const useAppSidebarMenuStore = defineStore("appSidebarMenu", () => {
       icon: "bi bi-database",
       children: [
         { text: "基本資料維護", url: "/basic/basic-data" },
+        { text: "參與單位", url: "/basic/participation-units" },
         { text: "工地相關人員", url: "/basic/site-personnel" },
         { text: "工程項目標單", url: "/basic/project-item-database" },
       ],
     },
 
-    // 用戶管理
-    { text: "用戶管理", is_header: true },
-    { text: "用戶管理與權限", url: "/user-management", icon: "bi bi-people" },
 
     // 行事曆
     { text: "行事曆", is_header: true },
@@ -181,6 +179,7 @@ export const useAppSidebarMenuStore = defineStore("appSidebarMenu", () => {
           children: [
             { text: "施工項目維護", url: "/forms/b-construction-maintenance" },
             { text: "施工抽查標準表", url: "/forms/b-inspection" },
+            { text: "文件檔案分類表", url: "/forms/document-classification" },
             { text: "監造計畫書匯出測試", url: "/forms/b-export-test" },
           ],
         },

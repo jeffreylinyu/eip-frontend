@@ -5,6 +5,7 @@ import { useCompanyStore } from '@/stores/company'
 import Card from '@/components/bootstrap/Card.vue'
 import CardBody from '@/components/bootstrap/CardBody.vue'
 import CardHeader from '@/components/bootstrap/CardHeader.vue'
+import PageHeader from '@/components/bootstrap/PageHeader.vue'
 import CompanyManagementTab from '@/components/company/CompanyManagementTab.vue'
 import CompanyMemberManagement from '@/components/company/CompanyMemberManagement.vue'
 import SitePersonnelManagement from '@/components/company/SitePersonnelManagement.vue'
@@ -24,7 +25,7 @@ const selectedCompanyName = ref('')
 // 計算屬性
 const selectedCompany = computed(() => {
   if (!selectedCompanyId.value) return null
-  return companyStore.companies.find(c => c.id === selectedCompanyId.value)
+  return companyStore.companies.find(c => c.companyId === selectedCompanyId.value)
 })
 
 // 方法
@@ -78,42 +79,24 @@ onMounted(() => {
           :breadcrumbs="[
             { text: '公司管理', active: true }
           ]"
-          :actions="[
-            ...(activeTab === 'members' || activeTab === 'site-personnel' ? [{
-              text: '返回公司列表',
+          :actions="activeTab === 'members' ? [
+            {
+              text: '返回公司管理',
               icon: 'fa fa-arrow-left',
               variant: 'btn-outline-secondary',
               click: backToCompanyList
-            }] : []),
-            {
-              text: '重新載入',
-              icon: 'fa fa-refresh',
-              variant: 'btn-outline-theme',
-              click: refreshData,
-              disabled: isLoading,
-              loading: isLoading
             }
-          ]"
+          ] : undefined"
         />
 
 
 
         <!-- 公司列表 -->
         <div v-if="activeTab === 'companies'">
-          <Card>
-            <CardHeader>
-              <div class="d-flex align-items-center">
-                <i class="fa fa-building me-2"></i>
-                <h5 class="mb-0">公司列表</h5>
-              </div>
-            </CardHeader>
-            <CardBody class="p-0">
-              <CompanyManagementTab 
-                @manage-members="switchTab('members', $event)" 
-                @manage-site-personnel="switchToSitePersonnelTab"
-              />
-            </CardBody>
-          </Card>
+          <CompanyManagementTab 
+            @manage-members="switchTab('members', $event)" 
+            @manage-site-personnel="switchToSitePersonnelTab"
+          />
         </div>
 
         <!-- 成員管理 -->

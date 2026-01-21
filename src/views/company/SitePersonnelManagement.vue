@@ -1,27 +1,56 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useCompanyStore } from '@/stores/company'
-import { useWorkspaceStore } from '@/stores/workspace'
+import { useAuthStore } from '@/stores/auth'
 import SitePersonnelManagement from '@/components/company/SitePersonnelManagement.vue'
 
 const companyStore = useCompanyStore()
-const workspaceStore = useWorkspaceStore()
+const authStore = useAuthStore()
 
 // 狀態
 const isLoading = ref(false)
+const selectedCompanyId = ref<string | null>(null)
 
 // 計算屬性
+// 優先使用選中的公司，否則使用用戶的第一個公司
 const currentCompany = computed(() => {
-  // 從當前工作空間獲取公司信息，確保安全性
-  const workspace = workspaceStore.currentWorkspace
-  if (!workspace?.companyId) {
-    return null
+  // 如果已選擇公司，使用選中的公司
+  if (selectedCompanyId.value) {
+    const company = companyStore.getCompanyById(selectedCompanyId.value)
+    if (company) {
+      return {
+        id: company.companyId,
+        name: company.companyName
+      }
+    }
   }
   
-  return {
-    id: workspace.companyId,
-    name: workspace.companyName || workspace.name || '當前公司'
+  // 否則使用用戶的第一個公司（從公司列表獲取）
+  const firstCompany = companyStore.activeCompanies[0]
+  if (firstCompany) {
+    return {
+      id: firstCompany.companyId,
+      name: firstCompany.companyName
+    }
   }
+  
+  // 如果都沒有，嘗試從 authStore 獲取
+  if (authStore.user?.companyId) {
+    const company = companyStore.getCompanyById(authStore.user.companyId)
+    if (company) {
+      return {
+        id: company.companyId,
+        name: company.companyName
+      }
+    }
+  }
+  
+  return null
+})
+
+// 用戶所屬的公司列表（用於選擇）
+const userCompanies = computed(() => {
+  return companyStore.activeCompanies
 })
 
 // 方法
@@ -41,15 +70,27 @@ const backToCompanyManagement = () => {
   window.history.back()
 }
 
+// 選擇公司
+const selectCompany = (companyId: string) => {
+  selectedCompanyId.value = companyId
+}
+
 // 生命週期
 onMounted(async () => {
   // 初始化公司數據
   await companyStore.initCompanies()
   
+  // 如果用戶只有一個公司，自動選擇
+  if (userCompanies.value.length === 1) {
+    selectedCompanyId.value = userCompanies.value[0].companyId
+  } else if (authStore.user?.companyId) {
+    // 如果有預設公司，使用預設公司
+    selectedCompanyId.value = authStore.user.companyId
+  }
+  
   // 檢查用戶是否有權限訪問工地人員管理
   if (!currentCompany.value) {
-    console.warn('用戶沒有當前工作空間或公司信息，無法訪問工地人員管理')
-    // 可以考慮重定向到工作空間選擇頁面
+    console.warn('用戶沒有公司信息，無法訪問工地人員管理')
   }
 })
 </script>
@@ -85,6 +126,25 @@ onMounted(async () => {
           ]"
         />
 
+        <!-- 公司選擇器（如果用戶屬於多個公司） -->
+        <div v-if="userCompanies.length > 1" class="mb-3">
+          <label class="form-label">選擇公司</label>
+          <select 
+            class="form-select" 
+            :value="selectedCompanyId || ''"
+            @change="selectCompany(($event.target as HTMLSelectElement).value)"
+          >
+            <option value="">請選擇公司</option>
+            <option 
+              v-for="company in userCompanies" 
+              :key="company.companyId"
+              :value="company.companyId"
+            >
+              {{ company.companyName }}
+            </option>
+          </select>
+        </div>
+
         <!-- 工地人員管理組件 -->
         <div v-if="currentCompany">
           <SitePersonnelManagement 
@@ -97,7 +157,7 @@ onMounted(async () => {
         <div v-else class="text-center py-5">
           <i class="fa fa-exclamation-triangle fa-3x text-warning mb-3"></i>
           <h5 class="text-muted">無法載入公司資訊</h5>
-          <p class="text-muted mb-3">請先選擇工作空間或返回公司管理頁面</p>
+          <p class="text-muted mb-3">您目前沒有可用的公司，請聯繫管理員或返回公司管理頁面</p>
           <button 
             class="btn btn-theme"
             @click="backToCompanyManagement"

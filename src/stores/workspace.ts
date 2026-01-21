@@ -1,9 +1,12 @@
+
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { storage, StorageKeys } from '@/utils/storage'
-import { workspaceApi, transformWorkspaceFromApi, transformWorkspaceToApi, type WorkspaceDetailResponse, type WorkspaceCompany, type InviteCompanyRequest, type RemoveCompanyRequest } from '@/api/workspace'
+import { workspaceApi, transformWorkspaceFromApi, transformWorkspaceToApi, type WorkspaceDetailResponse, type WorkspaceCompany, type InviteCompanyRequest, type RemoveCompanyRequest, type ParticipatingUnitsResponse } from '@/api/workspace'
 import { useUserCacheStore, type UserBasicInfo } from '@/stores/user-cache'
-import { getConstructionsByWorkspace, type Construction, type SignLevel } from '@/api/construction'
+import { userApi, authApi } from '@/api/user'
+import { getConstructionsByWorkspace, getConstructionDetail, type Construction, type SignLevel } from '@/api/construction'
+import { useAuthStore } from '@/stores/auth'
 
 // 工作空間介面定義
 export interface Workspace {
@@ -39,6 +42,7 @@ export interface WorkspaceProject {
   contractNumber?: string
   hostAgency?: string
   supervisionUnit?: string
+  contractorName?: string
   constructionPeriod?: string
   currentContractAmount?: string
   projectCategory?: string
@@ -54,6 +58,10 @@ export interface WorkspaceProject {
   // 新增欄位
   constructionConfirmDate?: string
   constructionProjectId?: string
+  constructionScaleOverview?: string | null // 新增：工程規模概述
+  supervisoryCompanyName?: string | null // 新增：監造公司名稱
+  contractorCompanyName?: string | null // 新增：營造公司名稱
+  designCompany?: string | null // 新增：設計公司（工程案層級的基本資料，可手動填寫或選擇監造公司）
   segmentedAcceptance?: boolean
   partialAcceptance?: boolean
   completionAcceptance?: boolean
@@ -61,6 +69,7 @@ export interface WorkspaceProject {
   workDay?: number
   durationType?: 'CALENDAR_DAYS' | 'WORKING_DAYS' // 工期計算模式
   totalExtensionDays?: number // 累計展延天數（新增）
+  permission?: 'ADMIN' | 'MEMBER' | 'VIEWER' // 新增：工程案權限
 }
 
 export const useWorkspaceStore = defineStore('workspace', () => {
@@ -71,14 +80,23 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const currentProject = ref<WorkspaceProject | null>(null)
   const isLoading = ref(false)
   const isInitialized = ref(false) // 添加初始化狀態標記
+  const joinedProjectsCount = ref(0) // 新增：已參與的工程案數量 (跨工作空間)
+  const initPromise = ref<Promise<void> | null>(null) // 新增
   
   // 工作空間公司管理相關狀態
   const workspaceCompanies = ref<WorkspaceCompany[]>([])
+  // 新增：參與單位結構化狀態
+  const participatingUnits = ref<ParticipatingUnitsResponse>({
+    supervisoryCompany: null,
+    contractorCompany: null,
+    otherCompanies: []
+    // 注意：設計公司已移除，改為工程案層級的基本資料
+  })
   const availableCompanies = ref<{
     companyId: string
     companyName: string
     companyUnifiedNumber: string
-    companyType: 'CONTRACTOR' | 'SUPERVISOR' | 'CONSULTING' | 'OTHER'
+    companyType: 'CONTRACTOR' | 'SUPERVISION' | 'CONSULTING' | 'OTHER'
     contractorLevel?: 'CLASS_A' | 'CLASS_B' | 'CLASS_C' | 'SPECIAL'
   }[]>([])
   const pendingInvites = ref<WorkspaceCompany[]>([])
@@ -255,13 +273,9 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     currentProject.value !== null
   )
 
-  const getProjectsByWorkspace = async (workspaceId: string): Promise<WorkspaceProject[]> => {
-    try {
-      // 調用 API 獲取工程案
-      const constructions = await getConstructionsByWorkspace(workspaceId)
-      
-      // 將 Construction 格式轉換為 WorkspaceProject 格式
-      const projects: WorkspaceProject[] = constructions.map(construction => ({
+  // 轉換 Construction 到 WorkspaceProject 的輔助函數
+  const transformConstructionToProject = (construction: Construction, workspaceId: string): WorkspaceProject => {
+    return {
         id: construction.constructionId || '',
         name: construction.constructionName || '',
         workspaceId: workspaceId,
@@ -277,6 +291,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         // 額外的工程案詳細資訊
         contractNumber: construction.contractId || '',
         hostAgency: construction.leadOrganization || '',
+        supervisionUnit: construction.supervisoryCompany || '', // 映射舊欄位 supervisoryCompany
+        contractorName: construction.constructor || '', // 映射舊欄位 constructor
         constructionPeriod: construction.workDay?.toString() || '', // 工期天數
         currentContractAmount: construction.currentContractAmount?.toString() || construction.constructionBudget?.toString() || '',
         projectCategory: construction.constructionType || '',
@@ -296,14 +312,30 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         // 新增欄位映射
         constructionConfirmDate: construction.constructionConfirmDate || '',
         constructionProjectId: construction.constructionProjectId || '',
+        constructionScaleOverview: construction.constructionScaleOverview || null,
+        supervisoryCompanyName: construction.supervisoryCompanyName || null,
+        contractorCompanyName: construction.contractorCompanyName || null,
+        designCompany: construction.designCompany || null, // 設計公司（工程案層級的基本資料，可手動填寫或選擇監造公司）
         segmentedAcceptance: construction.segmentedAcceptance || false,
         partialAcceptance: construction.partialAcceptance || false,
         completionAcceptance: construction.completionAcceptance || false,
         signLevel: construction.signLevel || [],
         workDay: construction.workDay || 0,
         durationType: construction.durationType || 'WORKING_DAYS', // 工期計算模式
-        totalExtensionDays: construction.totalExtensionDays || 0 // 累計展延天數
-      }))
+        totalExtensionDays: construction.totalExtensionDays || 0, // 累計展延天數
+        permission: construction.permission
+    }
+  }
+
+  const getProjectsByWorkspace = async (workspaceId: string): Promise<WorkspaceProject[]> => {
+    try {
+      // 調用 API 獲取工程案
+      const constructions = await getConstructionsByWorkspace(workspaceId)
+      
+      // 將 Construction 格式轉換為 WorkspaceProject 格式
+      const projects: WorkspaceProject[] = constructions.map(construction => 
+        transformConstructionToProject(construction, workspaceId)
+      )
       
       // 更新本地狀態
       workspaceProjects.value = projects
@@ -313,6 +345,33 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       console.error('❌ 獲取工作空間工程案失敗:', error)
       // 如果 API 失敗，返回空陣列
       return []
+    }
+  }
+
+  // 獲取單一工程案詳情並更新狀態
+  const fetchProjectDetail = async (projectId: string, workspaceId: string): Promise<WorkspaceProject | null> => {
+    try {
+      const construction = await getConstructionDetail(projectId, workspaceId)
+      const project = transformConstructionToProject(construction, workspaceId)
+      
+      // 更新列表中的項目
+      const index = workspaceProjects.value.findIndex(p => p.id === projectId)
+      if (index > -1) {
+        workspaceProjects.value[index] = project
+      } else {
+        // 如果不在列表中，添加到列表
+        workspaceProjects.value.push(project)
+      }
+      
+      // 如果是當前選中的項目，也更新currentProject
+      if (currentProject.value?.id === projectId) {
+        currentProject.value = project
+      }
+      
+      return project
+    } catch (error) {
+      console.error('獲取工程案詳情失敗:', error)
+      return null
     }
   }
 
@@ -354,22 +413,93 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     }
   }
 
-  const setCurrentProject = (project: WorkspaceProject, triggerReload: boolean = true) => {
+  const setCurrentProject = async (project: WorkspaceProject, triggerReload: boolean = true) => {
     currentProject.value = project
+    
     // 確保工作空間也設定正確
-    const workspace = workspaces.value.find(ws => ws.id === project.workspaceId)
+    let workspace = workspaces.value.find(ws => ws.id === project.workspaceId)
+    
+    // 如果工作空間不在列表中，嘗試載入或創建最小對象
+    if (!workspace && project.workspaceId) {
+      try {
+        // 先嘗試初始化工作空間列表（如果還沒初始化）
+        if (!isInitialized.value) {
+          await initWorkspaces()
+          workspace = workspaces.value.find(ws => ws.id === project.workspaceId)
+        }
+        
+        // 如果還是不在列表中，創建一個最小的工作空間對象
+        // 注意：不調用 getWorkspaceDetail API，因為它需要工作空間權限
+        // 根據權限設計，訪問工程案只需要工程案權限，不需要工作空間權限
+        if (!workspace) {
+          // 創建最小的工作空間對象（只包含基本信息）
+          const minimalWorkspace: Workspace = {
+            id: project.workspaceId,
+            name: `工作空間 ${project.workspaceId.slice(0, 8)}`, // 使用 ID 前 8 位作為名稱
+            description: '',
+            companyId: '', // 暫時為空，需要時可以從工程案信息中獲取
+            companyName: '',
+            ownerId: '',
+            ownerName: '',
+            memberCount: 0,
+            projectCount: 0,
+            createdAt: '',
+            isOwner: false,
+            role: 'MEMBER' // 預設為成員權限
+          }
+          
+          // 添加到工作空間列表
+          workspaces.value.push(minimalWorkspace)
+          workspace = minimalWorkspace
+        }
+      } catch (error) {
+        console.warn('無法初始化工作空間列表:', error)
+        // 即使初始化失敗，也創建最小對象
+        if (!workspace && project.workspaceId) {
+          const minimalWorkspace: Workspace = {
+            id: project.workspaceId,
+            name: `工作空間 ${project.workspaceId.slice(0, 8)}`,
+            description: '',
+            companyId: '',
+            companyName: '',
+            ownerId: '',
+            ownerName: '',
+            memberCount: 0,
+            projectCount: 0,
+            createdAt: '',
+            isOwner: false,
+            role: 'MEMBER'
+          }
+          workspaces.value.push(minimalWorkspace)
+          workspace = minimalWorkspace
+        }
+      }
+    }
+    
+    // 設定當前工作空間（如果找到且與當前不同）
     if (workspace && workspace.id !== currentWorkspace.value?.id) {
       currentWorkspace.value = workspace
     }
     
-    // 保存到 localStorage
+    // 保存到後端
     try {
-      storage.set(StorageKeys.SELECTED_PROJECT, {
-        projectId: project.id,
-        workspaceId: project.workspaceId,
-        timestamp: Date.now()
-      })
+      const authStore = useAuthStore()
+      if (authStore.user?.userId) {
+        // 調用後端 API 更新當前工程案和工作空間
+        await authApi.updateCurrentConstruction(project.id, project.workspaceId)
+      }
     } catch (error) {
+      console.warn('更新後端當前工程案和工作空間失敗:', error)
+      // 如果後端更新失敗，仍然保存到 localStorage 作為備份
+      try {
+        storage.set(StorageKeys.SELECTED_PROJECT, {
+          projectId: project.id,
+          workspaceId: project.workspaceId,
+          timestamp: Date.now()
+        })
+      } catch (storageError) {
+        // 保存失敗時靜默處理
+      }
     }
     
     // 只有在需要時才觸發重新載入（避免無限循環）
@@ -378,98 +508,345 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     }
   }
 
-  // 從 localStorage 載入保存的選擇
+  // 從後端或 localStorage 載入保存的選擇
   const loadSavedSelections = async () => {
     try {
-      // 直接從工程案選擇中獲取工作空間信息
-      const savedProject = storage.get<{ projectId: string, workspaceId: string }>(StorageKeys.SELECTED_PROJECT)
-      if (savedProject) {
-        const { projectId, workspaceId } = savedProject
-        
-        // 設定工作空間
-        const workspace = workspaces.value.find(ws => ws.id === workspaceId)
-        if (workspace) {
-          // 只在工作空間不同時才更新
-          if (currentWorkspace.value?.id !== workspaceId) {
-            currentWorkspace.value = workspace
-          }
+      const authStore = useAuthStore()
+      let projectId: string | null = null
+      let workspaceId: string | null = null
+      
+      // 優先從後端獲取當前工程案和工作空間
+      if (authStore.user?.userId) {
+        try {
+          // 獲取最新用戶信息（包含 currentConstructionId 和 currentWorkspaceId）
+          await authStore.fetchCurrentUser()
           
-          // 載入該工作空間的工程案
-          await getProjectsByWorkspace(workspaceId)
-          
-          // 設定工程案
-          const project = workspaceProjects.value.find(proj => proj.id === projectId)
-          if (project) {
-            // 只在工程案不同時才更新
-            if (currentProject.value?.id !== projectId) {
-              currentProject.value = project
+          if (authStore.user?.currentConstructionId) {
+            projectId = authStore.user.currentConstructionId
+            // 優先使用後端記錄的 workspaceId
+            if (authStore.user?.currentWorkspaceId) {
+              workspaceId = authStore.user.currentWorkspaceId
             }
           }
+        } catch (error) {
+          console.warn('從後端獲取當前工程案和工作空間失敗:', error)
+        }
+      }
+      
+      // 如果後端沒有，嘗試從 localStorage 獲取
+      if (!projectId) {
+        const savedProject = storage.get<{ projectId: string, workspaceId: string, timestamp?: number }>(StorageKeys.SELECTED_PROJECT)
+        if (savedProject && savedProject.projectId) {
+          projectId = savedProject.projectId
+          workspaceId = savedProject.workspaceId
+        }
+      }
+      
+      // 如果有工程案 ID，嘗試載入
+      if (projectId) {
+        try {
+          const { getConstructionDetail } = await import('@/api/construction')
+          
+          // 如果沒有 workspaceId，先嘗試獲取工程案詳情（可能需要 workspaceId）
+          // 如果失敗，將在 catch 中處理
+          let construction
+          if (workspaceId) {
+            construction = await getConstructionDetail(projectId, workspaceId)
+          } else {
+            // 嘗試不提供 workspaceId（如果 API 支持）
+            try {
+              construction = await getConstructionDetail(projectId, '')
+            } catch {
+              // 如果失敗，嘗試從已載入的工作空間中查找
+              for (const ws of workspaces.value) {
+                try {
+                  construction = await getConstructionDetail(projectId, ws.id)
+                  workspaceId = ws.id
+                  break
+                } catch {
+                  // 繼續嘗試下一個工作空間
+                }
+              }
+            }
+          }
+          
+          if (construction) {
+            // 轉換為 WorkspaceProject 格式
+            const projectWorkspaceId = construction.workspaceId || workspaceId
+            if (!projectWorkspaceId) {
+              return
+            }
+            
+            const project = transformConstructionToProject(construction, projectWorkspaceId)
+            
+            // 設定工程案（這會自動保存到後端和 localStorage）
+            currentProject.value = project
+            
+            // 優先從後端記錄的工作空間 ID 設置工作空間
+            let targetWorkspaceId = authStore.user?.currentWorkspaceId || projectWorkspaceId
+            
+            // 如果工作空間在列表中，設定工作空間（但不主動獲取工作空間資料）
+            let workspace = workspaces.value.find(ws => ws.id === targetWorkspaceId)
+            
+            // 如果工作空間不在列表中，創建最小對象（與 setCurrentProject 邏輯一致）
+            if (!workspace && targetWorkspaceId) {
+              const minimalWorkspace: Workspace = {
+                id: targetWorkspaceId,
+                name: `工作空間 ${targetWorkspaceId.slice(0, 8)}`,
+                description: '',
+                companyId: '',
+                companyName: '',
+                ownerId: '',
+                ownerName: '',
+                memberCount: 0,
+                projectCount: 0,
+                createdAt: '',
+                isOwner: false,
+                role: 'MEMBER'
+              }
+              workspaces.value.push(minimalWorkspace)
+              workspace = minimalWorkspace
+            }
+            
+            if (workspace) {
+              currentWorkspace.value = workspace
+            }
+            
+            // 更新工程案列表中的項目
+            const index = workspaceProjects.value.findIndex(p => p.id === projectId)
+            if (index > -1) {
+              workspaceProjects.value[index] = project
+            } else {
+              workspaceProjects.value.push(project)
+            }
+
+            return // 成功恢復，直接返回
+          }
+        } catch (error) {
+          console.warn('載入工程案失敗:', error)
+          // 如果載入失敗，清除無效的選擇
+          if (authStore.user?.userId) {
+            try {
+              // 清除後端的無效記錄
+              await authApi.updateCurrentConstruction(null)
+            } catch {
+              // 忽略清除失敗
+            }
+          }
+          storage.remove(StorageKeys.SELECTED_PROJECT)
+          currentProject.value = null
         }
       }
     } catch (error) {
+      // 載入失敗時靜默處理
+      console.warn('載入保存的選擇失敗:', error)
     }
   }
 
-  const initWorkspaces = async () => {
-    // 如果已經初始化過，跳過重複調用
-    if (isInitialized.value && workspaces.value.length > 0) {
+
+
+  const initWorkspaces = async (force: boolean = false) => {
+    // 如果已經初始化過且不是強制重新載入，跳過重複調用
+    if (!force && isInitialized.value && workspaces.value.length > 0) {
       return
     }
-    
-    isLoading.value = true
-    try {
-      // 調用真實 API 獲取工作空間列表
-      const response = await workspaceApi.getList()
-      
-      // 處理 API 響應格式
-      let workspacesList: WorkspaceDetailResponse[] = []
-      
-      if (Array.isArray(response)) {
-        // 直接數組格式（符合您的 API 回傳格式）
-        workspacesList = response
-      } else if (response && response.workspaces && Array.isArray(response.workspaces)) {
-        // 標準格式：{ workspaces: [...], total: number }
-        workspacesList = response.workspaces
-      } else if (response && (response as any).data && Array.isArray((response as any).data)) {
-        // 嵌套 data 格式
-        workspacesList = (response as any).data
-      } else {
-        console.warn('Unexpected API response format:', response)
-        throw new Error('Invalid API response format')
-      }
-      
-      workspaces.value = workspacesList.map(transformWorkspaceFromApi)
-      
-      // 預加載所有工作空間的用戶信息
-      const ownerIds = workspaces.value.map(ws => ws.ownerId).filter(Boolean)
-      if (ownerIds.length > 0) {
-        try {
-          await userCacheStore.preloadUsers(ownerIds)
-        } catch (error) {
-          console.warn('Failed to preload user info:', error)
-        }
-      }
-      
-      
-      // 載入保存的選擇
-      await loadSavedSelections()
-      
-      // 如果沒有保存的選擇且有工作空間，設定預設工作空間
-      if (!currentWorkspace.value && workspaces.value.length > 0) {
-        setCurrentWorkspace(workspaces.value[0])
-      }
-      
-      // 標記為已初始化
-      isInitialized.value = true
-      
-    } catch (error) {
-      console.error('Failed to load workspaces:', error)
-      // API 調用失敗時不自動載入測試資料
-      workspaces.value = []
-    } finally {
-      isLoading.value = false
+
+    // [FIX] 如果正在初始化，返回現有的 Promise，避免Router Guard直接返回而未等待資料
+    if (initPromise.value) {
+      return initPromise.value
     }
+    
+    // 建立新的 Promise 並保存
+    initPromise.value = (async () => {
+        isLoading.value = true
+        try {
+          // 調用真實 API 獲取工作空間列表
+          const response = await workspaceApi.getList()
+          
+          // 處理 API 響應格式
+          let workspacesList: WorkspaceDetailResponse[] = []
+          
+          if (Array.isArray(response)) {
+            // 直接數組格式（符合您的 API 回傳格式）
+            workspacesList = response
+          } else if (response && response.workspaces && Array.isArray(response.workspaces)) {
+            // 標準格式：{ workspaces: [...], total: number }
+            workspacesList = response.workspaces
+          } else if (response && (response as any).data && Array.isArray((response as any).data)) {
+            // 嵌套 data 格式
+            workspacesList = (response as any).data
+          } else {
+            console.warn('Unexpected API response format:', response)
+            throw new Error('Invalid API response format')
+          }
+          
+          workspaces.value = workspacesList.map(transformWorkspaceFromApi)
+          
+          // Sync joined projects count
+          const authStore = useAuthStore()
+          if (authStore.user?.userId) {
+              try {
+                  const joinedProjects = await userApi.getJoinedProjects(authStore.user.userId)
+                  joinedProjectsCount.value = Array.isArray(joinedProjects) ? joinedProjects.length : 0
+                  
+                  console.log('DEBUG: Joined Projects:', joinedProjectsCount.value)
+              } catch (err) {
+                   console.warn('Failed to fetch joined projects count:', err)
+              }
+          }
+
+          // 預加載所有工作空間的用戶信息
+          const ownerIds = workspaces.value.map(ws => ws.ownerId).filter(Boolean)
+          if (ownerIds.length > 0) {
+            try {
+              await userCacheStore.preloadUsers(ownerIds)
+            } catch (error) {
+              console.warn('Failed to preload user info:', error)
+            }
+          }
+          
+          
+          // 載入保存的選擇
+          await loadSavedSelections()
+          
+          // 如果沒有當前工程案，嘗試自動選擇第一個工程案
+          if (!currentProject.value) {
+            console.log('沒有當前工程案，開始自動選擇...')
+            
+            // 優先使用 getUserProjects API 獲取用戶的所有工程案（跨工作空間）
+            try {
+              const authStore = useAuthStore()
+              if (authStore.user?.userId) {
+                const { userApi } = await import('@/api/user')
+                const userProjects = await userApi.getJoinedProjects(authStore.user.userId)
+                
+                if (Array.isArray(userProjects) && userProjects.length > 0) {
+                  console.log('找到用戶工程案:', userProjects.length, '個')
+                  
+                  // 獲取第一個工程案的詳情
+                  const firstProject = userProjects[0]
+                  const constructionId = firstProject.constructionId || firstProject.projectId
+                  
+                  if (constructionId) {
+                    const { getConstructionDetail } = await import('@/api/construction')
+                    let construction
+                    let targetWorkspaceId: string | null = null
+                    
+                    // 嘗試獲取工程案詳情
+                    if (firstProject.workspaceId) {
+                      targetWorkspaceId = firstProject.workspaceId
+                      try {
+                        construction = await getConstructionDetail(constructionId, targetWorkspaceId)
+                      } catch {
+                        // 如果失敗，嘗試不提供 workspaceId
+                        try {
+                          construction = await getConstructionDetail(constructionId, '')
+                          targetWorkspaceId = construction.workspaceId || null
+                        } catch {
+                          // 繼續嘗試其他工作空間
+                        }
+                      }
+                    } else {
+                      // 嘗試從所有工作空間中查找
+                      for (const ws of workspaces.value) {
+                        try {
+                          construction = await getConstructionDetail(constructionId, ws.id)
+                          targetWorkspaceId = ws.id
+                          break
+                        } catch {
+                          // 繼續嘗試下一個工作空間
+                        }
+                      }
+                    }
+                    
+                    if (construction && targetWorkspaceId) {
+                      const project = transformConstructionToProject(construction, targetWorkspaceId)
+                      
+                      // 設定工作空間
+                      let workspace = workspaces.value.find(ws => ws.id === targetWorkspaceId)
+                      if (!workspace && targetWorkspaceId) {
+                        workspace = {
+                          id: targetWorkspaceId,
+                          name: `工作空間 ${targetWorkspaceId.slice(0, 8)}`,
+                          description: '',
+                          companyId: '',
+                          companyName: '',
+                          ownerId: '',
+                          ownerName: '',
+                          memberCount: 0,
+                          projectCount: 0,
+                          createdAt: '',
+                          isOwner: false,
+                          role: 'MEMBER'
+                        }
+                        workspaces.value.push(workspace)
+                      }
+                      if (workspace) {
+                        currentWorkspace.value = workspace
+                      }
+                      
+                      // 載入該工作空間的工程案列表
+                      await getProjectsByWorkspace(targetWorkspaceId)
+                      
+                      // 設定工程案
+                      await setCurrentProject(project, false)
+                      console.log('自動選擇工程案成功:', project.name)
+                      return // 成功選擇，直接返回
+                    }
+                  }
+                }
+              }
+            } catch (error) {
+              console.warn('使用 getUserProjects 自動選擇失敗:', error)
+            }
+            
+            // 如果 getUserProjects 方法失敗，使用工作空間方法作為備用
+            // 如果沒有當前工作空間但有工作空間列表，設定第一個工作空間
+            if (!currentWorkspace.value && workspaces.value.length > 0) {
+              currentWorkspace.value = workspaces.value[0]
+            }
+            
+            // 如果還是沒有當前工程案，嘗試從工作空間載入
+            if (!currentProject.value && currentWorkspace.value) {
+              // 如果 workspaceProjects 為空，先載入工程案列表
+              if (workspaceProjects.value.length === 0) {
+                await getProjectsByWorkspace(currentWorkspace.value.id)
+              }
+              // 如果有工程案，自動選擇第一個
+              if (workspaceProjects.value.length > 0) {
+                await setCurrentProject(workspaceProjects.value[0], false)
+                console.log('從工作空間自動選擇工程案成功:', workspaceProjects.value[0].name)
+              } else {
+                // 如果當前工作空間沒有工程案，嘗試其他工作空間
+                for (const workspace of workspaces.value) {
+                  if (workspace.id === currentWorkspace.value.id) continue
+                  
+                  const projects = await getProjectsByWorkspace(workspace.id)
+                  if (projects.length > 0) {
+                    currentWorkspace.value = workspace
+                    await setCurrentProject(projects[0], false)
+                    console.log('從其他工作空間自動選擇工程案成功:', projects[0].name)
+                    break
+                  }
+                }
+              }
+            }
+          }
+          
+          // 標記為已初始化
+          isInitialized.value = true
+          
+        } catch (error) {
+          console.error('Failed to load workspaces:', error)
+          // API 調用失敗時不自動載入測試資料
+          workspaces.value = []
+        } finally {
+          isLoading.value = false
+          initPromise.value = null // 清除 Promise
+        }
+    })()
+
+    return initPromise.value
   }
 
   const switchWorkspace = (workspaceId: string) => {
@@ -479,10 +856,16 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     }
   }
 
-  const switchProject = (projectId: string) => {
+  const switchProject = async (projectId: string) => {
+    // 1. 先從列表查找並切換（提供即時回饋）
     const project = workspaceProjects.value.find(proj => proj.id === projectId)
     if (project) {
-      setCurrentProject(project)
+      await setCurrentProject(project)
+    }
+
+    // 2. 異步獲取完整詳情並更新
+    if (currentWorkspace.value) {
+      await fetchProjectDetail(projectId, currentWorkspace.value.id)
     }
   }
 
@@ -622,7 +1005,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     switch (companyType) {
       case 'CONTRACTOR':
         return 'MAIN_CONTRACTOR'
-      case 'SUPERVISOR':
+      case 'SUPERVISION':
         return 'SUPERVISOR'
       default:
         return 'THIRD_PARTY'
@@ -671,12 +1054,17 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const inviteCompanyToWorkspace = async (workspaceId: string, inviteData: InviteCompanyRequest) => {
     try {
       // 檢查邀請規則
-      if (inviteData.role === 'MAIN_CONTRACTOR' && !canInviteContractor.value) {
-        throw new Error('工作空間已有主要承包商，無法再邀請')
+      // 若有提供 companyType，則略過前端唯一性檢查，由後端處理自動替換邏輯
+      if (!inviteData.companyType) {
+        if (inviteData.role === 'MAIN_CONTRACTOR' && !canInviteContractor.value) {
+          throw new Error('工作空間已有主要承包商，無法再邀請')
+        }
+        if (inviteData.role === 'SUPERVISOR' && !canInviteSupervisor.value) {
+          throw new Error('工作空間已有監造單位，無法再邀請')
+        }
+           // 注意：設計單位 (DESIGNER) 的檢查如果有的話也應該在這裡，但原始代碼似乎沒有檢查 DESIGNER
       }
-      if (inviteData.role === 'SUPERVISOR' && !canInviteSupervisor.value) {
-        throw new Error('工作空間已有監造單位，無法再邀請')
-      }
+      
       if (!canInviteCompany.value) {
         throw new Error('您沒有邀請公司的權限')
       }
@@ -691,6 +1079,44 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       return newCompany
     } catch (error) {
       console.error('Failed to invite company:', error)
+      throw error
+    }
+  }
+
+  // 新增：獲取參與單位結構化資料
+  const fetchParticipatingUnits = async (workspaceId: string) => {
+    try {
+      const response = await workspaceApi.getParticipatingUnits(workspaceId)
+      participatingUnits.value = response
+      
+      // 同步更新 workspaceCompanies 以維持相容性 (如果需要)
+      // 如果確定不再使用 workspaceCompanies，可以移除這部分
+      // 這裡暫時保留以防萬一，將結構化資料扁平化為數組
+      // 注意：設計公司已移除，改為工程案層級的基本資料
+      const flatList: WorkspaceCompany[] = []
+      if (response.contractorCompany) flatList.push({ ...response.contractorCompany, role: 'MAIN_CONTRACTOR', status: 'ACTIVE' })
+      if (response.supervisoryCompany) flatList.push({ ...response.supervisoryCompany, role: 'SUPERVISOR', status: 'ACTIVE' })
+      response.otherCompanies.forEach(c => flatList.push({ ...c, role: 'THIRD_PARTY', status: 'ACTIVE' }))
+      workspaceCompanies.value = flatList
+
+    } catch (error) {
+      console.error('Failed to fetch participating units:', error)
+    }
+  }
+
+  // 更新公司類型
+  // 注意：DESIGN 類型已移除，設計公司改為工程案層級的基本資料
+  const updateCompanyType = async (workspaceId: string, companyId: string, companyType: 'CONTRACTOR' | 'SUPERVISION' | 'OTHER') => {
+    try {
+      await workspaceApi.updateCompanyType({
+        workspaceId,
+        companyId,
+        companyType
+      })
+      // 更新成功後重新載入公司列表 (使用新的 API)
+      await fetchParticipatingUnits(workspaceId)
+    } catch (error) {
+      console.error('Failed to update company type:', error)
       throw error
     }
   }
@@ -751,17 +1177,21 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     }
   }
 
-  // 角色檢查
+  // 權限檢查（優先使用新欄位）
   const canManageWorkspace = computed(() => {
-    return currentWorkspace.value?.role === 'OWNER' || currentWorkspace.value?.role === 'ADMIN'
+    if (!currentWorkspace.value) return false
+    const permission = currentWorkspace.value.workspacePermission || currentWorkspace.value.role // 優先使用新欄位
+    return permission === 'ADMIN' || permission === 'OWNER'
   })
 
   const canEditProject = computed(() => {
-    return currentWorkspace.value?.role !== 'VIEWER'
+    if (!currentWorkspace.value) return false
+    const permission = currentWorkspace.value.workspacePermission || currentWorkspace.value.role // 優先使用新欄位
+    return permission !== 'VIEWER'
   })
 
   // 工作空間公司邀請規則
-  const getCompanyByRole = (role: 'MAIN_CONTRACTOR' | 'SUPERVISOR' | 'THIRD_PARTY') => {
+  const getCompanyByRole = (role: 'MAIN_CONTRACTOR' | 'SUPERVISOR' | 'DESIGNER' | 'THIRD_PARTY') => {
     if (!Array.isArray(workspaceCompanies.value)) {
       console.warn('workspaceCompanies.value is not an array:', workspaceCompanies.value)
       return []
@@ -770,7 +1200,9 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   }
 
   const canInviteCompany = computed(() => {
-    return currentWorkspace.value?.role === 'OWNER' || currentWorkspace.value?.role === 'ADMIN'
+    if (!currentWorkspace.value) return false
+    const permission = currentWorkspace.value.workspacePermission || currentWorkspace.value.role // 優先使用新欄位
+    return permission === 'ADMIN' || permission === 'OWNER'
   })
 
   const canInviteContractor = computed(() => {
@@ -781,6 +1213,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     return canInviteCompany.value && getCompanyByRole('SUPERVISOR').length === 0
   })
 
+  // 注意：設計單位已移除，改為工程案層級的基本資料
   const canInviteThirdParty = computed(() => {
     return canInviteCompany.value // 第三方公司可以邀請多間
   })
@@ -826,6 +1259,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   return {
     // State
     workspaces,
+    joinedProjectsCount,
     currentWorkspace,
     workspaceProjects,
     currentProject,
@@ -865,6 +1299,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     switchWorkspace,
     switchProject,
     getProjectsByWorkspace,
+    fetchProjectDetail,
     getWorkspaceDetail,
     checkWorkspacePermission,
     getWorkspaceOwnerInfo,
@@ -882,8 +1317,11 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     
     // 工作空間公司管理方法
     loadWorkspaceCompanies,
+    fetchParticipatingUnits,
+    participatingUnits,
     searchAvailableCompanies,
     inviteCompanyToWorkspace,
+    updateCompanyType,
     respondToCompanyInvite,
     requestRemoveCompany,
     respondToRemovalRequest

@@ -44,8 +44,10 @@ export interface PccesWorkProcessStandard {
   stepOrder?: number
   itemName?: string
   dataSource?: string  // 資料來源機關
+  progress?: string    // 進度
   workProcess?: string
   manageProject?: string
+  inspectionMethod?: string // 檢查方法
   checkPoint?: string
   checkStandard?: string
   checkTiming?: string
@@ -215,6 +217,17 @@ export const masterDataApi = {
       params: { directoryPath },
       timeout: 300000 // 5 分鐘（300 秒），匯入操作可能需要較長時間
     })
+  },
+
+  /**
+   * [Migration] 匯入標準資料 (Legacy)
+   * 權限：SUPER_ADMIN + secretKey
+   */
+  importStandards: (secretKey: string, materialPath: string, workProcessPath: string): Promise<any> => {
+     return http.get('/management/admin/migration/importStandards', {
+        params: { secretKey, materialPath, workProcessPath },
+        timeout: 300000
+     })
   },
 }
 

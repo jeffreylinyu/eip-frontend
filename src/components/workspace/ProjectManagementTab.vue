@@ -568,6 +568,15 @@ onBeforeUnmount(() => {
   font-size: 14px;
 }
 
+/* 確保 ellipsis 按鈕在黑暗模式下正確顯示 */
+.btn-link.text-muted {
+  color: var(--bs-body-color) !important;
+}
+
+.btn-link.text-muted:hover {
+  color: var(--bs-primary) !important;
+}
+
 @media (max-width: 768px) {
   .project-management-card {
     margin-bottom: 1rem;

@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { storage, StorageKeys } from '@/utils/storage';
-import { getAllConstructions, type Construction } from '@/api/construction';
+import { getAllConstructions, getConstructionsByWorkspace, type Construction } from '@/api/construction';
+import { useWorkspaceStore } from './workspace';
 
 // 使用 Construction 接口，但保持原有的 Project 別名以便於遷移
 export type Project = Construction;
@@ -33,21 +34,16 @@ export const useProjectStore = defineStore('project', {
   actions: {
     // 初始化項目數據
     async initProjects() {
-      this.loading = true;
-      try {
-        // 從 API 獲取項目數據
-        const apiProjects = await getAllConstructions();
-        this.projects = apiProjects;
-        
+      // 避免重複載入
+      if (this.loading) return;
+      
+      // 內部函數：嘗試恢復或設定預設專案
+      const tryRestoreOrSetDefault = () => {
         // 嘗試從 localStorage 恢復當前項目
-        const currentStored = storage.get<Construction>(StorageKeys.SELECTED_PROJECT); // 注意：StorageKeys 中定義的是 CURRENT_PROJECT 但值是 'current_project'，這裡我們需要確認是否要遷移舊資料
-        // 為了相容性，我們可能需要先檢查舊的 key，或者直接切換到新的 key。
-        // 根據計畫，我們接受 key 變更導致的登出/重置。
-        // 但為了更好的體驗，我們可以嘗試讀取舊的 key (如果新的沒有)
+        let storedProject = storage.get<Construction>(StorageKeys.SELECTED_PROJECT);
         
-        let storedProject = currentStored;
+        // 兼容性檢查：嘗試讀取舊的 key
         if (!storedProject) {
-             // 嘗試讀取舊的 key (僅作遷移用，之後可移除)
              const oldStored = localStorage.getItem('currentProject');
              if (oldStored) {
                  try {
@@ -57,14 +53,18 @@ export const useProjectStore = defineStore('project', {
         }
 
         if (storedProject) {
-          // 檢查存儲的項目是否在 API 返回的項目列表中
-          const foundProject = this.projects.find(p => p.constructionId === storedProject!.constructionId);
-          if (foundProject) {
-            this.currentProject = foundProject;
-            // 如果是從舊 key 讀到的，更新到新 key
-            if (!currentStored) {
-                this.saveCurrentProjectToStorage();
-            }
+          // 檢查存儲的項目是否在列表
+          // 兼容兩種儲存格式：
+          // 1. 完整 Construction 對象 (project.ts 儲存的) -> 使用 constructionId
+          // 2. 簡化對象 { projectId, ... } (workspace.ts 儲存的) -> 使用 projectId
+          const targetId = (storedProject as any).constructionId || (storedProject as any).projectId;
+          
+          if (targetId) {
+             const foundProject = this.projects.find(p => p.constructionId === targetId);
+             if (foundProject) {
+               this.setCurrentProject(foundProject);
+               return;
+             }
           }
         }
         
@@ -72,6 +72,35 @@ export const useProjectStore = defineStore('project', {
         if (!this.currentProject && this.projects.length > 0) {
           this.setCurrentProject(this.projects[0]);
         }
+      };
+
+      // 如果已經有資料，直接檢查是否需要設定當前專案
+      if (this.projects.length > 0) {
+        if (!this.currentProject) {
+           tryRestoreOrSetDefault();
+        }
+        return;
+      }
+
+      const workspaceStore = useWorkspaceStore();
+      this.loading = true;
+      try {
+        // 從 API 獲取項目數據
+        let apiProjects: Construction[] = [];
+        
+        // 如果有當前工作空間，只獲取該工作空間的工程案
+        if (workspaceStore.currentWorkspace?.id) {
+             apiProjects = await getConstructionsByWorkspace(workspaceStore.currentWorkspace.id);
+             // 注入 workspaceId，以便後續儲存使用
+             apiProjects.forEach(p => p.workspaceId = workspaceStore.currentWorkspace?.id);
+        } else {
+             // 否則獲取所有（或者可以考慮不獲取，視需求而定）
+             apiProjects = await getAllConstructions();
+        }
+        
+        this.projects = apiProjects;
+        
+        tryRestoreOrSetDefault();
         
         this.error = null;
       } catch (error) {
@@ -88,21 +117,35 @@ export const useProjectStore = defineStore('project', {
     // 從localStorage載入項目（備用方案）
     async loadProjectsFromStorage() {
       const stored = storage.get<Construction[]>(StorageKeys.PROJECTS_CACHE) || JSON.parse(localStorage.getItem('projects') || 'null');
-      const currentStored = storage.get<Construction>(StorageKeys.SELECTED_PROJECT) || JSON.parse(localStorage.getItem('currentProject') || 'null');
+      const storedSelection = storage.get<any>(StorageKeys.SELECTED_PROJECT) || JSON.parse(localStorage.getItem('currentProject') || 'null');
       
       if (stored) {
         this.projects = stored;
       }
       
-      if (currentStored) {
-        this.currentProject = currentStored;
+      if (storedSelection) {
+        // 嘗試還原選擇
+        const targetId = storedSelection.constructionId || storedSelection.projectId;
+        if (targetId) {
+          const found = this.projects.find(p => p.constructionId === targetId);
+          if (found) {
+            this.currentProject = found;
+          }
+        }
       }
     },
 
     // 保存當前項目到localStorage
     saveCurrentProjectToStorage() {
       if (this.currentProject) {
-        storage.set(StorageKeys.SELECTED_PROJECT, this.currentProject);
+        // 統一使用與 WorkspaceStore 相同的格式：{ projectId, workspaceId, timestamp }
+        // 這樣可以解決不同頁面儲存格式不一致的問題
+        const workspaceStore = useWorkspaceStore();
+        storage.set(StorageKeys.SELECTED_PROJECT, {
+           projectId: this.currentProject.constructionId,
+           workspaceId: this.currentProject.workspaceId || workspaceStore.currentWorkspace?.id,
+           timestamp: Date.now()
+        });
       }
     },
 

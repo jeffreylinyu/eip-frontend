@@ -1,12 +1,12 @@
 import http from './http'
 
 // 公司介面定義
+// 公司介面定義
 export interface Company {
-  id: string
   companyId: string
   companyName: string
   companyCode: string // 統一編號 (對應 API 的 companyUnifiedNumber)
-  companyType: 'CONTRACTOR' | 'SUPERVISOR' | 'THIRD_PARTY'
+  companyType: 'CONTRACTOR' | 'SUPERVISION' | 'THIRD_PARTY'
   contractorLevel?: 'CLASS_A' | 'CLASS_B' | 'CLASS_C' | 'CIVIL_CONTRACTOR' // 營造等級，僅當 companyType 為 CONTRACTOR 時需要
   contactPerson: string
   contactPhone: string
@@ -18,7 +18,9 @@ export interface Company {
   createdAt: string
   updatedAt: string
   // 新增字段（來自 CompanyMember）
-  userRole?: 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER'
+  userRole?: 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER'  // 向後兼容：公司職位
+  jobTitle?: 'OWNER' | 'ADMIN' | 'LABOUR_SAFETY' | 'CONSTRUCTION_MANAGER' | 'TECHNICIAN' | 'ARCHITECT' | 'QUALITY' | 'ADMIN_STAFF' | 'SITE_WORKER'  // 新欄位：公司職位
+  companyPermission?: 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER'  // 新欄位：公司權限
   joinedAt?: string
   memberCount?: number
 }
@@ -28,7 +30,7 @@ export interface Company {
 export interface CreateCompanyRequest {
   companyName: string
   companyUnifiedNumber: string
-  companyType: 'CONTRACTOR' | 'SUPERVISOR' | 'THIRD_PARTY'
+  companyType: 'CONTRACTOR' | 'SUPERVISION' | 'THIRD_PARTY'
   contractorLevel?: 'CLASS_A' | 'CLASS_B' | 'CLASS_C' | 'CIVIL_CONTRACTOR' // 營造等級，僅當 companyType 為 CONTRACTOR 時需要
 }
 
@@ -37,7 +39,7 @@ export interface UpdateCompanyRequest {
   companyName?: string
   companyUnifiedNumber?: string
   companyStatus?: 'Y' | 'N'
-  companyType?: 'CONTRACTOR' | 'SUPERVISOR' | 'THIRD_PARTY'
+  companyType?: 'CONTRACTOR' | 'SUPERVISION' | 'THIRD_PARTY'
   contractorLevel?: 'CLASS_A' | 'CLASS_B' | 'CLASS_C' | 'CIVIL_CONTRACTOR' // 統一使用 contractorLevel
 }
 
@@ -53,7 +55,7 @@ export interface CompanyDetailResponse extends Company {}
 // 公司類型選項
 export const COMPANY_TYPE_OPTIONS = [
   { value: 'CONTRACTOR', label: '營造廠商', color: 'primary' },
-  { value: 'SUPERVISOR', label: '監造單位', color: 'info' },
+  { value: 'SUPERVISION', label: '監造單位', color: 'info' },
   { value: 'THIRD_PARTY', label: '第三方單位', color: 'success' },
 ] as const
 
@@ -76,16 +78,46 @@ export const companyApi = {
   // 建立公司
   async create(data: CreateCompanyRequest): Promise<Company> {
     const response = await http.post('/management/company/create', data)
-    return response as unknown as Company
+    const apiData = (response as any).data || response
+    return companyDataTransform.fromApi(apiData)
+  },
+
+  /**
+   * [Admin] 系統管理員建立公司
+   */
+  async adminCreate(data: CreateCompanyRequest): Promise<Company> {
+    const response = await http.post('/management/admin/company/create', data)
+    const apiData = (response as any).data || response
+    return companyDataTransform.fromApi(apiData)
   },
 
   // 獲取公司列表
-  async getList(): Promise<Company[]> {
-    const response = await http.get('/management/company/list')
+  async getList(params?: { search?: string; companyType?: string }): Promise<Company[]> {
+    const response = await http.get('/management/company/list', { params })
     const data = response as any
     
     // 處理後端多層嵌套的格式
-    return data.data?.data || data.data || data
+    const list = data.data?.data || data.data || data
+    
+    // 確保是陣列並進行轉換
+    if (Array.isArray(list)) {
+      return list.map((item: any) => companyDataTransform.fromApi(item))
+    }
+    return []
+  },
+
+  /**
+   * [Admin] 獲取所有公司 (Admin Hub 使用)
+   */
+  async adminGetAll(): Promise<Company[]> {
+    const response = await http.get('/management/admin/company/all')
+    const data = response as any
+    // Back-end returns { code: 200, message: "success", data: [...] }
+    const list = data.data || data
+     if (Array.isArray(list)) {
+      return list.map((item: any) => companyDataTransform.fromApi(item))
+    }
+    return []
   },
 
 
@@ -93,13 +125,24 @@ export const companyApi = {
   // 獲取公司詳情
   async getDetail(companyId: string): Promise<CompanyDetailResponse> {
     const response = await http.get(`/management/company/${companyId}`)
-    return response as unknown as CompanyDetailResponse
+    const apiData = (response as any).data || response
+    return companyDataTransform.fromApi(apiData)
   },
 
   // 更新公司
   async update(data: UpdateCompanyRequest): Promise<Company> {
     const response = await http.patch('/management/company/update', data)
-    return response as unknown as Company
+    const apiData = (response as any).data || response
+    return companyDataTransform.fromApi(apiData)
+  },
+
+  /**
+   * [Admin] 系統管理員更新公司
+   */
+  async adminUpdate(data: UpdateCompanyRequest): Promise<Company> {
+    const response = await http.patch('/management/admin/company/update', data)
+    const apiData = (response as any).data || response
+    return companyDataTransform.fromApi(apiData)
   },
 
   // 刪除公司
@@ -107,13 +150,47 @@ export const companyApi = {
     await http.delete(`/management/company/delete/${companyId}`)
   },
 
+  /**
+   * [Admin] 系統管理員刪除公司
+   */
+  async adminDelete(companyId: string): Promise<void> {
+    await http.delete(`/management/admin/company/delete/${companyId}`)
+  },
+
   // 檢查公司權限
   async checkPermission(companyId: string): Promise<{
     hasPermission: boolean
     userRole: string
   }> {
-    const response = await http.get(`/management/company/${companyId}/permission`)
-    return response as unknown as { hasPermission: boolean; userRole: string }
+    const response: any = await http.get(`/management/company/${companyId}/permission`)
+    return {
+        hasPermission: response.hasPermission || response.has_permission || false,
+        userRole: response.userRole || response.user_role || response.role || ''
+    }
+  },
+
+  // 取得公司成員列表
+  async getMembers(companyId: string): Promise<any[]> {
+    const response = await http.get(`/management/companyMember/members/${companyId}`)
+    const data = (response as any).data || response
+    return Array.isArray(data) ? data : []
+  },
+
+  // 獲取使用者在該公司範圍內已加入的專案
+  async getUserProjectsInCompany(companyId: string, userId: string): Promise<any[]> {
+    const response = await http.get(`/management/company/${companyId}/member/${userId}/projects`)
+    const data = (response as any).data || response
+    return Array.isArray(data) ? data : []
+  },
+
+  // 邀請成員加入公司 (直接加入)
+  async inviteMember(data: { userId: string; companyId: string; role: string }): Promise<void> {
+    await http.post('/management/companyMember/invite', data)
+  },
+
+  // 移除公司成員
+  async removeMember(companyId: string, targetUserId: string): Promise<void> {
+    await http.delete(`/management/companyMember/remove/${companyId}/${targetUserId}`)
   }
 }
 
@@ -122,10 +199,9 @@ export const companyDataTransform = {
   // 將 API 回應轉換為前端格式
   fromApi(apiData: any): Company {
     return {
-      id: apiData.id,
       companyId: apiData.companyId || apiData.company_id,
-      companyName: apiData.companyName || apiData.company_name,
-      companyCode: apiData.companyUnifiedNumber || apiData.companyCode || apiData.company_code,
+      companyName: apiData.companyName || apiData.company_name || apiData.name || apiData.title,
+      companyCode: apiData.companyUnifiedNumber || apiData.companyCode || apiData.company_code || apiData.unified_number || apiData.tax_id || apiData.uniform_numbers,
       companyType: apiData.companyType || apiData.company_type,
       contractorLevel: apiData.contractorLevel || apiData.contractor_level || apiData.contractLevel,
       contactPerson: apiData.contactPerson || apiData.contact_person || '',

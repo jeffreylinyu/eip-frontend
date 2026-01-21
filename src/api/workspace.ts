@@ -12,20 +12,22 @@ export interface WorkspaceCompany {
   companyId?: string
   companyName: string
   companyUnifiedNumber: string
-  companyType: 'CONTRACTOR' | 'SUPERVISOR' | 'CONSULTING' | 'OTHER'
+  companyType: 'CONTRACTOR' | 'SUPERVISION' | 'CONSULTING' | 'OTHER'
   companyStatus?: string // API 回傳的狀態欄位
   contractorLevel?: 'CLASS_A' | 'CLASS_B' | 'CLASS_C' | 'SPECIAL'
   joinedAt?: string
   status?: 'ACTIVE' | 'PENDING' | 'REJECTED'
   invitedBy?: string
-  role?: 'MAIN_CONTRACTOR' | 'SUPERVISOR' | 'THIRD_PARTY'
+  role?: 'MAIN_CONTRACTOR' | 'SUPERVISOR' | 'DESIGNER' | 'THIRD_PARTY'
   memberCount?: number
 }
 
 // 工作空間邀請公司請求
 export interface InviteCompanyRequest {
   companyId: string
-  role: 'MAIN_CONTRACTOR' | 'SUPERVISOR' | 'THIRD_PARTY'
+  role?: 'MAIN_CONTRACTOR' | 'SUPERVISOR' | 'THIRD_PARTY' // Optional now if companyType is provided
+  // 注意：DESIGNER 角色已移除，設計公司改為工程案層級的基本資料
+  companyType?: 'CONTRACTOR' | 'SUPERVISION' | 'OTHER' // 注意：DESIGN 類型已移除，設計公司改為工程案層級的基本資料
   message?: string
 }
 
@@ -35,6 +37,21 @@ export interface RemoveCompanyRequest {
   reason: string
   requestType: 'MUTUAL_AGREEMENT' | 'CUSTOMER_SERVICE'
   customerServiceNote?: string
+}
+
+// 更新公司類型請求
+export interface UpdateCompanyTypeRequest {
+  companyId: string
+  workspaceId: string
+  companyType: 'CONTRACTOR' | 'SUPERVISION' | 'OTHER' // 注意：DESIGN 類型已移除，設計公司改為工程案層級的基本資料
+}
+
+// 參與單位 API 響應接口
+export interface ParticipatingUnitsResponse {
+  supervisoryCompany: WorkspaceCompany | null
+  contractorCompany: WorkspaceCompany | null
+  otherCompanies: WorkspaceCompany[]
+  // 注意：設計公司已移除，改為工程案層級的基本資料
 }
 
 // API 響應接口
@@ -49,15 +66,18 @@ export interface WorkspaceDetailResponse {
   status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED'
   createdAt: string
   updatedAt: string
-  companyRole: 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER'
-  userRoleInCompany: 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER'
+  companyRole: 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER'  // 工作空間權限（向後兼容）
+  workspacePermission?: 'ADMIN' | 'MEMBER' | 'VIEWER'  // 新欄位：工作空間權限（優先使用）
+  userRoleInCompany: 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER'  // 公司在工作空間中的角色（向後兼容）
+  userJobTitleInCompany?: 'OWNER' | 'ADMIN' | 'LABOUR_SAFETY' | 'CONSTRUCTION_MANAGER' | 'TECHNICIAN' | 'ARCHITECT' | 'QUALITY' | 'ADMIN_STAFF' | 'SITE_WORKER'  // 新欄位：用戶在公司中的職位（優先使用）
   companyCount: number
   companies?: WorkspaceCompany[]
 }
 
 export interface WorkspacePermissionResponse {
   hasPermission: boolean
-  userRole: 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER'
+  userRole: 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER'  // 向後兼容
+  workspacePermission?: 'ADMIN' | 'MEMBER' | 'VIEWER'  // 新欄位：工作空間權限（優先使用）
 }
 
 export interface WorkspaceListResponse {
@@ -133,13 +153,22 @@ export const workspaceApi = {
   },
 
   /**
+   * 獲取工作空間參與單位（結構化資料）
+   * @param workspaceId 工作空間ID
+   * @returns 參與單位列表
+   */
+  getParticipatingUnits: (workspaceId: string): Promise<ParticipatingUnitsResponse> => {
+    return http.get(`/management/companyWorkspace/workspace/${workspaceId}/participatingUnits`)
+  },
+
+  /**
    * 邀請公司加入工作空間
    * @param workspaceId 工作空間ID
    * @param data 邀請數據
    * @returns 邀請結果
    */
   inviteCompany: (workspaceId: string, data: InviteCompanyRequest): Promise<WorkspaceCompany> => {
-    return http.post('/management/companyWorkspace/invite-company', { ...data, workspaceId })
+    return http.post('/management/companyWorkspace/invite', { ...data, workspaceId })
   },
 
   /**
@@ -163,6 +192,18 @@ export const workspaceApi = {
   },
 
   /**
+   * 直接移除公司從工作空間
+   * @param workspaceId 工作空間ID
+   * @param companyId 公司ID
+   * @returns 移除結果
+   */
+  removeCompanyFromWorkspace: (workspaceId: string, companyId: string): Promise<void> => {
+    return http.delete('/management/companyWorkspace/remove', { 
+      params: { workspaceId, companyId } 
+    })
+  },
+
+  /**
    * 回應公司移除請求
    * @param workspaceId 工作空間ID
    * @param requestId 請求ID
@@ -171,6 +212,15 @@ export const workspaceApi = {
    */
   respondToRemoveRequest: (workspaceId: string, requestId: string, action: 'APPROVE' | 'REJECT'): Promise<void> => {
     return http.post('/management/companyWorkspace/respond-remove-request', { workspaceId, requestId, action })
+  },
+
+  /**
+   * 更新公司在工作空間中的類型
+   * @param data 更新數據
+   * @returns 更新結果
+   */
+  updateCompanyType: (data: UpdateCompanyTypeRequest): Promise<void> => {
+    return http.put('/management/companyWorkspace/updateCompanyType', data)
   },
 
   /**
@@ -184,7 +234,7 @@ export const workspaceApi = {
     companyId: string
     companyName: string
     companyUnifiedNumber: string
-    companyType: 'CONTRACTOR' | 'SUPERVISOR' | 'CONSULTING' | 'OTHER'
+    companyType: 'CONTRACTOR' | 'SUPERVISION' | 'CONSULTING' | 'OTHER'
     contractorLevel?: 'CLASS_A' | 'CLASS_B' | 'CLASS_C' | 'SPECIAL'
   }[]> => {
     return http.get('/management/companyWorkspace/companyList', { 
@@ -201,7 +251,7 @@ export const workspaceApi = {
     companyId: string
     companyName: string
     companyUnifiedNumber: string
-    companyType: 'CONTRACTOR' | 'SUPERVISOR' | 'CONSULTING' | 'OTHER'
+    companyType: 'CONTRACTOR' | 'SUPERVISION' | 'CONSULTING' | 'OTHER'
     contractorLevel?: 'CLASS_A' | 'CLASS_B' | 'CLASS_C' | 'SPECIAL'
   } | null> => {
     return http.get(`/management/companyWorkspace/search-company-by-code/${companyCode}`)

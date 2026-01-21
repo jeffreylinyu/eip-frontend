@@ -255,8 +255,8 @@
         </div>
 
         <div class="treegrid-body">
-          <ejs-treegrid
-            ref="treegrid"
+          <ejs-grid
+            ref="grid"
             :dataSource="gridData"
             :allowPaging="true"
             :pageSettings="pageSettings"
@@ -266,7 +266,7 @@
             :allowReordering="false"
             :allowSelection="false"
             :height="'100%'"
-            locale="zh"
+            locale="zh-TW"
             :enableHover="true"
             :filterSettings="filterSettings"
           >
@@ -328,7 +328,7 @@
               </span>
               <span v-else>-</span>
             </template>
-          </ejs-treegrid>
+          </ejs-grid>
         </div>
       </div>
     </div>
@@ -433,8 +433,7 @@ import PageHeader from '@/components/bootstrap/PageHeader.vue'
 import Modal from '@/components/bootstrap/Modal.vue'
 import Card from '@/components/bootstrap/Card.vue'
 import CardBody from '@/components/bootstrap/CardBody.vue'
-import { Sort, Resize, Filter, Page } from '@syncfusion/ej2-vue-treegrid'
-import type { TreeGridComponent } from '@syncfusion/ej2-vue-treegrid'
+import { Sort, Resize, Filter, Page, GridComponent, ColumnsDirective, ColumnDirective } from '@syncfusion/ej2-vue-grids'
 import { getCurrentInstance } from 'vue'
 
 const { proxy } = getCurrentInstance() as any
@@ -447,16 +446,16 @@ const hasAdminPermission = computed(() => {
   return user.role === 'ADMIN' || user.role === 'SUPER_ADMIN'
 })
 
-// TreeGrid 相關
-const treegrid = ref<TreeGridComponent | null>(null)
+// Grid 相關
+const grid = ref<GridComponent | null>(null)
 const gridData = ref<PccesItemCatalog[]>([])
 const isLoading = ref(false)
 
 // 全螢幕狀態
 const isFullscreen = ref(false)
 
-// 提供 TreeGrid 服務
-provide('treegrid', [Sort, Resize, Filter, Page])
+// 提供 Grid 服務
+provide('grid', [Sort, Resize, Filter, Page])
 
 // 分頁設定
 const pageSettings = ref({
@@ -682,9 +681,9 @@ onMounted(() => {
   }
 })
 
-// 當組件重新激活時（從其他畫面切回來），確保 TreeGrid 樣式正確
+// 當組件重新激活時（從其他畫面切回來），確保 Grid 樣式正確
 onActivated(() => {
-  if (treegrid.value) {
+  if (grid.value) {
     nextTick(() => {
       if (isFullscreen.value) {
         // 如果處於全螢幕模式，確保樣式正確應用

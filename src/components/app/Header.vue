@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
+import { companyApi } from '@/api/company';
 import { slideToggle } from '@/composables/slideToggle.js';
 import { useAppOptionStore } from '@/stores/app-option';
 import { useAuthStore } from '@/stores/auth';
@@ -53,11 +54,12 @@ const currentProjectName = computed(() => workspaceStore.getCurrentProjectName);
 const hasCurrentWorkspace = computed(() => workspaceStore.hasCurrentWorkspace);
 const hasCurrentProject = computed(() => workspaceStore.hasCurrentProject);
 
-// 檢查是否為系統管理員
+// 檢查是否為系統管理員（優先使用新欄位）
 const hasAdminPermission = computed(() => {
 	const user = authStore.user;
 	if (!user) return false;
-	return user.role === 'ADMIN' || user.role === 'SUPER_ADMIN';
+	const systemRole = user.systemRole || user.role; // 優先使用新欄位
+	return systemRole === 'ADMIN' || systemRole === 'SUPER_ADMIN';
 });
 
 // 檢查是否為系統維護模式（路由以 /admin 開頭）
@@ -67,16 +69,41 @@ const isAdminMode = computed(() => {
 
 // 完整的品牌文字（用於 title 屬性）
 const getFullBrandText = computed(() => {
-  if (hasCurrentWorkspace.value && hasCurrentProject.value) {
-    return `${currentWorkspaceName.value} / ${currentProjectName.value} - 工程智慧平台`;
-  } else if (hasCurrentWorkspace.value) {
-    return `${currentWorkspaceName.value} - 工程智慧平台`;
-  } else if (hasCurrentProject.value) {
-    return `${currentProjectName.value} - 工程智慧平台`;
-  } else {
-    return '工程智慧平台';
+  const company = userCompanyName.value || '工程智慧平台';
+  if (hasCurrentProject.value) {
+    return `${company} - ${currentProjectName.value}`;
   }
+  return company;
 });
+
+const userCompanyName = ref('');
+const isCompanyAdmin = ref(false);
+
+const fetchUserCompanyName = async () => {
+    if (authStore.user?.companyId) {
+        try {
+            const [detail, perm] = await Promise.all([
+                companyApi.getDetail(authStore.user.companyId),
+                companyApi.checkPermission(authStore.user.companyId)
+            ]);
+            userCompanyName.value = detail.companyName;
+            
+            console.log('Company Permission Check:', { companyId: authStore.user.companyId, perm })
+
+             // Allow OWNER or ADMIN to access company management
+            const role = (perm.userRole || '').toUpperCase();
+            isCompanyAdmin.value = perm.hasPermission && (role === 'OWNER' || role === 'ADMIN');
+        } catch (error) {
+            console.error('Failed to fetch company name:', error);
+            userCompanyName.value = '';
+            isCompanyAdmin.value = false;
+        }
+    }
+}
+
+watch(() => authStore.user?.companyId, () => {
+    fetchUserCompanyName();
+}, { immediate: true });
 
 
 const onProjectSelected = (project) => {
@@ -133,11 +160,8 @@ workspaceStore.initWorkspaces();
 				</span>
 				<div class="brand-text-container">
 					<span class="brand-text" :title="getFullBrandText">
-						<span v-if="hasCurrentWorkspace" class="brand-text-part">{{ currentWorkspaceName }}</span>
-						<span v-if="hasCurrentWorkspace && hasCurrentProject" class="brand-text-separator"> / </span>
-						<span v-if="hasCurrentProject" class="brand-text-part">{{ currentProjectName }}</span>
-						<span v-if="!hasCurrentWorkspace && !hasCurrentProject" class="brand-text-default">工程智慧平台</span>
-						<span v-if="hasCurrentWorkspace || hasCurrentProject" class="brand-text-suffix"> - 工程智慧平台</span>
+						<span class="brand-text-part">{{ userCompanyName || '工程智慧平台' }}</span>
+						<span v-if="hasCurrentProject" class="brand-text-suffix"> - {{ currentProjectName }}</span>
 					</span>
 				</div>
 			</RouterLink>
@@ -158,16 +182,17 @@ workspaceStore.initWorkspaces();
 					<div class="menu-icon"><i class="fa fa-cogs nav-icon"></i></div>
 				</a>
 				<div class="dropdown-menu fade dropdown-menu-end w-280px p-0 mt-1">
-					<!-- 一般設定區塊 -->
-					<RouterLink to="/workspace/management" class="dropdown-item d-flex align-items-center py-2 px-3 text-decoration-none">
+					<!-- 一般設定區塊（系統管理員不顯示） -->
+					<RouterLink v-if="!hasAdminPermission" to="/my-projects" class="dropdown-item d-flex align-items-center py-2 px-3 text-decoration-none">
 						<i class="fa fa-sitemap text-primary me-3 fs-16px"></i>
 						<div>
-							<div class="fw-semibold">工作空間管理</div>
+							<div class="fw-semibold">我的工程案</div>
 							<small class="text-muted">設定與切換工作空間和工程案</small>
 						</div>
 					</RouterLink>
 					
-					<RouterLink to="/company/management" class="dropdown-item d-flex align-items-center py-2 px-3 text-decoration-none">
+					<!-- 公司管理（系統管理員不顯示，僅公司管理員可見） -->
+					<RouterLink v-if="!hasAdminPermission && isCompanyAdmin" to="/company/management" class="dropdown-item d-flex align-items-center py-2 px-3 text-decoration-none">
 						<i class="fa fa-building text-success me-3 fs-16px"></i>
 						<div>
 							<div class="fw-semibold">公司管理</div>
@@ -175,9 +200,8 @@ workspaceStore.initWorkspaces();
 						</div>
 					</RouterLink>
 					
-					<!-- 系統維護（僅管理員可見） -->
+					<!-- 系統維護（僅系統管理員可見） -->
 					<template v-if="hasAdminPermission">
-						<div class="dropdown-divider my-1"></div>
 						<RouterLink to="/admin/pcces-catalog" class="dropdown-item d-flex align-items-center py-2 px-3 text-decoration-none">
 							<i class="fa fa-cog text-warning me-3 fs-16px"></i>
 							<div>

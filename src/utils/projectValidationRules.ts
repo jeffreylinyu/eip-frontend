@@ -35,15 +35,19 @@ export const projectFormValidationRules: FieldValidationRules = {
     maxLength: 100,
   },
   
+  /* 舊欄位已棄用
   supervision_unit: {
     minLength: 2,
     maxLength: 100,
   },
+  */
   
+  /* 舊欄位已棄用
   contractor_name: {
     minLength: 2,
     maxLength: 100,
   },
+  */
   
   construction_period: {
     integer: true,

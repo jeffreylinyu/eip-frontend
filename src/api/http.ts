@@ -5,6 +5,8 @@ import axios, {
   InternalAxiosRequestConfig
 } from 'axios'
 import { storage, StorageKeys } from '@/utils/storage'
+import router from '@/router'
+import toastService from '@/components/bootstrap/ToastService.js'
 
 /**
  * 獲取當前的 API Base URL
@@ -94,7 +96,28 @@ http.interceptors.response.use(
     return response.data
   },
   (error: AxiosError) => {
+    const { response } = error
+    
     // 全域錯誤處理
+    if (response) {
+      switch (response.status) {
+        case 403:
+          // 檢查是否為「需要重設密碼」的訊息
+          // 注意：AxiosError 的 response.data 類型是 any，需要根據實際後端回傳結構判斷
+          // 假設回傳結構包含 message 欄位
+          const data = response.data as any
+          if (data && data.message === "Password reset required") {
+            toastService.warning("首次登入，請先修改密碼")
+            router.push('/user/profile') // 導向修改密碼頁面
+          }
+          break
+        case 409:
+          // 樂觀鎖衝突
+          toastService.error("資料已被他人更新，請重新載入最新內容")
+          break
+      }
+    }
+    
     return Promise.reject(error)
   }
 )
