@@ -1,5 +1,5 @@
 <template>
-  <div class="republic-date-picker">
+  <div class="republic-date-picker" :class="{ 'is-disabled': disabled }" ref="containerRef">
     <VueDatePicker
       v-model="internalDate"
       :disabled="disabled"
@@ -52,7 +52,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed, onMounted } from 'vue'
+import { ref, watch, computed, onMounted, nextTick } from 'vue'
 import VueDatePicker from '@vuepic/vue-datepicker'
 import '@vuepic/vue-datepicker/dist/main.css'
 import { toRepublicYear } from '@/utils/format'
@@ -67,6 +67,7 @@ interface Props {
   minDate?: string | Date
   maxDate?: string | Date
   useRepublicYear?: boolean
+  id?: string                      // 新增：input 元素的 id 屬性
   
   // --- 新增 Props ---
   disableHolidays?: boolean        // 是否啟用假日禁用功能
@@ -83,6 +84,7 @@ const props = withDefaults(defineProps<Props>(), {
   minDate: undefined,
   maxDate: undefined,
   useRepublicYear: true,
+  id: undefined,
   
   // --- 新增預設值 ---
   disableHolidays: false,
@@ -98,6 +100,9 @@ const emit = defineEmits<{
 
 // 內部日期值 (Date 對象)
 const internalDate = ref<Date | null>(null)
+
+// 容器引用（用於設置 input 元素的 id）
+const containerRef = ref<HTMLElement | null>(null)
 
 // --- 新增：假日處理邏輯 Start ---
 const holidaySet = ref(new Set<string>())   // 儲存 "YYYY-MM-DD" 字串
@@ -213,9 +218,27 @@ watch(() => props.constructionId, () => {
   initHolidays()
 })
 
+// 設置 input 元素的 id
+const setInputId = () => {
+  if (props.id && containerRef.value) {
+    nextTick(() => {
+      const inputElement = containerRef.value?.querySelector('.dp__input') as HTMLInputElement
+      if (inputElement) {
+        inputElement.id = props.id!
+      }
+    })
+  }
+}
+
 // Lifecycle
 onMounted(() => {
   initHolidays()
+  setInputId()
+})
+
+// 監聽 id 變化
+watch(() => props.id, () => {
+  setInputId()
 })
 // --- 新增：假日處理邏輯 End ---
 

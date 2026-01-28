@@ -215,7 +215,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { 
@@ -233,6 +233,9 @@ const route = useRoute()
 const router = useRouter()
 const workspaceStore = useWorkspaceStore()
 const itemId = route.params.id as string
+
+// 獲取當前工程 ID
+const constructionId = computed(() => workspaceStore.currentProject?.id || '')
 
 const loadingItem = ref(false)
 const currentItem = ref<ConstructionMajorItem | null>(null)
@@ -252,15 +255,20 @@ const editTarget = ref<{phase: string, mgmtIdx: number, subIdx: number} | null>(
 const editValue = ref<any>({})
 
 const loadData = async () => {
+    if (!constructionId.value) {
+        alert('請先選擇工程案')
+        return
+    }
+    
     loadingItem.value = true
     try {
         // 1. 取得基本資訊
-        const item = await getConstructionMajorItemById(itemId)
+        const item = await getConstructionMajorItemById(constructionId.value, itemId)
         if (item) {
             currentItem.value = item
         }
         // 2. 取得標準明細
-        const standards = await getConstructionMajorItemStandards(itemId)
+        const standards = await getConstructionMajorItemStandards(constructionId.value, itemId)
         applyStandard(standards)
     } catch (e) {
         console.error('Load data failed', e)
@@ -281,6 +289,11 @@ const clearSearch = () => {
 }
 
 const confirmApplyStandard = async () => {
+    if (!constructionId.value) {
+        alert('請先選擇工程案')
+        return
+    }
+    
     if (!selectedSearchResult.value) return
 
     if(!confirm('確定要套用此標準嗎？這將覆蓋目前的標準明細。')) return
@@ -288,10 +301,10 @@ const confirmApplyStandard = async () => {
     try {
         loadingItem.value = true
         // 呼叫 Copy API
-        await copyStandardFromPcces(itemId, selectedSearchResult.value.code)
+        await copyStandardFromPcces(constructionId.value, itemId, selectedSearchResult.value.code)
         
         // 重新載入
-        const standards = await getConstructionMajorItemStandards(itemId)
+        const standards = await getConstructionMajorItemStandards(constructionId.value, itemId)
         applyStandard(standards)
         
         // 清除搜尋
@@ -435,7 +448,11 @@ const saveEdit = async () => {
     }
 
     try {
-        await updateConstructionMajorItemStandard(itemId, subItem.id, payload)
+        if (!constructionId.value) {
+            alert('請先選擇工程案')
+            return
+        }
+        await updateConstructionMajorItemStandard(constructionId.value, itemId, subItem.id, payload)
         
         // Update local state
         if (editingField.value === '其他資訊') {

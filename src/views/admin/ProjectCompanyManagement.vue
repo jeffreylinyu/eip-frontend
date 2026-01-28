@@ -142,13 +142,35 @@ const loadData = async () => {
   error.value = null
 
   try {
+    // 嘗試獲取工程案詳情（不傳 workspaceId，讓後端自動從 master_construction 獲取）
     const data = await getConstructionDetail(constructionId.value)
     constructionInfo.value = data
     
+    // 如果返回的資料中有 workspaceId，直接使用
     if (data.workspaceId) {
       workspaceId.value = data.workspaceId
     } else {
-      error.value = '無法找到工程案所屬的工作空間'
+      // 如果沒有 workspaceId，嘗試從 getAllConstructions 中查找
+      console.warn('⚠️ 工程案詳情中沒有 workspaceId，嘗試從工程案列表中查找...')
+      
+      try {
+        const { getAllConstructions } = await import('@/api/construction')
+        const allConstructions = await getAllConstructions()
+        const foundConstruction = allConstructions.find(c => c.constructionId === constructionId.value)
+        if (foundConstruction?.workspaceId) {
+          workspaceId.value = foundConstruction.workspaceId
+          // 更新 constructionInfo 的 workspaceId
+          if (constructionInfo.value) {
+            constructionInfo.value.workspaceId = foundConstruction.workspaceId
+          }
+          console.log('✅ 從工程案列表中找到 workspaceId:', foundConstruction.workspaceId)
+        } else {
+          error.value = '無法找到工程案所屬的工作空間。請確認工程案是否存在於 master_construction 表中。'
+        }
+      } catch (fallbackErr: any) {
+        console.error('從工程案列表獲取 workspaceId 失敗:', fallbackErr)
+        error.value = '無法找到工程案所屬的工作空間。請確認工程案是否存在。'
+      }
     }
   } catch (err: any) {
     console.error('載入工程案資料失敗:', err)

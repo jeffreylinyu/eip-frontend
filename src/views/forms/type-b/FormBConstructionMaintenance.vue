@@ -167,8 +167,9 @@
 
 <script setup lang="ts">
 import PageHeader from '@/components/bootstrap/PageHeader.vue'
-import { ref, onMounted, reactive } from 'vue'
+import { ref, onMounted, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useWorkspaceStore } from '@/stores/workspace'
 import { Modal } from 'bootstrap'
 import { 
     getConstructionMajorItems, 
@@ -180,6 +181,10 @@ import {
 } from '@/api/pcces'
 
 const router = useRouter()
+const workspaceStore = useWorkspaceStore()
+
+// 獲取當前工程 ID
+const constructionId = computed(() => workspaceStore.currentProject?.id || '')
 const items = ref<ConstructionMajorItem[]>([])
 const loading = ref(false)
 const keyword = ref('')
@@ -202,9 +207,14 @@ const formData = reactive<ConstructionMajorItemRequest & { id?: string }>({
 })
 
 const loadItems = async () => {
+  if (!constructionId.value) {
+    alert('請先選擇工程案')
+    return
+  }
+  
   loading.value = true
   try {
-    const response = await getConstructionMajorItems({
+    const response = await getConstructionMajorItems(constructionId.value, {
         keyword: keyword.value,
         page: currentPage.value,
         size: pageSize.value
@@ -261,6 +271,11 @@ const editItem = (item: ConstructionMajorItem) => {
 }
 
 const saveItem = async () => {
+    if (!constructionId.value) {
+        alert('請先選擇工程案')
+        return
+    }
+    
     if (!formData.name) {
         alert('請輸入施工項目名稱')
         return
@@ -268,10 +283,10 @@ const saveItem = async () => {
 
     try {
         if (isEditMode.value && formData.id) {
-            await updateConstructionMajorItem(formData.id, formData)
+            await updateConstructionMajorItem(constructionId.value, formData.id, formData)
             alert('更新成功')
         } else {
-            await createConstructionMajorItem(formData)
+            await createConstructionMajorItem(constructionId.value, formData)
             alert('新增成功')
         }
         bsModal?.hide()
@@ -287,9 +302,14 @@ const goToStandards = (item: ConstructionMajorItem) => {
 }
 
 const handleDelete = async (item: ConstructionMajorItem) => {
+    if (!constructionId.value) {
+        alert('請先選擇工程案')
+        return
+    }
+    
     if (confirm(`確定刪除施工項目 "${item.name}" 及其所有標準明細？此動作無法復原。`)) {
         try {
-            await deleteConstructionMajorItem(item.id)
+            await deleteConstructionMajorItem(constructionId.value, item.id)
             alert('刪除成功')
             loadItems()
         } catch (e) {

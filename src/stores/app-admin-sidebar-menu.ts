@@ -59,11 +59,16 @@ export const useAppAdminSidebarMenuStore = defineStore("appAdminSidebarMenu", ()
       },
       
       // 帳號與權限
-      { text: "公司與權限管理", is_header: true },
+      { text: "公司與用戶管理", is_header: true },
       {
         text: "公司與權限中心",
         icon: "bi bi-shield-lock",
         url: "/admin/company-hub",
+      },
+      {
+        text: "用戶管理",
+        icon: "bi bi-people",
+        url: "/admin/users",
       },
       
       // 未來可以添加更多系統管理功能

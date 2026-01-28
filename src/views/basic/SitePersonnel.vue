@@ -116,22 +116,8 @@
                 </div>
               </div>
 
-              <!-- 空狀態 -->
-              <div v-if="assignedPersonnel.length === 0" class="text-center py-5">
-                <i class="fa fa-users text-muted fa-3x mb-3"></i>
-                <h5 class="text-muted">尚未指派任何人員</h5>
-                <p class="text-muted">請點擊「指派人員」按鈕從公司人員中選擇</p>
-                <button 
-                  type="button" 
-                  class="btn btn-outline-theme"
-                  @click="openAssignModal"
-                >
-                  <i class="fa fa-plus me-2"></i>指派人員
-                </button>
-              </div>
-
-              <!-- 已指派人員列表 -->
-              <div v-else>
+              <!-- 人員分類列表（總是顯示，即使沒有人員） -->
+              <div>
                 <div v-for="role in personnelRoles" :key="role.key" class="mb-4">
                   <div class="row mb-3">
                     <div class="col-12">

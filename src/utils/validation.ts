@@ -196,6 +196,9 @@ export class ValidationUtils {
     if (value === null || value === undefined || value === '') return { isValid: true };
     
     const numValue = Number(value);
+    // 如果值為 0，視為未填寫，跳過驗證
+    if (numValue === 0) return { isValid: true };
+    
     if (isNaN(numValue) || numValue <= 0) {
       return { isValid: false, message: '請輸入大於 0 的數字' };
     }
@@ -253,6 +256,22 @@ export class ValidationUtils {
 }
 
 /**
+ * 檢查值是否為空（用於判斷是否跳過非必填驗證）
+ */
+function isEmptyValue(value: any): boolean {
+  if (value === null || value === undefined) {
+    return true;
+  }
+  if (typeof value === 'string' && value.trim() === '') {
+    return true;
+  }
+  if (Array.isArray(value) && value.length === 0) {
+    return true;
+  }
+  return false;
+}
+
+/**
  * 執行單個欄位驗證
  */
 export function validateField(value: any, rule: ValidationRule): ValidationResult {
@@ -263,7 +282,7 @@ export function validateField(value: any, rule: ValidationRule): ValidationResul
   }
 
   // 如果沒有值且不是必填，跳過其他驗證
-  if (!value && !rule.required) {
+  if (isEmptyValue(value) && !rule.required) {
     return { isValid: true };
   }
 
@@ -279,9 +298,15 @@ export function validateField(value: any, rule: ValidationRule): ValidationResul
   }
 
   // 數值範圍驗證
+  // 如果值為 0 且欄位不是必填，視為未填寫，跳過最小值驗證
   if (rule.min !== undefined) {
-    const result = ValidationUtils.min(value, rule.min);
-    if (!result.isValid) return result;
+    const numValue = Number(value);
+    if (numValue === 0 && !rule.required) {
+      // 值為 0 且非必填，視為未填寫，跳過最小值驗證
+    } else {
+      const result = ValidationUtils.min(value, rule.min);
+      if (!result.isValid) return result;
+    }
   }
 
   if (rule.max !== undefined) {

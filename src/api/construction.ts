@@ -43,7 +43,6 @@ export interface Construction {
   contractorCompanyName?: string | null; // 營造公司名稱（從工作空間設定自動取得）
   designCompany?: string | null; // 設計公司（工程案層級的基本資料，可手動填寫或選擇監造公司）
   constructor?: string; // 承攬廠商（舊欄位）
-  fixedFields?: Record<string, boolean>; // 新增：鎖定欄位清單 (key: fieldName, value: isLocked)
   version?: number; // 新增：樂觀鎖版本號
   permission?: 'ADMIN' | 'MEMBER' | 'VIEWER'; // 新增：工程案權限 (覆蓋 user_workspace role)
   // role?: string; // 注意：API 回傳的 role 現在代表職稱 (Job Title)
@@ -62,7 +61,7 @@ export interface CreateConstructionRequest {
   contractorCompanyId?: string; // 新增：指定營造廠
   supervisionCompanyId?: string; // 新增：指定監造單位
   designCompany?: string; // 新增：設計公司（工程案層級的基本資料，可手動填寫或選擇監造公司）
-  contractId: string;
+  contractId: string; // 契約編號（後端會自動使用此值作為 constructionId）
   constructionName: string;
   constructionLocation: string;
   constructionScaleOverview?: string | null; // 新增：工程規模概述
@@ -229,13 +228,14 @@ export const getConstructionsByCompany = async (companyId: string): Promise<Cons
 };
 
 /**
- * 創建工程案
+ * 創建工程案（統一使用新的 API）
  * @param constructionData 項目數據
  * @returns Promise<CreateConstructionResponse>
  */
 export const createConstruction = async (constructionData: CreateConstructionRequest): Promise<CreateConstructionResponse> => {
   try {
-    const data = await http.post('/management/construction/create', constructionData);
+    // 統一使用新的 API：POST /management/admin/construction/create
+    const data = await http.post('/management/admin/construction/create', constructionData);
     return data as unknown as CreateConstructionResponse;
   } catch (error) {
     console.error('❌ 創建工程案失敗:', error);
@@ -244,16 +244,12 @@ export const createConstruction = async (constructionData: CreateConstructionReq
 };
 
 /**
- * [Admin] 系統管理員創建工程案
+ * [Admin] 系統管理員創建工程案（已棄用，請使用 createConstruction）
+ * @deprecated 請使用 createConstruction，兩者現在使用相同的 API
  */
 export const adminCreateConstruction = async (constructionData: CreateConstructionRequest): Promise<CreateConstructionResponse> => {
-   try {
-    const data = await http.post('/management/admin/construction/create', constructionData);
-    return data as unknown as CreateConstructionResponse;
-  } catch (error) {
-    console.error('❌ Admin創建工程案失敗:', error);
-    throw error;
-  }
+  // 直接調用 createConstruction，保持向後兼容
+  return createConstruction(constructionData);
 }
 
 
@@ -281,17 +277,21 @@ export const getConstructionsByWorkspace = async (workspaceId: string): Promise<
  * @param workspaceId (可選) 工作空間編號
  * @returns Promise<Construction>
  */
-export const getConstructionDetail = async (constructionId: string, workspaceId?: string): Promise<Construction> => {
+export const getConstructionDetail = async (constructionId: string, workspaceId?: string, viewType?: string): Promise<Construction> => {
   try {
     const params: any = { constructionId };
     if (workspaceId) {
       params.workspaceId = workspaceId;
+    }
+    if (viewType) {
+      params.viewType = viewType;
     }
     
     // 注意：根據 API 文件，回傳格式是 { code, message, data: Construction }
     // 如果 http.get 已經處理了 response.data，那這裡回傳的可能直接是 payload
     // 假設 http client 已經處理過外層結構，直接回傳 data
     const data = await http.get('/management/construction/get', { params });
+    
     return data as unknown as Construction;
   } catch (error) {
     console.error('❌ 獲取工程案詳情失敗:', error);

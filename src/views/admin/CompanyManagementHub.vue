@@ -212,7 +212,7 @@ const backToList = () => {
     <div class="d-flex align-items-center justify-content-between mb-4">
       <div>
         <h1 class="page-header mb-1">
-          <i class="fa fa-building text-theme me-2"></i>公司與權限管理中心
+          <i class="fa fa-building text-theme me-2"></i>公司與用戶管理6中心
         </h1>
         <small class="text-muted">由大到小管理：公司 ➔ 人員 ➔ 專案授權</small>
       </div>

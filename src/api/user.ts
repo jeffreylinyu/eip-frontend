@@ -25,6 +25,7 @@ export interface User {
   verify: boolean
   companyId?: string // 新增：所屬公司ID
   companyIds?: string[] // 新增：後端回傳的公司 ID 列表
+  companyNames?: string[] // 新增：後端回傳的公司名稱列表（與 companyIds 順序對應）
   currentConstructionId?: string | null // 新增：使用者目前使用的工程案 ID
   currentWorkspaceId?: string | null // 新增：使用者目前使用的工作空間 ID
   // 可以添加更多用戶字段
@@ -107,6 +108,13 @@ export const userApi = {
     const response = await http.get('/management/user/search', {
       params: { keyword, limit }
     })
+    const data = (response as any).data || response
+    return Array.isArray(data) ? data : []
+  },
+
+  // 獲取所有用戶（系統管理員專用）
+  getAll: async (): Promise<User[]> => {
+    const response = await http.get('/management/admin/user/all')
     const data = (response as any).data || response
     return Array.isArray(data) ? data : []
   }

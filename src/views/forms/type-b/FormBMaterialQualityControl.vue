@@ -25,17 +25,29 @@
           </div>
           <div v-else>
             <!-- 上半部：資訊呈現 -->
-            <div class="d-flex flex-column flex-md-row justify-content-between align-items-start gap-3 mb-3">
-                <div>
-                    <h4 class="fw-bold mb-1 d-flex align-items-center gap-2">
-                        {{ pccesCode }}
-                        <span class="badge bg-secondary-subtle text-secondary border border-secondary fs-6">
-                            Version: {{ currentVersionId || '未指定' }}
-                        </span>
-                    </h4>
-                    <div class="text-muted small">
-                        請搜尋 PCCES 標準來源並套用，以建立品質抽驗管控表。
+            <div class="material-info-section mb-3">
+                <div v-if="materialInfo" class="material-info-grid">
+                    <div class="material-info-item">
+                        <span class="material-info-label">項次</span>
+                        <span class="material-info-value">{{ materialInfo.itemNo || '-' }}</span>
                     </div>
+                    <div class="material-info-item">
+                        <span class="material-info-label">工項編碼</span>
+                        <span class="material-info-value">{{ pccesCode }}</span>
+                    </div>
+                    <div class="material-info-item">
+                        <span class="material-info-label">材料名稱/數量</span>
+                        <span class="material-info-value">
+                            {{ materialInfo.name }}{{ materialInfo.unit ? ` / ${materialInfo.quantity} ${materialInfo.unit}` : (materialInfo.quantity ? ` / ${materialInfo.quantity}` : '') }}
+                        </span>
+                    </div>
+                </div>
+                <div v-else class="text-muted small py-2">
+                    <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                    載入材料資訊中...
+                </div>
+                <div class="text-muted small mt-3">
+                    請搜尋 PCCES 標準來源並套用，以建立品質抽驗管控表。
                 </div>
             </div>
 
@@ -88,7 +100,6 @@
                <thead>
                    <tr>
                        <th class="text-center" style="width: 60px;">項次</th>
-                       <th style="min-width: 150px;">材料名稱</th>
                        <th style="min-width: 250px;">抽查標準</th>
                        <th style="min-width: 180px;">抽查方法</th>
                        <th style="width: 110px;">辦理時機</th>
@@ -104,9 +115,6 @@
                        :class="{ 'row-inactive bg-light': !item.isActive }"
                    >
                        <td class="text-center fw-bold">{{ item.itemNo }}</td>
-                       <td class="cursor-pointer hover-highlight" @click="editField(item, 'itemName', '材料名稱')">
-                           {{ item.itemName || '-' }}
-                       </td>
                        <td class="cursor-pointer hover-highlight" @click="editField(item, 'checkStandard', '抽查標準')">
                            <div class="text-pre-wrap">{{ item.checkStandard || '-' }}</div>
                        </td>
@@ -176,14 +184,17 @@ import { useRoute, useRouter } from 'vue-router'
 import { 
     tenderMaterialApi, 
     type ConstructionMaterialStandardResponse,
-    type ConstructionMaterialStandardUpdateRequest 
+    type ConstructionMaterialStandardUpdateRequest,
+    type MaterialItem
 } from '@/api/tenderMaterial'
+import { useWorkspaceStore } from '@/stores/workspace'
 import Modal from '@/components/bootstrap/Modal.vue'
 import PccesAutocomplete from '@/components/common/PccesAutocomplete.vue'
 import toastService from '@/components/bootstrap/ToastService.js'
 
 const route = useRoute()
 const router = useRouter()
+const workspaceStore = useWorkspaceStore()
 
 const pccesCode = route.params.pccesCode as string
 // 從 query 取得 versionId (TenderMaterialSettings 應該要傳)
@@ -191,8 +202,11 @@ const currentVersionId = computed(() => {
     return route.query.versionId as string || ''
 })
 
+const constructionId = computed(() => workspaceStore.currentProject?.id || '')
+
 const loading = ref(false)
 const standards = ref<ConstructionMaterialStandardResponse[]>([])
+const materialInfo = ref<MaterialItem | null>(null)
 
 // Search & Apply
 const searchCatalogId = ref('')
@@ -210,17 +224,27 @@ const editInputRef = ref<HTMLTextAreaElement | null>(null)
 const goBack = () => router.back()
 
 const loadData = async () => {
-    if (!pccesCode || !currentVersionId.value) {
+    if (!pccesCode || !currentVersionId.value || !constructionId.value) {
         // 若缺少參數，可能還沒準備好或路由有誤
         return
     }
 
     loading.value = true
     try {
-        standards.value = await tenderMaterialApi.getMaterialStandards(pccesCode, currentVersionId.value)
+        // 同時載入標準資料和材料資訊
+        const [standardsData, materialsData] = await Promise.all([
+            tenderMaterialApi.getMaterialStandards(pccesCode, currentVersionId.value),
+            tenderMaterialApi.getMaterialList(constructionId.value, currentVersionId.value)
+        ])
+        
+        standards.value = standardsData
+        
+        // 找出符合當前 pccesCode 的材料項目（取第一個）
+        const matchedMaterial = materialsData.find(m => m.pccesCode === pccesCode)
+        materialInfo.value = matchedMaterial || null
     } catch (e) {
-        console.error('Load standards failed', e)
-        toastService.error('載入標準資料失敗')
+        console.error('Load data failed', e)
+        toastService.error('載入資料失敗')
     } finally {
         loading.value = false
     }
@@ -359,5 +383,55 @@ onMounted(() => {
 .row-inactive td:not(:last-child) {
     opacity: 0.5;
     color: #6c757d; /* Muted text */
+}
+
+/* 材料資訊簡約樣式 */
+.material-info-section {
+    padding-bottom: 0.5rem;
+}
+
+.material-info-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem 2rem;
+    align-items: baseline;
+}
+
+.material-info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.material-info-label {
+    font-size: 0.75rem;
+    color: var(--bs-secondary);
+    font-weight: 500;
+}
+
+.material-info-value {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--bs-body-color);
+    word-break: break-word;
+}
+
+/* 黑暗模式支援 */
+@media (prefers-color-scheme: dark) {
+    .material-info-label {
+        color: var(--bs-secondary);
+    }
+    
+    .material-info-value {
+        color: var(--bs-body-color);
+    }
+}
+
+[data-bs-theme="dark"] .material-info-label {
+    color: var(--bs-secondary);
+}
+
+[data-bs-theme="dark"] .material-info-value {
+    color: var(--bs-body-color);
 }
 </style>

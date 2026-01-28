@@ -102,7 +102,7 @@ const handleEnter = async (data: Construction) => {
                 // 注意：這裡假設 getWorkspaceDetail 已在 workspaceStore 中公開並且 API 允許 SUPER_ADMIN 查詢
                 ws = await workspaceStore.getWorkspaceDetail(targetWorkspaceId);
                 if (ws) {
-                    workspaceStore.setCurrentWorkspace(ws);
+                    await workspaceStore.setCurrentWorkspace(ws);
                 }
             } catch (err) {
                 console.error(`無法獲取工作空間詳情 (${targetWorkspaceId}):`, err);
@@ -119,8 +119,8 @@ const handleEnter = async (data: Construction) => {
         // 切換專案
         await workspaceStore.switchProject(targetConstructionId)
         
-        // 導向至專案儀表板或基本資料
-        router.push('/basic/basic-data')
+        // 導向至監造視角的基本資料頁面（管理員預設進入監造視角）
+        router.push('/supervisory/basic/basic-data')
     } catch (e) {
         console.error('切換專案失敗:', e)
         alert('切換專案失敗，請稍後再試。')

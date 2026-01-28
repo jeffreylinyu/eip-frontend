@@ -28,6 +28,11 @@ const hoverTimeout = ref<number | null>(null)
 const filteredCompanies = computed(() => {
   let filtered = companyStore.companiesWithUserInfo
 
+  // 只顯示用戶是擁有者或管理員的公司
+  filtered = filtered.filter(company => 
+    company.userRole === 'OWNER' || company.userRole === 'ADMIN'
+  )
+
   // 搜索過濾
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase()

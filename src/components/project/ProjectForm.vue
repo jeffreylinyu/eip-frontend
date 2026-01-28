@@ -19,7 +19,6 @@ const props = defineProps<{
   submitButtonText?: string
   showResetButton?: boolean
   mode?: 'create' | 'edit' | 'readonly' // 新增：組件使用模式
-  lockedFields?: Record<string, boolean> // 新增：鎖定欄位
 }>()
 
 // 默認值
@@ -29,15 +28,17 @@ const defaultProps = {
   showSubmitButton: true,
   submitButtonText: "保存",
   showResetButton: true,
-  mode: 'create' as const,
-  lockedFields: () => ({})
+  mode: 'create' as const
 }
 
 // 應用默認值
-const propValues = computed(() => ({
-  ...defaultProps,
-  ...props
-}))
+const propValues = computed(() => {
+  const values = {
+    ...defaultProps,
+    ...props
+  }
+  return values
+})
 
 // Router
 const router = useRouter()
@@ -109,7 +110,20 @@ let lastEmittedValue: any = null
 // 模式判斷
 const isCreateMode = computed(() => propValues.value.mode === 'create')
 const isEditMode = computed(() => propValues.value.mode === 'edit')
-const isReadonlyMode = computed(() => propValues.value.mode === 'readonly')
+const isReadonlyMode = computed(() => {
+  return propValues.value.mode === 'readonly'
+})
+
+// 檢查是否為系統管理員（只有 SUPER_ADMIN 可以編輯共用欄位）
+const isSuperAdmin = computed(() => {
+  const userRole = authStore.user?.systemRole || authStore.user?.role
+  return userRole === 'SUPER_ADMIN'
+})
+
+// 共用欄位（工程名稱和契約編號）是否只讀：只有 SUPER_ADMIN 可以編輯
+const isSharedFieldsReadonly = computed(() => {
+  return isReadonlyMode.value || !isSuperAdmin.value
+})
 
 // Modal 狀態
 const showChangeModal = ref(false)
@@ -118,8 +132,13 @@ const showChangeModal = ref(false)
 const calculatedEndDate = ref<string>('')
 const isCalculatingEndDate = ref(false)
 
-// 計算完工日期
+// 計算完工日期（功能已停用）
 const calculateCompletionDate = async () => {
+  // 功能已停用，不執行任何操作
+  calculatedEndDate.value = ''
+  return
+  
+  /* 原功能代碼（已停用）
   if (!formData.value.start_date || !formData.value.construction_period) {
     calculatedEndDate.value = ''
     return
@@ -177,9 +196,12 @@ const calculateCompletionDate = async () => {
   } finally {
     isCalculatingEndDate.value = false
   }
+  */
 }
 
 // 監聽開工日期、工期和計算模式的變化，自動計算完工日期
+// 功能已停用
+/*
 watch(
   () => [formData.value.start_date, formData.value.construction_period, formData.value.duration_type],
   () => {
@@ -190,6 +212,7 @@ watch(
   },
   { immediate: false }
 )
+*/
 
 // 監聽 modelValue 變化時，如果有完工日期，顯示它
 watch(
@@ -277,17 +300,15 @@ const closeChangeModal = () => {
 // 新增變更紀錄
 const addContractChange = () => {
   // 這裡可以打開新增變更紀錄的 modal
-  console.log('新增變更紀錄')
 }
 
 // 查看變更紀錄詳情
 const viewContractChange = (change: any) => {
-  console.log('查看變更紀錄:', change)
+  // 查看變更紀錄詳情
 }
 
 // 新增：處理公司編輯跳轉（目前僅為佔位符）
 const handleEditCompany = (type: string) => {
-  console.log('編輯公司跳轉:', type)
   // TODO: 實作跳轉至編輯公司畫面的邏輯
 }
 
@@ -386,9 +407,6 @@ const removeSignLevel = (index: number) => {
 
 // 方法
 const handleSubmit = async (silent: boolean = false) => {
-  // console.log('🔍 開始表單驗證...')
-  // console.log('📊 ProjectForm 當前數據:', formData.value)
-  
   if (silent) {
     // 靜默模式：只檢查驗證結果，不更新 UI
     const errors = validateForm(formData.value, projectFormValidationRules)
@@ -404,18 +422,10 @@ const handleSubmit = async (silent: boolean = false) => {
   const isValid = validation.validateAll()
 
   if (isValid) {
-    // console.log('✅ 表單驗證通過，提交數據')
     emit('submit', formData.value)
   } else {
-    // console.log('❌ 表單驗證失敗，顯示錯誤訊息')
-    // console.log('🚨 錯誤詳情:', validation.errors.value)
-    
     // 強制更新組件以顯示錯誤
     await nextTick()
-    
-    // 錯誤會自動顯示在表單中，不需要 alert
-    const errorCount = Object.keys(validation.errors.value).length
-    // console.log(`📝 共有 ${errorCount} 個驗證錯誤需要修正`)
   }
 }
 
@@ -490,16 +500,10 @@ const getFieldDisplayName = (fieldName: string): string => {
   return fieldNameMap[fieldName] || fieldName
 }
 
-// 判斷欄位是否鎖定
-const isFieldLocked = (fieldName: string): boolean => {
-  // 全局唯讀或提交中
-  if (propValues.value.isSubmitting || isReadonlyMode.value) return true
-  
-  // SUPER_ADMIN 豁免
-  if (authStore.user?.role === 'SUPER_ADMIN') return false
-  
-  // 檢查個別欄位鎖定
-  return !!propValues.value.lockedFields?.[fieldName]
+
+// 處理欄位獲得焦點事件
+const handleFieldFocus = (fieldName: string) => {
+  // 欄位獲得焦點處理
 }
 
 // 暴露方法讓父組件可以調用
@@ -520,7 +524,7 @@ defineExpose({
         <div class="row g-3 mb-3">
           <div class="col-lg-4 col-md-6 col-12">
             <label class="form-label" for="project_name"
-              >工程名稱 <span class="text-danger">*</span></label
+              >工程名稱</label
             >
             <input
               id="project_name"
@@ -529,7 +533,9 @@ defineExpose({
               v-model="formData.project_name"
               name="project_name"
               placeholder="請輸入工程名稱"
-              :disabled="isFieldLocked('project_name')"
+              :readonly="isSharedFieldsReadonly"
+              :disabled="propValues.isSubmitting"
+              @focus="handleFieldFocus('project_name')"
               @input="handleFieldInput('project_name')"
               @blur="handleFieldBlur('project_name')"
             />
@@ -542,7 +548,7 @@ defineExpose({
           </div>
           <div class="col-lg-4 col-md-6 col-12">
             <label class="form-label" for="contract_number"
-              >契約編號 <span class="text-danger">*</span></label
+              >契約編號</label
             >
             <input
               id="contract_number"
@@ -551,7 +557,8 @@ defineExpose({
               v-model="formData.contract_number"
               name="contract_number"
               placeholder="請輸入契約編號"
-              :disabled="isFieldLocked('contract_number')"
+              :readonly="isSharedFieldsReadonly"
+              :disabled="propValues.isSubmitting"
               @input="handleFieldInput('contract_number')"
               @blur="handleFieldBlur('contract_number')"
             />
@@ -564,7 +571,7 @@ defineExpose({
           </div>
           <div class="col-lg-4 col-md-12 col-12">
             <label class="form-label"
-              >工程類別/工程屬性 <span class="text-danger">*</span></label
+              >工程類別/工程屬性</label
             >
             <select
               :class="getFieldClass('project_category')"
@@ -593,7 +600,7 @@ defineExpose({
         <div class="row g-3 mb-3">
           <div class="col-12">
             <label class="form-label"
-              >工程地點 <span class="text-danger">*</span></label
+              >工程地點</label
             >
             <input
               type="text"
@@ -601,7 +608,8 @@ defineExpose({
               v-model="formData.project_location"
               name="project_location"
               placeholder="請輸入工程地點"
-              :disabled="isFieldLocked('project_location')"
+              :readonly="isReadonlyMode"
+              :disabled="propValues.isSubmitting"
               @input="handleFieldInput('project_location')"
               @blur="handleFieldBlur('project_location')"
             />
@@ -618,7 +626,7 @@ defineExpose({
         <div class="row g-3 mb-3">
           <div class="col-lg-3 col-md-6 col-sm-12" style="max-width: 250px;">
             <label class="form-label" for="sign_date"
-              >訂約日期 <span class="text-danger">*</span></label
+              >訂約日期</label
             >
             <RepublicDatePicker
               id="sign_date"
@@ -635,7 +643,7 @@ defineExpose({
           </div>
           <div class="col-lg-3 col-md-6 col-sm-12" style="max-width: 250px;">
             <label class="form-label" for="start_date"
-              >開工日期 <span class="text-danger">*</span></label
+              >開工日期</label
             >
             <RepublicDatePicker
               id="start_date"
@@ -658,7 +666,8 @@ defineExpose({
               v-model="formData.construction_period"
               name="construction_period"
               placeholder="請輸入工期"
-              :disabled="propValues.isSubmitting || isReadonlyMode"
+              :disabled="propValues.isSubmitting"
+              :readonly="isReadonlyMode"
             />
             <!-- 展延資訊顯示（只讀模式或編輯模式時顯示） -->
             <div v-if="(isEditMode || isReadonlyMode) && totalExtensionDays > 0" class="mt-2">
@@ -704,7 +713,7 @@ defineExpose({
             <label class="form-label" for="completion_date">
               完工日期
               <i class="fa fa-info-circle text-muted ms-1" 
-                 title="此日期由系統根據開工日期和工作天數自動計算"
+                 title="此功能已停用"
                  style="font-size: 0.875rem;"></i>
             </label>
             <div class="input-group">
@@ -754,7 +763,8 @@ defineExpose({
               name="project_scale_overview"
               rows="4"
               placeholder="請輸入工程規模概述內容..."
-              :disabled="propValues.isSubmitting || isReadonlyMode"
+              :disabled="propValues.isSubmitting"
+              :readonly="isReadonlyMode"
               @input="handleFieldInput('project_scale_overview')"
               @blur="handleFieldBlur('project_scale_overview')"
             ></textarea>
@@ -768,7 +778,7 @@ defineExpose({
         <div class="row g-3 mb-3">
           <div class="col-lg-6 col-md-12 col-sm-12">
             <label class="form-label"
-              >主辦機關 <span class="text-danger">*</span></label
+              >主辦機關</label
             >
             <input
               type="text"
@@ -776,7 +786,8 @@ defineExpose({
               v-model="formData.host_agency"
               name="host_agency"
               placeholder="請輸入主辦機關"
-              :disabled="propValues.isSubmitting || isReadonlyMode"
+              :disabled="propValues.isSubmitting"
+              :readonly="isReadonlyMode"
               @input="handleFieldInput('host_agency')"
               @blur="handleFieldBlur('host_agency')"
             />
@@ -840,14 +851,15 @@ defineExpose({
                 type="text"
                 class="form-control"
                 v-model="formData.design_company"
-                :disabled="propValues.isSubmitting || isReadonlyMode"
+                :disabled="propValues.isSubmitting"
+              :readonly="isReadonlyMode"
                 placeholder="請輸入設計公司名稱或選擇監造公司"
               />
               <button 
                 class="btn btn-outline-secondary" 
                 type="button" 
                 @click="useSupervisoryCompanyAsDesign"
-                :disabled="propValues.isSubmitting || isReadonlyMode || !formData.supervisory_company_name"
+                :disabled="propValues.isSubmitting || !formData.supervisory_company_name || isReadonlyMode"
                 title="使用監造公司作為設計公司"
               >
                 <i class="fa fa-copy me-1"></i>同監造公司
@@ -870,7 +882,7 @@ defineExpose({
         <div class="row g-3 mb-3">
           <div class="col-lg-6 col-md-12 col-sm-12">
             <div class="d-flex justify-content-between align-items-center mb-2">
-              <label class="form-label mb-0" for="current_contract_amount">目前契約金額 <span class="text-danger">*</span></label>
+              <label class="form-label mb-0" for="current_contract_amount">目前契約金額</label>
               <button 
                 v-if="isEditMode && formData.current_contract_amount && !isReadonlyMode"
                 type="button" 
@@ -938,7 +950,8 @@ defineExpose({
                 placeholder="例：10"
                 min="0"
                 max="100"
-                :disabled="propValues.isSubmitting || isReadonlyMode"
+                :disabled="propValues.isSubmitting"
+              :readonly="isReadonlyMode"
                 @input="handleFieldInput('advance_payment_ratio')"
                 @blur="handleFieldBlur('advance_payment_ratio')"
               />
@@ -963,7 +976,8 @@ defineExpose({
                 placeholder="例：5"
                 min="0"
                 max="100"
-                :disabled="propValues.isSubmitting || isReadonlyMode"
+                :disabled="propValues.isSubmitting"
+              :readonly="isReadonlyMode"
                 @input="handleFieldInput('retention_ratio')"
                 @blur="handleFieldBlur('retention_ratio')"
               />
@@ -992,6 +1006,7 @@ defineExpose({
                 value="分段驗收"
                 v-model="formData.inspection_methods"
                 id="inspection1"
+                :disabled="propValues.isSubmitting || isReadonlyMode"
               />
               <label class="form-check-label" for="inspection1">
                 分段驗收
@@ -1004,6 +1019,7 @@ defineExpose({
                 value="部分驗收"
                 v-model="formData.inspection_methods"
                 id="inspection2"
+                :disabled="propValues.isSubmitting || isReadonlyMode"
               />
               <label class="form-check-label" for="inspection2">
                 部分驗收
@@ -1016,6 +1032,7 @@ defineExpose({
                 value="竣工驗收"
                 v-model="formData.inspection_methods"
                 id="inspection3"
+                :disabled="propValues.isSubmitting || isReadonlyMode"
               />
               <label class="form-check-label" for="inspection3">
                 竣工驗收
@@ -1031,7 +1048,7 @@ defineExpose({
         <div class="row g-3 mb-3">
           <div class="col-lg-4 col-md-6 col-sm-12">
             <label class="form-label"
-              >保險單編號 <span class="text-danger">*</span></label
+              >保險單編號</label
             >
             <input
               type="text"
@@ -1039,7 +1056,8 @@ defineExpose({
               v-model="formData.insurance_policy_number"
               name="insurance_policy_number"
               placeholder="請輸入保險單編號"
-              :disabled="propValues.isSubmitting || isReadonlyMode"
+              :disabled="propValues.isSubmitting"
+              :readonly="isReadonlyMode"
               @input="handleFieldInput('insurance_policy_number')"
               @blur="handleFieldBlur('insurance_policy_number')"
             />
@@ -1058,11 +1076,15 @@ defineExpose({
               v-model="formData.insurance_company"
               name="insurance_company"
               placeholder="請輸入保險公司名稱"
+              :readonly="isReadonlyMode"
+              :disabled="propValues.isSubmitting"
+              @input="handleFieldInput('insurance_company')"
+              @blur="handleFieldBlur('insurance_company')"
             />
           </div>
           <div class="col-lg-4 col-md-12 col-sm-12">
             <label class="form-label"
-              >保險類型 <span class="text-danger">*</span></label
+              >保險類型</label
             >
             <input
               type="text"
@@ -1071,7 +1093,8 @@ defineExpose({
               name="insurance_type"
               list="insurance_type_options"
               placeholder="請選擇或輸入保險類型"
-              :disabled="propValues.isSubmitting || isReadonlyMode"
+              :disabled="propValues.isSubmitting"
+              :readonly="isReadonlyMode"
               @input="handleFieldInput('insurance_type')"
               @blur="handleFieldBlur('insurance_type')"
             />
@@ -1097,7 +1120,7 @@ defineExpose({
         <div class="row g-3 mb-3">
           <div class="col-lg-6 col-md-6 col-sm-12">
             <label class="form-label"
-              >保險有效期限（起） <span class="text-danger">*</span></label
+              >保險有效期限（起）</label
             >
             <RepublicDatePicker
               v-model="formData.insurance_start_date"
@@ -1112,7 +1135,7 @@ defineExpose({
           </div>
           <div class="col-lg-6 col-md-6 col-sm-12">
             <label class="form-label"
-              >保險有效期限（訖） <span class="text-danger">*</span></label
+              >保險有效期限（訖）</label
             >
             <RepublicDatePicker
               v-model="formData.insurance_end_date"
@@ -1152,7 +1175,8 @@ defineExpose({
                         class="form-control form-control-sm" 
                         v-model="item.title"
                         :placeholder="`第${item.level}層級職稱`"
-                        :disabled="propValues.isSubmitting || isReadonlyMode"
+                        :disabled="propValues.isSubmitting"
+              :readonly="isReadonlyMode"
                       >
                     </div>
                     <div class="sign-level-actions ms-2" v-if="!isReadonlyMode">
@@ -1175,7 +1199,8 @@ defineExpose({
                   type="button" 
                   class="btn btn-outline-theme btn-sm"
                   @click="addSignLevel"
-                  :disabled="propValues.isSubmitting || isReadonlyMode"
+                  :disabled="propValues.isSubmitting"
+              :readonly="isReadonlyMode"
                 >
                   <i class="fa fa-plus me-1"></i>
                   新增簽核層級
@@ -1350,6 +1375,101 @@ defineExpose({
 .change-summary {
   background: rgba(0, 123, 255, 0.05) !important;
   border: 1px solid rgba(0, 123, 255, 0.1);
+}
+
+/* 鎖定欄位（只讀）樣式 */
+input[readonly],
+textarea[readonly] {
+  background-color: var(--bs-secondary-bg) !important;
+  cursor: not-allowed !important;
+  opacity: 0.8;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+input[readonly]:focus,
+textarea[readonly]:focus {
+  border-color: var(--bs-border-color) !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+/* 確保 readonly 屬性生效，阻止編輯 */
+input[readonly],
+textarea[readonly],
+select[readonly] {
+  /* 不使用 pointer-events: none，因為會影響其他功能 */
+  /* pointer-events: none; */
+  cursor: not-allowed !important;
+}
+
+/* 阻止 readonly 欄位的所有輸入操作 */
+input[readonly]:focus,
+textarea[readonly]:focus,
+select[readonly]:focus {
+  border-color: var(--bs-border-color) !important;
+  box-shadow: none !important;
+  outline: none !important;
+  cursor: not-allowed !important;
+}
+
+/* Disabled 狀態樣式（與 readonly 一致的灰階與禁止樣式） */
+input:disabled,
+textarea:disabled,
+select:disabled {
+  background-color: var(--bs-secondary-bg) !important;
+  cursor: not-allowed !important;
+  opacity: 0.8 !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  -moz-user-select: none !important;
+  -ms-user-select: none !important;
+  border-color: var(--bs-border-color) !important;
+  color: var(--bs-secondary-color) !important;
+}
+
+input:disabled:focus,
+textarea:disabled:focus,
+select:disabled:focus {
+  border-color: var(--bs-border-color) !important;
+  box-shadow: none !important;
+  outline: none !important;
+  cursor: not-allowed !important;
+}
+
+/* Checkbox disabled 樣式 */
+input[type="checkbox"]:disabled {
+  cursor: not-allowed !important;
+  opacity: 0.6 !important;
+}
+
+input[type="checkbox"]:disabled + label {
+  cursor: not-allowed !important;
+  opacity: 0.8 !important;
+  color: var(--bs-secondary-color) !important;
+}
+
+/* DatePicker disabled 樣式（透過深度選擇器） */
+/* 當 RepublicDatePicker 被 disabled 時，會添加 is-disabled class */
+:deep(.republic-date-picker.is-disabled .dp__main),
+:deep(.republic-date-picker.is-disabled .dp__input_wrap) {
+  background-color: var(--bs-secondary-bg) !important;
+  cursor: not-allowed !important;
+  opacity: 0.8 !important;
+}
+
+:deep(.republic-date-picker.is-disabled .dp__input) {
+  background-color: transparent !important;
+  cursor: not-allowed !important;
+  opacity: 1 !important;
+  color: var(--bs-secondary-color) !important;
+}
+
+:deep(.republic-date-picker.is-disabled .dp__input_icon) {
+  opacity: 0.6 !important;
+  color: var(--bs-secondary-color) !important;
 }
 
 </style>

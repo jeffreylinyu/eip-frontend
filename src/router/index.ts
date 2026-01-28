@@ -2,6 +2,7 @@ import { createRouter, createWebHashHistory } from "vue-router";
 import { useAuthStore } from '@/stores/auth';
 import { useWorkspaceStore } from '@/stores/workspace';
 import { useAppOptionStore } from '@/stores/app-option';
+import http from '@/api/http';
 import { dailyReportRoutes } from './dailyReport';
 
 const router = createRouter({
@@ -78,13 +79,8 @@ const router = createRouter({
       meta: { requiresAuth: true }
     },
     {
-      path: '/forms/b-inspection',
-      component: () => import('../views/forms/type-b/FormBInspection.vue'),
-      meta: { requiresAuth: true }
-    },
-    {
-      path: '/forms/b-export-test',
-      component: () => import('../views/forms/type-b/FormBExportTest.vue'),
+      path: '/forms/export-supervision-plan',
+      component: () => import('../views/forms/type-b/FormBExportSupervisionPlan.vue'),
       meta: { requiresAuth: true }
     },
     {
@@ -153,6 +149,11 @@ const router = createRouter({
       meta: { requiresAuth: true, requiresAdmin: true }
     },
     {
+      path: '/admin/users',
+      component: () => import('../views/admin/UserManagement.vue'),
+      meta: { requiresAuth: true, requiresAdmin: true }
+    },
+    {
       path: '/my-projects',
       component: () => import('../views/workspace/MyProjects.vue'),
       meta: { requiresAuth: true }
@@ -173,13 +174,91 @@ const router = createRouter({
       component: () => import('../views/schedule/ScheduleEditor.vue'),
       meta: { requiresAuth: true }
     },
-    {
-      path: '/schedule/tutorial',
-      component: () => import('../views/schedule/ScheduleTutorial.vue'),
-      meta: { requiresAuth: true }
-    },
     // 工程日報表路由
     ...dailyReportRoutes,
+    
+    // ========================================================
+    // 視角特定路由（監造）
+    // ========================================================
+    {
+      path: '/supervisory',
+      redirect: '/supervisory/',
+      meta: { requiresAuth: true, viewType: 'SUPERVISORY' }
+    },
+    {
+      path: '/supervisory/',
+      component: () => import('../views/Dashboard.vue'),
+      meta: { requiresAuth: true, viewType: 'SUPERVISORY' }
+    },
+    {
+      path: '/supervisory/basic/basic-data',
+      component: () => import('../views/supervisory/basic/BasicData.vue'),
+      meta: { requiresAuth: true, viewType: 'SUPERVISORY' }
+    },
+    {
+      path: '/supervisory/basic/participation-units',
+      component: () => import('../views/supervisory/basic/ParticipationUnits.vue'),
+      meta: { requiresAuth: true, viewType: 'SUPERVISORY' }
+    },
+    {
+      path: '/supervisory/basic/site-personnel',
+      component: () => import('../views/supervisory/basic/SitePersonnel.vue'),
+      meta: { requiresAuth: true, viewType: 'SUPERVISORY' }
+    },
+    {
+      path: '/supervisory/basic/project-item-database',
+      component: () => import('../views/basic/ProjectItemDatabase.vue'),
+      meta: { requiresAuth: true, viewType: 'SUPERVISORY' }
+    },
+    
+    // ========================================================
+    // 視角特定路由（營造）
+    // ========================================================
+    {
+      path: '/contractor',
+      redirect: '/contractor/',
+      meta: { requiresAuth: true, viewType: 'CONTRACTOR' }
+    },
+    {
+      path: '/contractor/',
+      component: () => import('../views/Dashboard.vue'),
+      meta: { requiresAuth: true, viewType: 'CONTRACTOR' }
+    },
+    {
+      path: '/contractor/basic/basic-data',
+      component: () => import('../views/contractor/basic/BasicData.vue'),
+      meta: { requiresAuth: true, viewType: 'CONTRACTOR' }
+    },
+    {
+      path: '/contractor/basic/participation-units',
+      component: () => import('../views/contractor/basic/ParticipationUnits.vue'),
+      meta: { requiresAuth: true, viewType: 'CONTRACTOR' }
+    },
+    {
+      path: '/contractor/basic/site-personnel',
+      component: () => import('../views/contractor/basic/SitePersonnel.vue'),
+      meta: { requiresAuth: true, viewType: 'CONTRACTOR' }
+    },
+    {
+      path: '/contractor/basic/project-item-database',
+      component: () => import('../views/basic/ProjectItemDatabase.vue'),
+      meta: { requiresAuth: true, viewType: 'CONTRACTOR' }
+    },
+    
+    // ========================================================
+    // 共用路由（個人設定、通知等）
+    // ========================================================
+    {
+      path: '/shared',
+      redirect: '/shared/',
+      meta: { requiresAuth: true, viewType: 'SHARED' }
+    },
+    {
+      path: '/shared/',
+      component: () => import('../views/Dashboard.vue'),
+      meta: { requiresAuth: true, viewType: 'SHARED' }
+    },
+    
     { 
       path: '/:pathMatch(.*)*', 
       component: () => import('../views/PageError.vue') 
@@ -192,6 +271,78 @@ router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore();
   const workspaceStore = useWorkspaceStore();
   const appOptionStore = useAppOptionStore();
+  
+  // 視角路由檢查（在認證檢查之後）
+  if (to.meta.viewType && authStore.isAuthenticated) {
+    const requiredViewType = to.meta.viewType as string
+    const workspaceId = workspaceStore.currentWorkspace?.id
+    
+    if (workspaceId) {
+      try {
+        // 檢查是否為系統管理員
+        const systemRole = authStore.user?.systemRole || authStore.user?.role
+        const isSuperAdmin = systemRole === 'SUPER_ADMIN' || systemRole === 'ADMIN'
+        
+        // 使用 http 客戶端獲取視角類型
+        const response = await http.get<{ 
+          code: number
+          data: { 
+            viewType: string
+            viewTypeLabel: string
+          }
+        }>(`/management/viewType/resolve?workspaceId=${workspaceId}`)
+        
+        // http.get 已經處理了 response.data，所以這裡需要正確解析
+        let userViewType: string | null = null
+        
+        if (response && typeof response === 'object') {
+          // 檢查是否為 BaseResponse 格式 { code, message, data }
+          if ('data' in response && response.data && typeof response.data === 'object') {
+            if ('viewType' in response.data) {
+              userViewType = (response.data as any).viewType
+            } else if ('data' in response.data && response.data.data && typeof response.data.data === 'object') {
+              // 嵌套的 data.data 結構
+              userViewType = (response.data.data as any).viewType
+            }
+          } else if ('viewType' in response) {
+            // 直接是資料格式
+            userViewType = (response as any).viewType
+          }
+        }
+        
+        if (userViewType) {
+          // 系統管理員可以訪問所有視角
+          if (isSuperAdmin) {
+            // 管理員可以繼續訪問
+          } else {
+            // 非管理員：檢查視角是否匹配
+            // 監造只能看監造，營造只能看營造
+            if (userViewType !== requiredViewType) {
+              // 視角不匹配，重定向到用戶對應的視角路由
+              const currentPath = to.path
+              const viewPrefix = userViewType.toLowerCase()
+              
+              // 如果路徑已經有視角前綴，替換它；否則添加視角前綴
+              let redirectPath = currentPath
+              if (currentPath.startsWith('/supervisory/') || currentPath.startsWith('/contractor/')) {
+                redirectPath = currentPath.replace(/^\/(supervisory|contractor)/, `/${viewPrefix}`)
+              } else if (!currentPath.startsWith('/shared/') && !currentPath.startsWith('/admin/')) {
+                redirectPath = `/${viewPrefix}${currentPath}`
+              }
+              
+              if (redirectPath !== currentPath) {
+                next(redirectPath)
+                return
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('視角檢查失敗，允許繼續:', error)
+        // 如果視角檢查失敗，允許繼續（降級處理）
+      }
+    }
+  }
   
   // 1. 處理側邊欄顯示狀態
   if (to.path === '/access-status-guide') {
@@ -221,24 +372,14 @@ router.beforeEach(async (to, from, next) => {
   
   // 4. 權限狀態檢查 (僅針對已登入用戶)
   if (authStore.isAuthenticated) {
-     console.log('Guard Check:', { 
-       path: to.path, 
-       userId: authStore.user?.userId,
-       companyId: authStore.user?.companyId,
-       hasWorkspaces: workspaceStore.workspaces.length > 0,
-       isInitialized: workspaceStore.isInitialized
-     })
 
      // 場景 A: 無公司
      if (!authStore.user?.companyId) {
         // [FIX] 因為 initAuth 是非同步的，且 localStorage 可能存的是舊資料 (缺 companyId)
         // 所以在判定失敗前，嘗試強制刷新一次使用者資料
-        console.log('Guard: No companyId in store, trying to fetch fresh user data...')
         if (authStore.user?.userId) {
             try {
-                console.log('Guard: Awaiting fetchCurrentUser...')
                 await authStore.fetchCurrentUser(authStore.user.userId);
-                console.log('Guard: fetchCurrentUser done. New companyId:', authStore.user?.companyId)
             } catch (e) {
                 console.warn('Guard: Fetch current user failed', e);
             }
@@ -256,9 +397,7 @@ router.beforeEach(async (to, from, next) => {
      // 先檢查是否已初始化工作空間 (避免因資料未載入誤判)
      if (!workspaceStore.isInitialized) {
          try {
-            console.log('Guard: Initializing workspaces...')
             await workspaceStore.initWorkspaces();
-            console.log('Guard: Workspaces initialized. Count:', workspaceStore.workspaces.length)
          } catch(e) {
             console.error('路由守衛: 初始化工作空間失敗', e);
          }

@@ -157,21 +157,46 @@ export default defineComponent({
       
       try {
         if (savingStatus.value[id] === 'saving') { 
+          // 保存當前編輯的值，避免被後端返回的資料覆蓋
+          const currentDetail = { ...item.detail };
+          
           // Update API requires pccesCode and contractVersionId
           const result = await tenderMaterialApi.updateMaterialDetail({
             pccesCode: item.pccesCode || '',
             contractVersionId: currentVersionId.value,
-            detail: { ...item.detail }
+            detail: { ...currentDetail }
           });
           
-          // Update the specific item locally
-          item.detail = result;
+          // 只更新必要的後端欄位（id, updatedAt），保留用戶正在編輯的欄位值
+          if (result.id !== null && result.id !== undefined) {
+            item.detail.id = result.id;
+          }
+          if (result.updatedAt !== undefined) {
+            item.detail.updatedAt = result.updatedAt;
+          }
           
           // Also update other items with same pccesCode if necessary (frontend sync)
+          // 同樣只更新必要的欄位，保留用戶正在編輯的值
           if (item.pccesCode) {
              materials.value.forEach(m => {
                 if (m.pccesCode === item.pccesCode && m.id !== item.id) {
-                    m.detail = { ...result };
+                    // 同步更新相同 pccesCode 的其他項目，但只更新必要的欄位
+                    if (result.id !== null && result.id !== undefined) {
+                      m.detail.id = result.id;
+                    }
+                    if (result.updatedAt !== undefined) {
+                      m.detail.updatedAt = result.updatedAt;
+                    }
+                    // 同步其他欄位（因為同一個 pccesCode 應該共享設定）
+                    m.detail.isSamplingTest = currentDetail.isSamplingTest;
+                    m.detail.isFactoryInspection = currentDetail.isFactoryInspection;
+                    m.detail.hasSubcontractorData = currentDetail.hasSubcontractorData;
+                    m.detail.hasCatalog = currentDetail.hasCatalog;
+                    m.detail.hasTestReport = currentDetail.hasTestReport;
+                    m.detail.hasSample = currentDetail.hasSample;
+                    m.detail.hasOther = currentDetail.hasOther;
+                    m.detail.plannedSubmissionDate = currentDetail.plannedSubmissionDate;
+                    m.detail.plannedArrivalDate = currentDetail.plannedArrivalDate;
                 }
              });
           }
@@ -250,6 +275,24 @@ export default defineComponent({
     <div class="col-xl-12">
       <div class="card border-0 shadow-sm bg-body">
         <div class="card-body">
+          <!-- 資料來源提示 -->
+          <div class="alert alert-info mb-4">
+            <h5 class="alert-heading">
+              <i class="fa fa-info-circle me-2"></i>資料來源說明
+            </h5>
+            <p class="mb-2">
+              此頁面的材料資料來源自 <strong>工程項目標單</strong>（PCCES 工項資料）。
+              系統會自動從工程項目標單中取出<strong>材料類別</strong>的項目顯示於此。
+            </p>
+            <p class="mb-0">
+              如需新增或修改材料項目，請前往
+              <router-link to="/basic/project-item-database" class="alert-link">
+                <i class="fa fa-arrow-right me-1"></i>工程項目標單
+              </router-link>
+              頁面進行設定。
+            </p>
+          </div>
+
           <!-- Toolbar -->
           <div class="d-flex justify-content-between align-items-center mb-3">
              <div class="flex-grow-1 me-3">

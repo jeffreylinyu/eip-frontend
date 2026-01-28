@@ -372,8 +372,9 @@ export async function getStandardByPccesCode(pccesCode: string): Promise<Constru
 /**
  * 查詢施工大項列表
  */
-export async function getConstructionMajorItems(params: { keyword?: string; isActive?: boolean; page?: number; size?: number }): Promise<PageableResponse<ConstructionMajorItem>> {
+export async function getConstructionMajorItems(constructionId: string, params: { keyword?: string; isActive?: boolean; page?: number; size?: number }): Promise<PageableResponse<ConstructionMajorItem>> {
     const queryParams = new URLSearchParams();
+    queryParams.append('constructionId', constructionId);
     if (params.keyword) queryParams.append('keyword', params.keyword);
     if (params.isActive !== undefined) queryParams.append('isActive', params.isActive.toString());
     if (params.page !== undefined) queryParams.append('page', params.page.toString());
@@ -387,24 +388,24 @@ export async function getConstructionMajorItems(params: { keyword?: string; isAc
 /**
  * 取得單一施工大項
  */
-export async function getConstructionMajorItemById(id: string): Promise<ConstructionMajorItem> {
-    const response = await http.get(`/management/construction-major-items/${id}`);
+export async function getConstructionMajorItemById(constructionId: string, id: string): Promise<ConstructionMajorItem> {
+    const response = await http.get(`/management/construction-major-items/${id}?constructionId=${encodeURIComponent(constructionId)}`);
     return response as unknown as ConstructionMajorItem;
 }
 
 /**
  * 建立施工大項
  */
-export async function createConstructionMajorItem(data: ConstructionMajorItemRequest): Promise<ConstructionMajorItem> {
-    const response = await http.post('/management/construction-major-items', data);
+export async function createConstructionMajorItem(constructionId: string, data: ConstructionMajorItemRequest): Promise<ConstructionMajorItem> {
+    const response = await http.post(`/management/construction-major-items?constructionId=${encodeURIComponent(constructionId)}`, data);
     return response as unknown as ConstructionMajorItem;
 }
 
 /**
  * 更新施工大項
  */
-export async function updateConstructionMajorItem(id: string, data: Partial<ConstructionMajorItemRequest>): Promise<ConstructionMajorItem> {
-    const response = await http.put(`/management/construction-major-items/${id}`, data);
+export async function updateConstructionMajorItem(constructionId: string, id: string, data: Partial<ConstructionMajorItemRequest>): Promise<ConstructionMajorItem> {
+    const response = await http.put(`/management/construction-major-items/${id}?constructionId=${encodeURIComponent(constructionId)}`, data);
     return response as unknown as ConstructionMajorItem;
 }
 
@@ -430,30 +431,30 @@ export interface ConstructionMajorItemStandardResponse {
 /**
  * 刪除施工大項
  */
-export async function deleteConstructionMajorItem(id: string): Promise<void> {
-    await http.delete(`/management/construction-major-items/${id}`);
+export async function deleteConstructionMajorItem(constructionId: string, id: string): Promise<void> {
+    await http.delete(`/management/construction-major-items/${id}?constructionId=${encodeURIComponent(constructionId)}`);
 }
 
 /**
  * 1) 查詢某施工大項的施工抽查標準明細
  */
-export async function getConstructionMajorItemStandards(id: string): Promise<ConstructionMajorItemStandardResponse[]> {
-    const response = await http.get(`/management/construction-major-items/${id}/standards`);
+export async function getConstructionMajorItemStandards(constructionId: string, id: string): Promise<ConstructionMajorItemStandardResponse[]> {
+    const response = await http.get(`/management/construction-major-items/${id}/standards?constructionId=${encodeURIComponent(constructionId)}`);
     return response as unknown as ConstructionMajorItemStandardResponse[];
 }
 
 /**
  * 2) 覆蓋式複製（從 PCCES 工項複製標準到施工大項）
  */
-export async function copyStandardFromPcces(id: string, sourcePccesCode: string): Promise<ConstructionMajorItemStandardResponse[]> {
-    const response = await http.post(`/management/construction-major-items/${id}/standards/copy`, { sourcePccesCode });
+export async function copyStandardFromPcces(constructionId: string, id: string, sourcePccesCode: string): Promise<ConstructionMajorItemStandardResponse[]> {
+    const response = await http.post(`/management/construction-major-items/${id}/standards/copy?constructionId=${encodeURIComponent(constructionId)}`, { sourcePccesCode });
     return response as unknown as ConstructionMajorItemStandardResponse[];
 }
 
 /**
  * 3) 編輯單筆施工抽查標準明細
  */
-export async function updateConstructionMajorItemStandard(id: string, standardId: number, data: Partial<ConstructionMajorItemStandardResponse>): Promise<ConstructionMajorItemStandardResponse> {
-    const response = await http.patch(`/management/construction-major-items/${id}/standards/${standardId}`, data);
+export async function updateConstructionMajorItemStandard(constructionId: string, id: string, standardId: number, data: Partial<ConstructionMajorItemStandardResponse>): Promise<ConstructionMajorItemStandardResponse> {
+    const response = await http.patch(`/management/construction-major-items/${id}/standards/${standardId}?constructionId=${encodeURIComponent(constructionId)}`, data);
     return response as unknown as ConstructionMajorItemStandardResponse;
 }

@@ -100,7 +100,7 @@ const selectProject = (project: WorkspaceProject) => {
     (ws) => ws.id === project.workspaceId
   );
   if (workspace) {
-    workspaceStore.setCurrentWorkspace(workspace);
+    await workspaceStore.setCurrentWorkspace(workspace);
   }
 
   workspaceStore.switchProject(project.id);

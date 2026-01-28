@@ -6,6 +6,7 @@ import { useAppOptionStore } from '@/stores/app-option';
 import { useAuthStore } from '@/stores/auth';
 import { RouterLink, useRouter } from 'vue-router';
 import { useWorkspaceStore } from '@/stores/workspace';
+import ViewTypeSwitcher from '@/components/app/ViewTypeSwitcher.vue';
 
 const appOption = useAppOptionStore();
 const authStore = useAuthStore();
@@ -88,8 +89,6 @@ const fetchUserCompanyName = async () => {
             ]);
             userCompanyName.value = detail.companyName;
             
-            console.log('Company Permission Check:', { companyId: authStore.user.companyId, perm })
-
              // Allow OWNER or ADMIN to access company management
             const role = (perm.userRole || '').toUpperCase();
             isCompanyAdmin.value = perm.hasPermission && (role === 'OWNER' || role === 'ADMIN');
@@ -170,6 +169,11 @@ workspaceStore.initWorkspaces();
 		
 		<!-- BEGIN menu -->
 		<div class="menu">
+			<!-- 視角切換器 -->
+			<div class="menu-item">
+				<ViewTypeSwitcher />
+			</div>
+			
 			<div class="menu-item">
 				<a href="#" v-on:click="toggleAppHeaderSearch" data-toggle-class="app-header-menu-search-toggled" data-toggle-target=".app" class="menu-link">
 					<div class="menu-icon"><i class="bi bi-search nav-icon"></i></div>

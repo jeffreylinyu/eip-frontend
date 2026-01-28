@@ -1,6 +1,8 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 import { useAuthStore } from '@/stores/auth';
+import { useWorkspaceStore } from '@/stores/workspace';
+import { useViewPerspective, ViewType } from '@/composables/useViewPerspective';
 
 interface MenuItem {
   text?: string;
@@ -96,19 +98,82 @@ export const useAppSidebarMenuStore = defineStore("appSidebarMenu", () => {
   // 工程排程子選單
   const scheduleChildren = computed(() => {
     const children: MenuItem[] = [
-      { text: "使用教學", url: "/schedule/tutorial", isTutorial: true },
       { text: "版本與工項管理", url: "/schedule/versions" },
     ]
     
     return filterMenuItems(children)
   })
 
+  // 獲取視角前綴（用於生成正確的路由 URL）
+  const getViewPrefix = (): string => {
+    try {
+      const workspaceStore = useWorkspaceStore()
+      const workspaceId = workspaceStore.currentWorkspace?.id
+      
+      if (!workspaceId) {
+        // 如果沒有工作空間，檢查當前路由
+        const currentPath = window.location.hash.replace('#', '')
+        if (currentPath.startsWith('/supervisory/')) return '/supervisory'
+        if (currentPath.startsWith('/contractor/')) return '/contractor'
+        return ''
+      }
+      
+      const { viewType } = useViewPerspective()
+      const prefix = viewType.value.toLowerCase()
+      
+      // 如果是 SHARED 或沒有視角，預設返回監造視角前綴
+      if (prefix === 'shared' || !prefix) {
+        // 檢查當前路由是否有視角前綴
+        const currentPath = window.location.hash.replace('#', '')
+        if (currentPath.startsWith('/supervisory/')) return '/supervisory'
+        if (currentPath.startsWith('/contractor/')) return '/contractor'
+        // 預設返回監造視角前綴
+        return '/supervisory'
+      }
+      
+      return `/${prefix}`
+    } catch (error) {
+      console.warn('獲取視角前綴失敗:', error)
+      // 降級處理：檢查當前路由
+      const currentPath = window.location.hash.replace('#', '')
+      if (currentPath.startsWith('/supervisory/')) return '/supervisory'
+      if (currentPath.startsWith('/contractor/')) return '/contractor'
+      return ''
+    }
+  }
+  
+  // 生成帶視角前綴的 URL
+  const getViewUrl = (baseUrl: string): string => {
+    // 管理員路由和共用路由不需要視角前綴
+    if (baseUrl.startsWith('/admin') || baseUrl.startsWith('/shared') || baseUrl.startsWith('/my-projects')) {
+      return baseUrl
+    }
+    
+    // 如果 URL 已經有視角前綴，直接返回
+    if (baseUrl.startsWith('/supervisory/') || baseUrl.startsWith('/contractor/')) {
+      return baseUrl
+    }
+    
+    const prefix = getViewPrefix()
+    if (!prefix) return baseUrl
+    
+    // 為基本資料相關路由添加視角前綴
+    if (baseUrl.startsWith('/basic/') || baseUrl === '/') {
+      return `${prefix}${baseUrl}`
+    }
+    
+    return baseUrl
+  }
+
   // 選單項目（使用 computed 以響應 hiddenTutorials 和權限變化）
   const menuItems = computed(() => {
+    const { viewType, isSupervisory, isContractor, isShared } = useViewPerspective()
+    const prefix = getViewPrefix()
+    
     const items: MenuItem[] = [
     // 工程儀表板
     { text: "工程儀表板", is_header: true },
-    { url: "/", icon: "bi bi-speedometer2", text: "首頁 (Dashboard)" },
+    { url: getViewUrl("/"), icon: "bi bi-speedometer2", text: "首頁 (Dashboard)" },
 
     //基本資料維護
     { text: "基本資料維護", is_header: true },
@@ -116,10 +181,10 @@ export const useAppSidebarMenuStore = defineStore("appSidebarMenu", () => {
       text: "基本資料",
       icon: "bi bi-database",
       children: [
-        { text: "基本資料維護", url: "/basic/basic-data" },
-        { text: "參與單位", url: "/basic/participation-units" },
-        { text: "工地相關人員", url: "/basic/site-personnel" },
-        { text: "工程項目標單", url: "/basic/project-item-database" },
+        { text: "基本資料維護", url: getViewUrl("/basic/basic-data") },
+        { text: "參與單位", url: getViewUrl("/basic/participation-units") },
+        { text: "工地相關人員", url: getViewUrl("/basic/site-personnel") },
+        { text: "工程項目標單", url: getViewUrl("/basic/project-item-database") },
       ],
     },
 
@@ -136,27 +201,6 @@ export const useAppSidebarMenuStore = defineStore("appSidebarMenu", () => {
       children: scheduleChildren.value,
     },
 
-    // 施工日誌管理
-    { text: "施工日誌管理", is_header: true },
-    {
-      text: "施工日誌管理",
-      icon: "bi bi-journal-text",
-      children: [
-        { text: "施工日誌", url: "/daily-report" },
-        { text: "材料進場", url: "/daily-report/materials" },
-        { text: "出工紀錄", url: "/daily-report/labor" },
-        { text: "機具出工", url: "/daily-report/equipment" },
-        { text: "進場紀錄", url: "/daily-report/incoming" },
-        { text: "材料檢驗", url: "/daily-report/inspection" },
-        { text: "安全衛生", url: "/daily-report/safety" },
-        { text: "施工記錄", url: "/daily-report/construction" },
-        { text: "重要記事", url: "/daily-report/notes" },
-        { text: "明日進度", url: "/daily-report/tomorrow" },
-        { text: "製表人", url: "/daily-report/preparer" },
-        { text: "日誌歷史", url: "/daily-report/history" },
-      ],
-    },
-
     // 文件與表單管理
     { text: "文件與表單管理", is_header: true },
     {
@@ -164,7 +208,6 @@ export const useAppSidebarMenuStore = defineStore("appSidebarMenu", () => {
       icon: "bi bi-file-earmark-text",
       children: [
         { text: "表單匯出中心", url: "/forms/export-center" },
-        { text: "標單材料設定", url: "/forms/tender-material-settings" },
         {
           text: "A類表單",
           children: [
@@ -178,49 +221,14 @@ export const useAppSidebarMenuStore = defineStore("appSidebarMenu", () => {
           text: "B類表單",
           children: [
             { text: "施工項目維護", url: "/forms/b-construction-maintenance" },
-            { text: "施工抽查標準表", url: "/forms/b-inspection" },
+            { text: "標單材料設定", url: "/forms/tender-material-settings" },
             { text: "文件檔案分類表", url: "/forms/document-classification" },
-            { text: "監造計畫書匯出測試", url: "/forms/b-export-test" },
+            { text: "匯出-監造計劃書（B-1）", url: "/forms/export-supervision-plan" },
           ],
         },
-        { text: "C類表單", url: "/forms/type-c" },
-        { text: "D類表單", url: "/forms/type-d" },
-        { text: "H類表單", url: "/forms/type-h" },
-        { text: "I類表單", url: "/forms/type-i" },
-        { text: "L類表單", url: "/forms/type-l" },
       ],
     },
 
-    // 查詢與檢索
-    { text: "查詢與檢索", is_header: true },
-    { url: "/search", icon: "bi bi-search", text: "文件快速查詢" },
-
-    // AI與自動化
-    { text: "AI與自動化", is_header: true },
-    { url: "/ai/ocr", icon: "bi bi-file-text", text: "文件OCR識別" },
-    { url: "/ai/reply-gen", icon: "bi bi-chat-dots", text: "自動回文生成" },
-    {
-      url: "/ai/defect-detection",
-      icon: "bi bi-exclamation-triangle",
-      text: "工地缺失辨識",
-    },
-
-    // 系統稽核與提醒
-    { text: "系統稽核與提醒", is_header: true },
-    { url: "/audit/reminders", icon: "bi bi-bell", text: "文件提醒與稽核" },
-
-    // 雲端資料整合
-    { text: "雲端資料整合", is_header: true },
-    {
-      url: "/integration/cloud-database",
-      icon: "bi bi-cloud-upload",
-      text: "雲端資料庫整合",
-    },
-    {
-      url: "/integration/web-scraper",
-      icon: "bi bi-globe2",
-      text: "網站資料爬蟲",
-    },
   ]
     
     // 過濾選單項目（移除被隱藏的教學頁面和無權限的項目）

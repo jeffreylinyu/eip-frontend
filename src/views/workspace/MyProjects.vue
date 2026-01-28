@@ -84,24 +84,54 @@ const loadProjects = async () => {
             projects.value = []
             return
         }
+        
+        if (simpleProjects.length === 0) {
+            projects.value = []
+            return
+        }
 
         // 2. 取得每個專案的完整詳情 (包含廠商資訊)
         const detailPromises = simpleProjects.map(async (p: any) => {
             try {
-                // 修正：從 logs 觀察到 API 回傳的是 projectId，而非 constructionId
                 const constructionId = p.constructionId || p.projectId
                 
                 if (!constructionId) {
                     return p
                 }
                 
+                // 先獲取詳情（不傳 workspaceId，讓 API 自動判斷）
                 const detail = await constructionApi.getConstructionDetail(constructionId)
+                
+                // 從詳情中獲取 workspaceId（如果 simpleProject 沒有）
+                const workspaceId = p.workspaceId || detail.workspaceId
+                
+                // 合併資料
+                let finalDetail = { ...p, ...detail, id: constructionId, workspaceId }
+                
+                // 如果 API 沒有返回公司名稱，嘗試從工作空間的參與單位獲取
+                if ((!finalDetail.contractorCompanyName || !finalDetail.supervisoryCompanyName) && workspaceId) {
+                    try {
+                        // 載入工作空間的參與單位
+                        await workspaceStore.fetchParticipatingUnits(workspaceId)
+                        const participatingUnits = workspaceStore.participatingUnits
+                        
+                        // 補充缺失的公司名稱
+                        if (!finalDetail.contractorCompanyName && participatingUnits.contractorCompany) {
+                            finalDetail.contractorCompanyName = participatingUnits.contractorCompany.companyName
+                        }
+                        
+                        if (!finalDetail.supervisoryCompanyName && participatingUnits.supervisoryCompany) {
+                            finalDetail.supervisoryCompanyName = participatingUnits.supervisoryCompany.companyName
+                        }
+                    } catch (error) {
+                        // 靜默處理錯誤
+                    }
+                }
                 
                 // 確保原有屬性存在，並覆蓋詳情
                 // 統一 ID 欄位，確保 click event 不會出錯
-                return { ...p, ...detail, id: constructionId } 
+                return finalDetail
             } catch (err) {
-                console.warn(`Failed to fetch detail for project ${p.projectId || p.id}:`, err)
                 return p // 失敗時回傳原始資料
             }
         })
@@ -118,14 +148,6 @@ const loadProjects = async () => {
 
 const enterProject = async (project: any) => {
     try {
-        // 先切換工作空間 (如果需要)
-        if (project.workspaceId !== workspaceStore.currentWorkspace?.id) {
-             const workspace = workspaceStore.workspaces.find(w => w.id === project.workspaceId)
-             if (workspace) {
-                 workspaceStore.setCurrentWorkspace(workspace)
-             }
-        }
-        
         // 確保 project 符合 WorkspaceProject 介面 (補上 name 屬性)
         // Store 和 Header 依賴 'name' 屬性來顯示
         const normalizedProject = {
@@ -135,20 +157,92 @@ const enterProject = async (project: any) => {
             workspaceId: project.workspaceId
         }
         
-        // 進入專案（會自動選擇工作空間）
-        await workspaceStore.setCurrentProject(normalizedProject)
+        // 先切換工作空間 (如果需要)，但保留工程案選擇
+        if (normalizedProject.workspaceId !== workspaceStore.currentWorkspace?.id) {
+             let workspace = workspaceStore.workspaces.find(w => w.id === normalizedProject.workspaceId)
+             
+             // 如果找不到工作空間，嘗試初始化工作空間列表
+             if (!workspace && normalizedProject.workspaceId) {
+                 try {
+                     if (!workspaceStore.isInitialized) {
+                         await workspaceStore.initWorkspaces()
+                         workspace = workspaceStore.workspaces.find(w => w.id === normalizedProject.workspaceId)
+                     }
+                 } catch (error) {
+                     // 靜默處理錯誤
+                 }
+             }
+             
+             // 如果還是找不到，創建最小的工作空間對象（與 setCurrentProject 邏輯一致）
+             if (!workspace && normalizedProject.workspaceId) {
+                 const minimalWorkspace = {
+                     id: normalizedProject.workspaceId,
+                     name: `工作空間 ${normalizedProject.workspaceId.slice(0, 8)}`,
+                     description: '',
+                     companyId: '',
+                     companyName: '',
+                     ownerId: '',
+                     ownerName: '',
+                     memberCount: 0,
+                     projectCount: 0,
+                     createdAt: '',
+                     isOwner: false,
+                     role: 'MEMBER' as const
+                 }
+                 workspaceStore.workspaces.push(minimalWorkspace)
+                 workspace = minimalWorkspace
+             }
+             
+             if (workspace) {
+                 // 先設置工程案，然後設置工作空間（preserveProject=true 避免清除）
+                 await workspaceStore.setCurrentProject(normalizedProject, false)
+                 await workspaceStore.setCurrentWorkspace(workspace, true) // preserveProject=true
+             } else {
+                 // 即使找不到工作空間，也先設置工程案（setCurrentProject 會處理工作空間）
+                 await workspaceStore.setCurrentProject(normalizedProject, false)
+             }
+        } else {
+            // 工作空間相同，直接設置工程案
+            await workspaceStore.setCurrentProject(normalizedProject, false)
+        }
         
-        // 顯示成功訊息
-        proxy.$toast.success(`已進入專案：${normalizedProject.name}`)
-        
-        // 導向首頁
-        // 使用 catch 忽略導航錯誤 (例如被守衛攔截重導向，這是預期行為)
-        await router.push('/').catch(err => {
-            console.log('Navigation redirected or cancelled:', err)
-        })
+        // 等待視角初始化完成（如果工作空間已設置）
+        if (workspaceStore.currentWorkspace?.id) {
+            const { useViewPerspective } = await import('@/composables/useViewPerspective')
+            const { viewType, initViewType } = useViewPerspective()
+            
+            // 確保視角已初始化
+            if (!viewType.value) {
+                await initViewType(workspaceStore.currentWorkspace.id)
+            }
+            
+            const finalViewType = viewType.value || 'SUPERVISORY' // 預設為監造視角
+            
+            // 根據視角類型決定跳轉路徑（預設為監造視角）
+            let targetPath = '/supervisory/' // 預設為監造視角
+            if (finalViewType === 'SUPERVISORY') {
+                targetPath = '/supervisory/'
+            } else if (finalViewType === 'CONTRACTOR') {
+                targetPath = '/contractor/'
+            }
+            
+            // 顯示成功訊息
+            proxy.$toast.success(`已進入專案：${normalizedProject.name}`)
+            
+            // 導向對應視角的首頁
+            await router.push(targetPath).catch(() => {
+                // 靜默處理路由錯誤
+            })
+        } else {
+            // 顯示成功訊息
+            proxy.$toast.success(`已進入專案：${normalizedProject.name}`)
+            // 導向監造視角首頁（預設）
+            await router.push('/supervisory/').catch(() => {
+                // 靜默處理路由錯誤
+            })
+        }
         
     } catch (error) {
-        console.error('Failed to enter project:', error)
         proxy.$toast.error('進入專案失敗')
     }
 }

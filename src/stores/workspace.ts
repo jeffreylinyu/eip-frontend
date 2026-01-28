@@ -1,6 +1,6 @@
 
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { storage, StorageKeys } from '@/utils/storage'
 import { workspaceApi, transformWorkspaceFromApi, transformWorkspaceToApi, type WorkspaceDetailResponse, type WorkspaceCompany, type InviteCompanyRequest, type RemoveCompanyRequest, type ParticipatingUnitsResponse } from '@/api/workspace'
 import { useUserCacheStore, type UserBasicInfo } from '@/stores/user-cache'
@@ -82,6 +82,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const isInitialized = ref(false) // 添加初始化狀態標記
   const joinedProjectsCount = ref(0) // 新增：已參與的工程案數量 (跨工作空間)
   const initPromise = ref<Promise<void> | null>(null) // 新增
+  
   
   // 工作空間公司管理相關狀態
   const workspaceCompanies = ref<WorkspaceCompany[]>([])
@@ -349,9 +350,10 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   }
 
   // 獲取單一工程案詳情並更新狀態
-  const fetchProjectDetail = async (projectId: string, workspaceId: string): Promise<WorkspaceProject | null> => {
+  const fetchProjectDetail = async (projectId: string, workspaceId: string, viewType?: string): Promise<WorkspaceProject | null> => {
     try {
-      const construction = await getConstructionDetail(projectId, workspaceId)
+      const construction = await getConstructionDetail(projectId, workspaceId, viewType)
+      
       const project = transformConstructionToProject(construction, workspaceId)
       
       // 更新列表中的項目
@@ -401,15 +403,48 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   }
 
   // Actions
-  const setCurrentWorkspace = (workspace: Workspace) => {
-    currentWorkspace.value = workspace
-    // 切換工作空間時清除當前項目
-    currentProject.value = null
+  const setCurrentWorkspace = async (workspace: Workspace, preserveProject: boolean = false) => {
+    // 檢查是否為相同的工作空間
+    const isSameWorkspace = currentWorkspace.value?.id === workspace?.id
     
-    // 清除工程案選擇（因為工作空間變了）
-    try {
-      storage.remove(StorageKeys.SELECTED_PROJECT)
-    } catch (error) {
+    currentWorkspace.value = workspace
+    
+    // 當工作空間變更時，先載入參與單位，然後重新初始化視角
+    if (workspace?.id) {
+      try {
+        // 先載入參與單位資料，這樣視角判斷才能正確
+        await fetchParticipatingUnits(workspace.id)
+        
+        // 然後初始化視角
+        const { useViewPerspective } = await import('@/composables/useViewPerspective')
+        const { initViewType } = useViewPerspective()
+        await initViewType(workspace.id)
+      } catch (error) {
+        console.error('初始化視角失敗:', error)
+      }
+    }
+    
+    // 切換工作空間時清除當前項目（除非 preserveProject 為 true 且工作空間相同）
+    if (!preserveProject || !isSameWorkspace) {
+      // 如果當前工程案不屬於新工作空間，清除它
+      if (currentProject.value && currentProject.value.workspaceId !== workspace?.id) {
+        currentProject.value = null
+        
+        // 清除工程案選擇（因為工作空間變了）
+        try {
+          storage.remove(StorageKeys.SELECTED_PROJECT)
+        } catch (error) {
+          // 靜默處理
+        }
+      } else if (!preserveProject) {
+        // 如果明確要求不保留，清除工程案
+        currentProject.value = null
+        try {
+          storage.remove(StorageKeys.SELECTED_PROJECT)
+        } catch (error) {
+          // 靜默處理
+        }
+      }
     }
   }
 
@@ -478,7 +513,14 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     
     // 設定當前工作空間（如果找到且與當前不同）
     if (workspace && workspace.id !== currentWorkspace.value?.id) {
-      currentWorkspace.value = workspace
+      // 使用 preserveProject=true 避免清除剛設置的工程案
+      await setCurrentWorkspace(workspace, true)
+    }
+    
+    // 再次確認工程案還在（防止被清除）
+    if (!currentProject.value || currentProject.value.id !== project.id) {
+      // 重新設置
+      currentProject.value = project
     }
     
     // 保存到後端
@@ -486,10 +528,10 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       const authStore = useAuthStore()
       if (authStore.user?.userId) {
         // 調用後端 API 更新當前工程案和工作空間
+        // 注意：project.id 應該是 constructionId（工程編號），不是 constructionProjectId
         await authApi.updateCurrentConstruction(project.id, project.workspaceId)
       }
     } catch (error) {
-      console.warn('更新後端當前工程案和工作空間失敗:', error)
       // 如果後端更新失敗，仍然保存到 localStorage 作為備份
       try {
         storage.set(StorageKeys.SELECTED_PROJECT, {
@@ -498,7 +540,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
           timestamp: Date.now()
         })
       } catch (storageError) {
-        // 保存失敗時靜默處理
+        // 靜默處理
       }
     }
     
@@ -609,7 +651,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
             }
             
             if (workspace) {
-              currentWorkspace.value = workspace
+              // 使用 setCurrentWorkspace 以確保視角初始化
+              await setCurrentWorkspace(workspace)
             }
             
             // 更新工程案列表中的項目
@@ -688,8 +731,6 @@ export const useWorkspaceStore = defineStore('workspace', () => {
               try {
                   const joinedProjects = await userApi.getJoinedProjects(authStore.user.userId)
                   joinedProjectsCount.value = Array.isArray(joinedProjects) ? joinedProjects.length : 0
-                  
-                  console.log('DEBUG: Joined Projects:', joinedProjectsCount.value)
               } catch (err) {
                    console.warn('Failed to fetch joined projects count:', err)
               }
@@ -711,8 +752,6 @@ export const useWorkspaceStore = defineStore('workspace', () => {
           
           // 如果沒有當前工程案，嘗試自動選擇第一個工程案
           if (!currentProject.value) {
-            console.log('沒有當前工程案，開始自動選擇...')
-            
             // 優先使用 getUserProjects API 獲取用戶的所有工程案（跨工作空間）
             try {
               const authStore = useAuthStore()
@@ -721,8 +760,6 @@ export const useWorkspaceStore = defineStore('workspace', () => {
                 const userProjects = await userApi.getJoinedProjects(authStore.user.userId)
                 
                 if (Array.isArray(userProjects) && userProjects.length > 0) {
-                  console.log('找到用戶工程案:', userProjects.length, '個')
-                  
                   // 獲取第一個工程案的詳情
                   const firstProject = userProjects[0]
                   const constructionId = firstProject.constructionId || firstProject.projectId
@@ -737,24 +774,32 @@ export const useWorkspaceStore = defineStore('workspace', () => {
                       targetWorkspaceId = firstProject.workspaceId
                       try {
                         construction = await getConstructionDetail(constructionId, targetWorkspaceId)
-                      } catch {
+                      } catch (error) {
                         // 如果失敗，嘗試不提供 workspaceId
                         try {
                           construction = await getConstructionDetail(constructionId, '')
                           targetWorkspaceId = construction.workspaceId || null
-                        } catch {
+                        } catch (error2) {
                           // 繼續嘗試其他工作空間
                         }
                       }
                     } else {
-                      // 嘗試從所有工作空間中查找
-                      for (const ws of workspaces.value) {
-                        try {
-                          construction = await getConstructionDetail(constructionId, ws.id)
-                          targetWorkspaceId = ws.id
-                          break
-                        } catch {
-                          // 繼續嘗試下一個工作空間
+                      // 優先嘗試不提供 workspaceId 直接獲取（從工程案詳情中獲取 workspaceId）
+                      try {
+                        construction = await getConstructionDetail(constructionId, '')
+                        targetWorkspaceId = construction.workspaceId || null
+                      } catch (error) {
+                        // 如果失敗，嘗試從所有工作空間中查找
+                        if (workspaces.value.length > 0) {
+                          for (const ws of workspaces.value) {
+                            try {
+                              construction = await getConstructionDetail(constructionId, ws.id)
+                              targetWorkspaceId = ws.id
+                              break
+                            } catch (error2) {
+                              // 繼續嘗試下一個工作空間
+                            }
+                          }
                         }
                       }
                     }
@@ -781,8 +826,9 @@ export const useWorkspaceStore = defineStore('workspace', () => {
                         }
                         workspaces.value.push(workspace)
                       }
+                      
                       if (workspace) {
-                        currentWorkspace.value = workspace
+                        await setCurrentWorkspace(workspace, true) // preserveProject=true 避免清除工程案
                       }
                       
                       // 載入該工作空間的工程案列表
@@ -790,20 +836,19 @@ export const useWorkspaceStore = defineStore('workspace', () => {
                       
                       // 設定工程案
                       await setCurrentProject(project, false)
-                      console.log('自動選擇工程案成功:', project.name)
                       return // 成功選擇，直接返回
                     }
                   }
                 }
               }
             } catch (error) {
-              console.warn('使用 getUserProjects 自動選擇失敗:', error)
+              // 靜默處理錯誤
             }
             
             // 如果 getUserProjects 方法失敗，使用工作空間方法作為備用
             // 如果沒有當前工作空間但有工作空間列表，設定第一個工作空間
             if (!currentWorkspace.value && workspaces.value.length > 0) {
-              currentWorkspace.value = workspaces.value[0]
+              await setCurrentWorkspace(workspaces.value[0])
             }
             
             // 如果還是沒有當前工程案，嘗試從工作空間載入
@@ -815,7 +860,6 @@ export const useWorkspaceStore = defineStore('workspace', () => {
               // 如果有工程案，自動選擇第一個
               if (workspaceProjects.value.length > 0) {
                 await setCurrentProject(workspaceProjects.value[0], false)
-                console.log('從工作空間自動選擇工程案成功:', workspaceProjects.value[0].name)
               } else {
                 // 如果當前工作空間沒有工程案，嘗試其他工作空間
                 for (const workspace of workspaces.value) {
@@ -823,9 +867,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
                   
                   const projects = await getProjectsByWorkspace(workspace.id)
                   if (projects.length > 0) {
-                    currentWorkspace.value = workspace
+                    await setCurrentWorkspace(workspace)
                     await setCurrentProject(projects[0], false)
-                    console.log('從其他工作空間自動選擇工程案成功:', projects[0].name)
                     break
                   }
                 }

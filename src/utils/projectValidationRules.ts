@@ -11,26 +11,22 @@ import type { FieldValidationRules } from './validation'
 export const projectFormValidationRules: FieldValidationRules = {
   // 工程基本資訊
   project_name: {
-    required: true,
     minLength: 2,
     maxLength: 100,
   },
   
   contract_number: {
-    required: true,
     minLength: 3,
     maxLength: 50,
     pattern: /^[A-Z0-9\-_]+$/,
   },
   
   project_location: {
-    required: true,
     minLength: 5,
     maxLength: 200,
   },
   
   host_agency: {
-    required: true,
     minLength: 2,
     maxLength: 100,
   },
@@ -56,30 +52,26 @@ export const projectFormValidationRules: FieldValidationRules = {
   },
   
   project_amount: {
-    required: true,
     positiveNumber: true,
     min: 1000, // 最少1千元
   },
   
   current_contract_amount: {
-    required: true,
     positiveNumber: true,
     min: 1000, // 最少1千元
   },
   
   // 工程類別/屬性
   project_category: {
-    required: true,
+    // 選填
   },
   
   // 工期起訖日期
   sign_date: {
-    required: true,
     date: true,
   },
   
   start_date: {
-    required: true,
     date: true,
     dateRange: {
       startField: 'sign_date',
@@ -89,7 +81,6 @@ export const projectFormValidationRules: FieldValidationRules = {
   
   completion_date: {
     // 完工日期已改為只讀，由系統自動計算，不再需要驗證
-    // required: true,
     // date: true,
     // dateRange: {
     //   startField: 'start_date',
@@ -116,7 +107,6 @@ export const projectFormValidationRules: FieldValidationRules = {
   
   // 保險相關資訊
   insurance_policy_number: {
-    required: true,
     minLength: 5,
     maxLength: 50,
   },
@@ -127,12 +117,10 @@ export const projectFormValidationRules: FieldValidationRules = {
   },
   
   insurance_start_date: {
-    required: true,
     date: true,
   },
   
   insurance_end_date: {
-    required: true,
     date: true,
     dateRange: {
       startField: 'insurance_start_date',
@@ -141,7 +129,7 @@ export const projectFormValidationRules: FieldValidationRules = {
   },
   
   insurance_type: {
-    required: true,
+    // 選填
   },
 }
 

@@ -102,6 +102,15 @@
 						} @else {
 							padding-left: rem(42px);
 						}
+						
+						// 第二層子菜單縮排縮小
+						& .menu-submenu .menu-item {
+							@if $enable-rtl {
+								padding-right: rem(28px);
+							} @else {
+								padding-left: rem(28px);
+							}
+						}
 					}
 				}
 				&.active {
