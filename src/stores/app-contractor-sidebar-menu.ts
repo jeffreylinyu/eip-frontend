@@ -129,6 +129,10 @@ export const useAppContractorSidebarMenuStore = defineStore("appContractorSideba
     if (baseUrl.startsWith('/basic/') || baseUrl === '/') {
       return `${prefix}${baseUrl}`
     }
+    // 變更設計：監造/營造分開
+    if (baseUrl === '/design-changes') {
+      return `${prefix}/design-changes`
+    }
     
     return baseUrl
   }
@@ -157,6 +161,33 @@ export const useAppContractorSidebarMenuStore = defineStore("appContractorSideba
           { text: "參與單位", url: getViewUrl("/basic/participation-units") },
           { text: "工地相關人員", url: getViewUrl("/basic/site-personnel") },
           { text: "工程項目標單", url: getViewUrl("/basic/project-item-database") },
+          { text: "變更設計", url: getViewUrl("/design-changes") },
+        ],
+      },
+
+      // 公文中心（以工程案為單位）
+      { text: "公文中心", is_header: true },
+      { text: "公文列表", url: "/document-center", icon: "bi bi-folder2-open" },
+
+      // 行事曆
+      { text: "行事曆", is_header: true },
+      { text: "行事曆", url: "/calendar", icon: "bi bi-calendar" },
+
+      // 文件與表單管理
+      { text: "文件與表單管理", is_header: true },
+      {
+        text: "表單生成與管理",
+        icon: "bi bi-file-earmark-text",
+        children: [
+              {
+                text: "O類表單",
+                children: [
+                  { text: "O-1 開、竣、停工報告", url: "/forms/o1-commencement" },
+                  { text: "O-2 工期展延申請總表", url: "/forms/o1-extension" },
+                  { text: "O-3 估驗請款計價表", url: "/forms/o3-estimate" },
+                  { text: "O-4 職安報備書", url: "/forms/o4-labour-safety" },
+                ],
+              },
         ],
       },
 

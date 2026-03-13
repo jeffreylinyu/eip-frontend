@@ -1,6 +1,11 @@
 .app-content {
 	padding: $app-content-padding-y $app-content-padding-x;
 	flex: 1;
+
+	/* 頁面根節點使用 app-page 時不另加 padding，僅沿用 .app-content 邊距 */
+	& > .app-page {
+		padding: 0;
+	}
 	
 	@if $enable-rtl {
 		margin-right: $app-sidebar-width;

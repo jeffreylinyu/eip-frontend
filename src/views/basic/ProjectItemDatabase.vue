@@ -8,29 +8,66 @@
         { text: '工程項目標單', active: true }
       ]"
       :actions="headerActions"
-    />
+    >
+      <template #extra>
+        <DesignChangeVersionSwitcher
+          v-if="constructionId"
+          :construction-id="constructionId"
+          v-model="selectedDesignChangeId"
+        />
+      </template>
+    </PageHeader>
 
     <div
       v-if="!isFullscreen"
-      class="d-flex flex-wrap justify-content-end align-items-center gap-2 mb-3"
+      class="mb-3"
     >
-      <button
-        class="btn btn-outline-info btn-sm"
-        type="button"
-        @click="toggleFullscreen"
-        :title="isFullscreen ? '退出全螢幕' : '全螢幕'"
-      >
-        <i :class="isFullscreen ? 'fa fa-compress me-1' : 'fa fa-expand me-1'"></i>
-        {{ isFullscreen ? '退出全螢幕' : '全螢幕' }}
-      </button>
-      <button 
-        class="btn btn-success btn-sm" 
-        type="button" 
-        @click="openImportModal" 
-        :disabled="isLoading"
-      >
-        <i class="fa fa-file-import me-1"></i>匯入 PCCES
-      </button>
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <div
+          v-if="selectedDesignChangeId != null"
+          class="form-check form-switch m-0 d-flex align-items-center gap-2"
+        >
+          <input
+            class="form-check-input"
+            type="checkbox"
+            id="pccesDiffToggle"
+            v-model="diffEnabled"
+            :disabled="isLoading || isCopying"
+          />
+          <label class="form-check-label user-select-none" for="pccesDiffToggle">
+            <span class="pcces-diff-redword">紅字</span>代表與前一個版本的差異
+          </label>
+        </div>
+        <div class="d-flex flex-wrap justify-content-end align-items-center gap-2 ms-auto">
+        <button
+          class="btn btn-outline-secondary btn-sm"
+          type="button"
+          @click="toggleFullscreen"
+          :title="isFullscreen ? '退出全螢幕' : '全螢幕'"
+        >
+          <i :class="isFullscreen ? 'fa fa-compress me-1' : 'fa fa-expand me-1'"></i>
+          {{ isFullscreen ? '退出全螢幕' : '全螢幕' }}
+        </button>
+        <button
+          v-if="selectedDesignChangeId != null"
+          class="btn btn-outline-info btn-sm"
+          type="button"
+          @click="handleCopyPrevious"
+          :disabled="!canCopyPrevious || isLoading || isCopying"
+          title="將前一個版本的工項複製到目前版本（會覆蓋目前版本既有工項）"
+        >
+          <i class="fa fa-copy me-1"></i>複製前一個版本
+        </button>
+        <button 
+          class="btn btn-success btn-sm" 
+          type="button" 
+          @click="openImportModal" 
+          :disabled="isLoading"
+        >
+          <i class="fa fa-file-import me-1"></i>匯入 PCCES
+        </button>
+        </div>
+      </div>
     </div>
 
     <!-- 載入中提示 -->
@@ -55,14 +92,39 @@
         <div class="fw-semibold">
           <i class="fa fa-database me-2"></i>工程項目標單
         </div>
-        <div class="d-flex gap-2">
+        <div class="d-flex gap-2 align-items-center">
+          <div
+            v-if="selectedDesignChangeId != null"
+            class="form-check form-switch m-0 d-flex align-items-center gap-2 me-2"
+          >
+            <input
+              class="form-check-input"
+              type="checkbox"
+              id="pccesDiffToggleFullscreen"
+              v-model="diffEnabled"
+              :disabled="isLoading || isCopying"
+            />
+            <label class="form-check-label user-select-none" for="pccesDiffToggleFullscreen">
+              <span class="pcces-diff-redword">紅字</span>代表與上版本的差異
+            </label>
+          </div>
           <button
-            class="btn btn-outline-info btn-sm"
+            class="btn btn-outline-secondary btn-sm"
             type="button"
             @click="toggleFullscreen"
             title="退出全螢幕"
           >
             <i class="fa fa-compress me-1"></i>退出全螢幕
+          </button>
+          <button
+            v-if="selectedDesignChangeId != null"
+            class="btn btn-outline-info btn-sm"
+            type="button"
+            @click="handleCopyPrevious"
+            :disabled="!canCopyPrevious || isLoading || isCopying"
+            title="將前一個版本的工項複製到目前版本（會覆蓋目前版本既有工項）"
+          >
+            <i class="fa fa-copy me-1"></i>複製前一個版本
           </button>
           <button 
             class="btn btn-success btn-sm" 
@@ -98,12 +160,14 @@
               width="120"
               textAlign="Left"
               :sortComparer="itemNoSortComparer"
+              :template="'itemNoTemplate'"
             ></e-column>
             <e-column
               field="code"
               headerText="工項代碼"
               width="150"
               textAlign="Left"
+              :template="'codeTemplate'"
             ></e-column>
             <e-column
               field="name"
@@ -117,6 +181,7 @@
               headerText="單位"
               width="100"
               textAlign="Center"
+              :template="'unitTemplate'"
             ></e-column>
             <e-column
               field="quantity"
@@ -141,27 +206,39 @@
             ></e-column>
           </e-columns>
 
+          <template v-slot:itemNoTemplate="{ data }">
+            <span :class="getCellClass(data, 'itemNo')">{{ data.itemNo }}</span>
+          </template>
+
+          <template v-slot:codeTemplate="{ data }">
+            <span :class="getCellClass(data, 'code')">{{ data.code }}</span>
+          </template>
+
           <!-- 工項名稱模板（包含類型圖示） -->
           <template v-slot:nameTemplate="{ data }">
             <div class="d-flex align-items-center gap-2" style="line-height: 1.5;">
               <i v-if="data.type" :class="getTypeIcon(data.type)" :title="getTypeLabel(data.type)"></i>
-              <span>{{ data.name }}</span>
+              <span :class="getCellClass(data, 'name')">{{ data.name }}</span>
             </div>
+          </template>
+
+          <template v-slot:unitTemplate="{ data }">
+            <span :class="getCellClass(data, 'unit')">{{ data.unit }}</span>
           </template>
 
           <!-- 總量模板 -->
           <template v-slot:quantityTemplate="{ data }">
-            <span>{{ formatNumber(data.quantity) }}</span>
+            <span :class="getCellClass(data, 'quantity')">{{ formatNumber(data.quantity) }}</span>
           </template>
 
           <!-- 單價模板 -->
           <template v-slot:priceTemplate="{ data }">
-            <span>{{ formatPrice(data.price) }}</span>
+            <span :class="getCellClass(data, 'price')">{{ formatPrice(data.price) }}</span>
           </template>
 
           <!-- 金額模板 -->
           <template v-slot:amountTemplate="{ data }">
-            <span>{{ formatPrice(data.amount) }}</span>
+            <span :class="getCellClass(data, 'amount')">{{ formatPrice(data.amount) }}</span>
           </template>
         </ejs-treegrid>
       </div>
@@ -189,84 +266,22 @@
           />
           <small class="text-muted">請選擇符合 PCCES 標準格式的 XML 檔案</small>
         </div>
-
+        <p class="text-muted small mb-2">
+          匯入目標：<strong>{{ selectedDesignChangeId == null ? '原契約' : '變更設計' }}</strong>（與上方目前選中的版本一致）
+        </p>
         <div class="mb-3">
-          <label class="form-label fw-semibold">匯入類型</label>
           <div class="form-check">
             <input
               class="form-check-input"
-              type="radio"
-              id="importTypeAuto"
-              value="auto"
-              v-model="importType"
+              type="checkbox"
+              id="importOverwrite"
+              v-model="importOverwrite"
             />
-            <label class="form-check-label" for="importTypeAuto">
-              自動判斷（系統會自動判斷為初次匯入或變更設計）
-            </label>
-          </div>
-          <div class="form-check">
-            <input
-              class="form-check-input"
-              type="radio"
-              id="importTypeUpdate"
-              value="update"
-              v-model="importType"
-              :disabled="!currentVersion"
-            />
-            <label class="form-check-label" for="importTypeUpdate">
-              更新現有版本
+            <label class="form-check-label" for="importOverwrite">
+              覆寫該版本既有工項（勾選時會先刪除該版本現有標單再匯入）
             </label>
           </div>
         </div>
-
-        <div v-if="importType === 'auto'" class="mb-3">
-          <label class="form-label fw-semibold">版本名稱（選填）</label>
-          <input
-            type="text"
-            class="form-control"
-            v-model="versionName"
-            placeholder="例如：原契約、第1次變更（若不填寫，系統會自動生成）"
-          />
-          <small class="text-muted">系統會自動判斷為初次匯入或變更設計，並自動比對 logicalId</small>
-        </div>
-
-        <div v-if="importType === 'auto'" class="mb-3">
-          <label class="form-label fw-semibold">生效日期（選填）</label>
-          <div class="row g-2">
-            <div class="col-md-6">
-              <label class="form-label small">生效開始日期</label>
-              <input
-                type="date"
-                class="form-control"
-                v-model="effectiveStartDate"
-              />
-            </div>
-            <div class="col-md-6">
-              <label class="form-label small">生效結束日期（留空表示持續有效）</label>
-              <input
-                type="date"
-                class="form-control"
-                v-model="effectiveEndDate"
-              />
-            </div>
-          </div>
-          <small class="text-muted">若不填寫，系統會自動設定：初次匯入使用工程開始日期，變更設計使用當前日期</small>
-        </div>
-
-        <div v-if="importType === 'update'" class="mb-3">
-          <label class="form-label fw-semibold">要更新的版本</label>
-          <select class="form-select" v-model="targetVersionId" required>
-            <option value="">請選擇版本</option>
-            <option
-              v-for="version in versions"
-              :key="version.id"
-              :value="version.id"
-            >
-              {{ version.versionName }} (版本號：{{ version.versionNumber }})
-            </option>
-          </select>
-        </div>
-
         <div v-if="importError" class="alert alert-danger">
           <i class="fa fa-exclamation-circle me-2"></i>{{ importError }}
         </div>
@@ -291,61 +306,24 @@
       </template>
     </Modal>
 
-    <!-- 版本選擇 Modal -->
-    <Modal
-      :show="showVersionModal"
-      title="選擇版本"
-      icon="fa fa-history"
-      size="lg"
-      @update:show="showVersionModal = $event"
-      :hideConfirmButton="true"
-      cancelText="取消"
-    >
-      <template #body>
-        <div v-if="versions.length === 0" class="text-center py-4 text-muted">
-          尚無版本資料，請先匯入 PCCES 檔案
-        </div>
-        <div v-else class="list-group">
-          <button
-            v-for="version in versions"
-            :key="version.id"
-            type="button"
-            class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
-            :class="{ active: currentVersion?.id === version.id }"
-            @click="selectVersion(version)"
-          >
-            <div class="flex-grow-1">
-              <div>
-                <strong>{{ version.versionName }}</strong>
-                <span class="ms-2 text-muted">(版本號：{{ version.versionNumber }})</span>
-                <span v-if="version.isLatest" class="badge bg-success ms-2">最新</span>
-              </div>
-              <small class="text-muted d-block mt-1">
-                生效日期：{{ version.effectiveStartDate }} ~ {{ version.effectiveEndDate || '持續有效' }}
-              </small>
-            </div>
-            <small class="text-muted">{{ formatDate(version.createdAt) }}</small>
-          </button>
-        </div>
-      </template>
-    </Modal>
   </div>
 </template>
 
 <script setup lang="ts">
 import PageHeader from '@/components/bootstrap/PageHeader.vue'
 import Modal from '@/components/bootstrap/Modal.vue'
+import DesignChangeVersionSwitcher from '@/components/common/DesignChangeVersionSwitcher.vue'
 import { ref, computed, watch, onMounted, onActivated, nextTick, provide } from 'vue'
 import { useWorkspaceStore } from '@/stores/workspace'
 import {
   importPccesFile,
-  getContractVersions,
   getConstructionPccesCodes,
-  type ContractVersion,
+  copyPccesFromTo,
   type ConstructionPccesCode,
   type ImportPccesRequest,
   PccesItemType
 } from '@/api/pcces'
+import { getDesignChangeList } from '@/api/designChange'
 import { Sort, Resize, Filter } from '@syncfusion/ej2-vue-treegrid'
 import type { TreeGridComponent } from '@syncfusion/ej2-vue-treegrid'
 
@@ -366,42 +344,124 @@ const workspaceStore = useWorkspaceStore()
 const constructionId = computed(() => workspaceStore.currentProject?.id || '')
 
 const items = ref<ProjectItem[]>([])
-const versions = ref<ContractVersion[]>([])
-const currentVersion = ref<ContractVersion | null>(null)
+/** 目前選中的變更設計版本：null = 原契約 */
+const selectedDesignChangeId = ref<number | null>(null)
 const isLoading = ref(false)
+/** 變更設計列表（依生效日升序），用於計算「前一個版本」 */
+const designChangeList = ref<{ id: number; effectiveDate: string }[]>([])
+const isCopying = ref(false)
+const diffEnabled = ref(false)
 
-// PageHeader 右側操作按鈕（版本管理）
-const headerActions = computed(() => {
-  const actions: Array<{
-    text: string
-    icon?: string
-    variant?: string
-    click: () => void
-    disabled?: boolean
-  }> = []
+const headerActions = computed(() => [])
 
-  const baseAction = {
-    icon: 'fa fa-history',
-    variant: 'btn-outline-primary',
-    click: () => openVersionModal(),
-    disabled: isLoading.value
-  }
+/** 當前版本是否有「前一個版本」可複製（選中變更設計時才顯示複製按鈕） */
+const canCopyPrevious = computed(() => selectedDesignChangeId.value != null)
 
-  if (currentVersion.value) {
-    const versionLabel = currentVersion.value.versionName || `版本號：${currentVersion.value.versionNumber}`
-    actions.push({
-      ...baseAction,
-      text: `版本管理（${versionLabel}）`
-    })
-  } else {
-    actions.push({
-      ...baseAction,
-      text: '版本管理'
-    })
-  }
-
-  return actions
+/** 複製時使用的來源版本：null = 原契約，數字 = 該變更設計 ID */
+const sourceDesignChangeIdForCopy = computed(() => {
+  const current = selectedDesignChangeId.value
+  if (current == null) return null
+  const list = designChangeList.value
+  const idx = list.findIndex((d) => d.id === current)
+  if (idx <= 0) return null
+  return list[idx - 1]?.id ?? null
 })
+
+/** 差異比對用「上一個版本」：第一個變更設計的上一版為原契約（null） */
+const previousDesignChangeIdForDiff = computed(() => {
+  const current = selectedDesignChangeId.value
+  if (current == null) return null
+  const list = designChangeList.value
+  const idx = list.findIndex((d) => d.id === current)
+  if (idx <= 0) return null
+  return list[idx - 1]?.id ?? null
+})
+
+function normalizeText(v: any): string {
+  return (v ?? '').toString().trim()
+}
+
+function normalizeNumber(v: any): number | null {
+  if (v === null || v === undefined || v === '') return null
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null
+  const n = parseFloat(String(v))
+  return Number.isFinite(n) ? n : null
+}
+
+function sameNumber(a: any, b: any): boolean {
+  const na = normalizeNumber(a)
+  const nb = normalizeNumber(b)
+  if (na == null && nb == null) return true
+  if (na == null || nb == null) return false
+  return Math.abs(na - nb) < 1e-9
+}
+
+function clearDiffFlags(list: ProjectItem[]) {
+  for (const it of list) {
+    ;(it as any).diffAll = false
+    ;(it as any).diff = {}
+  }
+}
+
+function groupByPccesCode(list: ProjectItem[]): Map<string, ProjectItem[]> {
+  const map = new Map<string, ProjectItem[]>()
+  for (const it of list) {
+    const key = (it.code || '').trim()
+    if (!key) continue
+    const arr = map.get(key)
+    if (arr) arr.push(it)
+    else map.set(key, [it])
+  }
+  return map
+}
+
+async function applyDiffFromPreviousVersion() {
+  clearDiffFlags(items.value)
+  if (!diffEnabled.value) {
+    updateTreeGridData()
+    return
+  }
+  const cid = constructionId.value
+  const current = selectedDesignChangeId.value
+  if (!cid || current == null) {
+    updateTreeGridData()
+    return
+  }
+
+  const prevId = previousDesignChangeIdForDiff.value
+  const prevCodes = await getConstructionPccesCodes(cid, prevId)
+  const prevItems = prevCodes.map(convertToProjectItem)
+  const prevMap = groupByPccesCode(prevItems)
+
+  for (const it of items.value) {
+    const code = (it.code || '').trim()
+    if (!code) continue
+    const candidates = prevMap.get(code)
+    const prev = candidates && candidates.length > 0 ? candidates.shift()! : null
+    if (!prev) {
+      ;(it as any).diffAll = true
+      ;(it as any).diff = { itemNo: true, code: true, name: true, unit: true, quantity: true, price: true, amount: true }
+      continue
+    }
+    const diff: Record<string, boolean> = {}
+    if (normalizeText(it.name) !== normalizeText(prev.name)) diff.name = true
+    if (normalizeText(it.unit) !== normalizeText(prev.unit)) diff.unit = true
+    if (!sameNumber(it.quantity, prev.quantity)) diff.quantity = true
+    if (!sameNumber(it.price, prev.price)) diff.price = true
+    if (!sameNumber(it.amount, prev.amount)) diff.amount = true
+    ;(it as any).diffAll = false
+    ;(it as any).diff = diff
+  }
+
+  updateTreeGridData()
+}
+
+function getCellClass(row: any, field: string): string | undefined {
+  if (!diffEnabled.value) return undefined
+  if (row?.diffAll) return 'pcces-diff-added'
+  if (row?.diff && row.diff[field]) return 'pcces-diff-changed'
+  return undefined
+}
 
 // TreeGrid 相關
 const treegrid = ref<TreeGridComponent | null>(null)
@@ -415,14 +475,9 @@ provide('treegrid', [Sort, Resize, Filter])
 
 // 匯入相關
 const showImportModal = ref(false)
-const showVersionModal = ref(false)
 const selectedFile = ref<File | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
-const importType = ref<'auto' | 'update'>('auto')
-const versionName = ref('')
-const targetVersionId = ref('')
-const effectiveStartDate = ref('')
-const effectiveEndDate = ref('')
+const importOverwrite = ref(false)
 const isImporting = ref(false)
 const importError = ref('')
 
@@ -577,7 +632,9 @@ const buildTreeData = (items: ProjectItem[]): any[] => {
       quantity: item.quantity,
       price: item.price,
       amount: item.amount,
-      type: item.type
+      type: item.type,
+      diffAll: (item as any).diffAll === true,
+      diff: (item as any).diff || {}
     }
 
     // 如果有子項目，遞迴建立
@@ -626,44 +683,38 @@ const convertToProjectItem = (code: ConstructionPccesCode): ProjectItem => ({
   type: code.type
 })
 
-// 載入版本列表
-const loadVersions = async () => {
-  if (!constructionId.value) return
-
+// 載入變更設計列表（依生效日升序）
+const fetchDesignChangeList = async () => {
+  const cid = constructionId.value
+  if (!cid) {
+    designChangeList.value = []
+    return
+  }
   try {
-    const data = await getContractVersions(constructionId.value)
-    versions.value = data.sort((a, b) => b.versionNumber - a.versionNumber)
-    
-    // 設定當前版本為最新版本
-    const latestVersion = versions.value.find(v => v.isLatest)
-    if (latestVersion) {
-      currentVersion.value = latestVersion
-    } else if (versions.value.length > 0) {
-      currentVersion.value = versions.value[0]
-    }
-  } catch (error: any) {
-    console.error('載入版本列表失敗:', error)
-    alert('載入版本列表失敗：' + (error.message || '未知錯誤'))
+    const list = await getDesignChangeList(cid)
+    designChangeList.value = [...list].sort(
+      (a, b) => new Date(a.effectiveDate).getTime() - new Date(b.effectiveDate).getTime()
+    )
+  } catch {
+    designChangeList.value = []
   }
 }
 
-// 載入工項列表
+// 載入工項列表（依目前選中的變更設計版本）
 const loadItems = async () => {
   if (!constructionId.value) {
     items.value = []
     treeGridData.value = []
     return
   }
-
   isLoading.value = true
   try {
-    const versionId = currentVersion.value?.id
-    const data = await getConstructionPccesCodes(constructionId.value, versionId)
+    const data = await getConstructionPccesCodes(constructionId.value, selectedDesignChangeId.value)
     items.value = data.map(convertToProjectItem)
     updateTreeGridData()
+    await applyDiffFromPreviousVersion()
   } catch (error: any) {
     console.error('載入工項列表失敗:', error)
-    // 如果 API 不存在，不顯示錯誤（因為可能後端尚未實作）
     if (error.response?.status !== 404) {
       alert('載入工項列表失敗：' + (error.message || '未知錯誤'))
     }
@@ -675,41 +726,16 @@ const loadItems = async () => {
 }
 
 // 開啟匯入 Modal
-const openImportModal = async () => {
+const openImportModal = () => {
   if (!constructionId.value) {
     alert('請先選擇工程項目')
     return
   }
   importError.value = ''
   selectedFile.value = null
-  if (fileInput.value) {
-    fileInput.value.value = ''
-  }
-  importType.value = 'auto'
-  versionName.value = ''
-  targetVersionId.value = currentVersion.value?.id || ''
-  effectiveStartDate.value = ''
-  effectiveEndDate.value = ''
-  // 載入版本列表（用於更新現有版本選項）
-  await loadVersions()
+  importOverwrite.value = false
+  if (fileInput.value) fileInput.value.value = ''
   showImportModal.value = true
-}
-
-// 開啟版本選擇 Modal
-const openVersionModal = async () => {
-  if (!constructionId.value) {
-    alert('請先選擇工程項目')
-    return
-  }
-  await loadVersions()
-  showVersionModal.value = true
-}
-
-// 選擇版本
-const selectVersion = async (version: ContractVersion) => {
-  currentVersion.value = version
-  showVersionModal.value = false
-  await loadItems()
 }
 
 // 處理檔案選擇
@@ -721,63 +747,44 @@ const handleFileSelect = (event: Event) => {
   }
 }
 
+// 複製前一個版本
+const handleCopyPrevious = async () => {
+  const cid = constructionId.value
+  const target = selectedDesignChangeId.value
+  if (!cid || target == null) return
+  isCopying.value = true
+  try {
+    const source = sourceDesignChangeIdForCopy.value ?? undefined
+    const { count } = await copyPccesFromTo(cid, source, target)
+    alert(`已從前一個版本複製 ${count} 筆工項至目前版本。`)
+    await loadItems()
+  } catch (error: any) {
+    console.error('複製失敗:', error)
+    alert('複製失敗：' + (error.message || '未知錯誤'))
+  } finally {
+    isCopying.value = false
+  }
+}
+
 // 處理匯入
 const handleImport = async () => {
   if (!selectedFile.value || !constructionId.value) {
     importError.value = '請選擇檔案'
     return
   }
-
-  if (importType.value === 'update' && !targetVersionId.value) {
-    importError.value = '請選擇要更新的版本'
-    return
-  }
-
   isImporting.value = true
   importError.value = ''
-
   try {
     const request: ImportPccesRequest = {
       pccesFile: selectedFile.value,
-      constructionId: constructionId.value
+      constructionId: constructionId.value,
+      designChangeId: selectedDesignChangeId.value,
+      overwrite: importOverwrite.value
     }
-
-    // 自動判斷模式：系統會自動判斷是否為初次匯入或變更設計
-    // 不需要手動設定 isVariationOrder 和 baseVersionId
-    if (importType.value === 'auto') {
-      if (versionName.value.trim()) {
-        request.versionName = versionName.value.trim()
-      }
-      // 生效日期（可選）
-      if (effectiveStartDate.value) {
-        request.effectiveStartDate = effectiveStartDate.value
-      }
-      if (effectiveEndDate.value) {
-        request.effectiveEndDate = effectiveEndDate.value
-      } else if (effectiveStartDate.value) {
-        // 如果設定了開始日期但沒有結束日期，傳送 null 表示持續有效
-        request.effectiveEndDate = null
-      }
-      // 不設定 isVariationOrder，讓系統自動判斷
-    } else if (importType.value === 'update') {
-      if (targetVersionId.value) {
-        request.targetVersionId = targetVersionId.value
-      }
-    }
-
     const result = await importPccesFile(request)
-    
-    // 根據回傳的 isFirstImport 顯示不同的提示訊息
-    const importTypeText = result.isFirstImport 
-      ? '初次匯入（原契約）' 
-      : result.isVariationOrder 
-        ? '變更設計匯入' 
-        : '新版本匯入'
-    
-    alert(`匯入成功！\n匯入類型：${importTypeText}\n版本名稱：${result.versionName}\n版本號：${result.versionNumber}\n工項總數：${result.totalCodes}`)
-    
+    const targetLabel = result.designChangeId == null ? '原契約' : '變更設計'
+    alert(`匯入成功！\n匯入目標：${targetLabel}\n工項總數：${result.totalCodes}`)
     showImportModal.value = false
-    await loadVersions()
     await loadItems()
   } catch (error: any) {
     console.error('匯入失敗:', error)
@@ -853,20 +860,32 @@ const updateTreeGridData = () => {
 // 監聽工程項目變化
 watch(constructionId, async (newId) => {
   if (newId) {
-    await loadVersions()
+    await fetchDesignChangeList()
     await loadItems()
   } else {
     items.value = []
     treeGridData.value = []
-    versions.value = []
-    currentVersion.value = null
+    designChangeList.value = []
+    selectedDesignChangeId.value = null
   }
 })
 
-// 初始化
+watch(selectedDesignChangeId, () => {
+  if (constructionId.value) loadItems()
+})
+
+watch(diffEnabled, async () => {
+  try {
+    await applyDiffFromPreviousVersion()
+  } catch (e) {
+    console.error('套用版本差異失敗:', e)
+  }
+})
+
+// 初始化（需先載入變更設計列表，複製前一版才能正確算出來源版本）
 onMounted(async () => {
   if (constructionId.value) {
-    await loadVersions()
+    await fetchDesignChangeList()
     await loadItems()
   }
 })
@@ -889,6 +908,22 @@ onActivated(() => {
 <style scoped>
 .project-item-database-page {
   padding: 1rem;
+}
+
+/* 紅字色：適合深色背景 (#0f172a) 顯示 */
+.pcces-diff-redword {
+  color: #f87171;
+  font-weight: 700;
+}
+
+.pcces-diff-changed {
+  color: #f87171;
+  font-weight: 600;
+}
+
+.pcces-diff-added {
+  color: #f87171;
+  font-weight: 700;
 }
 
 .treegrid-wrapper {

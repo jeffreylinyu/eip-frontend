@@ -15,13 +15,20 @@ export interface SitePersonnel {
   departmentCode?: string
   subDepartmentCode?: string
   level?: string
-  occupation?: string // 職位名稱
+  occupation?: string // 職稱（父項）
+  occupationCategory?: string // 職稱類別（子項），如勞安→甲級職安、專任工程人員→土木技師
   licenseNumber?: string // 證照號碼
   licenseExpiryDate?: string // 證照到期日
   workStartDate?: string // 到職日
   status: 'Y' | 'N' | 'ARCHIVED' // Y=在職, N=離職, ARCHIVED=封存
   comments?: string
   hasPhoto?: boolean // 是否有上傳證照檔案
+  /** 是否專職 */
+  isDedicated?: boolean
+  /** 是否仍屬於工程案的最後一版（用於判斷「所屬專案」） */
+  isInLatestVersion?: boolean
+  /** 所有指派（工程、多段任職） */
+  assignments?: { id?: number; constructionId: string; workStartDate?: string | null; workEndDate?: string | null; isActive?: boolean }[]
   // 前端可能需要的額外欄位或舊欄位兼容
   name?: string // 兼容舊代碼，映射到 fullName
   position?: string // 兼容舊代碼
@@ -37,6 +44,7 @@ export interface CreateSitePersonnelRequest {
   phone: string
   email: string
   occupation?: string
+  occupationCategory?: string
   departmentCode?: string
   subDepartmentCode?: string
   level?: string
@@ -45,17 +53,22 @@ export interface CreateSitePersonnelRequest {
   workStartDate?: string
   status?: 'Y' | 'N' | 'ARCHIVED'
   comments?: string
+  /** 是否專職 */
+  isDedicated?: boolean
 }
 
 // 更新人員請求
 export interface UpdateSitePersonnelRequest {
   memberId: string
+  /** updateWithPhoto 需要用於權限檢查 */
+  companyId?: string
   fullName?: string
   identityNumber?: string
   phone?: string
   email?: string
   sex?: 'M' | 'F'
   occupation?: string
+  occupationCategory?: string
   departmentCode?: string
   subDepartmentCode?: string
   level?: string
@@ -64,17 +77,27 @@ export interface UpdateSitePersonnelRequest {
   workStartDate?: string
   status?: 'Y' | 'N' | 'ARCHIVED'
   comments?: string
+  /** 是否專職 */
+  isDedicated?: boolean
 }
 
 // 指派專案請求
 export interface AssignProjectRequest {
   memberIdList: string[]
   constructionId: string
+  /** 到職日（YYYY-MM-DD） */
+  assignmentStartDate: string
 }
 
 // 移除專案請求
 export interface RemoveProjectRequest {
   memberIdList: string[]
+  /** 若提供則只移除此工程的指派；不提供則移除該員所有指派 */
+  constructionId?: string
+  /** 離職日（YYYY-MM-DD）；若 hardDeleteAssignment 為 true 可不填 */
+  assignmentEndDate?: string
+  /** 是否要硬刪除此工程的任職紀錄（不寫離職日，直接刪除 assignment） */
+  hardDeleteAssignment?: boolean
 }
 
 export interface SitePersonnelListResponse {
@@ -83,19 +106,8 @@ export interface SitePersonnelListResponse {
   data: SitePersonnel[]
 }
 
-// 職位選項
-// 職位選項
-export const POSITION_OPTIONS = [
-  { value: 'OWNER', label: '負責人', departmentCode: 'BS', color: 'dark', icon: 'fa-user-tie' },
-  { value: 'ADMIN', label: '公司管理員', departmentCode: 'OE', color: 'secondary', icon: 'fa-user-cog' },
-  { value: 'LABOUR_SAFETY', label: '勞安', departmentCode: 'LS', color: 'danger', icon: 'fa-shield-alt' },
-  { value: 'CONSTRUCTION_MANAGER', label: '工地負責人', departmentCode: 'CM', color: 'primary', icon: 'fa-hard-hat' },
-  { value: 'TECHNICIAN', label: '技師', departmentCode: 'TL', color: 'info', icon: 'fa-user-graduate' },
-  { value: 'ARCHITECT', label: '建築師', departmentCode: 'AT', color: 'info', icon: 'fa-pencil-ruler' },
-  { value: 'QUALITY', label: '品管', departmentCode: 'QT', color: 'warning', icon: 'fa-check-circle' },
-  { value: 'ADMIN_STAFF', label: '行政人員', departmentCode: 'AS', color: 'success', icon: 'fa-user' },
-  { value: 'SITE_WORKER', label: '現場人員', departmentCode: 'SW', color: 'secondary', icon: 'fa-user-nurse' }
-] as const
+// 職稱選項由 @/api/sitePersonnelOccupations 提供（監造/營造分開、含類別子項）
+export { POSITION_OPTIONS_FLAT as POSITION_OPTIONS, LEGACY_OCCUPATION_MAP } from './sitePersonnelOccupations'
 
 // 狀態選項
 export const STATUS_OPTIONS = [
@@ -108,9 +120,10 @@ export const STATUS_OPTIONS = [
 export const sitePersonnelApi = {
   // 取得公司工地人員列表
   // GET /management/constructionMember/companyList?companyId={companyId}
-  async getList(companyId: string): Promise<SitePersonnel[]> {
+  async getList(companyId: string, config?: { skipAuthRedirectOn401?: boolean }): Promise<SitePersonnel[]> {
     const response: any = await http.get('/management/constructionMember/companyList', {
-      params: { companyId }
+      params: { companyId },
+      ...config
     })
     
     // http 攔截器已解包 response.data.data (即陣列)，若直接回傳則為陣列
@@ -140,6 +153,21 @@ export const sitePersonnelApi = {
     return sitePersonnelDataTransform.fromApi(response)
   },
 
+  // 更新工地人員（含照片）
+  // PATCH /management/constructionMember/updateWithPhoto
+  async updateWithPhoto(memberData: UpdateSitePersonnelRequest, photoFile: File): Promise<SitePersonnel> {
+    const formData = new FormData()
+    formData.append('memberData', JSON.stringify(memberData))
+    if (photoFile) formData.append('photoFile', photoFile)
+
+    const response: any = await http.patch('/management/constructionMember/updateWithPhoto', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    })
+    return sitePersonnelDataTransform.fromApi(response)
+  },
+
   // 刪除工地人員
   // DELETE /management/constructionMember/delete?memberId={memberId}
   async delete(memberId: string): Promise<void> {
@@ -158,6 +186,18 @@ export const sitePersonnelApi = {
   // PATCH /management/constructionMember/removeConstructionProject
   async removeProject(data: RemoveProjectRequest): Promise<void> {
     await http.patch('/management/constructionMember/removeConstructionProject', data)
+  },
+
+  // 更新任職紀錄的到職日、離職日
+  // PATCH /management/constructionMember/updateAssignment
+  async updateAssignment(data: { assignmentId: number; assignmentStartDate?: string | null; assignmentEndDate?: string | null }): Promise<void> {
+    await http.patch('/management/constructionMember/updateAssignment', data)
+  },
+
+  // 移除單筆任職紀錄
+  // DELETE /management/constructionMember/assignment/{assignmentId}
+  async deleteAssignment(assignmentId: number): Promise<void> {
+    await http.delete(`/management/constructionMember/assignment/${assignmentId}`)
   },
 
   // 搜尋工地人員 (使用公司列表 API 進行前端過濾或後端若有提供搜尋 API)
@@ -220,19 +260,23 @@ export const sitePersonnelDataTransform = {
       identityNumber: apiData.identityNumber,
       sex: apiData.sex || 'M',
       companyId: apiData.companyId,
-      constructionId: apiData.constructionId || apiData.projectId, // 假設後端回傳 constructionId
+      constructionId: apiData.constructionId || apiData.projectId,
       projectId: apiData.constructionId || apiData.projectId, // Alias
       departmentCode: apiData.departmentCode,
       subDepartmentCode: apiData.subDepartmentCode,
       level: apiData.level,
       occupation: apiData.occupation,
+      occupationCategory: apiData.occupationCategory,
       position: apiData.occupation, // 兼容舊欄位
       licenseNumber: apiData.licenseNumber,
       licenseExpiryDate: apiData.licenseExpiryDate,
       workStartDate: apiData.workStartDate,
       status: apiData.status || 'Y',
       comments: apiData.comments,
-      hasPhoto: apiData.hasPhoto
+      hasPhoto: apiData.hasPhoto,
+      isInLatestVersion: apiData.isInLatestVersion ?? false,
+      isDedicated: apiData.isDedicated ?? undefined,
+      assignments: apiData.assignments
     }
   },
 
@@ -247,12 +291,14 @@ export const sitePersonnelDataTransform = {
       sex: personnelData.sex,
       companyId: personnelData.companyId,
       occupation: personnelData.occupation,
+      occupationCategory: personnelData.occupationCategory,
       departmentCode: personnelData.departmentCode,
       licenseNumber: personnelData.licenseNumber,
       licenseExpiryDate: personnelData.licenseExpiryDate,
       workStartDate: personnelData.workStartDate,
       status: personnelData.status,
-      comments: personnelData.comments
+      comments: personnelData.comments,
+      isDedicated: personnelData.isDedicated
     }
   }
 }

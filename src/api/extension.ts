@@ -8,10 +8,9 @@ export enum ExtensionStatus {
   REJECTED = 'REJECTED'  // 退回
 }
 
-// 展延模式枚舉
+// 展延模式枚舉（僅保留 SPECIFIC_DATES）
 export enum ExtensionType {
-  SPECIFIC_DATES = 'SPECIFIC_DATES', // 模式 A：指定日期免計
-  ADD_DAYS = 'ADD_DAYS'              // 模式 B：直接追加天數
+  SPECIFIC_DATES = 'SPECIFIC_DATES' // 指定日期免計
 }
 
 // 展延記錄數據接口
@@ -27,20 +26,28 @@ export interface ExtensionRecord {
   completionDateAfterExtension?: string;
   isApproved?: boolean; // 是否通過
   // 新增欄位（第二階段）
-  totalDurationAfterExtension?: number; // 展延後總工期
   calculatedEndDateAfterExtension?: string; // 展延後預計完工日期
   sequence?: number; // 序次
   approvedAt?: string; // 核准時間
   createdAt?: string; // 建立時間
   // 新增欄位（審核流程與計算模式）
   status?: ExtensionStatus;       // 審核狀態，建立時預設為 DRAFT
-  extensionType?: ExtensionType;  // 展延模式，預設為 ADD_DAYS
-  specificDates?: string[];       // 日期字串陣列 (YYYY-MM-DD)，當模式為 SPECIFIC_DATES 時必填
+  extensionType?: ExtensionType;  // 展延模式，固定為 SPECIFIC_DATES
+  specificDates?: string[];       // 日期字串陣列 (YYYY-MM-DD)
+  // 使用資料版本（後端動態計算）
+  designChangeId?: number | null;
+  versionLabel?: string;
+  versionRange?: string;
+  // 前端動態欄位（公文關聯用）
+  linkedDocumentNumber?: string;  // 關聯公文的發文字號（前端載入時填入）
+  linkedDocumentId?: number | null;      // 關聯公文 ID
+  linkedReferenceId?: number | null;     // DocumentReference ID
 }
 
 // 展延列表查詢參數
 export interface ExtensionListParams {
   constructionId: string;
+  ownerType?: string; // SUPERVISORY | CONTRACTOR
   page?: number;
   pageSize?: number;
 }
@@ -62,13 +69,13 @@ export interface CreateExtensionRequest {
   extendReason?: string;
   extendContent: string;
   extendDate?: string;
-  extendDay?: number; // 用於 ADD_DAYS 模式
+  extendDay?: number;
   approvalDocumentNumber?: string;
   completionDateAfterExtension?: string;
-  // 新增欄位
   status?: ExtensionStatus;       // 建立時預設為 DRAFT
-  extensionType?: ExtensionType; // 預設為 ADD_DAYS
-  specificDates?: string[];      // 日期字串陣列 (YYYY-MM-DD)，當模式為 SPECIFIC_DATES 時必填
+  extensionType?: ExtensionType;  // 固定為 SPECIFIC_DATES
+  specificDates?: string[];       // 日期字串陣列 (YYYY-MM-DD)
+  ownerType?: string;             // SUPERVISORY | CONTRACTOR（由後端自動判斷，前端可選填）
 }
 
 // 更新展延記錄請求
@@ -78,9 +85,8 @@ export interface UpdateExtensionRequest {
   extendContent?: string;
   extendDate?: string;
   extendDay?: number;
-  // 新增欄位
   status?: ExtensionStatus;       // 允許變更審核狀態（管理員/主管）
-  extensionType?: ExtensionType;  // 允許變更展延模式
+  extensionType?: ExtensionType;  // 固定為 SPECIFIC_DATES
   specificDates?: string[];       // 日期字串陣列 (YYYY-MM-DD)
 }
 
@@ -99,10 +105,14 @@ export interface ExtensionResponse {
 export const getExtensionList = async (params: ExtensionListParams): Promise<ExtensionListResponse> => {
   try {
     
+    const queryParams: Record<string, string> = {
+      constructionId: params.constructionId
+    }
+    if (params.ownerType) {
+      queryParams.ownerType = params.ownerType
+    }
     const response = await http.get('/management/extension/list', {
-      params: {
-        constructionId: params.constructionId
-      }
+      params: queryParams
     });
     
     
@@ -142,8 +152,11 @@ export const getExtensionList = async (params: ExtensionListParams): Promise<Ext
  */
 export const createExtension = async (extensionData: CreateExtensionRequest): Promise<ExtensionResponse> => {
   try {
-    
-    const response = await http.post('/management/extension/create', extensionData);
+    const params: any = {};
+    if (extensionData.ownerType) {
+      params.ownerType = extensionData.ownerType;
+    }
+    const response = await http.post('/management/extension/create', extensionData, { params });
     
     return response as unknown as ExtensionResponse;
   } catch (error) {
@@ -211,7 +224,6 @@ export interface ExtensionHistoryRecord {
   extensionId: string; // 展延記錄 ID
   extendReason: string; // 展延原因
   approvedDays: number; // 核准天數
-  totalDurationAfterExtension: number; // 展延後總工期
   calculatedEndDate: string; // 展延後預計完工日期
   verifyNumber?: string; // 驗證編號
   approvedAt: string; // 核准時間
@@ -230,12 +242,12 @@ export interface ExtensionHistoryResponse {
  * @param constructionId 工程編號
  * @returns Promise<ExtensionHistoryResponse>
  */
-export const getExtensionHistory = async (constructionId: string): Promise<ExtensionHistoryResponse> => {
+export const getExtensionHistory = async (constructionId: string, ownerType?: string): Promise<ExtensionHistoryResponse> => {
   try {
+    const queryParams: Record<string, string> = { constructionId }
+    if (ownerType) queryParams.ownerType = ownerType
     const response = await http.get('/management/extension/history', {
-      params: {
-        constructionId
-      }
+      params: queryParams
     });
     
     // 處理不同的回應格式
@@ -260,11 +272,179 @@ export const getExtensionHistory = async (constructionId: string): Promise<Exten
   }
 };
 
+// ── 公文關聯 ──
+
+export interface ExtensionLinkedDocument {
+  referenceId: number
+  documentId: number
+  sourceType: string
+  displayTitle: string
+  targetRole: string
+  targetName: string
+}
+
+/**
+ * 將公文關聯到展延紀錄
+ * POST /extension/{extensionId}/documents
+ */
+export const linkExtensionDocument = async (
+  extensionId: string,
+  documentId: number,
+  sequence: number
+): Promise<any> => {
+  const response = await http.post(`/management/extension/${extensionId}/documents`, {
+    documentId,
+    sequence
+  })
+  return response
+}
+
+/**
+ * 取消公文與展延紀錄的關聯
+ * DELETE /extension/{extensionId}/documents/{referenceId}
+ */
+export const unlinkExtensionDocument = async (
+  extensionId: string,
+  referenceId: number
+): Promise<any> => {
+  const response = await http.delete(`/management/extension/${extensionId}/documents/${referenceId}`)
+  return response
+}
+
+/**
+ * 取得展延紀錄的所有公文關聯
+ * GET /extension/{extensionId}/documents
+ */
+export const getExtensionLinkedDocuments = async (
+  extensionId: string
+): Promise<ExtensionLinkedDocument[]> => {
+  const response = await http.get(`/management/extension/${extensionId}/documents`)
+  // http 攔截器已解包 { code, data } → 直接回傳 data（陣列）
+  if (Array.isArray(response)) return response as ExtensionLinkedDocument[]
+  // 相容未解包的情況
+  const data = (response as any)?.data?.data || (response as any)?.data || response || []
+  return Array.isArray(data) ? data : []
+}
+
+/**
+ * 更新展延紀錄的排序順序
+ * PUT /extension/reorder
+ */
+export const reorderExtensions = async (
+  constructionId: string,
+  orderedExtensionIds: string[]
+): Promise<any> => {
+  const response = await http.put('/management/extension/reorder', {
+    constructionId,
+    orderedExtensionIds
+  })
+  return response
+}
+
+// ===========================
+// PDF 附件
+// ===========================
+
+export interface ExtensionAttachment {
+  id: number;
+  extensionId: string;
+  fileName: string;
+  fileSize: number;
+  contentType: string;
+  createdAt?: string;
+}
+
+export const uploadExtensionAttachment = async (
+  extensionId: string,
+  file: File
+): Promise<ExtensionAttachment> => {
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await http.post(
+    `/management/extension/${extensionId}/attachments`,
+    formData,
+    { headers: { 'Content-Type': 'multipart/form-data' } }
+  );
+  return response as unknown as ExtensionAttachment;
+};
+
+export const getExtensionAttachments = async (
+  extensionId: string
+): Promise<ExtensionAttachment[]> => {
+  const response = await http.get(`/management/extension/${extensionId}/attachments`);
+  return (response ?? []) as unknown as ExtensionAttachment[];
+};
+
+export const deleteExtensionAttachment = async (
+  extensionId: string,
+  attachmentId: number
+): Promise<void> => {
+  await http.delete(`/management/extension/${extensionId}/attachments/${attachmentId}`);
+};
+
+export const previewExtensionAttachment = async (
+  extensionId: string,
+  attachmentId: number
+): Promise<{ url: string; fileName: string }> => {
+  const response = await http.get(
+    `/management/extension/${extensionId}/attachments/${attachmentId}/preview`
+  );
+  return response as unknown as { url: string; fileName: string };
+};
+
+export const downloadAllExtensionAttachments = async (
+  extensionId: string
+): Promise<void> => {
+  const response = await http.get(
+    `/management/extension/${extensionId}/attachments/download-all`,
+    { responseType: 'blob' }
+  ) as unknown as Blob;
+  const blob = response instanceof Blob ? response : new Blob([response], { type: 'application/zip' });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `展延附件_${extensionId}.zip`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  window.URL.revokeObjectURL(url);
+};
+
+export const downloadExtensionAttachment = async (
+  extensionId: string,
+  attachmentId: number,
+  fileName: string
+): Promise<void> => {
+  const response = await http.get(
+    `/management/extension/${extensionId}/attachments/${attachmentId}/download`,
+    { responseType: 'blob' }
+  ) as unknown as Blob;
+  const blob = response instanceof Blob ? response : new Blob([response], { type: 'application/pdf' });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  window.URL.revokeObjectURL(url);
+};
+
 export default {
   getExtensionList,
   createExtension,
   updateExtension,
   deleteExtension,
   batchUpdateExtensions,
-  getExtensionHistory
+  getExtensionHistory,
+  linkExtensionDocument,
+  unlinkExtensionDocument,
+  getExtensionLinkedDocuments,
+  reorderExtensions,
+  uploadExtensionAttachment,
+  getExtensionAttachments,
+  deleteExtensionAttachment,
+  previewExtensionAttachment,
+  downloadAllExtensionAttachments,
+  downloadExtensionAttachment
 };

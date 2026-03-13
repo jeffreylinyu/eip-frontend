@@ -5,7 +5,7 @@ import { useAppSidebarMenuStore } from '@/stores/app-sidebar-menu';
 import { useAppAdminSidebarMenuStore } from '@/stores/app-admin-sidebar-menu';
 import { useAppContractorSidebarMenuStore } from '@/stores/app-contractor-sidebar-menu';
 import { useAppOptionStore } from '@/stores/app-option';
-import { onMounted } from 'vue';
+import { useAuthStore } from '@/stores/auth';
 import SidebarNav from '@/components/app/SidebarNav.vue';
 import { useViewPerspective, ViewType } from '@/composables/useViewPerspective';
 
@@ -14,6 +14,7 @@ const appSidebarMenu = useAppSidebarMenuStore();
 const appAdminSidebarMenu = useAppAdminSidebarMenuStore();
 const appContractorSidebarMenu = useAppContractorSidebarMenuStore();
 const appOption = useAppOptionStore();
+const authStore = useAuthStore();
 const { viewType } = useViewPerspective();
 
 // 判斷是否為系統管理頁面
@@ -37,7 +38,9 @@ const routeViewType = computed(() => {
 const currentSidebarMenu = computed(() => {
   // 系統管理頁面使用管理員側邊欄
   if (isAdminPage.value) {
-    return appAdminSidebarMenu;
+    const items = (appAdminSidebarMenu as any).menuItems;
+    const result = Array.isArray(items) ? items.filter(Boolean) : [];
+    return result;
   }
   
   // 優先使用路由判斷的視角，如果沒有則使用 viewType computed
@@ -56,37 +59,22 @@ const currentSidebarMenu = computed(() => {
   return appSidebarMenu;
 });
 
+// 當側邊欄「清單模式」切換時（例如：未開通清單 <-> 一般清單），強制重新建立 DOM
+// 避免 Vue 重用舊 DOM 造成 click handler / submenu state 不一致，導致子項打不開。
+const sidebarRenderKey = computed(() => {
+  const effectiveViewType = routeViewType.value ?? viewType.value;
+  const isOnboardingMenu =
+    !isAdminPage.value &&
+    effectiveViewType === ViewType.SUPERVISORY &&
+    Array.isArray(currentSidebarMenu.value) &&
+    currentSidebarMenu.value.some((m: any) => m?.is_header && m?.text === '工程開通');
+
+  return `${isAdminPage.value ? 'admin' : 'app'}:${effectiveViewType}:${isOnboardingMenu ? 'onboarding' : 'normal'}`;
+});
+
 function appSidebarMobileToggled() {
 	appOption.appSidebarMobileToggled = !appOption.appSidebarMobileToggled;
 }
-
-const handleSidebarMenuToggle = function(menus) {
-    menus.map(function(menu) {
-        menu.onclick = function(e) {
-            e.preventDefault();
-            var target = this.nextElementSibling;
-            
-            // Close other menus at the same level
-            menus.map(function(m) {
-                var otherTarget = m.nextElementSibling;
-                if (otherTarget !== target) {
-                    otherTarget.style.display = 'none';
-                    otherTarget.closest('.menu-item').classList.remove('expand');
-                }
-            });
-
-            var targetItemElm = target.closest('.menu-item');
-
-            if (targetItemElm.classList.contains('expand') || (targetItemElm.classList.contains('active') && !target.style.display)) {
-                targetItemElm.classList.remove('expand');
-                target.style.display = 'none';
-            } else {
-                targetItemElm.classList.add('expand');
-                target.style.display = 'block';
-            }
-        }
-    });
-};
 
 const expandActiveMenus = () => {
     // 找到所有包含 active 子項目的父菜單項，並自動展開
@@ -97,7 +85,7 @@ const expandActiveMenus = () => {
         while (current && current !== document.body) {
             const parentMenuItem = current.closest('.menu-item.has-sub');
             if (parentMenuItem) {
-                const submenu = parentMenuItem.querySelector('.menu-submenu');
+                const submenu = parentMenuItem.querySelector('.menu-submenu') as HTMLElement | null;
                 if (submenu) {
                     // 添加 expand 和 active class，並顯示子菜單
                     parentMenuItem.classList.add('expand', 'active');
@@ -112,37 +100,12 @@ const expandActiveMenus = () => {
     });
 };
 
-const initSidebarHandles = () => {
-    var menuBaseSelector = '.app-sidebar .menu > .menu-item.has-sub';
-    var submenuBaseSelector = ' > .menu-submenu > .menu-item.has-sub';
-
-    // menu
-    var menuLinkSelector =  menuBaseSelector + ' > .menu-link';
-    var menus = [].slice.call(document.querySelectorAll(menuLinkSelector));
-    handleSidebarMenuToggle(menus);
-
-    // submenu lvl 1
-    var submenuLvl1Selector = menuBaseSelector + submenuBaseSelector;
-    var submenusLvl1 = [].slice.call(document.querySelectorAll(submenuLvl1Selector + ' > .menu-link'));
-    handleSidebarMenuToggle(submenusLvl1);
-
-    // submenu lvl 2
-    var submenuLvl2Selector = menuBaseSelector + submenuBaseSelector + submenuBaseSelector;
-    var submenusLvl2 = [].slice.call(document.querySelectorAll(submenuLvl2Selector + ' > .menu-link'));
-    handleSidebarMenuToggle(submenusLvl2);
-    
-    // 自動展開包含當前路由的父菜單項
+// 監聽 authStore.user 的變化，確保當用戶載入完成時側邊欄能正確更新
+watch(() => authStore.user, (newUser, oldUser) => {
     nextTick(() => {
         expandActiveMenus();
     });
-};
-
-// 重設監聽器當選單變更時 (例如切換 Admin/User 模式)
-watch(currentSidebarMenu, () => {
-    nextTick(() => {
-        initSidebarHandles();
-    });
-}, { deep: true });
+});
 
 // 監聽路由變化，自動展開包含當前路由的父菜單項
 watch(() => route.path, () => {
@@ -150,19 +113,18 @@ watch(() => route.path, () => {
         expandActiveMenus();
     });
 });
-
-onMounted(() => {
-	initSidebarHandles();
-});
 </script>
 <template>
 	<div id="sidebar" class="app-sidebar">
-		<perfect-scrollbar class="app-sidebar-content">
+		<perfect-scrollbar :key="sidebarRenderKey" class="app-sidebar-content">
 			<div class="menu">
-				<template v-for="menu in currentSidebarMenu">
-					<div class="menu-header" v-if="menu.is_header">{{ menu.text }}</div>
-					<div class="menu-divider" v-else-if="menu.is_divider"></div>
-					<template v-else>
+				<template
+					v-for="(menu, idx) in currentSidebarMenu"
+					:key="menu?.url ? `url:${menu.url}` : (menu?.is_header ? `header:${menu.text}:${idx}` : `item:${menu?.text || 'unknown'}:${idx}`)"
+				>
+					<div class="menu-header" v-if="menu && menu.is_header">{{ menu.text }}</div>
+					<div class="menu-divider" v-else-if="menu && menu.is_divider"></div>
+					<template v-else-if="menu">
 						<sidebar-nav v-if="menu.text" v-bind:menu="menu"></sidebar-nav>
 					</template>
 				</template>

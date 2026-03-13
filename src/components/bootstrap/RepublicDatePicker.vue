@@ -470,6 +470,11 @@ watch(() => props.modelValue, (newValue) => {
   color: var(--bs-theme) !important;
 }
 
+/* 修正：選到「今天」時，避免綠底綠字（.dp__today 覆蓋了 active 的白字） */
+.dp__active_date.dp__today {
+  color: var(--bs-white) !important;
+}
+
 .dp__overlay {
   background-color: var(--bs-body-bg) !important;
 }

@@ -1,6 +1,11 @@
 /**
  * 估驗詳細表計算工具
  * 用於工程估驗請款的各項計算
+ *
+ * 欄位與公式依「估驗計價欄位說明」：
+ * - C 估驗計價款、D 物價指數調整款、E 扣款、F 保留款、G 扣回預付款、H 應付金額
+ * - 保留款 F：以 (C + D - E) 為基數，依契約約定比例計算
+ * - 應付金額 H = C + D - E - F - G（廠商開立發票金額）
  */
 
 export interface EstimateCalculationParams {
@@ -63,8 +68,9 @@ export function calculateEstimateDetails(params: EstimateCalculationParams): Est
   // 6. 扣款（E）
   const deductionsResult = deductions
 
-  // 7. 保留款（F）
-  const retentionAmount = currentEstimateAmount * retentionRate
+  // 7. 保留款（F）：依規格為「(估驗計價款 C + 物價指數調整款 D - 扣款 E) 後，再依契約約定比例計算」
+  const baseForRetention = currentEstimateAmount + priceIndexAdjustmentResult - deductionsResult
+  const retentionAmount = Math.max(0, baseForRetention) * retentionRate
 
   // 8. 扣回預付款（G）
   const advancePaymentDeductionResult = advancePaymentDeduction

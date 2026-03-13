@@ -81,6 +81,9 @@ const getContractorLevelLabel = (level: string) => {
   return option ? option.label : level
 }
 
+// 一律顯示公司地址
+const getAddressLabel = (_companyType: string) => '公司地址'
+
 // 方法
 const openCompanyForm = (company?: Company) => {
   editingCompany.value = company || null
@@ -267,6 +270,14 @@ onMounted(() => {
                     <i class="fa fa-calendar me-2 text-muted"></i>
                     <small>加入：{{ new Date(company.joinedAt || company.createdAt).toLocaleDateString() }}</small>
                 </div>
+                <div v-if="company.address" class="d-flex align-items-center mb-2 text-gray-400">
+                    <i class="fa fa-location-dot me-2 text-muted"></i>
+                    <small>{{ getAddressLabel(company.companyType) }}：{{ company.address }}</small>
+                </div>
+                <div v-if="company.phone" class="d-flex align-items-center mb-2 text-gray-400">
+                    <i class="fa fa-phone me-2 text-muted"></i>
+                    <small>公司電話：{{ company.phone }}</small>
+                </div>
             </div>
 
             <!-- Role Badge -->
@@ -288,14 +299,20 @@ onMounted(() => {
             </div>
             
             <!-- Actions Section -->
-            <div class="companies-section p-2 rounded d-flex justify-content-end gap-2 align-items-center">
+            <div class="companies-section p-2 rounded d-flex justify-content-end flex-wrap gap-2 align-items-center">
+                 <button 
+                   class="btn btn-sm btn-outline-light"
+                   @click.stop="openCompanyForm(company)"
+                   title="編輯公司資料"
+                 >
+                   <i class="fa fa-pen me-1"></i> 編輯公司
+                 </button>
                  <button 
                    class="btn btn-sm btn-outline-light"
                    @click="handleManageMembers(company)"
                  >
                    <i class="fa fa-users me-1"></i> 人員管理
                  </button>
-
                  <button 
                    class="btn btn-sm btn-outline-light"
                    @click="handleManageSitePersonnel(company)"

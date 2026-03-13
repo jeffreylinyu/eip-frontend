@@ -1,1136 +1,1732 @@
+<template>
+  <div class="form-a5-export-page a5-dark">
+    <PageHeader
+      :title="pageTitle"
+      icon="fa fa-file-alt"
+      :breadcrumbs="pageBreadcrumbs"
+    />
+
+    <Card>
+      <CardBody>
+        <!-- 匯出說明 -->
+        <div class="alert alert-info mb-4">
+          <h5 class="alert-heading">
+            <i class="fa fa-info-circle me-2"></i>匯出說明
+          </h5>
+          <p class="mb-0">
+            維護各期估驗計價資料後，點擊操作欄的 <i class="fa fa-file-word"></i> 按鈕即可匯出該期估驗請款計價單{{ isContractorRoute ? '（O-3）' : '（A-5）' }}。
+            「應付金額」欄位由系統自動計算，無須手動填寫。
+          </p>
+        </div>
+
+        <!-- 視角切換 Tab（僅監造帳號 A-5 顯示） -->
+        <div v-if="isSupervisoryUser && !isContractorRoute" class="mb-4">
+          <ul class="nav nav-tabs a5-tabs">
+            <li class="nav-item">
+              <a
+                class="nav-link"
+                :class="{ active: activeTab === 'SUPERVISORY' }"
+                href="javascript:;"
+                @click="switchTab('SUPERVISORY')"
+              >
+                <i class="fa fa-hard-hat me-1"></i>工程端
+              </a>
+            </li>
+            <li class="nav-item">
+              <a
+                class="nav-link"
+                :class="{ active: activeTab === 'SUPERVISION_COMPANY' }"
+                href="javascript:;"
+                @click="switchTab('SUPERVISION_COMPANY')"
+              >
+                <i class="fa fa-building me-1"></i>監造端
+              </a>
+            </li>
+          </ul>
+        </div>
+
+        <!-- 估驗詳細表 -->
+        <div class="mb-4">
+          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+            <h5 class="mb-0">
+              <i class="fa fa-table me-2"></i>估驗詳細表
+            </h5>
+            <div class="d-flex gap-2">
+              <button
+                class="btn btn-sm btn-outline-secondary"
+                type="button"
+                :disabled="isLoading || !hasCurrentProject"
+                @click="loadEstimateDetails"
+              >
+                <span v-if="isLoading" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                <i v-else class="fa fa-sync me-1"></i>重新載入
+              </button>
+              <button
+                v-if="!isViewingOther"
+                class="btn btn-sm btn-outline-theme"
+                type="button"
+                :disabled="!hasCurrentProject"
+                @click="addEstimateRecord"
+              >
+                <i class="fa fa-plus me-1"></i>新增記錄
+              </button>
+            </div>
+          </div>
+
+          <div v-if="!hasCurrentProject" class="alert alert-warning mb-0">
+            <i class="fa fa-exclamation-triangle me-2"></i>
+            請先選擇工程案，才能顯示估驗紀錄。
+          </div>
+
+          <div v-else-if="isLoading" class="text-center py-4">
+            <div class="spinner-border text-primary me-2" role="status">
+              <span class="visually-hidden">載入中...</span>
+            </div>
+            <span>載入估驗記錄中...</span>
+          </div>
+
+          <div v-else-if="estimateDetails.length === 0" class="text-center py-4 text-muted">
+            <i class="fa fa-inbox fa-2x mb-2 d-block"></i>
+            <div>尚無估驗記錄</div>
+            <small>點擊「新增記錄」開始建立估驗資料</small>
+          </div>
+
+          <div v-else ref="a5TableWrapperRef" class="table-responsive">
+            <div class="a5-approved-hint mb-2">
+              <i class="fa fa-info-circle me-1"></i>累計金額僅計算狀態為「已核准」之記錄
+            </div>
+            <table class="table a5-table mb-0">
+              <thead>
+                <tr>
+                  <th style="width: 70px;" class="text-center">拖移排序</th>
+                  <th :style="{ width: hasDesignChangeVersions ? '150px' : '110px' }">{{ hasDesignChangeVersions ? '狀態／使用資料版本' : '狀態' }}</th>
+                  <th style="width: 130px;">估驗計價款</th>
+                  <th style="width: 130px;">物價指數調整款</th>
+                  <th style="width: 110px;">扣款</th>
+                  <th style="width: 110px;">
+                    保留款
+                    <span
+                      class="a5-retention-info-wrapper"
+                      @mouseenter="showRetentionTooltip = true"
+                      @mouseleave="showRetentionTooltip = false"
+                    >
+                      <i class="fa fa-info-circle ms-1 text-muted a5-retention-info" aria-hidden="true"></i>
+                      <Transition name="a5-tooltip">
+                        <div v-show="showRetentionTooltip" class="a5-retention-tooltip-popup" role="tooltip">
+                          <div class="a5-retention-tooltip-inner">
+                            {{ retentionColumnTooltip }}
+                          </div>
+                        </div>
+                      </Transition>
+                    </span>
+                  </th>
+                  <th style="width: 130px;">扣回預付款</th>
+                  <th style="width: 120px;">應付金額</th>
+                  <th style="width: 240px;">估驗期間</th>
+                  <th style="width: 80px;" class="text-center">說明</th>
+                  <th style="width: 140px;">關聯公文</th>
+                  <th v-if="!isViewingOther" style="width: 100px;" class="text-center">操作</th>
+                </tr>
+              </thead>
+              <draggable
+                v-model="estimateDetails"
+                tag="tbody"
+                item-key="id"
+                handle=".drag-handle"
+                :disabled="isViewingOther"
+                @end="onDragEnd"
+              >
+                <template #item="{ element: record, index }">
+                <tr>
+                  <!-- 拖移排序 + 序次 -->
+                  <td class="text-center align-middle drag-handle" :class="{ 'pe-none': isViewingOther }" title="拖拉排序">
+                    <div class="d-inline-flex align-items-center gap-1" :style="!isViewingOther ? 'cursor: grab;' : ''">
+                      <i v-if="!isViewingOther" class="fa fa-grip-vertical text-muted" style="opacity: 0.45; font-size: 0.7rem;"></i>
+                      <span class="a5-seq-num">{{ index + 1 }}</span>
+                    </div>
+                  </td>
+                  <!-- 狀態（有變更設計時顯示使用資料版本） -->
+                  <td class="align-middle">
+                    <select
+                      class="form-select form-select-sm"
+                      :value="record.status || EstimateStatus.DRAFT"
+                      :disabled="isViewingOther"
+                      @change="record.status = ($event.target as HTMLSelectElement).value"
+                    >
+                      <option :value="EstimateStatus.DRAFT">草稿</option>
+                      <option :value="EstimateStatus.PENDING">待審核</option>
+                      <option :value="EstimateStatus.APPROVED">已核准</option>
+                      <option :value="EstimateStatus.REJECTED">已退回</option>
+                    </select>
+                    <div v-if="hasDesignChangeVersions && record.versionLabel" class="small text-muted mt-1">
+                      <div>{{ record.versionLabel }}</div>
+                      <div v-if="record.versionRange">{{ record.versionRange }}</div>
+                    </div>
+                  </td>
+                  <!-- 估驗計價款 -->
+                  <td class="a5-amount-cell">
+                    <input
+                      type="text"
+                      inputmode="numeric"
+                      class="form-control form-control-sm a5-no-spinner text-end"
+                      :value="formatAmountDisplay(record.estimateAmount)"
+                      placeholder="0"
+                      :readonly="isViewingOther"
+                      @input="record.estimateAmount = parseAmountInput(($event.target as HTMLInputElement).value)"
+                    />
+                  </td>
+                  <!-- 物價指數調整款 -->
+                  <td class="a5-amount-cell">
+                    <input
+                      type="text"
+                      inputmode="numeric"
+                      class="form-control form-control-sm a5-no-spinner text-end"
+                      :value="formatAmountDisplay(record.adjustPriceIndex)"
+                      placeholder="0"
+                      :readonly="isViewingOther"
+                      @input="record.adjustPriceIndex = parseAmountInput(($event.target as HTMLInputElement).value)"
+                    />
+                  </td>
+                  <!-- 扣款 -->
+                  <td class="a5-amount-cell">
+                    <input
+                      type="text"
+                      inputmode="numeric"
+                      class="form-control form-control-sm a5-no-spinner text-end"
+                      :value="formatAmountDisplay(record.deductAmount)"
+                      placeholder="0"
+                      :readonly="isViewingOther"
+                      @input="record.deductAmount = parseAmountInput(($event.target as HTMLInputElement).value)"
+                    />
+                  </td>
+                  <!-- 保留款（由後端依工程/監造核心資料比例計算，儲存後更新；顯示本筆適用幾%） -->
+                  <td class="a5-amount-cell">
+                    <input
+                      type="text"
+                      class="form-control form-control-sm bg-light text-end"
+                      :value="displayRetention(record)"
+                      readonly
+                      placeholder="儲存後由系統計算"
+                      style="cursor: not-allowed;"
+                    />
+                    <div v-if="getRetentionPercentForRecord(record) != null" class="small text-muted mt-1">
+                      {{ formatRetentionRatePercent(getRetentionPercentForRecord(record)!) }}
+                    </div>
+                  </td>
+                  <!-- 扣回預付款 -->
+                  <td class="align-middle a5-amount-cell">
+                    <input
+                      type="text"
+                      inputmode="numeric"
+                      class="form-control form-control-sm a5-no-spinner text-end"
+                      :value="formatAmountDisplay(record.deductionAdvancePayment)"
+                      placeholder="0"
+                      :readonly="isViewingOther"
+                      @input="record.deductionAdvancePayment = parseAmountInput(($event.target as HTMLInputElement).value)"
+                    />
+                  </td>
+                  <!-- 應付金額 (自動計算) -->
+                  <td class="a5-amount-cell">
+                    <input
+                      type="text"
+                      class="form-control form-control-sm bg-light text-end"
+                      :value="calcAmountPayable(record)"
+                      readonly
+                      placeholder="自動計算"
+                      style="cursor: not-allowed;"
+                    />
+                  </td>
+                  <!-- 估驗期間：起 / 訖（各一列，標籤與日期同列，無 icon、加寬） -->
+                  <td class="align-middle">
+                    <div class="d-flex flex-column gap-1 a5-period-cell">
+                      <div class="d-flex align-items-center gap-1">
+                        <span class="small text-muted text-nowrap">起：</span>
+                        <RepublicDatePicker
+                          :modelValue="record.estimatePeriodStart ?? ''"
+                          :useRepublicYear="true"
+                          :hideIcon="true"
+                          inputClass="form-control form-control-sm a5-period-date-input"
+                          :disabled="isViewingOther"
+                          @update:modelValue="(v: string) => record.estimatePeriodStart = v"
+                        />
+                      </div>
+                      <div class="d-flex align-items-center gap-1">
+                        <span class="small text-muted text-nowrap">訖：</span>
+                        <RepublicDatePicker
+                          :modelValue="record.estimatePeriodEnd ?? ''"
+                          :useRepublicYear="true"
+                          :hideIcon="true"
+                          inputClass="form-control form-control-sm a5-period-date-input"
+                          :disabled="isViewingOther"
+                          @update:modelValue="(v: string) => record.estimatePeriodEnd = v"
+                        />
+                      </div>
+                    </div>
+                  </td>
+                  <!-- 說明：開啟 Modal -->
+                  <td class="align-middle text-center">
+                    <button
+                      v-if="!isViewingOther"
+                      type="button"
+                      class="btn btn-sm btn-outline-secondary"
+                      title="開啟說明欄位"
+                      @click="openExplanationModal(record)"
+                    >
+                      <i class="fa fa-comment-dots"></i>
+                    </button>
+                    <span v-else class="text-muted">—</span>
+                  </td>
+                  <!-- 關聯公文（與 A-4 一致：僅已儲存紀錄可關聯） -->
+                  <td class="align-middle">
+                    <div v-if="getLinkedDocNumber(record)" class="d-flex align-items-center gap-1">
+                      <span
+                        class="small a5-linked-doc-link"
+                        style="word-break: break-all;"
+                        title="點擊預覽公文"
+                        @click="openLinkedDocPreview(record)"
+                      >
+                        {{ getLinkedDocNumber(record) }}
+                      </span>
+                      <button v-if="!isViewingOther" class="btn btn-sm btn-outline-danger p-0 px-1" style="font-size: 0.7rem; line-height: 1.2;" title="取消關聯" @click="clearLinkedDoc(record)">
+                        <i class="fa fa-times"></i>
+                      </button>
+                    </div>
+                    <button
+                      v-else-if="!isViewingOther && canLinkDocument(record)"
+                      class="btn btn-sm btn-outline-info w-100"
+                      @click="openDocPicker(record)"
+                    >
+                      <i class="fa fa-file-lines me-1"></i>選擇公文
+                    </button>
+                    <span v-else class="small text-muted">—</span>
+                  </td>
+                  <!-- 操作（共用下拉選單組件） -->
+                  <td v-if="!isViewingOther" class="text-center align-middle">
+                    <FormTableOperationMenu
+                      :record="record"
+                      :record-id="getRecordId(record)"
+                      theme-class="a5-dark"
+                      :table-wrapper-ref="a5TableWrapperRef"
+                    >
+                      <template #default="{ close }">
+                        <div
+                          class="dropdown-item d-flex align-items-center gap-2 py-2"
+                          :class="{ disabled: isUploading[getRecordId(record)] }"
+                          style="cursor: pointer;"
+                          @click="handleUploadClick(record), close()"
+                        >
+                          <i v-if="isUploading[getRecordId(record)]" class="fa fa-spinner fa-spin"></i>
+                          <i v-else class="fa fa-upload"></i>
+                          <span>上傳檔案</span>
+                        </div>
+                        <div
+                          class="dropdown-item d-flex align-items-center gap-2 py-2"
+                          style="cursor: pointer;"
+                          @click="openAttachmentPanel(record); close()"
+                        >
+                          <i class="fa fa-file-pdf"></i>
+                          <span>相關文件</span>
+                          <span
+                            v-if="attachmentCounts[getRecordId(record)]"
+                            class="badge rounded-pill bg-danger ms-1"
+                            style="font-size: 0.65rem;"
+                          >{{ attachmentCounts[getRecordId(record)] }}</span>
+                        </div>
+                        <div
+                          v-if="!isEngineeringTab"
+                          class="dropdown-item d-flex align-items-center gap-2 py-2"
+                          :class="{ disabled: isExporting || !record?.id || (record?.id && String(record.id).startsWith('est_')) }"
+                          style="cursor: pointer;"
+                          @click="record?.id && !String(record.id).startsWith('est_') && !isExporting && (handleExportForRecord(record), close())"
+                        >
+                          <i class="fa fa-file-word"></i>
+                          <span>匯出此期估驗單</span>
+                        </div>
+                        <hr class="dropdown-divider">
+                        <div
+                          class="dropdown-item d-flex align-items-center gap-2 py-2 text-danger"
+                          style="cursor: pointer;"
+                          @click="removeEstimateRecord(record); close()"
+                        >
+                          <i class="fa fa-trash"></i>
+                          <span>刪除</span>
+                        </div>
+                      </template>
+                    </FormTableOperationMenu>
+                  </td>
+                </tr>
+                </template>
+              </draggable>
+              <tfoot v-if="estimateDetails.length > 0">
+                <tr class="a5-cumulative-row">
+                  <td class="text-center align-middle fw-bold a5-cumulative-cell" colspan="2">累計</td>
+                  <td class="align-middle text-end fw-semibold a5-cumulative-cell">{{ formatAmountDisplay(cumulative.estimateAmount) }}</td>
+                  <td class="align-middle text-end fw-semibold a5-cumulative-cell">{{ formatAmountDisplay(cumulative.adjustPriceIndex) }}</td>
+                  <td class="align-middle text-end fw-semibold a5-cumulative-cell">{{ formatAmountDisplay(cumulative.deductAmount) }}</td>
+                  <td class="align-middle text-end fw-semibold a5-cumulative-cell">{{ formatAmountDisplay(cumulative.retention) }}</td>
+                  <td class="align-middle text-end fw-semibold a5-cumulative-cell">{{ formatAmountDisplay(cumulative.deductionAdvancePayment) }}</td>
+                  <td class="align-middle text-end fw-semibold a5-cumulative-cell">{{ formatAmountDisplay(cumulative.amountPayable) }}</td>
+                  <td :colspan="isViewingOther ? 2 : 3"></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
+          <!-- 自動儲存狀態提示 -->
+          <div v-if="estimateDetails.length > 0 && !isViewingOther" class="d-flex justify-content-end align-items-center mt-3 gap-2">
+            <span v-if="isAutoSaving" class="text-muted small">
+              <i class="fa fa-spinner fa-spin me-1"></i>自動儲存中...
+            </span>
+            <span v-else-if="!hasUnsavedChanges && !isSaving" class="text-success small">
+              <i class="fa fa-check me-1"></i>已儲存
+            </span>
+            <span v-else-if="hasUnsavedChanges" class="text-warning small">
+              <i class="fa fa-circle me-1" style="font-size: 0.5rem; vertical-align: middle;"></i>未儲存的變更
+            </span>
+            <button
+              class="btn btn-sm btn-outline-theme"
+              type="button"
+              :disabled="isSaving || !hasUnsavedChanges"
+              @click="saveAllRecords(false)"
+            >
+              <span v-if="isSaving" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+              <i v-else class="fa fa-save me-1"></i>
+              立即儲存
+            </button>
+          </div>
+        </div>
+
+        <!-- 匯出狀態提示 -->
+        <div v-if="exportMessage" class="a5-export-compact d-flex flex-wrap align-items-center gap-2 py-2">
+          <span :class="['small', exportMessage.type === 'success' ? 'text-success' : 'text-danger']">
+            <i :class="[exportMessage.type === 'success' ? 'fa fa-check-circle' : 'fa fa-exclamation-circle', 'me-1']"></i>
+            {{ exportMessage.text }}
+          </span>
+        </div>
+      </CardBody>
+    </Card>
+
+    <!-- 說明欄位 Modal（共用組件） -->
+    <Modal
+      :show="showExplanationModal && !!explanationRecord"
+      title="欄位說明"
+      modal-id="a5-explanation-modal"
+      hideConfirmButton
+      cancelText="關閉"
+      @update:show="(v: boolean) => { if (!v) closeExplanationModal() }"
+    >
+      <div v-if="explanationRecord" class="a5-explanation-modal-body">
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">本次「扣款」欄位內容說明：</label>
+          <textarea
+            class="form-control"
+            rows="3"
+            v-model="explanationRecord.deductedReason"
+            placeholder="選填"
+          ></textarea>
+        </div>
+        <div>
+          <label class="form-label small fw-semibold">本次估驗自「應付金額」扣抵「違約金」之情形，及扣抵後之「實付金額」說明：</label>
+          <textarea
+            class="form-control"
+            rows="3"
+            v-model="explanationRecord.explainExtendReason"
+            placeholder="選填"
+          ></textarea>
+        </div>
+      </div>
+    </Modal>
+
+    <!-- 相關文件 Modal（共用組件） -->
+    <RelatedDocumentsModal
+      :show="showAttachmentModal"
+      title="相關文件"
+      :loading="isLoadingAttachments"
+      :linked-docs="currentLinkedDocuments"
+      :attachments="currentAttachments"
+      :uploading="isUploadingInModal"
+      :downloading-all="isDownloadingAll"
+      upload-accept=".pdf,application/pdf"
+      modal-class="a5-dark"
+      @update:show="(v: boolean) => { if (!v) showAttachmentModal = false }"
+      @upload="handleModalUpload"
+      @download-all="handleDownloadAll"
+      @unlink-doc="handleUnlinkDocInModal"
+      @preview-doc="handlePreviewDocument"
+      @download-doc="handleDownloadDocument"
+      @preview-att="handlePreviewAttachment"
+      @download-att="handleDownloadAttachment"
+      @delete-att="handleDeleteAttachment"
+    />
+
+    <!-- PDF 預覽 Modal（關聯公文 / 附件預覽） -->
+    <Modal
+      :show="showPreviewModal"
+      :title="'預覽 - ' + previewFileName"
+      icon="fa fa-eye"
+      size="xl"
+      modalClass="a5-dark"
+      :hideFooter="true"
+      @update:show="(v: boolean) => { if (!v) { showPreviewModal = false; previewUrl = '' } }"
+    >
+      <template #body>
+        <div v-if="isLoadingPreview" class="text-center py-5">
+          <i class="fa fa-spinner fa-spin me-1"></i>載入中...
+        </div>
+        <div v-else-if="!previewUrl" class="text-center py-5 text-muted">
+          <i class="fa fa-exclamation-circle fa-2x mb-2 d-block"></i>
+          <span>無法產生預覽連結</span>
+        </div>
+        <iframe
+          v-else
+          :src="previewUrl"
+          style="width: 100%; height: 75vh; border: none; border-radius: 6px;"
+        ></iframe>
+      </template>
+    </Modal>
+
+    <!-- 公文選擇器（估驗關聯公文，與 A-4 一致） -->
+    <DocumentPicker
+      :show="showDocPicker"
+      title="選擇公文（發文字號）"
+      :constructionId="constructionId"
+      :darkMode="true"
+      :showNameInput="false"
+      @update:show="(v: boolean) => { if (!v) showDocPicker = false }"
+      @select="onDocumentPicked"
+    />
+
+    <!-- 共用隱藏 input：操作選單內「上傳檔案」觸發 -->
+    <input
+      ref="operationMenuFileInputRef"
+      type="file"
+      accept=".pdf,application/pdf"
+      multiple
+      class="d-none"
+      @change="onOperationMenuFileChange"
+    />
+  </div>
+</template>
+
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { useWorkspaceStore } from '@/stores/workspace'
+import { useViewPerspective } from '@/composables/useViewPerspective'
+import PageHeader from '@/components/bootstrap/PageHeader.vue'
 import Card from '@/components/bootstrap/Card.vue'
 import CardBody from '@/components/bootstrap/CardBody.vue'
-import CardHeader from '@/components/bootstrap/CardHeader.vue'
-import Toast from '@/components/bootstrap/Toast.vue'
 import Modal from '@/components/bootstrap/Modal.vue'
-import { formA5Api, downloadBlobAsFile, formatFileSize, handleApiError, type FormDownloadRequest } from '@/api/forms'
-import { estimateApi, type EstimateRecord } from '@/api/estimate'
+import RelatedDocumentsModal from '@/components/related-documents/RelatedDocumentsModal.vue'
+import RepublicDatePicker from '@/components/bootstrap/RepublicDatePicker.vue'
+import draggable from 'vuedraggable'
+import { formA5Api, downloadBlobAsFile } from '@/api/forms'
+import { useExportLoading } from '@/composables/useExportLoading'
+import {
+  estimateApi,
+  EstimateStatus,
+  type EstimateRecord,
+  type EstimateCumulative,
+  getEstimateLinkedDocuments,
+  linkEstimateDocument,
+  unlinkEstimateDocument,
+  uploadEstimateAttachment,
+  getEstimateAttachments,
+  deleteEstimateAttachment,
+  previewEstimateAttachment,
+  downloadEstimateAttachment,
+  downloadAllEstimateAttachments,
+  type EstimateAttachment
+} from '@/api/estimate'
+import { supervisionCompanyProfileApi } from '@/api/supervisionCompanyProfile'
+import DocumentPicker from '@/components/document/DocumentPicker.vue'
+import FormTableOperationMenu from '@/components/forms/FormTableOperationMenu.vue'
+import { getDocumentCenterList, type DocumentCenterListItem } from '@/api/documentCenter'
+import { getDesignChangeList, type DesignChangeItem } from '@/api/designChange'
 
+const route = useRoute()
 const workspaceStore = useWorkspaceStore()
+const { isSupervisory } = useViewPerspective()
+const isSupervisoryUser = computed(() => isSupervisory.value)
 
-// 狀態管理
-const isLoading = ref(false)
-const isDownloading = ref(false)
-const downloadProgress = ref(0)
-const customFileName = ref('')
-const includeWatermark = ref(false)
-const includeSignature = ref(true)
-
-// 參數填寫 Modal 相關狀態
-const showParamsModal = ref(false)
-const currentParamSection = ref('')
-const isSavingParams = ref(false)
-
-// 表單參數數據
-const formParams = ref({
-  // 基本資訊
-  supervisoryName: '',
-  supervisoryFactory: '',
-  contractDate: '',
-  startDate: '',
-  finishDate: '',
-  workedDay: '',
-  
-  // 金額相關
-  disbursementAdvancePayment: '',
-  estimateAmount: '',
-  adjustPriceIndex: '',
-  deductAmount: '',
-  retention: '',
-  deductionAdvancePayment: '',
-  
-  // 其他
-  comment: '',
-  deductedColumnReason: '',
-  explainActualAmount: ''
-})
-
-// A-5 表單相關數據
-const formInfo = {
-  code: 'A-5',
-  name: '估驗請款計價單',
-  description: '估驗請款計價單是工程進度款項申請的重要文件，包含工程進度、計價項目、請款金額等內容。',
-  category: 'A類表單',
-  version: 'v2.1',
-  lastUpdate: '2024-01-15',
-  requiredFields: [
-    '工程基本資訊',
-    '計價項目明細',
-    '工程進度說明',
-    '請款金額計算',
-    '估驗資料',
-    '付款條件',
-    '附件清單'
+// O-3 營造路由 vs A-5 監造路由
+const isContractorRoute = computed(() => (route.path || '').includes('/forms/o3-estimate'))
+const pageTitle = computed(() =>
+  isContractorRoute.value ? 'O-3 估驗請款計價表' : 'A-5 估驗請款計價單'
+)
+const pageBreadcrumbs = computed(() => {
+  const last = { text: pageTitle.value, active: true as const }
+  if (isContractorRoute.value) {
+    return [
+      { text: '表單匯出', href: 'javascript:;' },
+      { text: 'O類表單', href: 'javascript:;' },
+      last
+    ]
+  }
+  return [
+    { text: '表單匯出', href: 'javascript:;' },
+    { text: 'A類表單', href: 'javascript:;' },
+    last
   ]
+})
+
+// 工程端 / 監造端 Tab（僅監造帳號 A-5 使用）
+const activeTab = ref<'SUPERVISORY' | 'SUPERVISION_COMPANY'>('SUPERVISORY')
+const currentOwnerType = computed(() => activeTab.value)
+const switchTab = async (tab: 'SUPERVISORY' | 'SUPERVISION_COMPANY') => {
+  if (activeTab.value === tab) return
+  activeTab.value = tab
+  if (tab === 'SUPERVISION_COMPANY') {
+    await loadSupervisionCompanyRetention()
+  } else {
+    supervisionCompanyRetainedRatio.value = null
+  }
+  loadEstimateDetails()
 }
 
+// 呼叫 API 時使用的 ownerType：營造路由用 CONTRACTOR，監造 A-5 用 currentOwnerType
+const requestOwnerType = computed(() => {
+  if (isContractorRoute.value) return 'CONTRACTOR'
+  return currentOwnerType.value
+})
 
-// 估驗詳細表資料
-const estimateDetails = ref<EstimateRecord[]>([
-  {
-    id: 'current',
-    constructionId: '',
-    period: '本次',
-    estimateAmount: 0,
-    adjustPriceIndex: 0,
-    deductAmount: 0,
-    retention: 0,
-    deductionAdvancePayment: 0,
-    deductedReason: '',
-    amountPayable: 0,
-    accumulatedAdvancePayment: 0,
-    cumulativeDisbursementAdvancePayment: 0,
-    lastUpdateAmountContract: 0,
-    notDeductedAdvancePayment: 0,
-    originContractPayment: 0,
-    payment: 0,
-    percentageOfFinish: 0,
-    percentageOfTotalFinish: 0,
-    previewsAdjustPriceIndex: 0,
-    previewsDeductAmount: 0,
-    previewsDeductionAdvancePayment: 0,
-    previewsEstimateAmount: 0,
-    previewsRetention: 0,
-    previewsTotalPayment: 0,
-    totalAdjustPriceIndex: 0,
-    totalDeductAmount: 0,
-    totalDeductionAdvancePayment: 0,
-    totalEstimateAmount: 0,
-    totalPayment: 0,
-    totalRetention: 0,
-    workedDay: 0
+// 與 A-4 一致：有變更設計且非監造公司視角時顯示「使用資料版本」欄位（需 effectiveDate/effectiveEndDate 供動態算 %）
+const designChangeList = ref<DesignChangeItem[]>([])
+const hasDesignChangeVersions = computed(() =>
+  designChangeList.value.length > 0 && activeTab.value !== 'SUPERVISION_COMPANY'
+)
+
+// 各版本「目前」保留款比例（%），重拉列表時一併更新，日期或基本資料改動後會跟著改
+const retentionRatesByVersion = ref<Map<number | null, number>>(new Map())
+
+// 與 A-4 一致：檢視他人時不顯示操作、不可編輯（預留，目前固定 false）
+const isViewingOther = computed(() => false)
+// 工程端 Tab：監造帳號在工程端時不顯示匯出按鈕
+const isEngineeringTab = computed(() => isSupervisoryUser.value && activeTab.value === 'SUPERVISORY')
+
+const hasCurrentProject = computed(() => !!workspaceStore.currentProject?.id)
+const constructionId = computed(() => workspaceStore.currentProject?.id ?? '')
+
+// 保留款欄位 i 圖示 hover 是否顯示說明
+const showRetentionTooltip = ref(false)
+
+// 監造端 Tab 時使用監造核心資料的保留款比例（%），未載入前為 null
+const supervisionCompanyRetainedRatio = ref<number | null>(null)
+const loadSupervisionCompanyRetention = async () => {
+  if (!constructionId.value) {
+    supervisionCompanyRetainedRatio.value = null
+    return
   }
-])
+  try {
+    const workspaceId = workspaceStore.currentWorkspace?.id
+    const profile = await supervisionCompanyProfileApi.getProfile(constructionId.value, workspaceId)
+    const pct = profile.retainedRatio != null ? Number(profile.retainedRatio) : null
+    supervisionCompanyRetainedRatio.value = Number.isFinite(pct) ? pct : null
+  } catch {
+    supervisionCompanyRetainedRatio.value = null
+  }
+}
 
-// 原始估驗詳細表資料（用於變更檢測）
+// 保留款比例（% → 小數，如 5 → 0.05）。監造端由監造核心資料取得，其餘由工程核心資料取得，未設定時預設 5%
+const retentionRate = computed(() => {
+  const useSupervisionCompany =
+    isSupervisoryUser.value && !isContractorRoute.value && activeTab.value === 'SUPERVISION_COMPANY'
+  if (useSupervisionCompany && supervisionCompanyRetainedRatio.value != null) {
+    const num = supervisionCompanyRetainedRatio.value
+    return (Number.isFinite(num) ? num : 5) / 100
+  }
+  const pct = workspaceStore.currentProject?.retentionRatio
+  const num = pct ? parseFloat(String(pct)) : 5
+  return (Number.isFinite(num) ? num : 5) / 100
+})
+
+// 保留款 i 圖示提示：標明保留款比例% 的來源與計算方式
+const retentionColumnTooltip = computed(() => {
+  let source = '工程核心資料'
+  if (isSupervisoryUser.value && activeTab.value === 'SUPERVISION_COMPANY') {
+    source = '監造核心資料'
+  }
+  // 營造路由與工程端 Tab 皆為工程核心資料
+  return `保留款比例% 來源：${source}\n\n計算方式：保留款 = (估驗計價款 C + 物價指數調整款 D - 扣款 E) × 保留款比例%`
+})
+
+// ── 估驗記錄 ──
+const estimateDetails = ref<EstimateRecord[]>([])
 const originalEstimateDetails = ref<EstimateRecord[]>([])
+const isLoading = ref(false)
+const isSaving = ref(false)
 
-// 載入狀態
-const isLoadingEstimateDetails = ref(false)
+// ── 自動儲存 ──
+const isAutoSaving = ref(false)
+const hasUnsavedChanges = ref(false)
+const autoSaveTimer = ref<number | null>(null)
+const isInitialLoadSettled = ref(false)
 
-// 參數填寫區塊定義
-const paramSections = [
-  {
-    id: 'estimate-detail',
-    title: '估驗詳細表',
-    icon: 'fa fa-table',
-    description: '維護估驗請款計價單的詳細資料',
-    isTable: true,
-    fields: undefined as any // 表格類型不需要 fields
-  }
-]
+// ── 說明 Modal ──
+const showExplanationModal = ref(false)
+const explanationRecord = ref<EstimateRecord | null>(null)
 
-// 最近下載記錄
-const recentDownloads = ref([
-  {
-    id: 1,
-    fileName: 'A-5_估驗請款計價單_台北市政府建管處版本_2024-01-15.docx',
-    template: '台北市政府建管處版本',
-    downloadTime: '2024-01-15 14:30:25',
-    fileSize: '1.2 MB'
-  },
-  {
-    id: 2,
-    fileName: 'A-5_估驗請款計價單_新北市政府工務局版本_2024-01-10.docx',
-    template: '新北市政府工務局版本',
-    downloadTime: '2024-01-10 09:15:42',
-    fileSize: '1.1 MB'
-  }
-])
+// ── 關聯公文（與 A-4 一致） ──
+const showDocPicker = ref(false)
+const currentDocPickerRecord = ref<EstimateRecord | null>(null)
+const docCacheMap = ref<Map<number, DocumentCenterListItem>>(new Map())
 
-// 計算屬性
-const canDownload = computed(() => {
-  return !isDownloading.value
-})
+// 操作選單：共用組件用；上傳檔案時需知道當前列
+const operationMenuFileInputRef = ref<HTMLInputElement | null>(null)
+const operationMenuRecord = ref<EstimateRecord | null>(null)
+const a5TableWrapperRef = ref<HTMLElement | null>(null)
 
-const generatedFileName = computed(() => {
-  if (customFileName.value.trim()) {
-    return customFileName.value.trim()
-  }
-  
-  const now = new Date()
-  const dateStr = now.toISOString().split('T')[0]
-  
-  return `A-5_估驗請款計價單_${dateStr}`
-})
-
-// 方法
-const downloadForm = async () => {
-  if (!canDownload.value || isDownloading.value) return
-  
-  isDownloading.value = true
-  downloadProgress.value = 0
-  
-  let progressInterval: number | null = null
-  
-  try {
-    // 準備 A-5 專用參數（使用已填寫的參數）
-    const a5Params = {
-      constructionId: workspaceStore.currentProject?.id || '',
-      title: customFileName.value.trim() || generatedFileName.value,
-      ...formParams.value
-    }
-    
-    // 開始進度模擬
-    progressInterval = setInterval(() => {
-      if (downloadProgress.value < 90) {
-        downloadProgress.value += Math.random() * 10
-      }
-    }, 200)
-    
-    // 調用真實 API 下載文件
-    const blob = await formA5Api.downloadReport(a5Params)
-    
-    // 完成進度
-    downloadProgress.value = 100
-    if (progressInterval) {
-      clearInterval(progressInterval)
-      progressInterval = null
-    }
-    
-    // 生成檔案名稱
-    const fileName = `${generatedFileName.value}.docx`
-    
-    // 下載文件
-    downloadBlobAsFile(blob, fileName)
-    
-    // 添加到下載記錄
-    const newDownload = {
-      id: recentDownloads.value.length + 1,
-      fileName: fileName,
-      template: 'A-5 估驗請款計價單',
-      downloadTime: new Date().toLocaleString('zh-TW'),
-      fileSize: formatFileSize(blob.size)
-    }
-    
-    recentDownloads.value.unshift(newDownload)
-    
-    // 限制記錄數量
-    if (recentDownloads.value.length > 10) {
-      recentDownloads.value = recentDownloads.value.slice(0, 10)
-    }
-    
-    // 顯示成功訊息
-    showToast('下載成功！', `${fileName} 已開始下載`, 'success')
-    
-  } catch (error) {
-    console.error('下載失敗:', error)
-    const errorMessage = handleApiError(error)
-    showToast('下載失敗', errorMessage, 'error')
-  } finally {
-    if (progressInterval) {
-      clearInterval(progressInterval)
-    }
-    isDownloading.value = false
-    downloadProgress.value = 0
-  }
+function handleUploadClick(record: EstimateRecord) {
+  if (isUploading.value[getRecordId(record)]) return
+  operationMenuRecord.value = record
+  operationMenuFileInputRef.value?.click()
 }
 
-const showToast = (title: string, message: string, type: 'success' | 'error' | 'warning' = 'success') => {
-  // 使用 Toast 組件顯示訊息
-  // 這裡可以根據您的 Toast 組件實作來調整
-}
-
-
-const redownloadFile = async (download: any) => {
-  try {
-    isDownloading.value = true
-    
-    // 準備 A-5 專用參數（使用已填寫的參數）
-    const a5Params = {
-      constructionId: workspaceStore.currentProject?.id || '',
-      title: download.fileName.replace('.docx', '').replace('.pdf', ''),
-      ...formParams.value
-    }
-    
-    const blob = await formA5Api.downloadReport(a5Params)
-    downloadBlobAsFile(blob, download.fileName)
-    
-    showToast('重新下載成功', `${download.fileName} 已開始下載`, 'success')
-  } catch (error) {
-    const errorMessage = handleApiError(error)
-    showToast('重新下載失敗', errorMessage, 'error')
-  } finally {
-    isDownloading.value = false
-  }
-}
-
-// 參數填寫相關方法
-const openParamsModal = (sectionId: string) => {
-  currentParamSection.value = sectionId
-  showParamsModal.value = true
-}
-
-const closeParamsModal = () => {
-  showParamsModal.value = false
-  currentParamSection.value = ''
-}
-
-const saveParams = async () => {
-  try {
-    isSavingParams.value = true
-    
-    // 驗證必填欄位
-    const currentSection = paramSections.find(s => s.id === currentParamSection.value)
-    if (currentSection) {
-      // 如果是表格類型，檢查表格資料
-      if (currentSection.isTable) {
-        // 表格類型不需要額外驗證，資料已經在表格中維護
-      } else if (currentSection.fields && currentSection.fields.length > 0) {
-        // 一般欄位類型
-        const requiredFields = currentSection.fields.filter(f => f.required)
-        const missingFields = requiredFields.filter(f => !formParams.value[f.key as keyof typeof formParams.value])
-        
-        if (missingFields.length > 0) {
-          showToast('驗證失敗', `請填寫必填欄位：${missingFields.map(f => f.label).join('、')}`, 'error')
-          return
-        }
-      }
-    }
-    
-    // 這裡可以添加保存到後端的邏輯
-    // await formA5Api.saveParams(formParams.value)
-    
-    showToast('保存成功', '參數已成功保存', 'success')
-    closeParamsModal()
-    
-  } catch (error) {
-    const errorMessage = handleApiError(error)
-    showToast('保存失敗', errorMessage, 'error')
-  } finally {
-    isSavingParams.value = false
-  }
-}
-
-const getCurrentSection = () => {
-  return paramSections.find(s => s.id === currentParamSection.value)
-}
-
-// 檢查估驗記錄是否有變更
-const hasEstimateRecordChanged = (currentRecord: EstimateRecord, originalRecord: EstimateRecord): boolean => {
-  if (!originalRecord) return true // 如果沒有原始記錄，視為有變更
-  
-  return (
-    currentRecord.estimateAmount !== originalRecord.estimateAmount ||
-    currentRecord.adjustPriceIndex !== originalRecord.adjustPriceIndex ||
-    currentRecord.deductAmount !== originalRecord.deductAmount ||
-    currentRecord.retention !== originalRecord.retention ||
-    currentRecord.deductionAdvancePayment !== originalRecord.deductionAdvancePayment ||
-    currentRecord.deductedReason !== originalRecord.deductedReason
-  )
-}
-
-// 表格操作方法
-const updateEstimateDetail = (id: string, field: string, value: any) => {
-  const record = estimateDetails.value.find(r => r.id === id)
+function onOperationMenuFileChange(e: Event) {
+  const record = operationMenuRecord.value
   if (record) {
-    (record as any)[field] = value
-    // 自動計算應付金額
-    if (field !== 'amountPayable') {
-      record.amountPayable = record.estimateAmount + record.adjustPriceIndex - record.deductAmount - record.retention - record.deductionAdvancePayment
+    handleFileUpload(e, record)
+  }
+  operationMenuRecord.value = null
+  ;(e.target as HTMLInputElement).value = ''
+}
+
+function canLinkDocument(record: EstimateRecord): boolean {
+  const id = record.id ?? record.estimateId
+  return !!id && !String(id).startsWith('est_')
+}
+
+function getLinkedDocNumber(record: EstimateRecord): string {
+  return (record as any).linkedDocumentNumber ?? ''
+}
+
+/** 點擊關聯公文文號時開啟預覽 */
+function openLinkedDocPreview(record: EstimateRecord) {
+  const docId = (record as any).linkedDocumentId
+  if (docId == null) return
+  const doc = docCacheMap.value.get(docId)
+  if (doc?.fileUrl) handlePreviewDocument(doc)
+}
+
+async function openDocPicker(record: EstimateRecord) {
+  if (!canLinkDocument(record)) return
+  currentDocPickerRecord.value = record
+  showDocPicker.value = true
+}
+
+async function onDocumentPicked(payload: { document: DocumentCenterListItem }) {
+  const record = currentDocPickerRecord.value
+  if (!record) return
+  const estimateId = record.id ?? record.estimateId
+  if (!estimateId || String(estimateId).startsWith('est_')) return
+  const idx = estimateDetails.value.findIndex(r => (r.id ?? r.estimateId) === estimateId)
+  const sequence = idx >= 0 ? idx + 1 : 1
+  try {
+    await linkEstimateDocument(estimateId, payload.document.id, sequence)
+    const refs = await getEstimateLinkedDocuments(estimateId)
+    const ref = refs[0]
+    ;(record as any).linkedDocumentId = payload.document.id
+    ;(record as any).linkedReferenceId = ref?.referenceId ?? null
+    ;(record as any).linkedDocumentNumber = payload.document.documentNumber || payload.document.subject || ''
+    ;(record as any).linkedDocumentSubject = payload.document.subject || ''
+  } catch (e) {
+    console.error('關聯公文失敗:', e)
+  } finally {
+    showDocPicker.value = false
+    currentDocPickerRecord.value = null
+  }
+}
+
+async function clearLinkedDoc(record: EstimateRecord) {
+  const refId = (record as any).linkedReferenceId
+  const estimateId = record.id ?? record.estimateId
+  if (!estimateId || !refId) return
+  try {
+    await unlinkEstimateDocument(estimateId, refId)
+    ;(record as any).linkedDocumentNumber = ''
+    ;(record as any).linkedDocumentId = null
+    ;(record as any).linkedReferenceId = null
+    ;(record as any).linkedDocumentSubject = ''
+  } catch (e) {
+    console.error('取消關聯失敗:', e)
+  }
+}
+
+function getRecordId(record: EstimateRecord): string {
+  return String(record.id ?? record.estimateId ?? '')
+}
+
+// ── 上傳檔案 / 相關文件（與 A-4 一致） ──
+const isUploading = ref<Record<string, boolean>>({})
+const attachmentCounts = ref<Record<string, number>>({})
+const showAttachmentModal = ref(false)
+const currentAttachmentRecord = ref<EstimateRecord | null>(null)
+const currentLinkedDocuments = ref<DocumentCenterListItem[]>([])
+const currentLinkedRefs = ref<{ referenceId: number; documentId: number }[]>([])
+const currentAttachments = ref<EstimateAttachment[]>([])
+const isLoadingAttachments = ref(false)
+const isUploadingInModal = ref(false)
+const isDownloadingAll = ref(false)
+
+async function loadAttachmentCounts() {
+  for (const record of estimateDetails.value) {
+    const eid = getRecordId(record)
+    if (!eid || eid.startsWith('est_')) {
+      attachmentCounts.value[eid] = 0
+      continue
+    }
+    try {
+      const [atts, refs] = await Promise.all([
+        getEstimateAttachments(eid),
+        getEstimateLinkedDocuments(eid).catch(() => [])
+      ])
+      attachmentCounts.value[eid] = atts.length + refs.length
+    } catch {
+      attachmentCounts.value[eid] = 0
     }
   }
 }
 
-// 載入估驗記錄列表
-const loadEstimateDetails = async () => {
-  const constructionId = workspaceStore.currentProject?.id || ''
-  if (!constructionId) {
+async function handleFileUpload(e: Event, record: EstimateRecord) {
+  const input = e.target as HTMLInputElement
+  const files = input.files
+  if (!files || files.length === 0) return
+  const estimateId = getRecordId(record)
+  if (!estimateId || estimateId.startsWith('est_')) return
+  isUploading.value[estimateId] = true
+  try {
+    for (const file of Array.from(files)) {
+      await uploadEstimateAttachment(estimateId, file)
+    }
+    const atts = await getEstimateAttachments(estimateId)
+    const refs = await getEstimateLinkedDocuments(estimateId).catch(() => [])
+    attachmentCounts.value[estimateId] = atts.length + refs.length
+  } catch (err) {
+    console.error('上傳附件失敗:', err)
+  } finally {
+    isUploading.value[estimateId] = false
+    input.value = ''
+  }
+}
+
+async function openAttachmentPanel(record: EstimateRecord) {
+  const estimateId = getRecordId(record)
+  if (!estimateId || estimateId.startsWith('est_')) return
+  currentAttachmentRecord.value = record
+  showAttachmentModal.value = true
+  isLoadingAttachments.value = true
+  currentLinkedDocuments.value = []
+  currentLinkedRefs.value = []
+  currentAttachments.value = []
+  try {
+    const [atts, refs] = await Promise.all([
+      getEstimateAttachments(estimateId),
+      getEstimateLinkedDocuments(estimateId).catch(() => [])
+    ])
+    currentAttachments.value = atts
+    currentLinkedRefs.value = refs.map((r: { referenceId: number; documentId: number }) => ({ referenceId: r.referenceId, documentId: r.documentId }))
+    if (refs.length > 0 && docCacheMap.value.size > 0) {
+      const docs: DocumentCenterListItem[] = []
+      for (const ref of refs) {
+        const doc = docCacheMap.value.get(ref.documentId)
+        if (doc) docs.push(doc)
+      }
+      currentLinkedDocuments.value = docs
+    }
+  } catch (err) {
+    console.error('載入相關文件失敗:', err)
+  } finally {
+    isLoadingAttachments.value = false
+  }
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+async function handleModalUpload(files: FileList) {
+  if (!files?.length) return
+  const record = currentAttachmentRecord.value
+  const estimateId = record ? getRecordId(record) : ''
+  if (!estimateId) return
+  isUploadingInModal.value = true
+  try {
+    for (const file of Array.from(files)) {
+      await uploadEstimateAttachment(estimateId, file)
+    }
+    currentAttachments.value = await getEstimateAttachments(estimateId)
+    attachmentCounts.value[estimateId] = currentAttachments.value.length + currentLinkedDocuments.value.length
+  } catch (err) {
+    console.error('上傳附件失敗:', err)
+  } finally {
+    isUploadingInModal.value = false
+  }
+}
+
+async function handleDownloadAttachment(att: EstimateAttachment) {
+  const record = currentAttachmentRecord.value
+  const estimateId = record ? getRecordId(record) : ''
+  if (!estimateId) return
+  try {
+    await downloadEstimateAttachment(estimateId, att.id, att.fileName)
+  } catch (err) {
+    console.error('下載附件失敗:', err)
+  }
+}
+
+async function handleDeleteAttachment(att: EstimateAttachment) {
+  const record = currentAttachmentRecord.value
+  const estimateId = record ? getRecordId(record) : ''
+  if (!estimateId || !confirm(`確定要刪除「${att.fileName}」？`)) return
+  try {
+    await deleteEstimateAttachment(estimateId, att.id)
+    currentAttachments.value = currentAttachments.value.filter(a => a.id !== att.id)
+    attachmentCounts.value[estimateId] = currentAttachments.value.length + currentLinkedDocuments.value.length
+  } catch (err) {
+    console.error('刪除附件失敗:', err)
+  }
+}
+
+async function handleDownloadAll() {
+  const record = currentAttachmentRecord.value
+  const estimateId = record ? getRecordId(record) : ''
+  if (!estimateId) return
+  isDownloadingAll.value = true
+  try {
+    await downloadAllEstimateAttachments(estimateId)
+  } catch (err) {
+    console.error('下載全部失敗:', err)
+  } finally {
+    isDownloadingAll.value = false
+  }
+}
+
+// PDF 預覽（關聯公文用 doc.fileUrl，附件用預覽 API）
+const showPreviewModal = ref(false)
+const previewUrl = ref('')
+const previewFileName = ref('')
+const isLoadingPreview = ref(false)
+
+function handlePreviewDocument(doc: DocumentCenterListItem) {
+  if (!doc.fileUrl) return
+  previewFileName.value = doc.documentNumber || doc.fileName
+  previewUrl.value = doc.fileUrl
+  showPreviewModal.value = true
+}
+
+function handleDownloadDocument(doc: DocumentCenterListItem) {
+  if (!doc.fileUrl) return
+  const link = document.createElement('a')
+  link.href = doc.fileUrl
+  link.download = doc.fileName || `${doc.documentNumber}.pdf`
+  link.target = '_blank'
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+}
+
+async function handleUnlinkDocInModal(doc: DocumentCenterListItem) {
+  const record = currentAttachmentRecord.value
+  const estimateId = record ? getRecordId(record) : ''
+  if (!estimateId) return
+  const ref = currentLinkedRefs.value.find(r => r.documentId === doc.id)
+  if (!ref || !confirm('確定要取消關聯此公文？')) return
+  try {
+    await unlinkEstimateDocument(estimateId, ref.referenceId)
+    const refs = await getEstimateLinkedDocuments(estimateId).catch(() => [])
+    currentLinkedRefs.value = refs.map((r: { referenceId: number; documentId: number }) => ({ referenceId: r.referenceId, documentId: r.documentId }))
+    if (refs.length > 0 && docCacheMap.value.size > 0) {
+      currentLinkedDocuments.value = refs.map((r: { documentId: number }) => docCacheMap.value.get(r.documentId)).filter(Boolean) as DocumentCenterListItem[]
+    } else {
+      currentLinkedDocuments.value = []
+    }
+    if (record) {
+      ;(record as any).linkedDocumentNumber = ''
+      ;(record as any).linkedDocumentId = null
+      ;(record as any).linkedReferenceId = null
+      ;(record as any).linkedDocumentSubject = ''
+    }
+    attachmentCounts.value[estimateId] = currentAttachments.value.length + currentLinkedDocuments.value.length
+  } catch (e) {
+    console.error('取消關聯失敗:', e)
+  }
+}
+
+async function handlePreviewAttachment(att: EstimateAttachment) {
+  const record = currentAttachmentRecord.value
+  const estimateId = record ? getRecordId(record) : ''
+  if (!estimateId) return
+  showPreviewModal.value = true
+  previewFileName.value = att.fileName
+  isLoadingPreview.value = true
+  previewUrl.value = ''
+  try {
+    const result = await previewEstimateAttachment(estimateId, att.id)
+    previewUrl.value = result.url
+  } catch (err) {
+    console.error('取得預覽連結失敗:', err)
+  } finally {
+    isLoadingPreview.value = false
+  }
+}
+
+const openExplanationModal = (record: EstimateRecord) => {
+  explanationRecord.value = record
+  showExplanationModal.value = true
+}
+
+const closeExplanationModal = () => {
+  showExplanationModal.value = false
+  explanationRecord.value = null
+}
+
+// ── 匯出 ──
+const isExporting = ref(false)
+const exportMessage = ref<{ type: 'success' | 'danger'; text: string } | null>(null)
+const { runWithExportLoading } = useExportLoading()
+
+/** 金額顯示加千分位逗號（整數） */
+function formatAmountDisplay(val: number | null | undefined): string {
+  if (val == null || val === undefined || Number.isNaN(Number(val))) return ''
+  const n = Math.round(Number(val))
+  return n.toLocaleString('en-US')
+}
+
+/** 從含逗號的輸入解析為數字 */
+function parseAmountInput(raw: string): number {
+  const s = String(raw ?? '').replace(/,/g, '').trim()
+  if (s === '') return 0
+  const n = parseInt(s, 10)
+  return Number.isNaN(n) ? 0 : n
+}
+
+// 保留款與應付金額一律使用後端回傳值（後端依工程/監造核心資料比例統一計算）
+const displayRetention = (record: EstimateRecord): string => {
+  const v = record.retention
+  if (v == null || v === undefined) return ''
+  return formatAmountDisplay(Math.round(Number(v)))
+}
+
+/** 顯示本筆保留款適用比例（例：適用 5%） */
+const formatRetentionRatePercent = (pct: number): string => {
+  const n = Number(pct)
+  if (!Number.isFinite(n)) return ''
+  return Number.isInteger(n) ? `適用 ${n}%` : `適用 ${n.toFixed(1)}%`
+}
+
+/** 依畫面上估驗期間訖日解析適用版本（與後端區間邏輯一致：從最後一版往前找） */
+function getDesignChangeIdForDate(dateStr: string | null | undefined): number | null {
+  if (!dateStr || !dateStr.trim()) return null
+  const list = designChangeList.value
+  if (!list.length) return null
+  const date = new Date(dateStr.trim() + 'T12:00:00')
+  if (Number.isNaN(date.getTime())) return null
+  for (let i = list.length - 1; i >= 0; i--) {
+    const item = list[i]
+    const start = new Date(item.effectiveDate + 'T00:00:00')
+    if (Number.isNaN(start.getTime())) continue
+    if (date.getTime() < start.getTime()) continue
+    if (item.effectiveEndDate?.trim()) {
+      const end = new Date(item.effectiveEndDate.trim() + 'T23:59:59')
+      if (!Number.isNaN(end.getTime()) && date.getTime() > end.getTime()) continue
+    }
+    return item.id ?? null
+  }
+  return null
+}
+
+/** 依畫面上訖日＋目前各版本比例動態取得本筆適用的 %（改日期或基本資料後會跟著變） */
+function getRetentionPercentForRecord(record: EstimateRecord): number | undefined {
+  const designChangeId = getDesignChangeIdForDate(record.estimatePeriodEnd ?? '')
+  const map = retentionRatesByVersion.value
+  if (map.has(designChangeId)) return map.get(designChangeId)
+  return map.get(null) ?? undefined
+}
+
+// ── 計算應付金額（使用後端回傳的保留款，與匯出一致） ──
+const calcAmountPayable = (record: EstimateRecord): string => {
+  const val = (record.estimateAmount || 0) +
+    (record.adjustPriceIndex || 0) -
+    (record.deductAmount || 0) -
+    (Number(record.retention) || 0) -
+    (record.deductionAdvancePayment || 0)
+  return formatAmountDisplay(Math.round(val))
+}
+
+// ── 截至本次累計（由後端計算，僅含已核准記錄） ──
+const cumulativeRaw = ref<EstimateCumulative>({
+  estimateAmount: 0, adjustPriceIndex: 0, deductAmount: 0,
+  retention: 0, deductionAdvancePayment: 0, amountPayable: 0
+})
+
+const cumulative = computed(() => cumulativeRaw.value)
+
+// ── 載入估驗記錄 ──
+/** @param background 若為 true 則不顯示全頁 loading，用於儲存後靜默重整，列表不閃爍 */
+const loadEstimateDetails = async (background: boolean = false) => {
+  if (!constructionId.value) {
+    estimateDetails.value = []
     return
   }
 
   try {
-    isLoadingEstimateDetails.value = true
-    
-    const response = await estimateApi.getEstimateList({ constructionId })
-    
-    // 處理 API 回傳的資料
-    if (response.data) {
-      // 如果回傳的是陣列
-      if (Array.isArray(response.data)) {
-        if (response.data.length > 0) {
-          estimateDetails.value = response.data.map(record => ({
-            ...record,
-            period: record.period || '本次',
-            amountPayable: record.estimateAmount + record.adjustPriceIndex - record.deductAmount - record.retention - record.deductionAdvancePayment
-          }))
-        } else {
-          // 設定 constructionId
-          estimateDetails.value[0].constructionId = constructionId
-        }
-      } else {
-        // 如果回傳的是單一物件（根據您提供的格式）
-        const record = response.data as any
-        estimateDetails.value = [{
-          ...record,
-          id: record.id || 'current',
-          constructionId: constructionId,
-          period: '本次',
-          amountPayable: (record.estimateAmount || 0) + (record.adjustPriceIndex || 0) - (record.deductAmount || 0) - (record.retention || 0) - (record.deductionAdvancePayment || 0)
-        }]
+    if (!background) isLoading.value = true
+    if (requestOwnerType.value !== 'SUPERVISION_COMPANY') {
+      try {
+        const list = await getDesignChangeList(constructionId.value, requestOwnerType.value)
+        designChangeList.value = Array.isArray(list) ? list : []
+      } catch (_) {
+        designChangeList.value = []
       }
     } else {
-      // 設定 constructionId
-      estimateDetails.value[0].constructionId = constructionId
+      designChangeList.value = []
+    }
+
+    try {
+      const rates = await estimateApi.getRetentionRatesByVersion(constructionId.value, requestOwnerType.value)
+      const map = new Map<number | null, number>()
+      for (const r of rates) {
+        map.set(r.designChangeId ?? null, r.retentionRatePercent)
+      }
+      retentionRatesByVersion.value = map
+    } catch (_) {
+      retentionRatesByVersion.value = new Map()
+    }
+
+    const response = await estimateApi.getEstimateList({
+      constructionId: constructionId.value,
+      ownerType: requestOwnerType.value
+    })
+
+    cumulativeRaw.value = response.cumulative
+
+    if (response.records && response.records.length > 0) {
+      const records = response.records.map((record: any) => ({
+            ...record,
+        id: record.estimateId || record.id,
+        amountPayable:
+          (record.estimateAmount || 0) +
+          (record.adjustPriceIndex || 0) -
+          (record.deductAmount || 0) -
+          (record.retention || 0) -
+          (record.deductionAdvancePayment || 0),
+        linkedDocumentNumber: '',
+        linkedDocumentId: null,
+        linkedReferenceId: null,
+        linkedDocumentSubject: ''
+      }))
+      estimateDetails.value = records
+
+      // 公文快取（用於關聯公文主旨等）
+      try {
+        const docList = await getDocumentCenterList(constructionId.value)
+        const map = new Map<number, DocumentCenterListItem>()
+        for (const doc of docList) map.set(doc.id, doc)
+        docCacheMap.value = map
+      } catch (_) { /* ignore */ }
+      const docMap = docCacheMap.value
+
+      // 已儲存紀錄：從後端取得公文關聯
+      for (const record of records) {
+        const id = record.id ?? record.estimateId
+        if (id && !String(id).startsWith('est_')) {
+          try {
+            const refs = await getEstimateLinkedDocuments(id)
+            if (refs.length > 0) {
+              const ref = refs[0]
+              const cached = docMap.get(ref.documentId)
+              record.linkedDocumentId = ref.documentId
+              record.linkedReferenceId = ref.referenceId
+              record.linkedDocumentNumber = cached?.documentNumber ?? ref.targetName ?? ref.displayTitle ?? ''
+              record.linkedDocumentSubject = cached?.subject ?? ''
+            }
+          } catch (_) {
+            // ignore
+          }
+        }
+      }
+    } else {
+      estimateDetails.value = []
     }
     
-    // 儲存原始資料用於變更檢測
+    loadAttachmentCounts()
     originalEstimateDetails.value = JSON.parse(JSON.stringify(estimateDetails.value))
-    
+    hasUnsavedChanges.value = false
+    isInitialLoadSettled.value = false
+    setTimeout(() => {
+      originalEstimateDetails.value = JSON.parse(JSON.stringify(estimateDetails.value))
+      hasUnsavedChanges.value = false
+      isInitialLoadSettled.value = true
+    }, 1000)
   } catch (error) {
-    console.error('❌ 載入估驗記錄列表失敗:', error)
-    showToast('載入失敗', '無法載入估驗記錄列表', 'error')
+    console.error('載入估驗記錄列表失敗:', error)
+    estimateDetails.value = []
   } finally {
-    isLoadingEstimateDetails.value = false
+    isLoading.value = false
   }
 }
 
-// 新增估驗記錄
-const addEstimateRecord = async () => {
-  const constructionId = workspaceStore.currentProject?.id || ''
-  if (!constructionId) {
-    showToast('錯誤', '請先選擇工程案', 'error')
-    return
-  }
+// ── 新增記錄 ──
+const addEstimateRecord = () => {
+  if (!constructionId.value) return
 
-  try {
-    const newRecord: EstimateRecord = {
-      constructionId: constructionId,
-      period: '本次',
+  const newId = `est_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+  estimateDetails.value.push({
+    id: newId,
+    constructionId: constructionId.value,
       estimateAmount: 0,
       adjustPriceIndex: 0,
       deductAmount: 0,
       retention: 0,
       deductionAdvancePayment: 0,
       deductedReason: '',
-      amountPayable: 0,
-      accumulatedAdvancePayment: 0,
-      cumulativeDisbursementAdvancePayment: 0,
-      lastUpdateAmountContract: 0,
-      notDeductedAdvancePayment: 0,
-      originContractPayment: 0,
-      payment: 0,
-      percentageOfFinish: 0,
-      percentageOfTotalFinish: 0,
-      previewsAdjustPriceIndex: 0,
-      previewsDeductAmount: 0,
-      previewsDeductionAdvancePayment: 0,
-      previewsEstimateAmount: 0,
-      previewsRetention: 0,
-      previewsTotalPayment: 0,
-      totalAdjustPriceIndex: 0,
-      totalDeductAmount: 0,
-      totalDeductionAdvancePayment: 0,
-      totalEstimateAmount: 0,
-      totalPayment: 0,
-      totalRetention: 0,
-      workedDay: 0
-    }
-
-    // 創建一個新的空記錄並添加到本地列表
-    const newId = `est_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-    newRecord.id = newId
-    estimateDetails.value.push(newRecord)
-    
-    showToast('新增成功', '已新增空白記錄，請填寫相關資訊', 'success')
-  } catch (error) {
-    console.error('❌ 新增估驗記錄失敗:', error)
-    showToast('新增失敗', '無法新增估驗記錄', 'error')
-  }
+    explainExtendReason: '',
+    estimatePeriodStart: '',
+    estimatePeriodEnd: '',
+    status: EstimateStatus.DRAFT
+  })
 }
 
-// 保存估驗記錄
-const saveEstimateRecord = async (record: EstimateRecord) => {
-  if (!record.id || record.id.startsWith('est_')) {
-    // 新增記錄
-    try {
-      const createRequest = {
-        constructionId: record.constructionId,
-        estimateAmount: record.estimateAmount,
-        adjustPriceIndex: record.adjustPriceIndex,
-        deductAmount: record.deductAmount,
-        retention: record.retention,
-        deductionAdvancePayment: record.deductionAdvancePayment,
-        deductedReason: record.deductedReason || ''
-      }
-      
-      const response = await estimateApi.createEstimate(createRequest)
-      
-      // 更新本地記錄的 ID
-      if (response.data && response.data.id) {
-        record.id = response.data.id
-      }
-      
-      showToast('保存成功', '估驗記錄已成功保存', 'success')
-    } catch (error) {
-      console.error('❌ 保存估驗記錄失敗:', error)
-      showToast('保存失敗', '無法保存估驗記錄', 'error')
-    }
-  } else {
-    // 檢查是否有變更
-    const originalRecord = originalEstimateDetails.value.find(orig => orig.id === record.id)
-    const hasChanged = hasEstimateRecordChanged(record, originalRecord)
-    
-    if (hasChanged) {
-      // 只有有變更的記錄才調用更新 API
-      try {
-        const updateRequest = {
-          estimateId: record.id,
-          estimateAmount: record.estimateAmount,
-          originContractPayment: 0, // 預設值，可根據需要調整
-          comment: '', // 預設值，可根據需要調整
-          adjustPriceIndex: record.adjustPriceIndex,
-          disbursementAdvancePayment: record.deductionAdvancePayment,
-          retention: record.retention,
-          deductedReason: record.deductedReason || ''
-        }
-        
-        await estimateApi.updateEstimate(updateRequest)
-        
-        showToast('更新成功', '估驗記錄已成功更新', 'success')
-      } catch (error) {
-        console.error('❌ 更新估驗記錄失敗:', error)
-        showToast('更新失敗', '無法更新估驗記錄', 'error')
-      }
-    } else {
-      showToast('無變更', '估驗記錄無變更，無需更新', 'success')
-    }
-  }
-}
+// ── 刪除記錄 ──
+const removeEstimateRecord = async (record: EstimateRecord) => {
+  if (!record.id) return
 
-const getSectionCompletionStatus = (sectionId: string) => {
-  const section = paramSections.find(s => s.id === sectionId)
-  if (!section) return { completed: 0, total: 0, percentage: 0 }
-  
-  // 如果是表格類型，檢查表格資料
-  if (section.isTable) {
-    const totalRecords = estimateDetails.value.length
-    const completedRecords = estimateDetails.value.filter(record => 
-      record.estimateAmount > 0 || record.amountPayable > 0
-    ).length
-    
-    return {
-      completed: completedRecords,
-      total: totalRecords,
-      percentage: totalRecords > 0 ? Math.round((completedRecords / totalRecords) * 100) : 0
-    }
+  if (record.id.startsWith('est_')) {
+    estimateDetails.value = estimateDetails.value.filter(r => r.id !== record.id)
+    return
   }
-  
-  // 一般欄位類型
-  if (section.fields && section.fields.length > 0) {
-    const requiredFields = section.fields.filter(f => f.required)
-    const completedFields = requiredFields.filter(f => formParams.value[f.key as keyof typeof formParams.value])
-    
-    return {
-      completed: completedFields.length,
-      total: requiredFields.length,
-      percentage: Math.round((completedFields.length / requiredFields.length) * 100)
-    }
-  }
-  
-  return { completed: 0, total: 0, percentage: 0 }
-}
 
-// 更新表單資料功能
-const updateFormData = async (formData: Record<string, any>) => {
   try {
-    isLoading.value = true
-    
-    const updateData = {
-      formData: formData,
-      projectId: workspaceStore.currentProject?.id,
-      workspaceId: undefined // 如果需要工作空間ID，請根據實際的store結構調整
-    }
-    
-    await formA5Api.updateForm(updateData)
-    showToast('更新成功', '表單資料已成功更新', 'success')
-    
+    await estimateApi.deleteEstimate(record.id)
+    estimateDetails.value = estimateDetails.value.filter(r => r.id !== record.id)
+    originalEstimateDetails.value = JSON.parse(JSON.stringify(estimateDetails.value))
   } catch (error) {
-    const errorMessage = handleApiError(error)
-    showToast('更新失敗', errorMessage, 'error')
-  } finally {
-    isLoading.value = false
+    console.error('刪除估驗記錄失敗:', error)
   }
 }
 
-// 生命週期
+// ── 變更偵測（保留款由後端計算，僅比對可編輯欄位） ──
+const hasRecordChanged = (current: EstimateRecord, original: EstimateRecord | undefined): boolean => {
+  if (!original) return true
+  return (
+    current.estimateAmount !== original.estimateAmount ||
+    current.adjustPriceIndex !== original.adjustPriceIndex ||
+    current.deductAmount !== original.deductAmount ||
+    current.deductionAdvancePayment !== original.deductionAdvancePayment ||
+    current.deductedReason !== original.deductedReason ||
+    current.explainExtendReason !== original.explainExtendReason ||
+    current.estimatePeriodStart !== original.estimatePeriodStart ||
+    current.estimatePeriodEnd !== original.estimatePeriodEnd ||
+    current.status !== original.status
+  )
+}
+
+// ── 批次保存 ──
+const isSavingInProgress = ref(false)
+
+const saveAllRecords = async (silent: boolean = false) => {
+  if (!constructionId.value) return
+  if (isSavingInProgress.value) return
+  isSavingInProgress.value = true
+
+  if (!silent) {
+    isSaving.value = true
+  }
+
+  // 暫停 watcher 避免保存過程中 id 變更觸發重複儲存
+  isInitialLoadSettled.value = false
+  let successCount = 0
+
+  for (const record of estimateDetails.value) {
+    try {
+      const isNew = !record.id || record.id.startsWith('est_')
+
+      if (isNew) {
+        const result = await estimateApi.createEstimate({
+          constructionId: constructionId.value,
+          ownerType: requestOwnerType.value,
+          estimateAmount: record.estimateAmount,
+          adjustPriceIndex: record.adjustPriceIndex,
+          deductAmount: record.deductAmount,
+          deductionAdvancePayment: record.deductionAdvancePayment,
+          deductedReason: record.deductedReason || '',
+          explainExtendReason: record.explainExtendReason || '',
+          estimatePeriodStart: record.estimatePeriodStart || '',
+          estimatePeriodEnd: record.estimatePeriodEnd || '',
+          status: record.status || EstimateStatus.DRAFT
+        })
+        if (result?.estimateId) {
+          record.id = result.estimateId
+        }
+        successCount++
+    } else {
+        const orig = originalEstimateDetails.value.find(o => o.id === record.id)
+        if (hasRecordChanged(record, orig)) {
+          await estimateApi.updateEstimate({
+            estimateId: record.id!,
+            estimateAmount: record.estimateAmount,
+            adjustPriceIndex: record.adjustPriceIndex,
+            deductAmount: record.deductAmount,
+            deductionAdvancePayment: record.deductionAdvancePayment,
+            deductedReason: record.deductedReason || '',
+            explainExtendReason: record.explainExtendReason || '',
+            estimatePeriodStart: record.estimatePeriodStart || '',
+            estimatePeriodEnd: record.estimatePeriodEnd || '',
+            status: record.status || EstimateStatus.DRAFT
+          })
+          successCount++
+        }
+      }
+  } catch (error) {
+      console.error('保存估驗記錄失敗:', error)
+    }
+  }
+
+  if (!silent) {
+    isSaving.value = false
+  }
+
+  hasUnsavedChanges.value = false
+  isSavingInProgress.value = false
+
+  // 儲存後背景重整列表（不觸發全頁 loading，列表不閃爍），取得後端計算的保留款與累計值
+  try {
+    await loadEstimateDetails(true)
+  } catch { /* 不影響主流程 */ }
+  originalEstimateDetails.value = JSON.parse(JSON.stringify(estimateDetails.value))
+
+  setTimeout(() => {
+    isInitialLoadSettled.value = true
+  }, 500)
+}
+
+// ── 匯出 ──
+const handleExportForRecord = async (record: EstimateRecord) => {
+  if (!constructionId.value) {
+    exportMessage.value = { type: 'danger', text: '請先選擇工程案' }
+          return
+        }
+  if (!record.id || record.id.startsWith('est_')) {
+    exportMessage.value = { type: 'danger', text: '請先儲存此筆記錄後再匯出' }
+    return
+  }
+
+  exportMessage.value = null
+  isExporting.value = true
+
+  try {
+    await runWithExportLoading(`a5-${record.id}`, 'A-5 估驗請款計價單', async (signal) => {
+      const blob = await formA5Api.downloadReport(constructionId.value, record.id, {
+        ownerType: requestOwnerType.value,
+        signal
+      })
+      const fileName = `估驗請款計價單_第${estimateDetails.value.indexOf(record) + 1}期_${Date.now()}.docx`
+      downloadBlobAsFile(blob, fileName)
+      exportMessage.value = { type: 'success', text: '匯出成功，檔案已下載。' }
+    })
+  } catch (error) {
+    if ((error as any)?.name === 'AbortError' || (error as any)?.code === 'ERR_CANCELED') return
+    console.error('匯出失敗:', error)
+    exportMessage.value = {
+      type: 'danger',
+      text: (error as Error).message || '匯出失敗，請稍後再試。'
+    }
+  } finally {
+    isExporting.value = false
+  }
+}
+
+// ── 拖拉排序完成 ──
+const onDragEnd = async () => {
+  const orderedIds = estimateDetails.value
+    .map(r => r.id)
+    .filter((id): id is string => !!id && !id.startsWith('est_'))
+
+  if (orderedIds.length === 0 || !constructionId.value) return
+
+  try {
+    await estimateApi.reorderEstimates(constructionId.value, orderedIds, requestOwnerType.value)
+    originalEstimateDetails.value = JSON.parse(JSON.stringify(estimateDetails.value))
+  } catch (error) {
+    console.error('排序儲存失敗:', error)
+  }
+}
+
+// ── 自動儲存 ──
+const debouncedAutoSave = () => {
+  if (autoSaveTimer.value) {
+    clearTimeout(autoSaveTimer.value)
+  }
+  autoSaveTimer.value = window.setTimeout(async () => {
+    if (!hasUnsavedChanges.value) return
+    isAutoSaving.value = true
+    try {
+      await saveAllRecords(true)
+  } finally {
+      isAutoSaving.value = false
+    }
+  }, 3000)
+}
+
+watch(
+  estimateDetails,
+  () => {
+    if (!isInitialLoadSettled.value) return
+    const hasChange = JSON.stringify(estimateDetails.value) !== JSON.stringify(originalEstimateDetails.value)
+    if (hasChange) {
+      hasUnsavedChanges.value = true
+      debouncedAutoSave()
+    } else {
+      hasUnsavedChanges.value = false
+    }
+  },
+  { deep: true }
+)
+
+// ── 生命週期 ──
 onMounted(() => {
-  // 載入估驗記錄列表
+  if (hasCurrentProject.value) loadEstimateDetails()
+})
+
+watch(
+  () => workspaceStore.currentProject?.id,
+  async (newId, oldId) => {
+    if (newId && newId !== oldId) {
+      if (activeTab.value === 'SUPERVISION_COMPANY') await loadSupervisionCompanyRetention()
   loadEstimateDetails()
+    }
+  }
+)
+
+onBeforeUnmount(() => {
+  if (autoSaveTimer.value) {
+    clearTimeout(autoSaveTimer.value)
+  }
 })
 </script>
 
-<template>
-  <div class="container-fluid">
-    <div class="row">
-      <div class="col-12">
-        
-        <!-- 頁面標題 -->
-        <PageHeader
-          :title="`${formInfo.code} - ${formInfo.name}`"
-          icon="fa fa-file-alt"
-          :breadcrumbs="[
-            { text: '表單生成與管理', href: 'javascript:;' },
-            { text: 'A類表單', href: 'javascript:;' },
-            { text: `${formInfo.code} ${formInfo.name}`, active: true }
-          ]"
-        />
-
-        <div class="row">
-          <!-- 表單資訊 -->
-          <div class="col-lg-4 mb-4">
-            <Card class="h-100">
-              <CardHeader>
-                <div class="d-flex align-items-center">
-                  <i class="fa fa-info-circle me-2"></i>
-                  <h5 class="mb-0">表單資訊</h5>
-                </div>
-              </CardHeader>
-              <CardBody class="d-flex flex-column h-100">
-                <div class="flex-grow-1 d-flex flex-column justify-content-around">
-                  <!-- 第一區塊：標籤 -->
-                  <div class="d-flex align-items-center">
-                    <span class="badge border border-primary text-primary px-2 pt-5px pb-5px rounded fs-12px d-inline-flex align-items-center me-2">
-                      {{ formInfo.code }}
-                    </span>
-                    <span class="badge border border-secondary text-secondary px-2 pt-5px pb-5px rounded fs-12px d-inline-flex align-items-center">
-                      {{ formInfo.category }}
-                    </span>
-                  </div>
-
-                  <!-- 第二區塊：標題和描述 -->
-                  <div>
-                    <h6 class="mb-2">{{ formInfo.name }}</h6>
-                    <p class="text-muted small">{{ formInfo.description }}</p>
-                  </div>
-
-                  <!-- 第三區塊：版本資訊 -->
-                  <div>
-                    <div class="row">
-                      <div class="col-6">
-                        <div class="border rounded p-2">
-                          <div class="text-muted small">版本</div>
-                          <div class="fw-bold">{{ formInfo.version }}</div>
-                        </div>
-                      </div>
-                      <div class="col-6">
-                        <div class="border rounded p-2">
-                          <div class="text-muted small">更新日期</div>
-                          <div class="fw-bold small">{{ formInfo.lastUpdate }}</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </CardBody>
-            </Card>
-          </div>
-
-          <!-- 參數填寫區塊 -->
-          <div class="col-lg-8 mb-4">
-            <Card>
-              <CardHeader>
-                <div class="d-flex align-items-center">
-                  <i class="fa fa-edit me-2"></i>
-                  <h5 class="mb-0">表單參數填寫</h5>
-                </div>
-              </CardHeader>
-              <CardBody>
-                <p class="text-muted mb-4">請填寫以下參數以生成完整的估驗請款計價單。點擊各區塊可進行參數設定。</p>
-                
-                <div class="row">
-                  <div 
-                    v-for="section in paramSections" 
-                    :key="section.id"
-                    class="col-lg-6 mb-3"
-                  >
-                    <Card 
-                      class="h-100 cursor-pointer param-section-card"
-                      @click="openParamsModal(section.id)"
-                    >
-                      <CardBody class="p-4">
-                        <div class="d-flex align-items-center mb-3">
-                          <div class="param-icon me-3">
-                            <i :class="section.icon"></i>
-                          </div>
-                          <div class="flex-grow-1">
-                            <h6 class="mb-1">{{ section.title }}</h6>
-                            <p class="text-muted small mb-0">{{ section.description }}</p>
-                          </div>
-                        </div>
-                        
-                        <!-- 完成度顯示 -->
-                        <div class="mb-3">
-                          <div class="d-flex justify-content-between align-items-center mb-2">
-                            <span class="small text-muted">完成度</span>
-                            <span class="small fw-bold">{{ getSectionCompletionStatus(section.id).percentage }}%</span>
-                          </div>
-                          <div class="progress" style="height: 6px;">
-                            <div 
-                              class="progress-bar" 
-                              :class="{
-                                'bg-success': getSectionCompletionStatus(section.id).percentage === 100,
-                                'bg-warning': getSectionCompletionStatus(section.id).percentage > 0 && getSectionCompletionStatus(section.id).percentage < 100,
-                                'bg-secondary': getSectionCompletionStatus(section.id).percentage === 0
-                              }"
-                              :style="{ width: getSectionCompletionStatus(section.id).percentage + '%' }"
-                            ></div>
-                          </div>
-                          <div class="small text-muted mt-1">
-                            {{ getSectionCompletionStatus(section.id).completed }} / {{ getSectionCompletionStatus(section.id).total }} 必填項目
-                          </div>
-                        </div>
-                        
-                        <!-- 已填寫的欄位預覽 -->
-                        <div class="filled-fields-preview">
-                          <div v-if="section.isTable" class="text-center">
-                            <div class="text-white mb-2">
-                              <span class="fw-bold">估驗記錄：{{ estimateDetails.length }} 筆</span>
-                            </div>
-                            <div class="text-white mb-2">
-                              <span class="fw-bold">已完成：{{ estimateDetails.filter(r => r.estimateAmount > 0 || r.amountPayable > 0).length }} 筆</span>
-                            </div>
-                            <div class="text-white">
-                              <span class="fw-bold">記錄總數：{{ estimateDetails.length }} 筆</span>
-                            </div>
-                          </div>
-                          <div v-else-if="section.fields && section.fields.length > 0">
-                            <div 
-                              v-for="field in section.fields.slice(0, 3)" 
-                              :key="field.key"
-                              class="d-flex align-items-center mb-1"
-                            >
-                              <i 
-                                class="fa me-2 small"
-                                :class="formParams[field.key as keyof typeof formParams] ? 'fa-check-circle text-success' : 'fa-circle text-muted'"
-                              ></i>
-                              <span class="small" :class="formParams[field.key as keyof typeof formParams] ? 'text-dark' : 'text-muted'">
-                                {{ field.label }}
-                              </span>
-                            </div>
-                            <div v-if="section.fields.length > 3" class="small text-muted">
-                              ... 還有 {{ section.fields.length - 3 }} 個欄位
-                            </div>
-                          </div>
-                        </div>
-                        
-                        <div class="text-center mt-3">
-                          <button class="btn btn-outline-theme btn-sm">
-                            <i class="fa fa-edit me-1"></i>
-                            填寫參數
-                          </button>
-                        </div>
-                      </CardBody>
-                    </Card>
-                  </div>
-                </div>
-              </CardBody>
-            </Card>
-          </div>
-        </div>
-
-        <!-- 下載設定 -->
-        <div class="row">
-          <div class="col-lg-8 mb-4">
-            <Card>
-              <CardHeader>
-                <div class="d-flex align-items-center">
-                  <i class="fa fa-cog me-2"></i>
-                  <h5 class="mb-0">下載設定</h5>
-                </div>
-              </CardHeader>
-              <CardBody>
-                <div class="row">
-                  <div class="col-lg-6">
-                    <div class="mb-3">
-                      <label class="form-label">自訂檔案名稱</label>
-                      <input 
-                        type="text" 
-                        class="form-control" 
-                        v-model="customFileName"
-                        placeholder="留空則使用預設名稱"
-                      />
-                      <div class="form-text small">
-                        預設名稱：{{ generatedFileName }}
-                      </div>
-                    </div>
-                  </div>
-                  <div class="col-lg-6">
-                    <div class="mb-3">
-                      <label class="form-label">附加選項</label>
-                      <div class="form-check mb-2">
-                        <input 
-                          class="form-check-input" 
-                          type="checkbox" 
-                          v-model="includeWatermark"
-                          id="includeWatermark"
-                        />
-                        <label class="form-check-label small" for="includeWatermark">
-                          包含浮水印
-                        </label>
-                      </div>
-                      <div class="form-check">
-                        <input 
-                          class="form-check-input" 
-                          type="checkbox" 
-                          v-model="includeSignature"
-                          id="includeSignature"
-                        />
-                        <label class="form-check-label small" for="includeSignature">
-                          包含簽名欄位
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- 下載按鈕區域 -->
-                <div class="d-flex justify-content-between align-items-center mt-3 pt-3 border-top">
-                  <div class="text-muted">
-                    <i class="fa fa-info-circle me-1"></i>
-                    <span>準備下載：A-5 估驗請款計價單</span>
-                  </div>
-                  
-                  <button 
-                    class="btn btn-theme btn-lg"
-                    @click="downloadForm"
-                    :disabled="!canDownload"
-                  >
-                    <i 
-                      class="fa me-2" 
-                      :class="{ 'fa-spin fa-spinner': isDownloading, 'fa-download': !isDownloading }"
-                    ></i>
-                    {{ isDownloading ? '處理中...' : '下載表單' }}
-                  </button>
-                </div>
-
-                <!-- 下載進度 -->
-                <div v-if="isDownloading" class="mt-3">
-                  <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="small">正在生成文件...</span>
-                    <span class="small">{{ Math.round(downloadProgress) }}%</span>
-                  </div>
-                  <div class="progress">
-                    <div 
-                      class="progress-bar progress-bar-striped progress-bar-animated" 
-                      :style="{ width: downloadProgress + '%' }"
-                    ></div>
-                  </div>
-                </div>
-              </CardBody>
-            </Card>
-          </div>
-
-          <!-- 最近下載 -->
-          <div class="col-lg-4 mb-4">
-            <Card>
-              <CardHeader>
-                <div class="d-flex align-items-center">
-                  <i class="fa fa-history me-2"></i>
-                  <h5 class="mb-0">最近下載</h5>
-                </div>
-              </CardHeader>
-              <CardBody>
-                <div v-if="recentDownloads.length === 0" class="text-center py-3">
-                  <i class="fa fa-download fa-2x text-muted mb-2"></i>
-                  <p class="text-muted small mb-0">尚無下載記錄</p>
-                </div>
-                
-                <div v-else>
-                  <div 
-                    v-for="download in recentDownloads" 
-                    :key="download.id"
-                    class="mb-3"
-                  >
-                    <Card class="download-item">
-                      <CardBody class="p-3">
-                        <div class="d-flex justify-content-between align-items-start mb-2">
-                          <h6 class="mb-1 small">{{ download.template }}</h6>
-                          <button 
-                            class="btn btn-outline-theme btn-sm"
-                            @click="redownloadFile(download)"
-                          >
-                            <i class="fa fa-download"></i>
-                          </button>
-                        </div>
-                        <p class="text-muted small mb-1">{{ download.fileName }}</p>
-                        <div class="d-flex justify-content-between">
-                          <small class="text-muted">{{ download.downloadTime }}</small>
-                          <small class="text-muted">{{ download.fileSize }}</small>
-                        </div>
-                      </CardBody>
-                    </Card>
-                  </div>
-                </div>
-              </CardBody>
-            </Card>
-          </div>
-        </div>
-
-      </div>
-    </div>
-  </div>
-
-  <!-- 參數填寫 Modal -->
-  <Modal
-    v-model:show="showParamsModal"
-    :title="getCurrentSection()?.title || '參數填寫'"
-    :icon="getCurrentSection()?.icon || 'fa fa-edit'"
-    size="xl"
-    modal-id="params-modal"
-    :confirm-text="'保存'"
-    :cancel-text="'取消'"
-    :confirm-icon="'fa fa-save'"
-    :is-loading="isSavingParams"
-    @confirm="saveParams"
-    @hide="closeParamsModal"
-  >
-    <template #body>
-      <div v-if="getCurrentSection()" class="params-form">
-        <p class="text-muted mb-4">{{ getCurrentSection()?.description }}</p>
-        
-        <!-- 表格類型 -->
-        <div v-if="getCurrentSection()?.isTable" class="table-responsive">
-          <div class="d-flex justify-content-between align-items-center mb-3">
-            <h6 class="mb-0">估驗詳細表</h6>
-            <button 
-              class="btn btn-outline-primary btn-sm"
-              @click="addEstimateRecord"
-              :disabled="isLoadingEstimateDetails"
-            >
-              <i class="fa fa-plus me-1"></i>
-              新增記錄
-            </button>
-          </div>
-          <table class="table table-bordered">
-            <thead class="table-light">
-              <tr>
-                <th style="width: 100px;">期別</th>
-                <th style="width: 150px;">估驗計價款</th>
-                <th style="width: 150px;">物價指數調整款</th>
-                <th style="width: 120px;">扣款</th>
-                <th style="width: 120px;">保留款</th>
-                <th style="width: 150px;">扣回預付款</th>
-                <th style="width: 150px;">應付金額</th>
-                <th style="width: 80px;">操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="record in estimateDetails" :key="record.id">
-                <td class="fw-bold">{{ record.period }}</td>
-                <td>
-                  <input 
-                    type="number" 
-                    class="form-control form-control-sm" 
-                    v-model="record.estimateAmount"
-                    @input="updateEstimateDetail(record.id!, 'estimateAmount', parseFloat(($event.target as HTMLInputElement).value) || 0)"
-                    placeholder="0"
-                    step="0.01"
-                  />
-                </td>
-                <td>
-                  <input 
-                    type="number" 
-                    class="form-control form-control-sm" 
-                    v-model="record.adjustPriceIndex"
-                    @input="updateEstimateDetail(record.id!, 'adjustPriceIndex', parseFloat(($event.target as HTMLInputElement).value) || 0)"
-                    placeholder="0"
-                    step="0.01"
-                  />
-                </td>
-                <td>
-                  <input 
-                    type="number" 
-                    class="form-control form-control-sm" 
-                    v-model="record.deductAmount"
-                    @input="updateEstimateDetail(record.id!, 'deductAmount', parseFloat(($event.target as HTMLInputElement).value) || 0)"
-                    placeholder="0"
-                    step="0.01"
-                  />
-                </td>
-                <td>
-                  <input 
-                    type="number" 
-                    class="form-control form-control-sm" 
-                    v-model="record.retention"
-                    @input="updateEstimateDetail(record.id!, 'retention', parseFloat(($event.target as HTMLInputElement).value) || 0)"
-                    placeholder="0"
-                    step="0.01"
-                  />
-                </td>
-                <td>
-                  <input 
-                    type="number" 
-                    class="form-control form-control-sm" 
-                    v-model="record.deductionAdvancePayment"
-                    @input="updateEstimateDetail(record.id!, 'deductionAdvancePayment', parseFloat(($event.target as HTMLInputElement).value) || 0)"
-                    placeholder="0"
-                    step="0.01"
-                  />
-                </td>
-                <td>
-                  <input 
-                    type="number" 
-                    class="form-control form-control-sm" 
-                    v-model="record.amountPayable"
-                    placeholder="自動計算"
-                    step="0.01"
-                    readonly
-                  />
-                </td>
-                <td>
-                  <button 
-                    class="btn btn-outline-primary btn-sm"
-                    @click="saveEstimateRecord(record)"
-                    :disabled="isLoadingEstimateDetails"
-                  >
-                    <i class="fa fa-save"></i>
-                  </button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-          
-          <div v-if="estimateDetails.length === 0" class="text-center py-4">
-            <i class="fa fa-table fa-2x text-muted mb-2"></i>
-            <p class="text-muted">尚無估驗記錄</p>
-          </div>
-        </div>
-        
-        <!-- 一般欄位類型 -->
-        <div v-else-if="getCurrentSection()?.fields && getCurrentSection()?.fields.length > 0" class="row">
-          <div 
-            v-for="field in getCurrentSection()?.fields" 
-            :key="field.key"
-            class="col-12 mb-3"
-          >
-            <label class="form-label">
-              {{ field.label }}
-              <span v-if="field.required" class="text-danger">*</span>
-            </label>
-            
-            <!-- 文字輸入框 -->
-            <input 
-              v-if="field.type === 'text'"
-              type="text" 
-              class="form-control" 
-              v-model="formParams[field.key as keyof typeof formParams]"
-              :placeholder="`請輸入${field.label}`"
-            />
-            
-            <!-- 日期輸入框 -->
-            <input 
-              v-else-if="field.type === 'date'"
-              type="date" 
-              class="form-control" 
-              v-model="formParams[field.key as keyof typeof formParams]"
-            />
-            
-            <!-- 數字輸入框 -->
-            <input 
-              v-else-if="field.type === 'number'"
-              type="number" 
-              class="form-control" 
-              v-model="formParams[field.key as keyof typeof formParams]"
-              :placeholder="`請輸入${field.label}`"
-              step="0.01"
-            />
-            
-            <!-- 文字區域 -->
-            <textarea 
-              v-else-if="field.type === 'textarea'"
-              class="form-control" 
-              rows="3"
-              v-model="formParams[field.key as keyof typeof formParams]"
-              :placeholder="`請輸入${field.label}`"
-            ></textarea>
-          </div>
-        </div>
-      </div>
-    </template>
-  </Modal>
-</template>
-
 <style scoped>
-.template-card {
-  transition: all 0.2s ease;
-  border: 2px solid transparent;
+/* ===== 暗色主題變數 ===== */
+.a5-dark {
+  --a5-bg: #1a1d21;
+  --a5-card: #25282c;
+  --a5-border: #4a4d54;
+  --a5-text: #e4e6eb;
+  --a5-muted: #b0b3b8;
+  --a5-thead: #2d3748;
+  --a5-hover: rgba(255, 255, 255, 0.06);
+  --a5-input-bg: #2d3139;
+  --a5-input-border: #3a3d42;
+  --a5-accent: #60a5fa;
 }
 
-.template-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 15px rgba(var(--bs-theme-rgb), 0.15);
-  border-color: rgba(var(--bs-theme-rgb), 0.3);
+.form-a5-export-page {
+  padding: 1rem;
+  color: var(--a5-text);
 }
 
-.cursor-pointer {
-  cursor: pointer;
+.a5-export-compact {
+  border-top: 1px solid var(--a5-border);
+  margin-top: 0.5rem;
 }
 
-.border-theme {
-  border-color: var(--bs-theme) !important;
-  border-width: 2px !important;
+.a5-tabs {
+  border-bottom-color: var(--a5-border);
 }
-
-.download-item {
-  transition: all 0.2s ease;
-  border: 2px solid transparent;
+.a5-tabs .nav-link {
+  color: var(--a5-muted);
+  border-color: transparent;
+  background: transparent;
+  padding: 0.6rem 1.2rem;
+  font-size: 0.9rem;
 }
-
-.download-item:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 15px rgba(var(--bs-theme-rgb), 0.15);
-  border-color: rgba(var(--bs-theme-rgb), 0.3);
+.a5-tabs .nav-link:hover {
+  color: var(--a5-text);
+  border-color: var(--a5-border) var(--a5-border) transparent;
+  background: var(--a5-hover);
 }
-
-.page-header {
-  font-size: 1.75rem;
+.a5-tabs .nav-link.active {
+  color: var(--a5-accent);
+  background: var(--a5-card);
+  border-color: var(--a5-border) var(--a5-border) var(--a5-card);
   font-weight: 600;
-  color: var(--bs-body-color);
 }
 
-@media (max-width: 768px) {
-  .page-header {
-    font-size: 1.5rem;
-  }
+.a5-retention-info-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  cursor: help;
+}
+.a5-retention-info {
+  opacity: 0.85;
+  font-size: 0.9em;
+}
+.a5-retention-info-wrapper:hover .a5-retention-info {
+  opacity: 1;
+  color: var(--a5-accent) !important;
+}
+.a5-retention-tooltip-popup {
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  transform: translateX(-50%) translateY(6px);
+  z-index: 1060;
+  min-width: 240px;
+  max-width: 320px;
+  padding: 0.5rem 0.75rem;
+  background: var(--a5-card);
+  border: 1px solid var(--a5-border);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+.a5-retention-tooltip-inner {
+  white-space: pre-line;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--a5-text);
+}
+.a5-tooltip-enter-active,
+.a5-tooltip-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.a5-tooltip-enter-from,
+.a5-tooltip-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(2px);
 }
 
-/* 參數填寫區塊樣式 */
-.param-section-card {
-  transition: all 0.2s ease;
-  border: 2px solid transparent;
+/* ===== Card 暗色 ===== */
+:deep(.card) {
+  background: var(--a5-card);
+  border-color: var(--a5-border);
+  color: var(--a5-text);
 }
 
-.param-section-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 15px rgba(var(--bs-theme-rgb), 0.15);
-  border-color: rgba(var(--bs-theme-rgb), 0.3);
+:deep(.card-header) {
+  border-bottom-color: var(--a5-border);
 }
 
-.param-icon {
-  width: 40px;
-  height: 40px;
-  background: linear-gradient(135deg, var(--bs-theme), rgba(var(--bs-theme-rgb), 0.8));
-  border-radius: 50%;
-  display: flex;
+/* ===== Alert 暗色 ===== */
+:deep(.alert-info) {
+  background: rgba(96, 165, 250, 0.1);
+  border-color: rgba(96, 165, 250, 0.25);
+  color: #93c5fd;
+}
+
+:deep(.alert-warning) {
+  background: rgba(251, 191, 36, 0.1);
+  border-color: rgba(251, 191, 36, 0.25);
+  color: #fbbf24;
+}
+
+:deep(.alert-success) {
+  background: rgba(52, 211, 153, 0.1);
+  border-color: rgba(52, 211, 153, 0.25);
+  color: #6ee7b7;
+}
+
+:deep(.alert-danger) {
+  background: rgba(248, 113, 113, 0.1);
+  border-color: rgba(248, 113, 113, 0.25);
+  color: #fca5a5;
+}
+
+/* ===== 序次圓圈 ===== */
+.a5-seq-num {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: white;
-  font-size: 16px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: rgba(150, 150, 150, 0.15);
+  color: rgba(180, 180, 180, 0.85);
 }
 
-.filled-fields-preview {
-  background: rgba(var(--bs-light-rgb), 0.5);
-  border-radius: 8px;
-  padding: 12px;
-  border: 1px solid rgba(var(--bs-border-color-rgb), 0.3);
+/* ===== 表格暗色 ===== */
+.a5-table {
+  border: 2px solid var(--a5-border);
+  border-collapse: collapse;
+  width: 100%;
+  color: var(--a5-text);
 }
 
-.params-form {
-  max-height: 60vh;
-  overflow-y: auto;
+.a5-table thead th {
+  background: var(--a5-thead);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-align: center;
+  padding: 0.65rem 0.5rem;
+  border: 1.5px solid var(--a5-border);
+  color: var(--a5-muted);
+  white-space: nowrap;
+}
+
+.a5-table tbody td {
+  border: 1.5px solid var(--a5-border);
+  padding: 0.6rem 0.5rem;
+  vertical-align: middle;
+  background: var(--a5-card);
+  color: var(--a5-text);
+}
+
+.a5-table tbody tr:hover td {
+  background: var(--a5-hover);
+}
+
+/* 金額欄位頂部對齊，保留款有「適用 %」時與其他欄位 input 仍對齊（覆蓋 Bootstrap align-middle） */
+.a5-table tbody td.a5-amount-cell {
+  vertical-align: top !important;
+}
+
+/* ===== 表單元件暗色 ===== */
+.a5-table :deep(.form-control),
+.a5-table :deep(.form-select),
+.a5-table :deep(textarea.form-control) {
+  background: var(--a5-input-bg);
+  border-color: var(--a5-input-border);
+  color: var(--a5-text);
+}
+
+.a5-table :deep(.form-control:focus),
+.a5-table :deep(.form-select:focus),
+.a5-table :deep(textarea.form-control:focus) {
+  background: var(--a5-input-bg);
+  border-color: var(--a5-accent);
+  color: var(--a5-text);
+  box-shadow: 0 0 0 0.15rem rgba(96, 165, 250, 0.25);
+}
+
+.a5-table :deep(.form-control.bg-light) {
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: var(--a5-muted);
+}
+
+/* 下拉選單暗色箭頭 */
+.a5-table :deep(.form-select) {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23b0b3b8' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+  background-size: 16px 12px;
+}
+
+.a5-table :deep(.form-select option) {
+  background: var(--a5-card, #25282c);
+  color: var(--a5-text, #e4e6eb);
+}
+
+/* ===== 拖拉排序 ===== */
+.drag-handle {
+  cursor: grab !important;
+  user-select: none;
+}
+.drag-handle:active {
+  cursor: grabbing !important;
+}
+.sortable-ghost td {
+  opacity: 0.4;
+  background: rgba(96, 165, 250, 0.15) !important;
+}
+.sortable-drag {
+  background: var(--a5-card) !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+/* ===== 提示文字 ===== */
+.a5-approved-hint {
+  font-size: 0.8rem;
+  color: var(--a5-accent);
+  opacity: 0.85;
+  padding: 0.35rem 0.6rem;
+  background: rgba(96, 165, 250, 0.08);
+  border-left: 3px solid var(--a5-accent);
+  border-radius: 0 4px 4px 0;
+}
+
+/* ===== 累計列：藍色僅到應付金額欄 ===== */
+.a5-cumulative-row td.a5-cumulative-cell {
+  background: var(--a5-thead) !important;
+  border-top: 2px solid var(--a5-accent);
+  color: var(--a5-accent);
+  font-size: 0.85rem;
+  padding: 0.55rem 0.5rem;
+}
+.a5-cumulative-row td:not(.a5-cumulative-cell) {
+  background: var(--a5-card) !important;
+  border-top: 2px solid var(--a5-border);
+}
+
+/* ===== 金額 input 隱藏上下鈕 ===== */
+.a5-table :deep(input[type="number"].a5-no-spinner)::-webkit-outer-spin-button,
+.a5-table :deep(input[type="number"].a5-no-spinner)::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.a5-table :deep(input[type="number"].a5-no-spinner) {
+  -moz-appearance: textfield;
+}
+
+/* ===== 操作下拉選單（暗色） ===== */
+.a5-dropdown-menu {
+  background: var(--a5-card);
+  border: 1px solid var(--a5-border);
+}
+.a5-dropdown-menu .dropdown-item {
+  color: var(--a5-text);
+}
+.a5-dropdown-menu .dropdown-item:hover {
+  background: var(--a5-hover);
+  color: var(--a5-text);
+}
+.a5-dropdown-menu .dropdown-divider {
+  border-color: var(--a5-border);
+}
+
+/* 操作選單 Teleport：背層 + 選單固定於按鈕旁、不透明 */
+.a5-operation-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1059;
+  background: transparent;
+}
+.a5-operation-menu-backdrop .a5-operation-menu-fixed {
+  position: fixed !important;
+  right: auto !important; /* 避免 Bootstrap dropdown-menu-end 干擾 */
+  min-width: 11rem;
+  /* 確保在 body 下仍有暗色主題（變數由父層 .a5-dark 提供） */
+  background: var(--a5-card, #25282c) !important;
+  border: 1px solid var(--a5-border, #4a4d54) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+.a5-operation-menu-backdrop .a5-operation-menu-fixed .dropdown-item {
+  color: var(--a5-text, #e4e6eb);
+}
+.a5-operation-menu-backdrop .a5-operation-menu-fixed .dropdown-item:hover {
+  background: var(--a5-hover, rgba(255, 255, 255, 0.06));
+  color: var(--a5-text, #e4e6eb);
+}
+.a5-operation-menu-backdrop .a5-operation-menu-fixed .dropdown-divider {
+  border-color: var(--a5-border, #4a4d54);
+}
+
+/* 關聯公文文號：可點擊預覽 */
+.a5-linked-doc-link {
+  cursor: pointer;
+  color: var(--a5-accent);
+}
+.a5-linked-doc-link:hover {
+  text-decoration: underline;
+}
+
+/* ===== 估驗期間日期選擇框：加寬、無 icon 由組件 hideIcon 設定 ===== */
+.a5-period-cell :deep(.a5-period-date-input),
+.a5-period-cell :deep(.dp__input) {
+  min-width: 132px;
 }
 </style>

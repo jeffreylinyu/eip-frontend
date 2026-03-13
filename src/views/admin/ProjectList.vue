@@ -1,21 +1,25 @@
 <script setup lang="ts">
-import { ref, onMounted, provide, computed } from 'vue'
+import { ref, onMounted, provide, computed, getCurrentInstance } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { getAllConstructions, deleteConstruction, getConstructionDetail, type Construction } from '@/api/construction'
 import PageHeader from '@/components/bootstrap/PageHeader.vue'
+import Modal from '@/components/bootstrap/Modal.vue'
+import { adminConstructionApi, type AdminConstructionSpecialSettings } from '@/api/adminConstruction'
 import { Sort, Resize, Filter, Page, GridComponent, ColumnsDirective, ColumnDirective, Toolbar } from '@syncfusion/ej2-vue-grids'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const workspaceStore = useWorkspaceStore()
+const { proxy } = getCurrentInstance() as any
 
 // 權限檢查
 const hasAdminPermission = computed(() => {
   const user = authStore.user
   if (!user) return false
-  return user.role === 'SUPER_ADMIN'
+  const systemRole = user.systemRole || user.role
+  return systemRole === 'SUPER_ADMIN'
 })
 
 // Grid 相關
@@ -32,6 +36,57 @@ const pageSettings = ref({
   pageSizes: [10, 20, 50, 100],
   pageCount: 5
 })
+
+// =============================
+// 特殊設定 Modal
+// =============================
+const showSpecialSettingsModal = ref(false)
+const selectedConstruction = ref<Construction | null>(null)
+const specialSettings = ref<AdminConstructionSpecialSettings | null>(null)
+const isSpecialSettingsLoading = ref(false)
+const isSpecialSettingsSaving = ref(false)
+const specialSettingsOnboardingCompleted = ref(false)
+
+const openSpecialSettings = async (data: Construction) => {
+  if (!data.constructionId) {
+    proxy?.$toast?.error?.('缺少工程編號，無法開啟特殊設定')
+    return
+  }
+
+  selectedConstruction.value = data
+  showSpecialSettingsModal.value = true
+  specialSettings.value = null
+  isSpecialSettingsLoading.value = true
+
+  try {
+    const res = await adminConstructionApi.getSpecialSettings(data.constructionId)
+    specialSettings.value = res
+    specialSettingsOnboardingCompleted.value = !!res.supervisoryOnboardingCompleted
+  } catch (e: any) {
+    proxy?.$toast?.error?.(e?.response?.data?.message || '載入特殊設定失敗')
+  } finally {
+    isSpecialSettingsLoading.value = false
+  }
+}
+
+const saveSpecialSettings = async () => {
+  const cid = selectedConstruction.value?.constructionId
+  if (!cid) return
+
+  isSpecialSettingsSaving.value = true
+  try {
+    const res = await adminConstructionApi.updateSpecialSettings(cid, {
+      supervisoryOnboardingCompleted: specialSettingsOnboardingCompleted.value
+    })
+    specialSettings.value = res
+    proxy?.$toast?.success?.('特殊設定已更新')
+    showSpecialSettingsModal.value = false
+  } catch (e: any) {
+    proxy?.$toast?.error?.(e?.response?.data?.message || '更新特殊設定失敗')
+  } finally {
+    isSpecialSettingsSaving.value = false
+  }
+}
 
 // 載入資料
 const loadData = async () => {
@@ -109,7 +164,10 @@ const handleEnter = async (data: Construction) => {
                 // 如果無法獲取詳情，可能導致後續 API 調用失敗，但仍嘗試繼續
             }
         } else {
-            workspaceStore.switchWorkspace(targetWorkspaceId);
+            // 重要：避免 race condition
+            // switchWorkspace 內部不 await setCurrentWorkspace，可能在稍後把 currentProject 清空，
+            // 導致剛切進專案時 header/權限狀態異常（重新整理後才正常）。
+            await workspaceStore.setCurrentWorkspace(ws, true) // preserveProject=true
         }
         
         // 確保載入該工作空間的專案列表 (這也是為了讓 switchProject 能找到專案)
@@ -216,6 +274,9 @@ const formatCurrency = (value: number) => {
                         <button class="btn btn-sm btn-outline-primary" @click="handleEnter(data)" title="進入工程案">
                             <i class="fa fa-sign-in me-1"></i>進入
                         </button>
+                        <button class="btn btn-sm btn-outline-secondary" @click="openSpecialSettings(data)" title="特殊設定">
+                            <i class="fa fa-sliders-h me-1"></i>特殊設定
+                        </button>
                         <button class="btn btn-sm btn-outline-info" @click="handleManageCompanies(data)" title="設定相關單位公司">
                             <i class="fa fa-building me-1"></i>設定單位
                         </button>
@@ -226,6 +287,70 @@ const formatCurrency = (value: number) => {
                 </template>
             </ejs-grid>
         </div>
+
+        <!-- 特殊設定 Modal -->
+        <Modal
+            v-model:show="showSpecialSettingsModal"
+            title="工程案特殊設定"
+            icon="fa fa-sliders-h"
+            size="lg"
+            :is-loading="isSpecialSettingsSaving"
+            confirm-text="保存"
+            cancel-text="取消"
+            @confirm="saveSpecialSettings"
+        >
+            <template #body>
+                <div class="mb-3">
+                    <div class="fw-semibold">工程案</div>
+                    <div class="text-muted small">
+                        {{ selectedConstruction?.constructionName || '-' }}
+                        <span class="ms-2">（{{ selectedConstruction?.constructionId || '-' }}）</span>
+                    </div>
+                </div>
+
+                <div v-if="isSpecialSettingsLoading" class="text-center py-4 text-muted">
+                    <i class="fa fa-spinner fa-spin me-2"></i>載入中...
+                </div>
+                <div v-else>
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div>
+                                    <div class="fw-semibold">基本資料通過（工程開通）</div>
+                                    <div class="text-muted small">
+                                        這會影響監造端「工程開通擋路」是否放行（等同設定工程已開通）。
+                                    </div>
+                                </div>
+                                <div class="form-check form-switch mb-0">
+                                    <input
+                                        class="form-check-input"
+                                        type="checkbox"
+                                        id="onboardingCompletedSwitch"
+                                        v-model="specialSettingsOnboardingCompleted"
+                                        :disabled="isSpecialSettingsSaving"
+                                    />
+                                </div>
+                            </div>
+
+                            <div v-if="specialSettings" class="mt-3 small text-muted">
+                                <div>
+                                    目前狀態：
+                                    <span :class="specialSettingsOnboardingCompleted ? 'text-success fw-semibold' : 'text-danger fw-semibold'">
+                                        {{ specialSettingsOnboardingCompleted ? '通過' : '未通過' }}
+                                    </span>
+                                </div>
+                                <div v-if="specialSettings.supervisoryOnboardingCompletedAt">
+                                    設定時間：{{ specialSettings.supervisoryOnboardingCompletedAt }}
+                                </div>
+                                <div v-if="specialSettings.supervisoryOnboardingCompletedBy">
+                                    設定者：{{ specialSettings.supervisoryOnboardingCompletedBy }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </Modal>
   </div>
 </template>
 

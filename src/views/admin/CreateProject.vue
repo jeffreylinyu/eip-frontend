@@ -6,6 +6,7 @@ import { createConstruction, type CreateConstructionRequest } from '@/api/constr
 import Card from '@/components/bootstrap/Card.vue'
 import CardBody from '@/components/bootstrap/CardBody.vue'
 import CardHeader from '@/components/bootstrap/CardHeader.vue'
+import PageHeader from '@/components/bootstrap/PageHeader.vue'
 import CompanySearchSelect from '@/components/common/CompanySearchSelect.vue'
 import CompanyFormModal from '@/components/company/CompanyFormModal.vue'
 import { companyApi } from '@/api/company'
@@ -47,7 +48,6 @@ const formData = reactive<Partial<CreateConstructionRequest>>({
   partialAcceptance: false,
   completionAcceptance: true,
   payMethod: '分期付款',
-  constructionScaleOverview: '',
 })
 
 const isSubmitting = ref(false)
@@ -170,7 +170,6 @@ const handleSubmit = async () => {
       contractId: formData.contractId!,
       constructionName: formData.constructionName!,
       constructionLocation: formData.constructionLocation!,
-      constructionScaleOverview: formData.constructionScaleOverview,
       leadOrganization: '',
       constructionBudget: formData.constructionBudget || 0,
       currentContractAmount: formData.constructionBudget || 0,
@@ -216,7 +215,15 @@ const handleSubmit = async () => {
 </script>
 
 <template>
-  <div class="create-project-page container-fluid">
+  <div class="create-project-page app-page">
+    <PageHeader
+      title="建立新工程案"
+      icon="fa fa-hard-hat"
+      :breadcrumbs="[
+        { text: '系統管理', href: '#' },
+        { text: '建立新工程案', active: true }
+      ]"
+    />
     <div class="row justify-content-center">
       <div class="col-lg-8">
         
@@ -312,7 +319,7 @@ const handleSubmit = async () => {
                   </div>
 
                   <div class="col-md-3">
-                    <label class="form-label">原合約工期</label>
+                    <label class="form-label">契約工期</label>
                     <input 
                       type="number" 
                       class="form-control" 

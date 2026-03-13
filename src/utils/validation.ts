@@ -30,6 +30,8 @@ export interface ValidationRule {
     endDate?: string;
     startField?: string;
     endField?: string;
+    /** 自訂錯誤訊息（例如：開工日期必須晚於訂約日期） */
+    message?: string;
   };
 }
 
@@ -386,13 +388,13 @@ export function validateForm(formData: any, rules: FieldValidationRules): Valida
   Object.keys(rules).forEach(fieldName => {
     const rule = rules[fieldName];
     if (rule.dateRange) {
-      const { startField, endField } = rule.dateRange;
+      const { startField, endField, message: customMessage } = rule.dateRange;
       if (startField && endField) {
         const startDate = formData[startField];
         const endDate = formData[endField];
         const result = ValidationUtils.dateRange(startDate, endDate);
         if (!result.isValid) {
-          errors[endField] = result.message || '日期範圍無效';
+          errors[endField] = customMessage || result.message || '日期範圍無效';
         }
       }
     }

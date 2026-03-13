@@ -16,12 +16,11 @@ interface MenuItem {
 export const useAppAdminSidebarMenuStore = defineStore("appAdminSidebarMenu", () => {
   const authStore = useAuthStore();
 
-  // 檢查是否為系統管理員
-  const hasAdminPermission = (): boolean => {
-    const user = authStore.user;
-    if (!user) return false;
-    return user.role === 'ADMIN' || user.role === 'SUPER_ADMIN';
-  };
+  const hasAdminPermission = computed(() => {
+    const role = authStore.user?.role;
+    const isAdmin = role === 'ADMIN' || role === 'SUPER_ADMIN';
+    return isAdmin;
+  });
 
   // 系統管理側邊欄選單項目
   const menuItems = computed(() => {
@@ -70,6 +69,19 @@ export const useAppAdminSidebarMenuStore = defineStore("appAdminSidebarMenu", ()
         icon: "bi bi-people",
         url: "/admin/users",
       },
+
+      // AI 工具測試（僅供管理員驗證設定）
+      { text: "AI 工具測試", is_header: true },
+      {
+        text: "OCR 測試",
+        icon: "bi bi-file-text",
+        url: "/admin/ai-ocr-test",
+      },
+      {
+        text: "LLM 測試",
+        icon: "bi bi-robot",
+        url: "/admin/ai-llm-test",
+      },
       
       // 未來可以添加更多系統管理功能
       // { text: "帳號權限管理", url: "/admin/user-roles", icon: "bi bi-person-shield" },
@@ -78,14 +90,16 @@ export const useAppAdminSidebarMenuStore = defineStore("appAdminSidebarMenu", ()
     ];
 
     // 如果沒有管理員權限，返回空陣列
-    if (!hasAdminPermission()) {
+    if (!hasAdminPermission.value) {
       return [];
     }
 
     return items;
   });
 
-  // 返回數組本身（保持與原有結構兼容）
-  return Object.assign(menuItems.value, {});
+  // Pinia setup store 必須回傳 object；computed/ref 會在 store 上自動 unref
+  return {
+    menuItems,
+  };
 });
 

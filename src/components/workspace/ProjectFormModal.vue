@@ -28,9 +28,7 @@ const formData = ref({
   project_name: '',
   contract_number: '',
   project_location: '',
-  project_scale_overview: '', // 新增：工程規模概述
   host_agency: '',
-  supervision_unit: '',
   contractor_name: '',
   // 新增：公司名稱顯示欄位
   supervisory_company_name: '',
@@ -95,12 +93,10 @@ const statusOptions = [
 const testData = {
   // 完整資料測試
   complete: {
-    project_name: "新北市蘆洲區社區公園改善計畫",
-    contract_number: "CONTRACT-2024-001",
-    project_location: "新北市蘆洲區中正路1號",
-    project_scale_overview: "本工程位於蘆洲區...", // 新增
+  project_name: "新北市蘆洲區社區公園改善計畫",
+  contract_number: "CONTRACT-2024-001",
+  project_location: "新北市蘆洲區中正路1號",
     host_agency: "新北市政府工務局",
-    supervision_unit: "中興工程顧問股份有限公司",
     contractor_name: "中華工程股份有限公司",
     // 新增：公司名稱顯示欄位
     supervisory_company_name: "中興工程顧問股份有限公司",
@@ -140,9 +136,7 @@ const testData = {
     project_name: "台北市信義區道路改善工程",
     contract_number: "CONTRACT-2024-002",
     project_location: "台北市信義區信義路五段",
-    project_scale_overview: "", // 新增
     host_agency: "台北市政府工務局",
-    supervision_unit: "",
     contractor_name: "",
     // 新增：公司名稱顯示欄位
     supervisory_company_name: "",
@@ -181,9 +175,7 @@ const testData = {
     project_name: "",
     contract_number: "",
     project_location: "",
-    project_scale_overview: "", // 新增
     host_agency: "",
-    supervision_unit: "",
     contractor_name: "",
     // 新增：公司名稱顯示欄位
     supervisory_company_name: "",
@@ -220,7 +212,6 @@ const testData = {
 
 // 載入測試資料的函數
 const loadTestData = (type: 'complete' | 'partial' | 'empty') => {
-  // console.log(`📋 載入工程案測試資料: ${type}`)
   
   // 載入測試資料
   formData.value = { 
@@ -246,9 +237,7 @@ const resetForm = () => {
     project_name: '',
     contract_number: '',
     project_location: '',
-    project_scale_overview: '', // 新增
     host_agency: '',
-    supervision_unit: '',
     contractor_name: '',
     // 新增：公司名稱顯示欄位
     supervisory_company_name: '',
@@ -299,9 +288,7 @@ const mapProjectDataToForm = (project: any) => {
     formData.value.project_name = project.name || ''
     formData.value.contract_number = project.contractNumber || ''
     formData.value.project_location = project.location || ''
-    formData.value.project_scale_overview = project.constructionScaleOverview || '' // 新增
     formData.value.host_agency = project.hostAgency || ''
-    formData.value.supervision_unit = project.supervisionUnit || ''
     formData.value.contractor_name = project.contractorName || ''
     // 新增：映射公司名稱
     formData.value.supervisory_company_name = project.supervisoryCompanyName || ''
@@ -349,7 +336,6 @@ const mapProjectDataToForm = (project: any) => {
     // 工作空間關聯
     formData.value.workspaceId = project.workspaceId || ''
     
-    // console.log('✅ 表單資料映射完成:', formData.value)
   } catch (error) {
     console.error('❌ 映射工程案資料失敗:', error)
   }
@@ -358,11 +344,9 @@ const mapProjectDataToForm = (project: any) => {
 // 載入當前工程案資料 - 使用與 BasicData 相同的邏輯
 const loadCurrentProjectData = async (project: any) => {
   if (!project) {
-    // console.log('⚠️ 沒有工程案資料')
     return
   }
   
-  // console.log('📋 當前工程案:', project)
   
   try {
     // 檢查是否已經有工程案資料，避免不必要的 API 調用
@@ -374,22 +358,18 @@ const loadCurrentProjectData = async (project: any) => {
     }
     
     // 重新載入最新的工程案資料
-    // console.log('🔄 重新載入工程案資料...')
     await workspaceStore.getProjectsByWorkspace(project.workspaceId)
     
     // 重新獲取更新後的工程案
     const updatedProject = workspaceStore.workspaceProjects.find(p => p.id === project.id)
     if (updatedProject) {
-      // console.log('✅ 工程案資料已更新，映射到表單:', updatedProject)
       mapProjectDataToForm(updatedProject)
     } else {
-      // console.log('⚠️ 找不到更新後的工程案，使用現有資料')
       mapProjectDataToForm(project)
     }
   } catch (error) {
     console.error('❌ 載入工程案資料失敗:', error)
     // 如果 API 載入失敗，至少映射現有資料
-    // console.log('🔄 使用現有工程案資料...')
     mapProjectDataToForm(project)
   }
 }
@@ -414,7 +394,6 @@ watch(() => props.project, async (newProject, oldProject) => {
       ...formData.value,
       workspaceId: newProject.workspaceId || ''
     }
-    // console.log('🆕 新增模式，使用工作空間 ID:', newProject.workspaceId)
   } else {
     resetForm()
   }
@@ -425,7 +404,6 @@ watch(() => props.show, (newShow) => {
   if (newShow) {
     // 顯示目前模式
     const mode = isEditMode.value ? 'edit' : 'create'
-    console.log(`🔧 工程案編輯器開啟 - 模式: ${mode}`)
     // 清除驗證錯誤由 ProjectForm 內部處理
   } else {
     // 表單關閉時也清空資料和錯誤
@@ -434,8 +412,6 @@ watch(() => props.show, (newShow) => {
 })
 
 const handleSubmit = async (projectFormData: any) => {
-  // console.log('📋 工程案表單提交中...')
-  // console.log('📤 表單資料:', projectFormData)
   
   isSubmitting.value = true
   try {
@@ -454,12 +430,9 @@ const handleSubmit = async (projectFormData: any) => {
       throw new Error('無法獲取公司 ID，請確保工作空間包含公司資訊')
     }
     
-    // console.log('🏗️ 使用工作空間 ID:', currentWorkspaceId)
-    // console.log('🏢 使用公司 ID:', companyId)
     
     // 轉換為API請求格式
     const constructionRequest = transformProjectFormToConstructionRequest(projectFormData, currentWorkspaceId, companyId)
-    // console.log('🔄 轉換後的 API 請求:', constructionRequest)
     
     let response: any
     let submitData: any
@@ -467,7 +440,6 @@ const handleSubmit = async (projectFormData: any) => {
     if (props.project?.id) {
       // 編輯模式：調用更新工程案API
       response = await updateConstruction(props.project.id, constructionRequest)
-      // console.log('✅ 工程案更新成功:', response)
       
       // 重新查詢最新的工程案資料
       await workspaceStore.getProjectsByWorkspace(currentWorkspaceId)
@@ -491,11 +463,9 @@ const handleSubmit = async (projectFormData: any) => {
           endDate: projectFormData.completion_date,
           managerName: projectFormData.contractor_name,
           description: `${projectFormData.project_category} - ${projectFormData.funding_source}`,
-          constructionScaleOverview: projectFormData.project_scale_overview, // 新增
           // 額外的工程案詳細資訊
           contractNumber: projectFormData.contract_number,
           hostAgency: projectFormData.host_agency,
-          supervisionUnit: projectFormData.supervision_unit,
           constructionPeriod: projectFormData.construction_period,
           projectGrade: projectFormData.project_grade,
           projectCategory: projectFormData.project_category,
@@ -515,7 +485,6 @@ const handleSubmit = async (projectFormData: any) => {
     } else {
       // 創建模式：調用創建工程案API
       response = await createConstruction(constructionRequest)
-      // console.log('✅ 工程案創建成功:', response)
       
       // 轉換為 WorkspaceProject 格式，用於本地狀態更新
       submitData = {
@@ -529,12 +498,10 @@ const handleSubmit = async (projectFormData: any) => {
         endDate: projectFormData.completion_date,
         managerName: projectFormData.contractor_name,
         description: `${projectFormData.project_category} - ${projectFormData.funding_source}`,
-        constructionScaleOverview: projectFormData.project_scale_overview, // 新增
         progress: 0,
         // 額外的工程案詳細資訊
         contractNumber: projectFormData.contract_number,
         hostAgency: projectFormData.host_agency,
-        supervisionUnit: projectFormData.supervision_unit,
         constructionPeriod: projectFormData.construction_period,
         projectGrade: projectFormData.project_grade,
         projectCategory: projectFormData.project_category,
@@ -552,7 +519,6 @@ const handleSubmit = async (projectFormData: any) => {
       }
     }
     
-    // console.log('🔄 轉換後的本地狀態資料:', submitData)
     emit('submit', submitData)
     
     // 關閉模態框
@@ -569,7 +535,6 @@ const handleSubmit = async (projectFormData: any) => {
 }
 
 const handleConfirm = async () => {
-  // console.log('🔍 Modal 確認按鈕點擊，觸發 ProjectForm 的提交方法...')
   
   // 直接調用 ProjectForm 的提交方法，讓它處理驗證和顯示錯誤
   if (projectFormRef.value) {

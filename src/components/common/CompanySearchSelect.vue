@@ -93,7 +93,6 @@ const handleSearch = () => {
 
 // 選擇公司
 const selectCompany = (company: Company) => {
-  console.log('Selected Company:', company)
   selectedCompany.value = company
   searchQuery.value = company.companyName
   showDropdown.value = false

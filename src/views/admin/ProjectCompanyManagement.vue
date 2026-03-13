@@ -163,7 +163,6 @@ const loadData = async () => {
           if (constructionInfo.value) {
             constructionInfo.value.workspaceId = foundConstruction.workspaceId
           }
-          console.log('✅ 從工程案列表中找到 workspaceId:', foundConstruction.workspaceId)
         } else {
           error.value = '無法找到工程案所屬的工作空間。請確認工程案是否存在於 master_construction 表中。'
         }

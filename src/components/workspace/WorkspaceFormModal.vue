@@ -71,7 +71,6 @@ watch(() => props.workspace, (newWorkspace) => {
 
 // 監聽show變化，重置錯誤並設置默認公司
 watch(() => props.show, (newShow) => {
-  // console.log('WorkspaceFormModal show changed:', newShow)
   if (newShow) {
     errors.value = {}
     // 如果沒有選擇公司且有可用公司，設置第一個作為默認值
@@ -105,12 +104,10 @@ const validateForm = () => {
 
 const handleSubmit = async () => {
   if (!validateForm()) {
-    // console.log('⚠️ 表單驗證失敗')
     return
   }
 
   isSubmitting.value = true
-  // console.log('📋 工作空間表單提交中...')
   
   try {
     const submitData = {
@@ -119,8 +116,6 @@ const handleSubmit = async () => {
       companyId: formData.value.companyId.trim()
     }
     
-    // console.log('📤 提交的表單資料:', submitData)
-    // console.log('🏢 選擇的公司 ID:', submitData.companyId)
     
     emit('submit', submitData)
   } catch (error) {

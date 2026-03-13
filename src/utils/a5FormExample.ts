@@ -47,6 +47,7 @@ export const generateA5Params = (formData: Record<string, any>, constructionId?:
   return {
     constructionId: constructionId || formData.constructionId || '',
     title: formData.title || 'A-5 施工計畫書',
+    estimateId: formData.estimateId ?? '',
     supervisoryName: formData.supervisoryName || '',
     supervisoryFactory: formData.supervisoryFactory || '',
     contractDate: formData.contractDate || '',

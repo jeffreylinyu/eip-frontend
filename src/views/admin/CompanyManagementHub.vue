@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed } from 'vue'
-import { companyApi, companyDataTransform, type Company, type CreateCompanyRequest } from '@/api/company'
+import { companyApi, type Company, type CreateCompanyRequest } from '@/api/company'
 import { userApi, type User } from '@/api/user'
 import Card from '@/components/bootstrap/Card.vue'
 import CardHeader from '@/components/bootstrap/CardHeader.vue'
 import CardBody from '@/components/bootstrap/CardBody.vue'
+import PageHeader from '@/components/bootstrap/PageHeader.vue'
 import CompanyFormModal from '@/components/company/CompanyFormModal.vue'
 import AuthorizationModal from '@/components/admin/AuthorizationModal.vue'
 import { getCurrentInstance } from 'vue'
@@ -24,9 +25,13 @@ const companyMembers = ref<any[]>([])
 
 // Modals
 const showCompanyModal = ref(false)
+const showEditCompanyModal = ref(false)
 const showAuthModal = ref(false)
 const showUserModal = ref(false)
 const selectedUserForAuth = ref<any>(null)
+
+// 公司詳情中地址欄位標籤：一律顯示公司地址
+const selectedCompanyAddressLabel = computed(() => '公司地址')
 
 // 公司權限選項（公司層級只有權限，沒有職位）
 const companyRoleOptions = [
@@ -88,6 +93,29 @@ const handleCreateCompany = async (data: any) => {
     fetchCompanies()
   } catch (error: any) {
     toast.error(error.message || '建立失敗')
+  }
+}
+
+// 公司編輯（管理員）
+const handleEditCompany = async (data: CreateCompanyRequest) => {
+  if (!selectedCompany.value?.companyId) return
+  try {
+    await companyApi.adminUpdate({
+      companyId: selectedCompany.value.companyId,
+      companyName: data.companyName,
+      companyUnifiedNumber: data.companyUnifiedNumber,
+      companyType: data.companyType,
+      contractorLevel: data.contractorLevel,
+      address: data.address,
+      phone: data.phone
+    })
+    toast.success('公司資料已更新')
+    showEditCompanyModal.value = false
+    await fetchCompanies()
+    const updated = companies.value.find(c => c.companyId === selectedCompany.value?.companyId)
+    if (updated) selectedCompany.value = updated
+  } catch (error: any) {
+    toast.error(error.message || '更新失敗')
   }
 }
 
@@ -204,30 +232,27 @@ const backToList = () => {
   selectedCompany.value = null
   companyMembers.value = []
 }
+
+const headerActions = computed(() => {
+  if (viewMode.value === 'LIST') {
+    return [{ text: '新增公司', icon: 'fa fa-plus', variant: 'btn-theme', click: () => { showCompanyModal.value = true } }]
+  }
+  return [{ text: '返回列表', icon: 'fa fa-arrow-left', variant: 'btn-secondary', click: backToList }]
+})
 </script>
 
 <template>
-  <div class="company-management-hub container-fluid">
-    <!-- Breadcrumb & Header -->
-    <div class="d-flex align-items-center justify-content-between mb-4">
-      <div>
-        <h1 class="page-header mb-1">
-          <i class="fa fa-building text-theme me-2"></i>公司與用戶管理6中心
-        </h1>
-        <small class="text-muted">由大到小管理：公司 ➔ 人員 ➔ 專案授權</small>
-      </div>
-      
-      <div v-if="viewMode === 'LIST'">
-        <button class="btn btn-theme" @click="showCompanyModal = true">
-          <i class="fa fa-plus me-1"></i> 新增公司
-        </button>
-      </div>
-      <div v-else>
-        <button class="btn btn-secondary" @click="backToList">
-          <i class="fa fa-arrow-left me-1"></i> 返回列表
-        </button>
-      </div>
-    </div>
+  <div class="company-management-hub app-page">
+    <PageHeader
+      title="公司與用戶管理中心"
+      icon="fa fa-building"
+      :breadcrumbs="[
+        { text: '系統管理', href: '#' },
+        { text: '公司與用戶管理中心', active: true }
+      ]"
+      :actions="headerActions"
+    />
+    <p class="text-muted small mb-4">由大到小管理：公司 ➔ 人員 ➔ 專案授權</p>
 
     <!-- VIEW: Company List -->
     <Card v-if="viewMode === 'LIST'">
@@ -293,12 +318,22 @@ const backToList = () => {
               </div>
               <div class="mb-2">
                 <span class="text-muted d-block small">類型</span>
-                <span>{{ selectedCompany?.companyType }}</span>
+                <span>{{ selectedCompany?.companyType === 'CONTRACTOR' ? '營造廠商' : selectedCompany?.companyType === 'SUPERVISION' ? '監造單位' : '第三方' }}</span>
+              </div>
+              <div class="mb-2">
+                <span class="text-muted d-block small">{{ selectedCompanyAddressLabel }}</span>
+                <span class="fw-bold">{{ selectedCompany?.address || '未填寫' }}</span>
+              </div>
+              <div class="mb-2">
+                <span class="text-muted d-block small">公司電話</span>
+                <span class="fw-bold">{{ selectedCompany?.phone || '未填寫' }}</span>
               </div>
               <hr>
-              <div class="d-flex justify-content-between align-items-center">
+              <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <span class="text-muted small">ID: {{ selectedCompany?.companyId }}</span>
-                <!-- 未來可加入編輯功能 -->
+                <button type="button" class="btn btn-sm btn-outline-theme" @click="showEditCompanyModal = true">
+                  <i class="fa fa-pen me-1"></i>編輯公司
+                </button>
               </div>
             </CardBody>
           </Card>
@@ -366,6 +401,13 @@ const backToList = () => {
       v-model:show="showCompanyModal" 
       :company="null"
       @submit="handleCreateCompany"
+    />
+
+    <!-- Modal: Edit Company -->
+    <CompanyFormModal 
+      v-model:show="showEditCompanyModal" 
+      :company="selectedCompany"
+      @submit="handleEditCompany"
     />
 
     <!-- Modal: Authorization -->
@@ -475,5 +517,4 @@ const backToList = () => {
 
 <style scoped>
 .cursor-pointer { cursor: pointer; }
-.page-header { font-size: 1.5rem; font-weight: 700; color: var(--bs-body-color); }
 </style>

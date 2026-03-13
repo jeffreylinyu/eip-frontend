@@ -7,9 +7,11 @@ import CardHeader from '@/components/bootstrap/CardHeader.vue'
 import FormParameterManager from '@/components/forms/FormParameterManager.vue'
 import { A5_FORM_CONFIG, getFormDefaults } from '@/config/formFields'
 import { formA5Api, downloadBlobAsFile, formatFileSize, handleApiError } from '@/api/forms'
+import { useExportLoading } from '@/composables/useExportLoading'
 import { generateA5Params, A5_FORM_EXAMPLE } from '@/utils/a5FormExample'
 
 const projectStore = useProjectStore()
+const { runWithExportLoading } = useExportLoading()
 
 // 狀態管理
 const isLoading = ref(false)
@@ -72,28 +74,24 @@ const downloadEmptyForm = async () => {
     }, 200)
     
     // 下載空白表單
-    const blob = await formA5Api.downloadReport()
+    const constructionId = projectStore.currentProject?.constructionId ?? ''
+    await runWithExportLoading('a5-empty', 'A-5 空白表單', async (signal) => {
+      const blob = await formA5Api.downloadReport(constructionId, '', { signal })
+      downloadProgress.value = 100
+      const now = new Date()
+      const dateStr = now.toISOString().split('T')[0]
+      const fileName = `A-5_施工計畫書_空白表單_${dateStr}.docx`
+      downloadBlobAsFile(blob, fileName)
+      addToDownloadHistory(fileName, blob.size, false)
+      showToast('下載成功', `${fileName} 已開始下載`, 'success')
+    })
     
-    downloadProgress.value = 100
     if (progressInterval) {
       clearInterval(progressInterval)
       progressInterval = null
     }
-    
-    // 生成檔案名稱
-    const now = new Date()
-    const dateStr = now.toISOString().split('T')[0]
-    const fileName = `A-5_施工計畫書_空白表單_${dateStr}.docx`
-    
-    // 下載文件
-    downloadBlobAsFile(blob, fileName)
-    
-    // 添加到下載歷史
-    addToDownloadHistory(fileName, blob.size, false)
-    
-    showToast('下載成功', `${fileName} 已開始下載`, 'success')
-    
   } catch (error) {
+    if ((error as any)?.name === 'AbortError' || (error as any)?.code === 'ERR_CANCELED') return
     console.error('下載失敗:', error)
     const errorMessage = handleApiError(error)
     showToast('下載失敗', errorMessage, 'error')
@@ -136,29 +134,33 @@ const downloadWithParameters = async () => {
     const a5Params = generateA5Params(currentFormData, projectStore.currentProject?.constructionId)
     
     // 下載含參數的表單
-    const blob = await formA5Api.downloadReport(a5Params)
+    await runWithExportLoading('a5-params', 'A-5 施工計畫書', async (signal) => {
+      const blob = await formA5Api.downloadReport(
+        a5Params.constructionId,
+        a5Params.estimateId ?? '',
+        {
+          ownerType: (currentFormData as any).ownerType,
+          estimatePeriodStart: (currentFormData as any).estimatePeriodStart,
+          estimatePeriodEnd: (currentFormData as any).estimatePeriodEnd,
+          signal
+        }
+      )
+      downloadProgress.value = 100
+      const now = new Date()
+      const dateStr = now.toISOString().split('T')[0]
+      const projectName = currentFormData.projectName || a5Params.title || '未命名工程'
+      const fileName = `A-5_施工計畫書_${projectName}_${dateStr}.docx`
+      downloadBlobAsFile(blob, fileName)
+      addToDownloadHistory(fileName, blob.size, true)
+      showToast('下載成功', `${fileName} 已開始下載`, 'success')
+    })
     
-    downloadProgress.value = 100
     if (progressInterval) {
       clearInterval(progressInterval)
       progressInterval = null
     }
-    
-    // 生成檔案名稱
-    const now = new Date()
-    const dateStr = now.toISOString().split('T')[0]
-    const projectName = currentFormData.projectName || a5Params.title || '未命名工程'
-    const fileName = `A-5_施工計畫書_${projectName}_${dateStr}.docx`
-    
-    // 下載文件
-    downloadBlobAsFile(blob, fileName)
-    
-    // 添加到下載歷史
-    addToDownloadHistory(fileName, blob.size, true)
-    
-    showToast('下載成功', `${fileName} 已開始下載`, 'success')
-    
   } catch (error) {
+    if ((error as any)?.name === 'AbortError' || (error as any)?.code === 'ERR_CANCELED') return
     console.error('下載失敗:', error)
     const errorMessage = handleApiError(error)
     showToast('下載失敗', errorMessage, 'error')
@@ -249,7 +251,6 @@ const toggleParameterForm = () => {
 }
 
 const showToast = (title: string, message: string, type: 'success' | 'error' | 'warning' = 'success') => {
-  // console.log(`${type}: ${title} - ${message}`)
   // 這裡可以整合實際的 Toast 組件
 }
 

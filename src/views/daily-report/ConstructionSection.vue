@@ -161,7 +161,6 @@ const saveConstructionRecords = async () => {
   isLoading.value = true
   try {
     // TODO: 實作儲存施工記錄的 API
-    // console.log('儲存施工記錄:', constructionRecords.value)
   } catch (error) {
     console.error('儲存失敗:', error)
   } finally {
@@ -180,7 +179,6 @@ const nextSection = () => {
 // 生命週期
 onMounted(() => {
   // TODO: 載入現有的施工記錄資料
-  // console.log('載入施工記錄資料')
 })
 </script>
 

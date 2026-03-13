@@ -94,7 +94,7 @@ const selectWorkspace = (workspace: Workspace) => {
   toggleWorkspace(workspace.id);
 };
 
-const selectProject = (project: WorkspaceProject) => {
+const selectProject = async (project: WorkspaceProject) => {
   // 自動設置該項目所屬的工作空間為當前工作空間
   const workspace = workspaceStore.workspacesWithUserInfo.find(
     (ws) => ws.id === project.workspaceId

@@ -19,7 +19,6 @@ const projectFormData = ref({
   contract_number: '',
   project_location: '',
   host_agency: '',
-  supervision_unit: '',
   contractor_name: '',
   construction_period: '',
   project_amount: '',
@@ -112,7 +111,6 @@ const openAddProject = () => {
     contract_number: '',
     project_location: '',
     host_agency: '',
-    supervision_unit: '',
     contractor_name: '',
     construction_period: '',
     project_amount: '',
@@ -156,7 +154,6 @@ const openEditProject = (project: WorkspaceProject) => {
     contract_number: project.contractNumber || '',
     project_location: project.location || '',
     host_agency: project.hostAgency || '',
-    supervision_unit: project.supervisionUnit || '',
     contractor_name: project.managerName || '',
     construction_period: project.constructionPeriod || '',
     project_amount: project.budget || '',
@@ -283,7 +280,7 @@ const onProjectFormSubmit = async (formData: any) => {
       startDate: '',
       endDate: '',
       managerName: formData.contractor_name, // 使用承包商名稱作為負責人
-      description: `契約編號：${formData.contract_number}\n主辦機關：${formData.host_agency}\n監造單位：${formData.supervision_unit}\n承包商：${formData.contractor_name}\n工程等級：${formData.project_grade}\n工期：${formData.construction_period}天`,
+      description: `契約編號：${formData.contract_number}\n主辦機關：${formData.host_agency}\n承包商：${formData.contractor_name}\n工程等級：${formData.project_grade}\n工期：${formData.construction_period}天`,
       progress: 0
     }
 

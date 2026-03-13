@@ -352,7 +352,6 @@ const saveEquipmentRecords = async () => {
   isLoading.value = true
   try {
     // TODO: 實作儲存機具紀錄的 API
-    // console.log('儲存機具紀錄:', equipmentRecords.value)
   } catch (error) {
     console.error('儲存失敗:', error)
   } finally {
@@ -371,7 +370,6 @@ const nextSection = () => {
 // 生命週期
 onMounted(() => {
   // TODO: 載入現有的機具紀錄資料
-  // console.log('載入機具紀錄資料')
 })
 </script>
 

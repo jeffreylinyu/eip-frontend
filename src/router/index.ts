@@ -1,6 +1,7 @@
 import { createRouter, createWebHashHistory } from "vue-router";
 import { useAuthStore } from '@/stores/auth';
 import { useWorkspaceStore } from '@/stores/workspace';
+import { useCompanyStore } from '@/stores/company';
 import { useAppOptionStore } from '@/stores/app-option';
 import http from '@/api/http';
 import { dailyReportRoutes } from './dailyReport';
@@ -54,12 +55,52 @@ const router = createRouter({
       meta: { requiresAuth: true }
     },
     {
+      path: '/forms/o1-extension',
+      component: () => import('../views/forms/type-a/FormA4Download.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/forms/o1-commencement',
+      component: () => import('../views/forms/type-a/FormCommencementReport.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/forms/a3-commencement',
+      component: () => import('../views/forms/type-a/FormCommencementReport.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
       path: '/forms/a5-download',
       component: () => import('../views/forms/type-a/FormA5Download.vue'),
       meta: { requiresAuth: true }
     },
     {
+      path: '/forms/o3-estimate',
+      component: () => import('../views/forms/type-a/FormA5Download.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
       path: '/forms/a7-download',
+      component: () => import('../views/forms/type-a/FormA7Download.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/forms/a1-contract',
+      component: () => import('../views/forms/DocumentShelf.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/forms/a2-budget',
+      component: () => import('../views/forms/DocumentShelf.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/forms/a6-insurance',
+      component: () => import('../views/forms/DocumentShelf.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/forms/o4-labour-safety',
       component: () => import('../views/forms/type-a/FormA7Download.vue'),
       meta: { requiresAuth: true }
     },
@@ -154,6 +195,16 @@ const router = createRouter({
       meta: { requiresAuth: true, requiresAdmin: true }
     },
     {
+      path: '/admin/ai-ocr-test',
+      component: () => import('../views/admin/AiOcrTest.vue'),
+      meta: { requiresAuth: true, requiresAdmin: true }
+    },
+    {
+      path: '/admin/ai-llm-test',
+      component: () => import('../views/admin/AiLlmTest.vue'),
+      meta: { requiresAuth: true, requiresAdmin: true }
+    },
+    {
       path: '/my-projects',
       component: () => import('../views/workspace/MyProjects.vue'),
       meta: { requiresAuth: true }
@@ -166,7 +217,7 @@ const router = createRouter({
     {
       path: '/company/site-personnel',
       component: () => import('../views/company/SitePersonnelManagement.vue'),
-      meta: { requiresAuth: true }
+      meta: { requiresAuth: true, requiresCompanyAdmin: true }
     },
     // 工程進度排程
     {
@@ -174,6 +225,28 @@ const router = createRouter({
       component: () => import('../views/schedule/ScheduleEditor.vue'),
       meta: { requiresAuth: true }
     },
+    // 公文中心（以工程案為單位）- 僅列表；詳情頁路由先隱藏，頁面檔案保留
+    {
+      path: '/document-center',
+      component: () => import('../views/document-center/DocumentCenterList.vue'),
+      meta: { requiresAuth: true }
+    },
+    // 變更設計（依工程案，主表列表與新增/編輯）
+    {
+      path: '/design-changes',
+      component: () => import('../views/design-change/DesignChangeList.vue'),
+      meta: { requiresAuth: true }
+    },
+    // {
+    //   path: '/document-center/new',
+    //   component: () => import('../views/document-center/DocumentCenterDetail.vue'),
+    //   meta: { requiresAuth: true }
+    // },
+    // {
+    //   path: '/document-center/:id',
+    //   component: () => import('../views/document-center/DocumentCenterDetail.vue'),
+    //   meta: { requiresAuth: true }
+    // },
     // 工程日報表路由
     ...dailyReportRoutes,
     
@@ -210,6 +283,21 @@ const router = createRouter({
       component: () => import('../views/basic/ProjectItemDatabase.vue'),
       meta: { requiresAuth: true, viewType: 'SUPERVISORY' }
     },
+    {
+      path: '/supervisory/basic/setup-overview',
+      component: () => import('../views/supervisory/basic/SetupOverview.vue'),
+      meta: { requiresAuth: true, viewType: 'SUPERVISORY' }
+    },
+    {
+      path: '/supervisory/company/profile',
+      component: () => import('../views/supervisory/company/CompanyProfile.vue'),
+      meta: { requiresAuth: true, viewType: 'SUPERVISORY' }
+    },
+    {
+      path: '/supervisory/design-changes',
+      component: () => import('../views/design-change/DesignChangeList.vue'),
+      meta: { requiresAuth: true, viewType: 'SUPERVISORY' }
+    },
     
     // ========================================================
     // 視角特定路由（營造）
@@ -244,6 +332,11 @@ const router = createRouter({
       component: () => import('../views/basic/ProjectItemDatabase.vue'),
       meta: { requiresAuth: true, viewType: 'CONTRACTOR' }
     },
+    {
+      path: '/contractor/design-changes',
+      component: () => import('../views/design-change/DesignChangeList.vue'),
+      meta: { requiresAuth: true, viewType: 'CONTRACTOR' }
+    },
     
     // ========================================================
     // 共用路由（個人設定、通知等）
@@ -271,6 +364,11 @@ router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore();
   const workspaceStore = useWorkspaceStore();
   const appOptionStore = useAppOptionStore();
+  // onboarding gate（監造端）
+  const { useOnboardingStore } = await import('@/stores/onboarding')
+  const onboardingStore = useOnboardingStore()
+  const { useViewPerspective } = await import('@/composables/useViewPerspective')
+  const { isSupervisory } = useViewPerspective()
   
   // 視角路由檢查（在認證檢查之後）
   if (to.meta.viewType && authStore.isAuthenticated) {
@@ -369,6 +467,26 @@ router.beforeEach(async (to, from, next) => {
     next('/page/login');
     return;
   }
+
+  // 3.1 公司管理權限檢查（公司 OWNER / ADMIN）
+  if (to.meta.requiresCompanyAdmin && authStore.isAuthenticated) {
+    const companyStore = useCompanyStore();
+    if (companyStore.activeCompanies.length === 0) {
+      try {
+        await companyStore.initCompanies();
+      } catch {
+        // ignore
+      }
+    }
+
+    const hasCompanyAdminRole = companyStore.activeCompanies.some(
+      (c: any) => c.userRole === 'OWNER' || c.userRole === 'ADMIN'
+    );
+    if (!hasCompanyAdminRole) {
+      next('/company/management');
+      return;
+    }
+  }
   
   // 4. 權限狀態檢查 (僅針對已登入用戶)
   if (authStore.isAuthenticated) {
@@ -416,6 +534,49 @@ router.beforeEach(async (to, from, next) => {
          next('/access-status-guide');
          return;
      }
+  }
+
+  // 5. 監造端工程開通擋路（方案 A：未開通前只能進入必要頁面與總表）
+  try {
+    if (authStore.isAuthenticated && isSupervisory.value) {
+      // 系統管理員（SUPER_ADMIN）跳過此檢查
+      const systemRole = authStore.user?.systemRole || authStore.user?.role
+      if (systemRole !== 'SUPER_ADMIN') {
+        // 需要先有工程案
+        const constructionId = workspaceStore.currentProject?.id
+        if (constructionId) {
+          // 允許通行的路由（含總表 + 5 個必要頁面）
+          const allowedPrefixes = [
+            '/page/', // 已在 publicRoutes 擋掉，這裡保險
+            '/access-status-guide',
+            '/user/profile',
+            '/my-projects',
+            '/company/management',
+            '/company/site-personnel',
+            '/supervisory/basic/setup-overview',
+            '/supervisory/basic/basic-data',
+            '/supervisory/basic/site-personnel',
+            '/supervisory/basic/project-item-database',
+            // 共用路由也允許（避免沒有視角前綴時進不了）
+            '/basic/basic-data',
+            '/basic/site-personnel',
+            '/basic/project-item-database',
+            '/forms/b-construction-maintenance',
+            '/forms/tender-material-settings',
+            '/calendar'
+          ]
+
+          const isAllowed = allowedPrefixes.some((p) => to.path === p || to.path.startsWith(p))
+          const status = await onboardingStore.fetchStatus(constructionId, false)
+          if (!status.completed && !isAllowed) {
+            next('/supervisory/basic/setup-overview')
+            return
+          }
+        }
+      }
+    }
+  } catch (e) {
+    // 降級：若檢核失敗，不擋路避免把使用者卡死
   }
   
   // 通過檢查

@@ -91,7 +91,6 @@ const loadFromStorage = (): ScheduleVersion[] => {
 const saveToStorage = (versions: ScheduleVersion[]) => {
   try {
     storage.set(StorageKeys.SCHEDULE_DATA, versions)
-    console.log('排程資料已儲存到 localStorage')
   } catch (error) {
     console.error('儲存排程資料失敗:', error)
   }
@@ -283,7 +282,6 @@ export const useScheduleStore = defineStore('schedule', () => {
   const saveToLocalStorage = () => {
     saveToStorage(versions.value)
     saveCurrentVersionId(currentVersionId.value || 1)
-    console.log('手動儲存完成')
   }
 
   return {

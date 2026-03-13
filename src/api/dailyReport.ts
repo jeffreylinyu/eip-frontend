@@ -478,7 +478,8 @@ export const convertFromDetailResponse = (
 export const exportDailyReportToWord = async (
   constructionId: string,
   reportDate: string,
-  version: DailyReportExportVersion = 'construction'
+  version: DailyReportExportVersion = 'construction',
+  options?: { signal?: AbortSignal }
 ): Promise<void> => {
   try {
     // 將版本參數轉換為 API 所需的類型
@@ -489,7 +490,8 @@ export const exportDailyReportToWord = async (
       url: `/management/constructions/${constructionId}/daily-reports/${reportDate}/export`,
       method: 'GET',
       params: { type },
-      timeout: 60000
+      timeout: 60000,
+      signal: options?.signal
     });
 
     // 嘗試從響應標頭中提取檔案名稱

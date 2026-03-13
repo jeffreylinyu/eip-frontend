@@ -44,8 +44,8 @@ export const documentClassificationApi = {
   /**
    * 取得某工程案的所有文件分類項目
    */
-  async getAll(constructionId: string): Promise<DocumentClassification[]> {
-    const response: any = await http.get(`/management/constructions/${constructionId}/document-classification`)
+  async getAll(constructionId: string, config?: { skipAuthRedirectOn401?: boolean }): Promise<DocumentClassification[]> {
+    const response: any = await http.get(`/management/constructions/${constructionId}/document-classification`, config ?? {})
     return response.data || response
   },
 

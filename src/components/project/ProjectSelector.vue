@@ -27,7 +27,6 @@ export default {
         contract_number: '',
         project_location: '',
         host_agency: '',
-        supervision_unit: '',
         contractor_name: '',
         construction_period: '',
         project_amount: '',
@@ -108,7 +107,6 @@ export default {
         contract_number: '',
         project_location: '',
         host_agency: '',
-        supervision_unit: '',
         contractor_name: '',
         construction_period: '',
         project_amount: '',
@@ -149,7 +147,6 @@ export default {
         constructionName: formData.project_name,
         constructionLocation: formData.project_location,
         contractId: formData.contract_number,
-        supervisoryName: formData.supervision_unit,
         constructionBudget: formData.project_amount,
         leadOrganization: formData.host_agency,
         constructor: formData.contractor_name,
@@ -157,7 +154,6 @@ export default {
         projectStaff: formData.contractor_name, // 使用承包商名稱作為項目人員
         constructionStartDate: new Date().toISOString(), // 預設為當前時間
         constructionEndDate: new Date(Date.now() + parseInt(formData.construction_period || 0) * 24 * 60 * 60 * 1000).toISOString(), // 根據工期計算結束日期
-        supervisionManufacturer: formData.supervision_unit
       };
     },
     
@@ -168,7 +164,6 @@ export default {
         { field: 'contract_number', label: '契約編號' },
         { field: 'project_location', label: '工程地點' },
         { field: 'host_agency', label: '主辦機關' },
-        { field: 'supervision_unit', label: '監造單位' },
         { field: 'contractor_name', label: '承包商名稱' },
         { field: 'construction_period', label: '工期' },
         { field: 'project_amount', label: '工程金額' },

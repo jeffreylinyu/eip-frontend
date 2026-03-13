@@ -29,26 +29,26 @@ export default {
 					</card>
 				</card-body>
 			</card>
-			<h1>Oops!</h1> 
-			<h3>We can't seem to find the page you're looking for</h3>
+			<h1>哎呀！</h1>
+			<h3>找不到您要的頁面</h3>
 			<hr />
 			<p class="mb-1">
-				Here are some helpful links instead:
+				以下是一些有用的連結：
 			</p>
 			<p class="mb-5">
-				<RouterLink to="/" class="text-decoration-none text-inverse text-opacity-50">Home</RouterLink>
+				<RouterLink to="/" class="text-decoration-none text-inverse text-opacity-50">首頁</RouterLink>
 				<span class="link-divider"></span>
-				<RouterLink to="/page/search-results" class="text-decoration-none text-inverse text-opacity-50">Search</RouterLink>
+				<RouterLink to="/page/search-results" class="text-decoration-none text-inverse text-opacity-50">搜尋</RouterLink>
 				<span class="link-divider"></span>
-				<RouterLink to="/email/inbox" class="text-decoration-none text-inverse text-opacity-50">Email</RouterLink>
+				<RouterLink to="/email/inbox" class="text-decoration-none text-inverse text-opacity-50">郵件</RouterLink>
 				<span class="link-divider"></span>
-				<RouterLink to="/calendar" class="text-decoration-none text-inverse text-opacity-50">Calendar</RouterLink>
+				<RouterLink to="/calendar" class="text-decoration-none text-inverse text-opacity-50">行事曆</RouterLink>
 				<span class="link-divider"></span>
-				<RouterLink to="/settings" class="text-decoration-none text-inverse text-opacity-50">Settings</RouterLink>
+				<RouterLink to="/settings" class="text-decoration-none text-inverse text-opacity-50">設定</RouterLink>
 				<span class="link-divider"></span>
-				<RouterLink to="/helper" class="text-decoration-none text-inverse text-opacity-50">Helper</RouterLink>
+				<RouterLink to="/helper" class="text-decoration-none text-inverse text-opacity-50">說明</RouterLink>
 			</p>
-			<a href="javascript:window.history.back();" class="btn btn-outline-theme px-3 rounded-pill"><i class="fa fa-arrow-left me-1 ms-n1"></i> Go Back</a>
+			<a href="javascript:window.history.back();" class="btn btn-outline-theme px-3 rounded-pill"><i class="fa fa-arrow-left me-1 ms-n1"></i> 返回</a>
 		</div>
 		<!-- END error-page-content -->
 	</div>

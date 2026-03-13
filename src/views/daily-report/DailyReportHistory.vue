@@ -243,12 +243,7 @@
       </nav>
     </div>
 
-    <!-- 載入中遮罩 -->
-    <div v-if="isLoading" class="loading-overlay">
-      <div class="spinner-border text-primary" role="status">
-        <span class="visually-hidden">載入中...</span>
-      </div>
-    </div>
+    <LoadingOverlay :show="isLoading" text="載入中..." />
   </div>
 </template>
 
@@ -256,13 +251,16 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDailyReportStore } from '@/stores/dailyReport'
+import { useExportLoading } from '@/composables/useExportLoading'
 import type { DailyReport } from '@/types/dailyReport'
+import LoadingOverlay from '@/components/common/LoadingOverlay.vue'
 import Card from '@/components/bootstrap/Card.vue'
 import CardHeader from '@/components/bootstrap/CardHeader.vue'
 import CardBody from '@/components/bootstrap/CardBody.vue'
 
 const router = useRouter()
 const dailyReportStore = useDailyReportStore()
+const { runWithExportLoading } = useExportLoading()
 
 // 響應式資料
 const reports = ref<DailyReport[]>([])
@@ -355,7 +353,6 @@ const searchReports = async () => {
   isLoading.value = true
   try {
     // TODO: 實作搜尋日報表的 API
-    // console.log('搜尋日報表:', filters.value)
     
     // 模擬 API 回應
     await new Promise(resolve => setTimeout(resolve, 1000))
@@ -412,8 +409,11 @@ const editReport = (reportId: string) => {
 
 const exportReport = async (reportId: string) => {
   try {
-    await dailyReportStore.exportToExcel(reportId)
+    await runWithExportLoading(`daily-excel-${reportId}`, '工程日報表 Excel', async () => {
+      await dailyReportStore.exportToExcel(reportId)
+    })
   } catch (error) {
+    if ((error as any)?.name === 'AbortError' || (error as any)?.code === 'ERR_CANCELED') return
     console.error('匯出失敗:', error)
   }
 }
@@ -423,7 +423,6 @@ const exportSelected = async () => {
   
   try {
     // TODO: 實作批次匯出的 API
-    // console.log('批次匯出:', selectedReports.value)
     
     // 這裡應該要呼叫 API 批次匯出
     // await dailyReportApi.exportMultiple(selectedReports.value)
@@ -450,19 +449,6 @@ onMounted(() => {
 
 .fs-sm {
   font-size: 0.875rem;
-}
-
-.loading-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(255, 255, 255, 0.8);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 9999;
 }
 
 .table th {

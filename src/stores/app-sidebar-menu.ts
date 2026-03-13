@@ -2,7 +2,8 @@ import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 import { useAuthStore } from '@/stores/auth';
 import { useWorkspaceStore } from '@/stores/workspace';
-import { useViewPerspective, ViewType } from '@/composables/useViewPerspective';
+import { useViewPerspective } from '@/composables/useViewPerspective';
+import { useOnboardingStore } from '@/stores/onboarding'
 
 interface MenuItem {
   text?: string;
@@ -161,14 +162,53 @@ export const useAppSidebarMenuStore = defineStore("appSidebarMenu", () => {
     if (baseUrl.startsWith('/basic/') || baseUrl === '/') {
       return `${prefix}${baseUrl}`
     }
+    // 變更設計：監造/營造分開
+    if (baseUrl === '/design-changes') {
+      return `${prefix}/design-changes`
+    }
     
     return baseUrl
   }
 
   // 選單項目（使用 computed 以響應 hiddenTutorials 和權限變化）
   const menuItems = computed(() => {
-    const { viewType, isSupervisory, isContractor, isShared } = useViewPerspective()
-    const prefix = getViewPrefix()
+    const { isSupervisory } = useViewPerspective()
+    const onboardingStore = useOnboardingStore()
+    const authStore = useAuthStore()
+    const systemRole = authStore.user?.systemRole || authStore.user?.role
+
+    // 監造端未開通：顯示「開通專用」側邊欄（含提示/教學）
+    // 系統管理員（SUPER_ADMIN）跳過
+    if (systemRole !== 'SUPER_ADMIN' && isSupervisory.value && onboardingStore.shouldUseOnboardingFlow && !onboardingStore.isCompleted) {
+      const items: MenuItem[] = [
+        { text: "工程開通", is_header: true },
+        { url: "/supervisory/basic/setup-overview", icon: "bi bi-clipboard-check", text: "基本資料總表" },
+        {
+          text: "必要設定",
+          icon: "bi bi-list-check",
+          children: [
+            { text: "核心資料", url: "/supervisory/basic/basic-data" },
+            { text: "人員配置", url: "/supervisory/basic/site-personnel" },
+            { text: "工程項目標單", url: "/supervisory/basic/project-item-database" },
+            { text: "施工項目維護", url: "/forms/b-construction-maintenance" },
+            { text: "標單材料設定", url: "/forms/tender-material-settings" }
+          ]
+        },
+        { text: "提示", is_header: true },
+        {
+          text: "為什麼我只能看到這些？",
+          icon: "bi bi-info-circle",
+          children: [
+            {
+              text: "完成一次工程開通後，才會解鎖全部功能",
+              url: "/supervisory/basic/setup-overview",
+              isTutorial: true
+            }
+          ]
+        }
+      ]
+      return filterMenuItems(items)
+    }
     
     const items: MenuItem[] = [
     // 工程儀表板
@@ -178,16 +218,32 @@ export const useAppSidebarMenuStore = defineStore("appSidebarMenu", () => {
     //基本資料維護
     { text: "基本資料維護", is_header: true },
     {
-      text: "基本資料",
+      text: "核心資料",
       icon: "bi bi-database",
       children: [
         { text: "基本資料維護", url: getViewUrl("/basic/basic-data") },
         { text: "參與單位", url: getViewUrl("/basic/participation-units") },
-        { text: "工地相關人員", url: getViewUrl("/basic/site-personnel") },
+        // 施工項目維護（原本放在 B 類表單）
+        { text: "施工項目維護", url: "/forms/b-construction-maintenance" },
         { text: "工程項目標單", url: getViewUrl("/basic/project-item-database") },
+        // 標單材料設定（原本放在 B 類表單）
+        { text: "標單材料設定", url: "/forms/tender-material-settings" },
+        { text: "變更設計", url: getViewUrl("/design-changes") },
+      ],
+    },
+    {
+      text: "監造核心資料",
+      icon: "bi bi-building",
+      children: [
+        { text: "公司基本資料", url: "/supervisory/company/profile" },
+        { text: "人員配置", url: "/supervisory/basic/site-personnel" },
       ],
     },
 
+
+    // 公文中心（以工程案為單位）
+    { text: "公文中心", is_header: true },
+    { text: "公文列表", url: "/document-center", icon: "bi bi-folder2-open" },
 
     // 行事曆
     { text: "行事曆", is_header: true },
@@ -211,19 +267,25 @@ export const useAppSidebarMenuStore = defineStore("appSidebarMenu", () => {
         {
           text: "A類表單",
           children: [
+            { text: "A-1 工程契約", url: "/forms/a1-contract" },
+            { text: "A-2 施工預算書", url: "/forms/a2-budget" },
+            { text: "A-3 開、竣、停工報告", url: "/forms/a3-commencement" },
             { text: "A-4 工期展延申請總表", url: "/forms/a4-download" },
             { text: "A-5 估驗請款計價單", url: "/forms/a5-download" },
             // { text: "A-5 參數化表單", url: "/forms/a5-with-params" },
+            { text: "A-6 營造工程保險", url: "/forms/a6-insurance" },
             { text: "A-7 職安報備書", url: "/forms/a7-download" },
+            { text: "A-8 [收文] 業主來文", url: "/document-center?category=RECEIVE_OWNER" },
+            { text: "A-9 [收文] 廠商來文", url: "/document-center?category=RECEIVE_CONTRACTOR" },
+            { text: "A-10 [收文] 其他來文", url: "/document-center?category=RECEIVE_OTHER" },
+            { text: "A-11 [發文]", url: "/document-center?category=SEND" },
           ],
         },
         {
           text: "B類表單",
           children: [
-            { text: "施工項目維護", url: "/forms/b-construction-maintenance" },
-            { text: "標單材料設定", url: "/forms/tender-material-settings" },
             { text: "文件檔案分類表", url: "/forms/document-classification" },
-            { text: "匯出-監造計劃書（B-1）", url: "/forms/export-supervision-plan" },
+            { text: "B-1 監造計劃書", url: "/forms/export-supervision-plan" },
           ],
         },
       ],
@@ -235,10 +297,24 @@ export const useAppSidebarMenuStore = defineStore("appSidebarMenu", () => {
     return filterMenuItems(items)
   })
 
-  // 返回數組本身（保持與原有結構兼容）+ 額外方法
-  return Object.assign(menuItems.value, {
+  // 返回包含 menuItems computed 的對象（保持響應性 + 與 Sidebar 的 v-for 兼容）
+  return {
+    get menuItems() {
+      return menuItems.value
+    },
+    /** 取得帶視角前綴的 URL，用於頁內連結以與側邊欄高亮一致 */
+    getViewUrl,
     hideTutorial,
     showTutorial,
     isTutorialHidden,
-  })
+    // 與現有 v-for 兼容（Sidebar 會直接 iterate store）
+    get length() {
+      return menuItems.value.length
+    },
+    [Symbol.iterator]: function* () {
+      for (const item of menuItems.value) {
+        yield item
+      }
+    }
+  } as any
 });

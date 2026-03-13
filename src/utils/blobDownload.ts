@@ -22,6 +22,8 @@ export interface BlobDownloadOptions {
   timeout?: number
   /** 是否包含 Content-Type header，預設 true（POST 時） */
   includeContentType?: boolean
+  /** 用於中途取消請求的 AbortSignal */
+  signal?: AbortSignal
 }
 
 /**
@@ -37,7 +39,8 @@ export const downloadBlob = async (options: BlobDownloadOptions): Promise<AxiosR
     params,
     headers: customHeaders = {},
     timeout = 60000,
-    includeContentType = method === 'POST'
+    includeContentType = method === 'POST',
+    signal
   } = options
 
   // 從 storage 獲取 token 和 userId（與 http 攔截器保持一致）
@@ -66,13 +69,27 @@ export const downloadBlob = async (options: BlobDownloadOptions): Promise<AxiosR
   // 動態導入 axios
   const axios = await import('axios')
 
+  // 取得目前應該使用的 API Base URL（與 http.ts 行為一致）
+  const getBaseURL = (): string => {
+    const customUrl = storage.get<string>(StorageKeys.CUSTOM_API_BASE_URL)
+    if (customUrl && typeof customUrl === 'string' && customUrl.trim()) {
+      return customUrl.trim()
+    }
+    return import.meta.env.VITE_API_URL || 'http://localhost:8080'
+  }
+
+  const baseURL = getBaseURL()
+
   // 構建請求配置
   const config: AxiosRequestConfig = {
     method,
-    url: `${import.meta.env.VITE_API_URL}${url}`,
+    url: `${baseURL}${url}`,
     responseType: 'blob',
     headers,
     timeout
+  }
+  if (signal) {
+    config.signal = signal
   }
 
   if (method === 'POST' && data) {
@@ -83,8 +100,53 @@ export const downloadBlob = async (options: BlobDownloadOptions): Promise<AxiosR
     config.params = params
   }
 
-  // 發送請求
-  const response = await axios.default(config)
+  // 發送請求（blob 下載不走 http.ts 攔截器，因此這裡需要自行處理 401）
+  let response: AxiosResponse
+  try {
+    response = await axios.default(config)
+  } catch (error: any) {
+    const status = error?.response?.status
+    if (status === 401) {
+      // 清除本地狀態，避免後續請求持續帶舊 token
+      try {
+        const [{ default: router }, toastServiceModule, authStoreModule] = await Promise.all([
+          import('@/router'),
+          import('@/components/bootstrap/ToastService.js'),
+          import('@/stores/auth')
+        ])
+
+        // 避免在登入頁重複提示/跳轉
+        const currentPath = router.currentRoute.value.path
+        const isLoginPage = currentPath === '/page/login' || currentPath.startsWith('/page/login')
+
+        try {
+          const authStore = authStoreModule.useAuthStore()
+          authStore.clearAuthState?.()
+        } catch {
+          storage.remove(StorageKeys.AUTH_TOKEN)
+          storage.remove(StorageKeys.AUTH_USER)
+        }
+
+        // 不要把後端訊息（例如 JWT token not valid）直接顯示給用戶
+        const backendMessage = error?.response?.data?.message
+        if (backendMessage) {
+          console.warn('[Auth] 401 unauthorized (blob download):', backendMessage)
+        }
+
+        if (!isLoginPage) {
+          toastServiceModule.default?.warning?.('登入已過期，請重新登入')
+          router.push('/page/login').catch(() => {})
+        }
+      } catch {
+        storage.remove(StorageKeys.AUTH_TOKEN)
+        storage.remove(StorageKeys.AUTH_USER)
+      }
+
+      throw new Error('登入已過期，請重新登入')
+    }
+
+    throw error
+  }
 
   // 檢查回應是否為有效的 Blob
   if (!(response.data instanceof Blob)) {

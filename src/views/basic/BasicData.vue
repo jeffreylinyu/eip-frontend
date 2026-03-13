@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref, reactive, computed, watch, watchEffect, onMounted, onBeforeUnmount, nextTick, getCurrentInstance } from 'vue'
-import { onBeforeRouteLeave, useRoute } from 'vue-router'
+import { ref, reactive, computed, watch, watchEffect, onMounted, nextTick, getCurrentInstance } from 'vue'
+import { useRoute } from 'vue-router'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { storage } from '@/utils/storage'
 import { updateConstruction, transformProjectFormToConstructionRequest } from '@/api/construction'
-import { useAuthStore } from '@/stores/auth' // Import auth store
+import { useAuthStore } from '@/stores/auth'
 import { useViewPerspective } from '@/composables/useViewPerspective'
 import { throttle } from 'lodash'
 import tagsInput from '@/components/plugins/TagsInput.vue'
@@ -13,7 +13,8 @@ import ProjectForm from '@/components/project/ProjectForm.vue'
 import Card from '@/components/bootstrap/Card.vue'
 import CardBody from '@/components/bootstrap/CardBody.vue'
 import CardHeader from '@/components/bootstrap/CardHeader.vue'
-import VerificationLogList from '@/components/common/VerificationLogList.vue' // Import
+import VerificationLogList from '@/components/common/VerificationLogList.vue'
+import DesignChangeVersionSwitcher from '@/components/common/DesignChangeVersionSwitcher.vue'
 
 
 // 獲取當前實例以訪問 $toast
@@ -28,15 +29,16 @@ const { viewType, initViewType } = useViewPerspective()
 // 檢查是否為空狀態（當前視角沒有資料）
 const isEmptyState = ref(false)
 
+// 變更設計版本：null = 預設版，數字 = 該變更設計 ID
+const selectedDesignChangeId = ref<number | null>(null)
+
 // 表單數據
 const formData = ref({
   // 工程基本資料
   project_name: "",
   contract_number: "",
   project_location: "",
-  project_scale_overview: "", // 新增：工程規模概述
   host_agency: "",
-  supervision_unit: "",
   contractor_name: "",
   // 新增：公司名稱顯示欄位
   supervisory_company_name: "",
@@ -120,7 +122,11 @@ const isSaving = ref(false)
 const hasUnsavedChanges = ref(false)
 const isUpdatingFormData = ref(false)
 const isAutoSaving = ref(false)
-const autoSaveTimer = ref<number | null>(null)
+const isSavingInProgress = ref(false)
+// 版本切換或初次載入時的資料套用階段，避免觸發自動儲存
+const isVersionSwitching = ref(false)
+// 頁面初始載入穩定標記：防止初始資料載入、自動計算、v-model 同步期間觸發自動儲存
+const isInitialLoadSettled = ref(false)
       // 標籤相關
 const tag = ref('')
 const tags = ref([{
@@ -162,28 +168,50 @@ const checkForChanges = () => {
 
 // 手動載入工程案資料的方法
 const loadProjectData = async (project: any, forceRefresh: boolean = false) => {
-  if (!project) {
+  if (!project?.id) {
     return
   }
-  
-  // 確保已載入參與單位資料（用於自動帶入監造與營造公司名稱）
+
+  selectedDesignChangeId.value = null
+
   if (project.workspaceId) {
     await workspaceStore.fetchParticipatingUnits(project.workspaceId)
   }
-  
-  // 如果需要強制刷新或資料不存在，重新載入 API 資料
+
   const existingProject = workspaceStore.workspaceProjects.find(p => p.id === project.id)
   if (forceRefresh || !existingProject) {
-    // 強制重新載入最新的工程案資料
-    await loadCurrentProjectData()
+    await loadCurrentProjectData(null)
   } else {
-    // 如果資料已存在且不需要強制刷新，直接映射
     mapProjectDataToForm(existingProject)
   }
-  
-  // 更新原始數據
+
   originalFormData.value = JSON.parse(JSON.stringify(formData.value))
   hasUnsavedChanges.value = false
+  isInitialLoadSettled.value = false
+  setTimeout(() => {
+    originalFormData.value = JSON.parse(JSON.stringify(formData.value))
+    hasUnsavedChanges.value = false
+    isInitialLoadSettled.value = true
+  }, 5000)
+}
+
+// 切換變更設計版本 Tab
+const selectVersionTab = async (designChangeId: number | null) => {
+  if (selectedDesignChangeId.value === designChangeId) return
+  selectedDesignChangeId.value = designChangeId
+  if (workspaceStore.currentProject) {
+    isUpdatingFormData.value = true
+    isVersionSwitching.value = true
+    try {
+      await loadCurrentProjectData(designChangeId)
+      // 將新版本資料視為目前基準狀態，避免剛切換就觸發自動儲存
+      originalFormData.value = JSON.parse(JSON.stringify(formData.value))
+      hasUnsavedChanges.value = false
+    } finally {
+      isUpdatingFormData.value = false
+      isVersionSwitching.value = false
+    }
+  }
 }
 
 // 監聽當前工程案變化 - 使用更安全的方式
@@ -194,18 +222,34 @@ watch(() => workspaceStore.currentProject, async (newProject, oldProject) => {
 }, { immediate: false })
 
 
-// 監聽表單數據變化，觸發自動儲存
+// 監聯表單數據變化，即時自動儲存
 watch(
   formData,
-  (newVal) => {
+  async (newVal) => {
     if (isUpdatingFormData.value) return
+    if (isVersionSwitching.value) return
+    if (!isInitialLoadSettled.value) return
     
-    // 檢查是否有實質變更
     const hasChange = JSON.stringify(newVal) !== JSON.stringify(originalFormData.value)
     
     if (hasChange) {
       hasUnsavedChanges.value = true
-      debouncedAutoSave()
+      if (!isSavingInProgress.value) {
+        isSavingInProgress.value = true
+        isAutoSaving.value = true
+        try {
+          if (projectFormRef.value) {
+            const result = await (projectFormRef.value as any).handleSubmit(true)
+            // 驗證未通過時與手動儲存相同：觸發表單驗證顯示欄位錯誤，不另顯示 toast
+            if (result && !result.submitted) {
+              await (projectFormRef.value as any).handleSubmit(false)
+            }
+          }
+        } finally {
+          isAutoSaving.value = false
+          isSavingInProgress.value = false
+        }
+      }
     } else {
       hasUnsavedChanges.value = false
     }
@@ -214,26 +258,27 @@ watch(
 )
 
 // 方法定義
-// 載入當前工程案資料
-const loadCurrentProjectData = async () => {
-  if (!workspaceStore.currentProject) {
+// 載入當前工程案資料（可指定變更設計版本；null = 預設版）
+const loadCurrentProjectData = async (designChangeId?: number | null) => {
+  const currentProject = workspaceStore.currentProject
+  if (!currentProject?.id?.trim()) {
     return
   }
-  
-  const currentProject = workspaceStore.currentProject
-  
+
   try {
-    // 確保已載入參與單位資料（用於自動帶入監造與營造公司名稱）
     if (currentProject.workspaceId) {
       await workspaceStore.fetchParticipatingUnits(currentProject.workspaceId)
     }
-    
-    // 重新載入最新的工程案資料（包含詳細資訊）
-    // 根據當前視角傳遞 viewType 參數（系統管理員可以手動切換視角）
-    const currentViewType = viewType.value
-    const viewTypeParam = (currentViewType === 'SUPERVISORY' || currentViewType === 'CONTRACTOR') ? currentViewType : undefined
-    
-    const updatedProject = await workspaceStore.fetchProjectDetail(currentProject.id, currentProject.workspaceId, viewTypeParam)
+
+  const currentViewType = viewType.value
+  const viewTypeParam = (currentViewType === 'SUPERVISORY' || currentViewType === 'CONTRACTOR') ? currentViewType : undefined
+
+  const updatedProject = await workspaceStore.fetchProjectDetail(
+    currentProject.id,
+    currentProject.workspaceId,
+    viewTypeParam,
+    designChangeId ?? selectedDesignChangeId.value
+  )
     
     if (updatedProject) {
       mapProjectDataToForm(updatedProject)
@@ -243,10 +288,30 @@ const loadCurrentProjectData = async () => {
       isEmptyState.value = false
     }
   } catch (error: any) {
-    // 檢查錯誤類型
     const errorStatus = error?.response?.status
     const errorMessage = error?.response?.data?.message || error?.response?.data?.error || error?.message || ''
     const errorCode = error?.response?.data?.code
+
+    // 若為「該版本不存在」，切回預設版並重新載入
+    if (errorMessage.includes('版本=') && errorMessage.includes('不存在')) {
+      selectedDesignChangeId.value = null
+      try {
+        const fallback = await workspaceStore.fetchProjectDetail(
+          currentProject.id,
+          currentProject.workspaceId,
+          (viewType.value === 'SUPERVISORY' || viewType.value === 'CONTRACTOR') ? viewType.value : undefined,
+          null
+        )
+        if (fallback) {
+          mapProjectDataToForm(fallback)
+          isEmptyState.value = false
+          proxy.$toast.warning('該版本資料不存在，已切回預設版')
+        }
+      } catch {
+        proxy.$toast.error('載入預設版失敗')
+      }
+      return
+    }
     
     // 如果是 404、401 或視角權限錯誤，顯示空狀態
     if (errorStatus === 404 || errorStatus === 401 || 
@@ -257,10 +322,8 @@ const loadCurrentProjectData = async () => {
         errorMessage.includes('營造') ||
         errorMessage.includes('不存在')) {
       console.warn('⚠️ 當前視角沒有此工程案的資料:', { errorStatus, errorMessage, errorCode })
-      // 清空表單，顯示空狀態
       clearFormData()
       isEmptyState.value = true
-      // 不顯示 toast，因為這是正常情況（營造視角可能沒有資料）
       return
     }
     
@@ -294,9 +357,7 @@ const clearFormData = () => {
       project_name: "",
       contract_number: "",
       project_location: "",
-      project_scale_overview: "",
       host_agency: "",
-      supervision_unit: "",
       contractor_name: "",
       supervisory_company_name: "",
       contractor_company_name: "",
@@ -372,9 +433,7 @@ const mapProjectDataToForm = (project: any) => {
       project_name: project.name || '',
       contract_number: project.contractNumber || '',
       project_location: project.location || '',
-      project_scale_overview: project.constructionScaleOverview || '', // 新增
       host_agency: project.hostAgency || '',
-      supervision_unit: project.supervisionUnit || '',
       contractor_name: project.contractorName || '',
       // 新增：映射公司名稱（如果工程案中沒有，則從工作空間設定自動帶入）
       supervisory_company_name: project.supervisoryCompanyName || workspaceStore.participatingUnits.supervisoryCompany?.companyName || '',
@@ -427,36 +486,7 @@ const mapProjectDataToForm = (project: any) => {
 // checkForChanges 方法已內聯到 watchEffect 中
     
     // 瀏覽器離開頁面處理
-const beforeUnloadHandler = (event) => {
-  if (hasUnsavedChanges.value) {
-    event.preventDefault()
-    event.returnValue = '您有未保存的變更，確定要離開嗎？'
-    return '您有未保存的變更，確定要離開嗎？'
-  }
-}
-const debouncedAutoSave = () => {
-    if (autoSaveTimer.value) {
-        clearTimeout(autoSaveTimer.value)
-    }
-    
-    // 3秒後自動儲存
-    autoSaveTimer.value = window.setTimeout(async () => {
-        if (!hasUnsavedChanges.value) return
-        
-        // 進入自動儲存狀態
-        isAutoSaving.value = true
-        
-        try {
-             if (projectFormRef.value) {
-                 // 使用靜默模式提交
-                 await (projectFormRef.value as any).handleSubmit(true)
-             }
-        } finally {
-            // 重置自動儲存狀態
-            isAutoSaving.value = false
-        }
-    }, 3000)
-}
+ 
 
     // 保存表單
 const saveForm = async () => {
@@ -537,11 +567,12 @@ const submitFormData = async (data?: any, isAutoSave: boolean = false) => {
   // 使用表單數據或傳入的數據
   const formDataToSubmit = data || formData.value
   
-  // 取得公司 ID（從當前工作空間）
-  const companyId = currentWorkspace.companyId
-  if (!companyId) {
-    throw new Error('無法獲取公司 ID，請確保工作空間包含公司資訊')
-  }
+  // 取得公司 ID（更新工程案時後端可不需要 companyId；若有則帶入）
+  // 優先用 workspace 上的 companyId，若缺失則用登入者 companyId 作為備援
+  const companyId =
+    (currentWorkspace.companyId && currentWorkspace.companyId.trim().length > 0
+      ? currentWorkspace.companyId.trim()
+      : (authStore.user?.companyId ? String(authStore.user.companyId).trim() : '')) || undefined
   
   // 轉換為API請求格式
   const constructionRequest = transformProjectFormToConstructionRequest(formDataToSubmit, currentWorkspace.id, companyId)
@@ -552,8 +583,12 @@ const submitFormData = async (data?: any, isAutoSave: boolean = false) => {
     (constructionRequest as any).version = formDataToSubmit.version
   }
 
-  // 調用更新工程案API
-  const response = await updateConstruction(currentProject.id, constructionRequest)
+  // 調用更新工程案API（帶版本時後端僅更新 12 欄）
+  const response = await updateConstruction(
+    currentProject.id,
+    constructionRequest,
+    selectedDesignChangeId.value
+  )
   
   // 檢查後端回傳的資料結構
   // 後端可能直接回傳完整的 Construction 物件，或包在 construction 欄位中，或只回傳 CreateConstructionResponse
@@ -581,7 +616,6 @@ const submitFormData = async (data?: any, isAutoSave: boolean = false) => {
         name: updatedConstruction.constructionName || '',
         workspaceId: currentWorkspace.id,
         location: updatedConstruction.constructionLocation || '',
-        constructionScaleOverview: updatedConstruction.constructionScaleOverview || null, // 新增
         budget: updatedConstruction.constructionBudget?.toString() || '',
         status: 'IN_PROGRESS' as const,
         signDate: updatedConstruction.signDate || '',
@@ -620,6 +654,7 @@ const submitFormData = async (data?: any, isAutoSave: boolean = false) => {
         workDay: updatedConstruction.workDay || 0,
         durationType: updatedConstruction.durationType || 'WORKING_DAYS',
         totalExtensionDays: updatedConstruction.totalExtensionDays || 0, // 累計展延天數
+        totalStopDays: updatedConstruction.totalStopDays || 0, // 累計停工天數
         permission: updatedConstruction.permission || currentProject.permission // 保留權限資訊
       }
       
@@ -701,28 +736,9 @@ onMounted(async () => {
     await loadProjectData(workspaceStore.currentProject, true) // 傳入 true 強制刷新
   }
   
-  // 添加瀏覽器離開頁面提示
-  window.addEventListener('beforeunload', beforeUnloadHandler)
 })
 
-onBeforeUnmount(() => {
-  // 清除事件監聽器
-  window.removeEventListener('beforeunload', beforeUnloadHandler)
-})
-
-onBeforeRouteLeave((to, from, next) => {
-  // Vue Router 路由離開守卫
-  if (hasUnsavedChanges.value) {
-    const answer = window.confirm('您有未保存的變更，確定要離開嗎？')
-    if (answer) {
-      next()
-    } else {
-      next(false)
-    }
-  } else {
-    next()
-  }
-})
+ 
 </script>
 
 <template>
@@ -733,17 +749,24 @@ onBeforeRouteLeave((to, from, next) => {
 			{ text: '表單生成與管理', href: 'javascript:;' },
 			{ text: '基本資料維護', active: true }
 		]"
-	/>
-	
-	
+	>
+		<template #extra>
+			<DesignChangeVersionSwitcher
+				v-if="!isEmptyState"
+				:model-value="selectedDesignChangeId"
+				@update:model-value="selectVersionTab"
+			/>
+		</template>
+	</PageHeader>
+
 	<div class="row gx-4">
 		<div class="col-lg-12">
-            <!-- 審核紀錄顯示區塊 -->
-            <Card class="mb-4" v-if="verificationLogs.length > 0">
-                <CardBody>
-                    <VerificationLogList :logs="verificationLogs" />
-                </CardBody>
-            </Card>
+			<!-- 審核紀錄顯示區塊 -->
+			<Card class="mb-4" v-if="verificationLogs.length > 0">
+				<CardBody>
+					<VerificationLogList :logs="verificationLogs" />
+				</CardBody>
+			</Card>
 
 			<!-- 空狀態提示 -->
 			<Card v-if="isEmptyState" class="mb-4">
@@ -771,10 +794,10 @@ onBeforeRouteLeave((to, from, next) => {
 					</div>
 				</CardBody>
 			</Card>
-			
+
 			<!-- 工程基本資料 -->
-			<ProjectForm 
-				v-else
+			<ProjectForm
+				v-if="!isEmptyState"
 				ref="projectFormRef"
 				class="mb-4"
 				v-model="formData"
@@ -782,14 +805,15 @@ onBeforeRouteLeave((to, from, next) => {
 				:is-submitting="isSaving"
 				:show-submit-button="false"
 				:show-reset-button="false"
+				:version-fields-only="selectedDesignChangeId != null"
 				@submit="handleProjectFormSubmit"
 			/>
 
 
 
 
-			<!-- 操作按鈕（僅專案管理員可見） -->
-			<div v-if="isProjectAdmin" class="d-flex justify-content-end gap-2 align-items-center">
+			<!-- 操作按鈕（僅專案管理員可見，且有資料時顯示） -->
+			<div v-if="!isEmptyState && isProjectAdmin" class="d-flex justify-content-end gap-2 align-items-center">
                 <span v-if="isAutoSaving" class="text-muted small me-2">
                     <i class="fa fa-spinner fa-spin me-1"></i>自動儲存中...
                 </span>
@@ -823,15 +847,7 @@ onBeforeRouteLeave((to, from, next) => {
 			</div>
 			
 			<!-- 非管理員提示 -->
-			<div v-else class="d-flex justify-content-end">
-				<div class="alert alert-info mb-0" role="alert">
-					<i class="fa fa-info-circle me-2"></i>
-					<span>您目前是檢視者權限，無法編輯工程案資料。如需修改，請聯繫專案管理員。</span>
-				</div>
-			</div>
-			
-			<!-- 非管理員提示 -->
-			<div v-else class="d-flex justify-content-end">
+			<div v-if="!isEmptyState && !isProjectAdmin" class="d-flex justify-content-end">
 				<div class="alert alert-info mb-0" role="alert">
 					<i class="fa fa-info-circle me-2"></i>
 					<span>您目前是檢視者權限，無法編輯工程案資料。如需修改，請聯繫專案管理員。</span>

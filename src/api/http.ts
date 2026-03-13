@@ -54,21 +54,27 @@ http.interceptors.request.use(
     if (config.baseURL !== currentBaseURL) {
       config.baseURL = currentBaseURL
     }
-    
-    // 從 localStorage 獲取 token，加到 header
-    const token = storage.get<string>(StorageKeys.AUTH_TOKEN)
-    
-    if (token) {
-      config.headers!['Authorization'] = `Bearer ${token}`
+
+    // 上傳 FormData 時不可帶 Content-Type：讓瀏覽器自動設為 multipart/form-data; boundary=...
+    if (config.data instanceof FormData) {
+      delete config.headers!['Content-Type']
     }
-    
+
+    // 從 localStorage 獲取 token，加到 header（若呼叫方已帶 Authorization 則不覆寫，避免時序導致漏帶）
+    if (!config.headers?.['Authorization']) {
+      const token = storage.get<string>(StorageKeys.AUTH_TOKEN)
+      if (token) {
+        config.headers!['Authorization'] = `Bearer ${token}`
+      }
+    }
+
     // 從 localStorage 獲取用戶信息，解析出 userId
     const authUser = storage.get<{ userId?: string }>(StorageKeys.AUTH_USER)
-    
+
     if (authUser && authUser.userId) {
       config.headers!['userId'] = authUser.userId
     }
-    
+
     return config
   },
   (error: AxiosError) => {
@@ -101,6 +107,69 @@ http.interceptors.response.use(
     // 全域錯誤處理
     if (response) {
       switch (response.status) {
+        case 401: {
+          // 若請求標記為 skipAuthRedirectOn401（例如核心資料 Modal），僅清除認證、不 toast／不跳轉，讓呼叫方自行處理
+          const skipRedirect = (error.config as any)?.skipAuthRedirectOn401 === true
+          if (skipRedirect) {
+            import('@/stores/auth').then(({ useAuthStore }) => {
+              useAuthStore().clearAuthState?.()
+            }).catch(() => {
+              storage.remove(StorageKeys.AUTH_TOKEN)
+              storage.remove(StorageKeys.AUTH_USER)
+            })
+            return Promise.reject(error)
+          }
+
+          // Token 無效或過期：清除本地認證狀態
+          const currentPath = router.currentRoute.value.path
+          const hashPath = (typeof window !== 'undefined' ? (window.location.hash || '') : '').replace('#', '')
+          const pathname = typeof window !== 'undefined' ? window.location.pathname : ''
+          const isLoginPage =
+            currentPath === '/page/login' ||
+            currentPath.startsWith('/page/login') ||
+            hashPath === '/page/login' ||
+            hashPath.startsWith('/page/login') ||
+            pathname === '/page/login' ||
+            pathname.startsWith('/page/login')
+          
+          // 使用動態 import 避免循環依賴（auth.ts -> user.ts -> http.ts）
+          import('@/stores/auth').then(({ useAuthStore }) => {
+            const authStore = useAuthStore()
+            // 401 時一律先清掉本地狀態，避免登入頁重整仍持續帶舊 token 打 API
+            authStore.clearAuthState?.()
+
+            // 登入頁不提示、不跳轉（避免干擾登入流程）
+            if (isLoginPage) return
+
+            // 不要把後端的技術訊息直接顯示給用戶（例如：JWT token not valid）
+            const errorData = response.data as any
+            const backendMessage = errorData?.message
+            if (backendMessage) {
+              console.warn('[Auth] 401 unauthorized:', backendMessage)
+            }
+            toastService.warning('登入已過期，請重新登入')
+            router.push('/page/login').catch(() => {})
+          }).catch(() => {
+            // 若無法載入 authStore，至少清除 localStorage
+            storage.remove(StorageKeys.AUTH_TOKEN)
+            storage.remove(StorageKeys.AUTH_USER)
+
+            if (isLoginPage) return
+            const errorData = response.data as any
+            const backendMessage = errorData?.message
+            if (backendMessage) {
+              console.warn('[Auth] 401 unauthorized:', backendMessage)
+            }
+            toastService.warning('登入已過期，請重新登入')
+            router.push('/page/login').catch(() => {})
+          })
+
+          // 在登入頁遇到 401：視為「已處理」，避免上層 catch 再噴 toast
+          if (isLoginPage) {
+            return Promise.resolve(null as any)
+          }
+          break
+        }
         case 403:
           // 檢查是否為「需要重設密碼」的訊息
           // 注意：AxiosError 的 response.data 類型是 any，需要根據實際後端回傳結構判斷

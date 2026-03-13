@@ -21,30 +21,25 @@ export interface PccesCatalogItem {
 }
 
 /**
- * 匯入 PCCES XML 檔案請求參數
+ * 匯入 PCCES XML 檔案請求參數（依變更設計版本）
  */
 export interface ImportPccesRequest {
   pccesFile: File;
   constructionId: string;
-  versionName?: string;
-  targetVersionId?: string;
-  isVariationOrder?: boolean;
-  baseVersionId?: string;
-  effectiveStartDate?: string; // 生效開始日期 (YYYY-MM-DD，可選)
-  effectiveEndDate?: string | null; // 生效結束日期 (YYYY-MM-DD，可選，null 表示持續有效)
+  /** 匯入目標：null = 原契約，數字 = 該變更設計版本 */
+  designChangeId?: number | null;
+  /** 是否先刪除該版本既有工項再匯入 */
+  overwrite?: boolean;
 }
 
 /**
  * 匯入 PCCES XML 檔案回應
  */
 export interface ImportPccesResponse {
-  contractNo: string;
-  versionId: string;
-  versionName: string;
-  versionNumber: number;
+  contractNo?: string;
+  constructionId: string;
+  designChangeId: number | null;
   totalCodes: number;
-  isVariationOrder: boolean;
-  isFirstImport: boolean; // 是否為初次匯入
 }
 
 /**
@@ -94,22 +89,6 @@ export interface CreateOrUpdatePccesCodeRequest {
   constructionId: string;
   pccesContents: any[] | null;
   pccesMaterial: PccesMaterial[] | null;
-}
-
-/**
- * 合約版本
- */
-export interface ContractVersion {
-  id: string;
-  constructionId: string;
-  versionName: string;
-  versionNumber: number;
-  isLatest: boolean;
-  createDate: string;
-  effectiveStartDate: string; // 生效開始日期 (YYYY-MM-DD)
-  effectiveEndDate: string | null; // 生效結束日期 (YYYY-MM-DD, null 表示持續有效)
-  createdAt: string;
-  updatedAt: string;
 }
 
 /**
@@ -170,11 +149,10 @@ export interface ConstructionStandard {
 export interface ConstructionMajorItem {
   id: string;
   name: string;
+  /** 變更設計版本：null = 原契約 */
+  designChangeId?: number | null;
   description?: string;
   isActive: boolean;
-  version?: number;
-  effectiveStartDate?: string;
-  effectiveEndDate?: string;
   copiedFromPccesCode?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -185,11 +163,10 @@ export interface ConstructionMajorItem {
 
 export interface ConstructionMajorItemRequest {
     name: string;
+    /** 變更設計版本：null = 原契約 */
+    designChangeId?: number | null;
     description?: string;
     isActive?: boolean;
-    version?: number;
-    effectiveStartDate?: string;
-    effectiveEndDate?: string;
     sourcePccesCode?: string;
 }
 
@@ -213,37 +190,17 @@ export async function importPccesFile(
   const formData = new FormData();
   formData.append('pccesFile', request.pccesFile);
   formData.append('constructionId', request.constructionId);
-  
-  if (request.versionName) {
-    formData.append('versionName', request.versionName);
+  if (request.designChangeId !== undefined && request.designChangeId !== null) {
+    formData.append('designChangeId', String(request.designChangeId));
   }
-  if (request.targetVersionId) {
-    formData.append('targetVersionId', request.targetVersionId);
+  if (request.overwrite !== undefined) {
+    formData.append('overwrite', request.overwrite ? 'true' : 'false');
   }
-  if (request.isVariationOrder !== undefined) {
-    formData.append('isVariationOrder', request.isVariationOrder.toString());
-  }
-  if (request.baseVersionId) {
-    formData.append('baseVersionId', request.baseVersionId);
-  }
-  if (request.effectiveStartDate) {
-    formData.append('effectiveStartDate', request.effectiveStartDate);
-  }
-  if (request.effectiveEndDate !== undefined) {
-    formData.append('effectiveEndDate', request.effectiveEndDate || '');
-  }
-
   const response = await http.post(
     '/management/generate/import/report',
     formData,
-    {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    }
+    { headers: { 'Content-Type': 'multipart/form-data' } }
   );
-
-  // http.ts 的攔截器已經處理了 BaseResponse 格式，直接返回 data
   return response as unknown as ImportPccesResponse;
 }
 
@@ -279,35 +236,43 @@ export async function createOrUpdatePccesCode(
 }
 
 /**
- * 取得工程的所有版本列表
- */
-export async function getContractVersions(
-  constructionId: string
-): Promise<ContractVersion[]> {
-  const response = await http.get(
-    `/management/generate/versions?constructionId=${constructionId}`
-  );
-  return (response as unknown as ContractVersion[]) || [];
-}
-
-/**
- * 取得指定版本的工項列表
+ * 取得指定變更設計版本的工項列表（designChangeId 不傳或 null = 原契約）
  */
 export async function getConstructionPccesCodes(
   constructionId: string,
-  versionId?: string
+  designChangeId?: number | null
 ): Promise<ConstructionPccesCode[]> {
-  const params = new URLSearchParams({
-    constructionId,
-  });
-  if (versionId) {
-    params.append('versionId', versionId);
+  const params = new URLSearchParams({ constructionId });
+  if (designChangeId !== undefined && designChangeId !== null) {
+    params.append('designChangeId', String(designChangeId));
   }
-
   const response = await http.get(
     `/management/generate/pccesCodes?${params}`
   );
   return (response as unknown as ConstructionPccesCode[]) || [];
+}
+
+/**
+ * 複製工項：從來源版本複製到目標版本（覆蓋目標版本既有工項）
+ * 用於「複製前一個版本」：sourceDesignChangeId = 前版（null = 原契約），targetDesignChangeId = 目前選中版本（null = 原契約）
+ */
+export async function copyPccesFromTo(
+  constructionId: string,
+  sourceDesignChangeId: number | null | undefined,
+  targetDesignChangeId: number | null | undefined
+): Promise<{ count: number }> {
+  const params = new URLSearchParams({ constructionId });
+  if (sourceDesignChangeId !== undefined && sourceDesignChangeId !== null) {
+    params.append('sourceDesignChangeId', String(sourceDesignChangeId));
+  }
+  if (targetDesignChangeId !== undefined && targetDesignChangeId !== null) {
+    params.append('targetDesignChangeId', String(targetDesignChangeId));
+  }
+  const res = await http.post(`/management/generate/pccesCodes/copy?${params}`);
+  // 攔截器在 code=200 時會回傳 response.data.data，故 res 可能為 { count: number }
+  const data = res as { data?: { count?: number }; count?: number };
+  const count = data.count ?? data.data?.count ?? 0;
+  return { count };
 }
 
 /**
@@ -372,15 +337,20 @@ export async function getStandardByPccesCode(pccesCode: string): Promise<Constru
 /**
  * 查詢施工大項列表
  */
-export async function getConstructionMajorItems(constructionId: string, params: { keyword?: string; isActive?: boolean; page?: number; size?: number }): Promise<PageableResponse<ConstructionMajorItem>> {
+export async function getConstructionMajorItems(
+  constructionId: string,
+  params: { designChangeId?: number | null; keyword?: string; isActive?: boolean; page?: number; size?: number }
+): Promise<PageableResponse<ConstructionMajorItem>> {
     const queryParams = new URLSearchParams();
     queryParams.append('constructionId', constructionId);
+    if (params.designChangeId !== undefined && params.designChangeId !== null) {
+      queryParams.append('designChangeId', String(params.designChangeId));
+    }
     if (params.keyword) queryParams.append('keyword', params.keyword);
     if (params.isActive !== undefined) queryParams.append('isActive', params.isActive.toString());
     if (params.page !== undefined) queryParams.append('page', params.page.toString());
     if (params.size !== undefined) queryParams.append('size', params.size.toString());
 
-    // 使用 /management 前綴
     const response = await http.get(`/management/construction-major-items?${queryParams.toString()}`);
     return response as unknown as PageableResponse<ConstructionMajorItem>;
 }
@@ -399,6 +369,63 @@ export async function getConstructionMajorItemById(constructionId: string, id: s
 export async function createConstructionMajorItem(constructionId: string, data: ConstructionMajorItemRequest): Promise<ConstructionMajorItem> {
     const response = await http.post(`/management/construction-major-items?constructionId=${encodeURIComponent(constructionId)}`, data);
     return response as unknown as ConstructionMajorItem;
+}
+
+/**
+ * 將原契約版本的施工大項（含抽查標準）複製到指定變更設計版本
+ * @deprecated 請改用 copyConstructionMajorItemsFromPrevious
+ */
+export async function copyConstructionMajorItemsFromOriginal(
+  constructionId: string,
+  designChangeId: number
+): Promise<{ copiedCount: number }> {
+  const response = await http.post<{ copiedCount: number }>(
+    `/management/construction-major-items/copy-from-original?constructionId=${encodeURIComponent(constructionId)}&designChangeId=${designChangeId}`
+  );
+  return response as unknown as { copiedCount: number };
+}
+
+/** AI 建議的施工大項項目（依標單產出，供使用者勾選後併入） */
+export interface MajorItemSuggestionItem {
+  name: string;
+  description: string;
+}
+
+/**
+ * 依監造標單由 AI 產出施工大項建議，不寫入 DB。標單無資料時回傳空陣列。
+ * 失敗時後端回傳 503 與 error 訊息。
+ */
+export async function getConstructionMajorItemAiSuggest(
+  constructionId: string,
+  designChangeId?: number | null
+): Promise<{ suggestions: MajorItemSuggestionItem[] }> {
+  const params = new URLSearchParams({ constructionId });
+  if (designChangeId !== undefined && designChangeId !== null) {
+    params.append('designChangeId', String(designChangeId));
+  }
+  const response = await http.get(`/management/construction-major-items/ai-suggest?${params}`);
+  return response as unknown as { suggestions: MajorItemSuggestionItem[] };
+}
+
+/**
+ * 從前一個版本複製施工大項（含抽查標準）到目標版本。sourceDesignChangeId 不傳或 null = 原契約
+ */
+export async function copyConstructionMajorItemsFromPrevious(
+  constructionId: string,
+  sourceDesignChangeId: number | null | undefined,
+  targetDesignChangeId: number
+): Promise<{ copiedCount: number }> {
+  const params = new URLSearchParams({
+    constructionId,
+    targetDesignChangeId: String(targetDesignChangeId)
+  });
+  if (sourceDesignChangeId !== undefined && sourceDesignChangeId !== null) {
+    params.append('sourceDesignChangeId', String(sourceDesignChangeId));
+  }
+  const response = await http.post<{ copiedCount: number }>(
+    `/management/construction-major-items/copy-from-previous?${params}`
+  );
+  return response as unknown as { copiedCount: number };
 }
 
 /**

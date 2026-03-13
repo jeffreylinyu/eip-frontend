@@ -1,0 +1,56 @@
+/**
+ * 共用：AI 相關按鈕樣式（低調霓虹邊框）
+ * 使用方式：在 <button> 或 <a class="btn"> 上加上 class="btn-ai-generate"
+ */
+.btn-ai-generate {
+  --ai-bg: #2d2f3d;
+  --ai-glow-start: rgba(168, 85, 247, 0.35);
+  --ai-glow-end: rgba(6, 182, 212, 0.3);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 1.25rem;
+  font-weight: 600;
+  color: #e2e8f0;
+  border: none;
+  border-radius: 50px;
+  background: var(--ai-bg);
+  background-clip: padding-box;
+  box-shadow:
+    0 0 0 1px var(--ai-glow-start),
+    0 0 6px var(--ai-glow-start),
+    0 0 12px var(--ai-glow-end);
+  transition: box-shadow 0.2s ease, opacity 0.2s ease;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: 52px;
+    padding: 2px;
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.5), rgba(6, 182, 212, 0.45));
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+    transition: background 0.2s ease;
+  }
+
+  &:hover:not(:disabled) {
+    box-shadow:
+      0 0 0 1px rgba(168, 85, 247, 0.75),
+      0 0 14px rgba(168, 85, 247, 0.6),
+      0 0 28px rgba(6, 182, 212, 0.5);
+
+    &::before {
+      background: linear-gradient(135deg, #a855f7, #06b6d4);
+    }
+  }
+
+  &:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+  }
+}

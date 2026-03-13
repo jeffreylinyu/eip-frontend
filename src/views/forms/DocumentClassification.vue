@@ -1,17 +1,16 @@
 <template>
   <div class="container-fluid px-4 py-4" data-bs-theme="dark">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-      <h2 class="fw-bold text-primary">
-        <i class="bi bi-folder2-open me-2"></i>文件檔案分類表
-      </h2>
-      <div>
-        <button class="btn btn-outline-danger" @click="confirmResetAll">
-          <i class="bi bi-arrow-counterclockwise"></i> 恢復全部預設值
-        </button>
-      </div>
-    </div>
-
-
+    <PageHeader
+      title="文件檔案分類表"
+      icon="fa fa-folder-open"
+      :breadcrumbs="[
+        { text: '表單', href: 'javascript:;' },
+        { text: '文件檔案分類表', active: true }
+      ]"
+      :actions="[
+        { text: '恢復全部預設值', icon: 'fa fa-undo', variant: 'btn-outline-danger', click: confirmResetAll }
+      ]"
+    />
 
     <!-- Loading -->
     <div v-if="loading" class="text-center py-5">
@@ -45,6 +44,7 @@ import { ref, onMounted, computed, getCurrentInstance, watch } from 'vue'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { useProjectStore } from '@/stores/project'
 import { documentClassificationApi, type DocumentClassification } from '@/api/documentClassification'
+import PageHeader from '@/components/bootstrap/PageHeader.vue'
 import CategoryTable from '@/components/document/CategoryTable.vue'
 
 // 定義 7 大分類

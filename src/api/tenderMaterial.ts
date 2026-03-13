@@ -16,68 +16,76 @@ export interface MaterialDetail {
 }
 
 export interface MaterialItem {
-  id: number;              // 工項 ID (原 constructionPccesCodeId)
-  itemNo: string | null;   // A欄 (項次)
-  name: string;            // C欄 (項目名稱/材料名稱)
-  quantity: number;        // E欄 (數量)
-  unit: string | null;     // F欄 (單位)
-  pccesCode: string | null;// D欄 (編碼)
-  contractVersionId?: string | number; // Optional: 方便前端使用
-  detail: MaterialDetail;  // 詳細設定 (原 materialDetail)
+  id: number;
+  itemNo: string | null;
+  name: string;
+  quantity: number;
+  unit: string | null;
+  pccesCode: string | null;
+  constructionId: string;
+  designChangeId: number | null;  // null = 原契約
+  detail: MaterialDetail;
 }
 
-// Request Body Wrapper
 export interface UpdateMaterialDetailRequest {
   pccesCode: string;
-  contractVersionId: string | number;
+  constructionId: string;
+  designChangeId: number | null;
   detail: Partial<MaterialDetail>;
 }
 
 export const tenderMaterialApi = {
-  // 取得材料列表
-  async getMaterialList(constructionId: string | number, versionId: string | number): Promise<MaterialItem[]> {
-    const response = await http.get('/management/construction/material-detail/list', {
-      params: { constructionId, versionId }
-    });
+  async getMaterialList(constructionId: string | number, designChangeId?: number | null): Promise<MaterialItem[]> {
+    const params: Record<string, string | number> = { constructionId: String(constructionId) };
+    if (designChangeId !== undefined && designChangeId !== null) params.designChangeId = designChangeId;
+    const response = await http.get('/management/construction/material-detail/list', { params });
     return response as unknown as MaterialItem[];
   },
 
-  // 更新詳細設定 (Upsert)
-  // 改為傳入 pccesCode, contractVersionId, detail
   async updateMaterialDetail(request: UpdateMaterialDetailRequest): Promise<MaterialDetail> {
     const response = await http.put('/management/construction/material-detail', request);
     return response as unknown as MaterialDetail;
   },
 
-  // --- 工程材料抽查標準 API ---
+  /** 從前一個版本複製材料詳細設定與抽查標準到目標版本 */
+  async copyMaterialDetailFromPrevious(
+    constructionId: string,
+    sourceDesignChangeId: number | null | undefined,
+    targetDesignChangeId: number
+  ): Promise<{ count: number }> {
+    const params: Record<string, string> = { constructionId, targetDesignChangeId: String(targetDesignChangeId) };
+    if (sourceDesignChangeId !== undefined && sourceDesignChangeId !== null) {
+      params.sourceDesignChangeId = String(sourceDesignChangeId);
+    }
+    const res = await http.post('/management/construction/material-detail/copy-from-previous', null, { params });
+    const data = (res as { data?: { count?: number }; count?: number })?.data ?? res as { count?: number };
+    return { count: data.count ?? 0 };
+  },
 
-  // 1. 查詢工程材料抽查標準
-  async getMaterialStandards(pccesCode: string, contractVersionId: string | number): Promise<ConstructionMaterialStandardResponse[]> {
-    const response = await http.get('/management/construction/material-detail/standards', {
-      params: { pccesCode, contractVersionId }
-    });
+  async getMaterialStandards(pccesCode: string, constructionId: string, designChangeId?: number | null): Promise<ConstructionMaterialStandardResponse[]> {
+    const params: Record<string, string | number> = { pccesCode, constructionId };
+    if (designChangeId !== undefined && designChangeId !== null) params.designChangeId = designChangeId;
+    const response = await http.get('/management/construction/material-detail/standards', { params });
     return response as unknown as ConstructionMaterialStandardResponse[];
   },
 
-  // 2. 複製材料抽查標準
-  async copyMaterialStandards(pccesCode: string, contractVersionId: string | number, sourcePccesCode: string): Promise<ConstructionMaterialStandardResponse[]> {
-    const response = await http.post('/management/construction/material-detail/standards/copy', 
-      { sourcePccesCode },
-      { params: { pccesCode, contractVersionId } }
-    );
+  async copyMaterialStandards(pccesCode: string, constructionId: string, designChangeId: number | null, sourcePccesCode: string): Promise<ConstructionMaterialStandardResponse[]> {
+    const params: Record<string, string | number> = { pccesCode, constructionId };
+    if (designChangeId !== undefined && designChangeId !== null) params.designChangeId = designChangeId;
+    const response = await http.post('/management/construction/material-detail/standards/copy', { sourcePccesCode }, { params });
     return response as unknown as ConstructionMaterialStandardResponse[];
   },
 
-  // 3. 更新單筆材料抽查標準
   async updateMaterialStandard(
-    standardId: number, 
-    pccesCode: string, 
-    contractVersionId: string | number, 
+    standardId: number,
+    pccesCode: string,
+    constructionId: string,
+    designChangeId: number | null,
     request: ConstructionMaterialStandardUpdateRequest
   ): Promise<ConstructionMaterialStandardResponse> {
-    const response = await http.put(`/management/construction/material-detail/standards/${standardId}`, request, {
-      params: { pccesCode, contractVersionId }
-    });
+    const params: Record<string, string | number> = { pccesCode, constructionId };
+    if (designChangeId !== undefined && designChangeId !== null) params.designChangeId = designChangeId;
+    const response = await http.put(`/management/construction/material-detail/standards/${standardId}`, request, { params });
     return response as unknown as ConstructionMaterialStandardResponse;
   }
 };

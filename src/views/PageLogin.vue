@@ -12,11 +12,12 @@ const authStore = useAuthStore()
 
 // 表單數據
 const form = ref({
-	password: 'password',
-	email: 'admin@example.com'
+	password: '',
+	email: ''
 })
 
 const errorMessage = ref('')
+// 是否記住帳號（只記住 email，不記住密碼與 token）
 const rememberMe = ref(false)
 
 // 開發者測試用：自訂 API Base URL
@@ -50,6 +51,13 @@ const submitForm = async () => {
 	const result = await authStore.login(form.value)
 	
 	if (result.success) {
+		// 根據勾選狀態記住或清除帳號（email）
+		if (rememberMe.value) {
+			storage.set(StorageKeys.LOGIN_REMEMBER_EMAIL, form.value.email)
+		} else {
+			storage.remove(StorageKeys.LOGIN_REMEMBER_EMAIL)
+		}
+
 		// 登入成功，跳轉到首頁
 		router.push('/')
 	} else {
@@ -69,6 +77,13 @@ onMounted(() => {
 		customApiBaseUrl.value = savedUrl
 		// 確保 HTTP 實例使用已儲存的 URL
 		updateBaseURL(savedUrl)
+	}
+
+	// 載入記住的帳號（email）
+	const savedEmail = storage.get<string>(StorageKeys.LOGIN_REMEMBER_EMAIL)
+	if (savedEmail) {
+		form.value.email = savedEmail
+		rememberMe.value = true
 	}
 })
 

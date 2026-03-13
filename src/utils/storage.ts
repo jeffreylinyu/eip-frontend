@@ -9,6 +9,7 @@ export const StorageKeys = {
   // Auth
   AUTH_TOKEN: 'auth_token',
   AUTH_USER: 'auth_user',
+  LOGIN_REMEMBER_EMAIL: 'login_remember_email',
   
   // Workspace & Project
   SELECTED_WORKSPACE: 'selected_workspace',

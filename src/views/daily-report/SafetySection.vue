@@ -112,7 +112,6 @@ const saveSafetyRecords = async () => {
   isLoading.value = true
   try {
     // TODO: 實作儲存安全記錄的 API
-    // console.log('儲存安全記錄:', safetyRecords.value)
   } catch (error) {
     console.error('儲存失敗:', error)
   } finally {
@@ -131,7 +130,6 @@ const nextSection = () => {
 // 生命週期
 onMounted(() => {
   // TODO: 載入現有的安全記錄資料
-  // console.log('載入安全記錄資料')
 })
 </script>
 

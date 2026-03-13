@@ -41,7 +41,6 @@ export interface WorkspaceProject {
   // 擴展屬性，這些可能在某些情況下存在
   contractNumber?: string
   hostAgency?: string
-  supervisionUnit?: string
   contractorName?: string
   constructionPeriod?: string
   currentContractAmount?: string
@@ -58,7 +57,6 @@ export interface WorkspaceProject {
   // 新增欄位
   constructionConfirmDate?: string
   constructionProjectId?: string
-  constructionScaleOverview?: string | null // 新增：工程規模概述
   supervisoryCompanyName?: string | null // 新增：監造公司名稱
   contractorCompanyName?: string | null // 新增：營造公司名稱
   designCompany?: string | null // 新增：設計公司（工程案層級的基本資料，可手動填寫或選擇監造公司）
@@ -68,7 +66,8 @@ export interface WorkspaceProject {
   signLevel?: SignLevel[]
   workDay?: number
   durationType?: 'CALENDAR_DAYS' | 'WORKING_DAYS' // 工期計算模式
-  totalExtensionDays?: number // 累計展延天數（新增）
+  totalExtensionDays?: number // 累計展延天數（已棄用，始終為 0）
+  totalStopDays?: number // 累計停工天數（SPECIFIC_DATES）
   permission?: 'ADMIN' | 'MEMBER' | 'VIEWER' // 新增：工程案權限
 }
 
@@ -292,7 +291,6 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         // 額外的工程案詳細資訊
         contractNumber: construction.contractId || '',
         hostAgency: construction.leadOrganization || '',
-        supervisionUnit: construction.supervisoryCompany || '', // 映射舊欄位 supervisoryCompany
         contractorName: construction.constructor || '', // 映射舊欄位 constructor
         constructionPeriod: construction.workDay?.toString() || '', // 工期天數
         currentContractAmount: construction.currentContractAmount?.toString() || construction.constructionBudget?.toString() || '',
@@ -313,7 +311,6 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         // 新增欄位映射
         constructionConfirmDate: construction.constructionConfirmDate || '',
         constructionProjectId: construction.constructionProjectId || '',
-        constructionScaleOverview: construction.constructionScaleOverview || null,
         supervisoryCompanyName: construction.supervisoryCompanyName || null,
         contractorCompanyName: construction.contractorCompanyName || null,
         designCompany: construction.designCompany || null, // 設計公司（工程案層級的基本資料，可手動填寫或選擇監造公司）
@@ -324,6 +321,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         workDay: construction.workDay || 0,
         durationType: construction.durationType || 'WORKING_DAYS', // 工期計算模式
         totalExtensionDays: construction.totalExtensionDays || 0, // 累計展延天數
+        totalStopDays: construction.totalStopDays || 0, // 累計停工天數
         permission: construction.permission
     }
   }
@@ -350,9 +348,15 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   }
 
   // 獲取單一工程案詳情並更新狀態
-  const fetchProjectDetail = async (projectId: string, workspaceId: string, viewType?: string): Promise<WorkspaceProject | null> => {
+  // designChangeId：變更設計版本 ID，不傳或 null 為預設版
+  const fetchProjectDetail = async (
+    projectId: string,
+    workspaceId: string,
+    viewType?: string,
+    designChangeId?: number | null
+  ): Promise<WorkspaceProject | null> => {
     try {
-      const construction = await getConstructionDetail(projectId, workspaceId, viewType)
+      const construction = await getConstructionDetail(projectId, workspaceId, viewType, designChangeId)
       
       const project = transformConstructionToProject(construction, workspaceId)
       
@@ -689,6 +693,13 @@ export const useWorkspaceStore = defineStore('workspace', () => {
 
 
   const initWorkspaces = async (force: boolean = false) => {
+    const authStore = useAuthStore()
+    // 未登入時不應打工作空間 API（避免登入頁刷新噴 401 / toast）
+    if (!authStore.isAuthenticated) {
+      workspaces.value = []
+      return
+    }
+
     // 如果已經初始化過且不是強制重新載入，跳過重複調用
     if (!force && isInitialized.value && workspaces.value.length > 0) {
       return
@@ -880,7 +891,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
           isInitialized.value = true
           
         } catch (error) {
-          console.error('Failed to load workspaces:', error)
+          // 若在登入頁初始化時遇到 401，交由 http 攔截器清除 token，這裡不再噴錯
           // API 調用失敗時不自動載入測試資料
           workspaces.value = []
         } finally {
@@ -1220,16 +1231,16 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     }
   }
 
-  // 權限檢查（優先使用新欄位）
+  // 權限檢查
   const canManageWorkspace = computed(() => {
     if (!currentWorkspace.value) return false
-    const permission = currentWorkspace.value.workspacePermission || currentWorkspace.value.role // 優先使用新欄位
+    const permission = currentWorkspace.value.role
     return permission === 'ADMIN' || permission === 'OWNER'
   })
 
   const canEditProject = computed(() => {
     if (!currentWorkspace.value) return false
-    const permission = currentWorkspace.value.workspacePermission || currentWorkspace.value.role // 優先使用新欄位
+    const permission = currentWorkspace.value.role
     return permission !== 'VIEWER'
   })
 
@@ -1244,7 +1255,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
 
   const canInviteCompany = computed(() => {
     if (!currentWorkspace.value) return false
-    const permission = currentWorkspace.value.workspacePermission || currentWorkspace.value.role // 優先使用新欄位
+    const permission = currentWorkspace.value.role
     return permission === 'ADMIN' || permission === 'OWNER'
   })
 

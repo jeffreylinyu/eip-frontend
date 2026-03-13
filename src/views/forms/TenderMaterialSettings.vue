@@ -5,15 +5,16 @@ import { useRoute, useRouter } from 'vue-router';
 import { tenderMaterialApi, type MaterialItem, type UpdateMaterialDetailRequest, type MaterialDetail } from '@/api/tenderMaterial';
 import toastService from '@/components/bootstrap/ToastService.js';
 import { debounce, throttle } from 'lodash';
-// 引入 Store 與 API
 import { useWorkspaceStore } from '@/stores/workspace';
-import { getContractVersions, type ContractVersion } from '@/api/pcces';
+import { getDesignChangeList } from '@/api/designChange';
 import RepublicDatePicker from '@/components/bootstrap/RepublicDatePicker.vue';
+import DesignChangeVersionSwitcher from '@/components/common/DesignChangeVersionSwitcher.vue';
 
 export default defineComponent({
   name: 'TenderMaterialSettings',
   components: {
-    RepublicDatePicker
+    RepublicDatePicker,
+    DesignChangeVersionSwitcher
   },
   setup() {
     const route = useRoute();
@@ -79,56 +80,38 @@ export default defineComponent({
       return groups;
     });
 
-    // 從 WorkspaceStore 取得當前專案 ID
     const constructionId = computed(() => workspaceStore.currentProject?.id || '');
-    
-    // 版本狀態
-    const versions = ref<ContractVersion[]>([]);
-    const currentVersionId = ref<string | number>('');
+    const selectedDesignChangeId = ref<number | null>(null);
+    const projectItemDatabaseUrl = computed(() => router.resolve('/basic/project-item-database').href);
+    const designChangeList = ref<{ id: number; effectiveDate: string }[]>([]);
+    const isCopying = ref(false);
+    const sourceDesignChangeIdForCopy = computed(() => {
+      const current = selectedDesignChangeId.value;
+      if (current == null) return null;
+      const list = designChangeList.value;
+      const idx = list.findIndex((d) => d.id === current);
+      if (idx <= 0) return null;
+      return list[idx - 1]?.id ?? null;
+    });
+    const fetchDesignChangeList = async () => {
+      const cid = constructionId.value;
+      if (!cid) { designChangeList.value = []; return; }
+      try {
+        const list = await getDesignChangeList(cid);
+        designChangeList.value = [...list].sort((a, b) => new Date(a.effectiveDate).getTime() - new Date(b.effectiveDate).getTime());
+      } catch {
+        designChangeList.value = [];
+      }
+    };
 
-    // 載入版本列表並自動選擇最新版本
-    const loadVersionsAndMaterials = async () => {
+    const loadMaterials = async () => {
       if (!constructionId.value) {
         toastService.warning('請先選擇工程項目');
         return;
       }
-
       isLoading.value = true;
       try {
-        const _versions = await getContractVersions(constructionId.value);
-        versions.value = _versions;
-
-        // Auto selection
-        if (_versions.length > 0) {
-          // Assuming the first one is the latest or default
-          currentVersionId.value = _versions[0].id;
-        } else {
-          toastService.warning('查無此案件的合約版本資料');
-          isLoading.value = false;
-          return;
-        }
-        
-        // Fetch materials
-        if (currentVersionId.value) {
-          materials.value = await tenderMaterialApi.getMaterialList(constructionId.value, currentVersionId.value);
-        }
-
-      } catch (error) {
-        console.error('Error fetching data:', error);
-        toastService.error('載入資料失敗');
-      } finally {
-        isLoading.value = false;
-      }
-    };
-
-    // 載入材料列表
-    const fetchMaterials = async () => {
-      if (!constructionId.value || !currentVersionId.value) return;
-      
-      isLoading.value = true;
-      try {
-        const response = await tenderMaterialApi.getMaterialList(constructionId.value, currentVersionId.value);
-        materials.value = response;
+        materials.value = await tenderMaterialApi.getMaterialList(constructionId.value, selectedDesignChangeId.value);
       } catch (error) {
         console.error('Error fetching materials:', error);
         toastService.error('載入材料列表失敗');
@@ -138,16 +121,22 @@ export default defineComponent({
       }
     };
 
-    // 監聽專案變更，重新載入
-    watch(() => constructionId.value, (newVal) => {
+    watch(() => constructionId.value, async (newVal) => {
       if (newVal) {
         materials.value = [];
-        loadVersionsAndMaterials();
+        selectedDesignChangeId.value = null;
+        designChangeList.value = [];
+        await fetchDesignChangeList();
+        loadMaterials();
       } else {
         materials.value = [];
-        versions.value = [];
-        currentVersionId.value = '';
+        selectedDesignChangeId.value = null;
+        designChangeList.value = [];
       }
+    });
+
+    watch(selectedDesignChangeId, () => {
+      if (constructionId.value) loadMaterials();
     });
 
     // 儲存邏輯 (Debounced)
@@ -160,10 +149,10 @@ export default defineComponent({
           // 保存當前編輯的值，避免被後端返回的資料覆蓋
           const currentDetail = { ...item.detail };
           
-          // Update API requires pccesCode and contractVersionId
           const result = await tenderMaterialApi.updateMaterialDetail({
             pccesCode: item.pccesCode || '',
-            contractVersionId: currentVersionId.value,
+            constructionId: constructionId.value,
+            designChangeId: selectedDesignChangeId.value,
             detail: { ...currentDetail }
           });
           
@@ -229,13 +218,40 @@ export default defineComponent({
        saveItem(item);
     };
 
-    onMounted(() => {
+    const handleCopyPrevious = async () => {
+      const cid = constructionId.value;
+      const target = selectedDesignChangeId.value;
+      if (!cid || target == null) return;
+      if (!confirm('確定要將前一個版本的材料設定與品質抽驗管控表複製到目前版本嗎？既有設定會被覆蓋。')) return;
+      isCopying.value = true;
+      try {
+        const source = sourceDesignChangeIdForCopy.value ?? undefined;
+        const { count } = await tenderMaterialApi.copyMaterialDetailFromPrevious(cid, source, target);
+        toastService.success(`已複製 ${count} 筆材料設定`);
+        loadMaterials();
+      } catch (e) {
+        console.error(e);
+        toastService.error('複製失敗，請稍後再試');
+      } finally {
+        isCopying.value = false;
+      }
+    };
+
+    onMounted(async () => {
       if (constructionId.value) {
-        loadVersionsAndMaterials();
+        await fetchDesignChangeList();
+        loadMaterials();
       }
     });
 
     return {
+      constructionId,
+      selectedDesignChangeId,
+      projectItemDatabaseUrl,
+      designChangeList,
+      sourceDesignChangeIdForCopy,
+      isCopying,
+      handleCopyPrevious,
       materials,
       filteredMaterials,
       keyword,
@@ -244,17 +260,16 @@ export default defineComponent({
       handleTextChange,
       handleCheckboxChange,
       saveItem,
-      fetchMaterials: loadVersionsAndMaterials, // Expose as fetchMaterials for the refresh button
+      fetchMaterials: loadMaterials,
       groupedMaterials,
       goToQualityControl: (pccesCode: string) => {
         if (pccesCode) {
-           // Encode just in case, though pccesCode is usually safe
-           router.push({
-             path: `/forms/tender-material-settings/${pccesCode}/quality-control`,
-             query: { versionId: currentVersionId.value }
-           });
+          router.push({
+            path: `/forms/tender-material-settings/${pccesCode}/quality-control`,
+            query: { designChangeId: selectedDesignChangeId.value != null ? String(selectedDesignChangeId.value) : undefined }
+          });
         } else {
-           toastService.warning('此項目無 PCCES 編碼，無法進入管控表設定');
+          toastService.warning('此項目無 PCCES 編碼，無法進入管控表設定');
         }
       }
     };
@@ -263,37 +278,47 @@ export default defineComponent({
 </script>
 
 <template>
-  <PageHeader
-    title="標單材料設定"
-    :breadcrumbs="[
-      { text: '表單生成與管理', href: 'javascript:;' },
-      { text: '標單材料設定', active: true }
-    ]"
-  />
+  <div class="tender-material-settings-page">
+    <PageHeader
+      title="標單材料設定"
+      icon="fa fa-cube"
+      :breadcrumbs="[
+        { text: '表單生成與管理', href: 'javascript:;' },
+        { text: '標單材料設定', active: true }
+      ]"
+    >
+      <template #extra>
+        <DesignChangeVersionSwitcher
+          v-if="constructionId"
+          :construction-id="constructionId"
+          v-model="selectedDesignChangeId"
+        />
+      </template>
+    </PageHeader>
 
-  <div class="row">
-    <div class="col-xl-12">
-      <div class="card border-0 shadow-sm bg-body">
-        <div class="card-body">
-          <!-- 資料來源提示 -->
-          <div class="alert alert-info mb-4">
-            <h5 class="alert-heading">
-              <i class="fa fa-info-circle me-2"></i>資料來源說明
-            </h5>
-            <p class="mb-2">
-              此頁面的材料資料來源自 <strong>工程項目標單</strong>（PCCES 工項資料）。
-              系統會自動從工程項目標單中取出<strong>材料類別</strong>的項目顯示於此。
-            </p>
-            <p class="mb-0">
-              如需新增或修改材料項目，請前往
-              <router-link to="/basic/project-item-database" class="alert-link">
-                <i class="fa fa-arrow-right me-1"></i>工程項目標單
-              </router-link>
-              頁面進行設定。
-            </p>
-          </div>
+    <div class="row">
+      <div class="col-xl-12">
+        <div class="card border-0 shadow-sm bg-body">
+          <div class="card-body">
+            <!-- 資料來源提示 -->
+            <div class="alert alert-info mb-4">
+              <h5 class="alert-heading">
+                <i class="fa fa-info-circle me-2"></i>資料來源說明
+              </h5>
+              <p class="mb-2">
+                此頁面的材料資料來源自 <strong>工程項目標單</strong>（PCCES 工項資料）。
+                系統會自動從工程項目標單中取出<strong>材料類別</strong>的項目顯示於此。
+              </p>
+              <p class="mb-0">
+                如需新增或修改材料項目，請前往
+                <router-link :to="projectItemDatabaseUrl" class="alert-link">
+                  <i class="fa fa-arrow-right me-1"></i>工程項目標單
+                </router-link>
+                頁面進行設定。
+              </p>
+            </div>
 
-          <!-- Toolbar -->
+            <!-- Toolbar -->
           <div class="d-flex justify-content-between align-items-center mb-3">
              <div class="flex-grow-1 me-3">
                <div class="input-group">
@@ -306,9 +331,22 @@ export default defineComponent({
                  >
                </div>
              </div>
-             <button class="btn btn-outline-secondary text-nowrap" @click="fetchMaterials">
-               <i class="fa fa-sync me-1"></i>重新整理
-             </button>
+             <div class="d-flex gap-2">
+               <button
+                 v-if="selectedDesignChangeId != null"
+                 type="button"
+                 class="btn btn-outline-info text-nowrap"
+                 :disabled="isCopying"
+                 @click="handleCopyPrevious"
+                 title="將前一個版本的材料設定與品質抽驗管控表複製到目前版本"
+               >
+                 <i class="fa me-1" :class="isCopying ? 'fa-spinner fa-spin' : 'fa-copy'"></i>
+                 {{ isCopying ? '複製中...' : '複製前一個版本' }}
+               </button>
+               <button class="btn btn-outline-secondary text-nowrap" @click="fetchMaterials">
+                 <i class="fa fa-sync me-1"></i>重新整理
+               </button>
+             </div>
           </div>
         
           <div v-if="isLoading" class="p-5 text-center">
@@ -456,9 +494,13 @@ export default defineComponent({
       </div>
     </div>
   </div>
+  </div>
 </template>
 
 <style scoped>
+.tender-material-settings-page {
+  padding: 1rem;
+}
 .form-check-input {
   cursor: pointer;
 }

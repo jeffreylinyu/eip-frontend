@@ -197,12 +197,13 @@ const router = useRouter()
 const workspaceStore = useWorkspaceStore()
 
 const pccesCode = route.params.pccesCode as string
-// 從 query 取得 versionId (TenderMaterialSettings 應該要傳)
-const currentVersionId = computed(() => {
-    return route.query.versionId as string || ''
-})
-
 const constructionId = computed(() => workspaceStore.currentProject?.id || '')
+const designChangeId = computed<number | null>(() => {
+  const q = route.query.designChangeId
+  if (q == null || q === '') return null
+  const n = Number(q)
+  return Number.isNaN(n) ? null : n
+})
 
 const loading = ref(false)
 const standards = ref<ConstructionMaterialStandardResponse[]>([])
@@ -224,22 +225,15 @@ const editInputRef = ref<HTMLTextAreaElement | null>(null)
 const goBack = () => router.back()
 
 const loadData = async () => {
-    if (!pccesCode || !currentVersionId.value || !constructionId.value) {
-        // 若缺少參數，可能還沒準備好或路由有誤
-        return
-    }
+    if (!pccesCode || !constructionId.value) return
 
     loading.value = true
     try {
-        // 同時載入標準資料和材料資訊
         const [standardsData, materialsData] = await Promise.all([
-            tenderMaterialApi.getMaterialStandards(pccesCode, currentVersionId.value),
-            tenderMaterialApi.getMaterialList(constructionId.value, currentVersionId.value)
+            tenderMaterialApi.getMaterialStandards(pccesCode, constructionId.value, designChangeId.value),
+            tenderMaterialApi.getMaterialList(constructionId.value, designChangeId.value)
         ])
-        
         standards.value = standardsData
-        
-        // 找出符合當前 pccesCode 的材料項目（取第一個）
         const matchedMaterial = materialsData.find(m => m.pccesCode === pccesCode)
         materialInfo.value = matchedMaterial || null
     } catch (e) {
@@ -261,19 +255,13 @@ const clearSearch = () => {
 }
 
 const confirmApplyStandard = async () => {
-    if (!selectedSearchResult.value) return
-    if (!currentVersionId.value) {
-        toastService.warning('缺少合約版本資訊，無法套用')
-        return
-    }
-
-    if(!confirm('確定要套用此標準嗎？這將覆蓋目前的標準明細。')) return
+    if (!selectedSearchResult.value || !constructionId.value) return
+    if (!confirm('確定要套用此標準嗎？這將覆蓋目前的標準明細。')) return
 
     try {
         loading.value = true
         const sourceCode = selectedSearchResult.value.code
-        standards.value = await tenderMaterialApi.copyMaterialStandards(pccesCode, currentVersionId.value, sourceCode)
-        
+        standards.value = await tenderMaterialApi.copyMaterialStandards(pccesCode, constructionId.value, designChangeId.value, sourceCode)
         clearSearch()
         toastService.success('標準套用成功')
     } catch (e) {
@@ -284,23 +272,15 @@ const confirmApplyStandard = async () => {
     }
 }
 
-// Toggle Active
 const toggleActive = async (item: ConstructionMaterialStandardResponse) => {
-    if (!item.id || !currentVersionId.value) return
-
+    if (!item.id || !constructionId.value) return
     const newStatus = !item.isActive
-    // Optimistic UI update
     const oldStatus = item.isActive
     item.isActive = newStatus
-
     try {
-        await tenderMaterialApi.updateMaterialStandard(item.id, pccesCode, currentVersionId.value, {
-            isActive: newStatus
-        })
-        // toastService.success(newStatus ? '已顯示' : '已隱藏')
+        await tenderMaterialApi.updateMaterialStandard(item.id, pccesCode, constructionId.value, designChangeId.value, { isActive: newStatus })
     } catch (e) {
         console.error('Toggle active failed:', e)
-        // Revert on failure
         item.isActive = oldStatus
         toastService.error('更新狀態失敗')
     }
@@ -325,7 +305,7 @@ const editField = (item: ConstructionMaterialStandardResponse, field: keyof Cons
 }
 
 const saveEdit = async () => {
-    if (!currentEditingItem.value?.id || !currentEditingField.value || !currentVersionId.value) return
+    if (!currentEditingItem.value?.id || !currentEditingField.value || !constructionId.value) return
 
     const itemId = currentEditingItem.value.id
     const field = currentEditingField.value
@@ -336,7 +316,7 @@ const saveEdit = async () => {
     request[field] = val
 
     try {
-        const updatedItem = await tenderMaterialApi.updateMaterialStandard(itemId, pccesCode, currentVersionId.value, request)
+        const updatedItem = await tenderMaterialApi.updateMaterialStandard(itemId, pccesCode, constructionId.value, designChangeId.value, request)
         
         // Update local list
         const idx = standards.value.findIndex(x => x.id === itemId)
@@ -353,10 +333,7 @@ const saveEdit = async () => {
 }
 
 onMounted(() => {
-  if (!currentVersionId.value) {
-      toastService.warning('警告：未指定合約版本，請返回列表重新進入')
-  }
-  loadData()
+  if (constructionId.value) loadData()
 })
 </script>
 

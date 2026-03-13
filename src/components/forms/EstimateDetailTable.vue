@@ -175,7 +175,7 @@
               <tr>
                 <td><strong>保留款</strong></td>
                 <td>F</td>
-                <td>本次估驗計價款（C1） × {{ (retentionRatePercent) }}%</td>
+                <td>(C1 + D - E) × {{ (retentionRatePercent) }}%</td>
                 <td class="text-end">{{ formatAmount(result.retentionAmount) }}</td>
               </tr>
               <tr>

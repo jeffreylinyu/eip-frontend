@@ -111,7 +111,6 @@ const saveNotes = async () => {
   isLoading.value = true
   try {
     // TODO: 實作儲存重要記事的 API
-    // console.log('儲存重要記事:', importantNotes.value)
   } catch (error) {
     console.error('儲存失敗:', error)
   } finally {
@@ -130,7 +129,6 @@ const nextSection = () => {
 // 生命週期
 onMounted(() => {
   // TODO: 載入現有的重要記事資料
-  // console.log('載入重要記事資料')
 })
 </script>
 

@@ -7,6 +7,7 @@ import { useAuthStore } from '@/stores/auth';
 import { RouterLink, useRouter } from 'vue-router';
 import { useWorkspaceStore } from '@/stores/workspace';
 import ViewTypeSwitcher from '@/components/app/ViewTypeSwitcher.vue';
+import CoreDataStatusModal from '@/components/project/CoreDataStatusModal.vue';
 
 const appOption = useAppOptionStore();
 const authStore = useAuthStore();
@@ -173,6 +174,18 @@ workspaceStore.initWorkspaces();
 			<div class="menu-item">
 				<ViewTypeSwitcher />
 			</div>
+
+      <!-- 核心資料填寫狀況（B-1 監造計劃書） -->
+      <div class="menu-item" v-if="hasCurrentProject">
+        <button
+          type="button"
+          class="btn btn-sm btn-outline-primary d-flex align-items-center"
+          @click="appOption.showCoreDataStatusModal = true"
+        >
+          <i class="fa fa-clipboard-check me-1"></i>
+          <span class="d-none d-md-inline">核心資料填寫狀況</span>
+        </button>
+      </div>
 			
 			<div class="menu-item">
 				<a href="#" v-on:click="toggleAppHeaderSearch" data-toggle-class="app-header-menu-search-toggled" data-toggle-target=".app" class="menu-link">
@@ -256,7 +269,10 @@ workspaceStore.initWorkspaces();
 							<i class="bi bi-person-fill fs-32px mb-n3"></i>
 						</div>
 					</div>
-					<div class="menu-text d-sm-block d-none w-170px">
+					<div
+						class="menu-text d-sm-block d-none menu-user-text"
+						:title="authStore.user?.email || '遊客'"
+					>
 						{{ authStore.user?.email || '遊客' }}
 					</div>
 				</a>
@@ -285,6 +301,27 @@ workspaceStore.initWorkspaces();
 			</div>
 		</form>
 		<!-- END menu-search -->
+
+    <!-- 全域 B-1 核心資料填寫狀況 Modal -->
+    <CoreDataStatusModal
+      :show="appOption.showCoreDataStatusModal"
+      @update:show="appOption.showCoreDataStatusModal = $event"
+    />
 	</div>
 	
 </template>
+
+<style scoped>
+/* 讓 header 使用者名稱不破版（單行省略） */
+.menu-user-text {
+	max-width: 170px; /* 與原本 w-170px 一致 */
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* 重要：在 flex 容器內允許縮小，ellipsis 才會生效 */
+.menu-link {
+	min-width: 0;
+}
+</style>

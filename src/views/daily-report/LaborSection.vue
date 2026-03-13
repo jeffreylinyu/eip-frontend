@@ -446,7 +446,6 @@ const saveLaborRecords = async () => {
   isLoading.value = true
   try {
     // TODO: 實作儲存出工紀錄的 API
-    // console.log('儲存出工紀錄:', laborRecords.value)
   } catch (error) {
     console.error('儲存失敗:', error)
   } finally {
@@ -465,7 +464,6 @@ const nextSection = () => {
 // 生命週期
 onMounted(() => {
   // TODO: 載入現有的出工紀錄資料
-  // console.log('載入出工紀錄資料')
 })
 </script>
 

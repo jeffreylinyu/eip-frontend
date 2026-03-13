@@ -22,7 +22,9 @@ const formData = ref<CreateCompanyRequest>({
   companyName: '',
   companyUnifiedNumber: '',
   companyType: 'THIRD_PARTY',
-  contractorLevel: 'CLASS_A' // 預設營造等級
+  contractorLevel: 'CLASS_A', // 預設營造等級
+  address: '',
+  phone: ''
 })
 
 // 狀態
@@ -45,24 +47,27 @@ const resetForm = () => {
     companyName: '',
     companyUnifiedNumber: '',
     companyType: 'THIRD_PARTY',
-    contractorLevel: 'CLASS_A' // 預設營造等級
+    contractorLevel: 'CLASS_A', // 預設營造等級
+    address: '',
+    phone: ''
   }
   errors.value = {}
-  // console.log('🔄 表單重置完成:', formData.value) // 調試用
 }
 
 // 監聽company變化，填充表單
+// 一律顯示公司地址
+const addressLabel = computed(() => '公司地址')
+
 watch(() => props.company, (newCompany) => {
   if (newCompany) {
-    // console.log('編輯公司資料:', newCompany) // 調試用
-    // console.log('營造等級:', newCompany.contractorLevel) // 調試用
     formData.value = {
       companyName: newCompany.companyName,
       companyUnifiedNumber: newCompany.companyCode, // 將 companyCode 對應到 companyUnifiedNumber
       companyType: newCompany.companyType,
-      contractorLevel: newCompany.contractorLevel || 'CLASS_A' // 確保有預設值
+      contractorLevel: newCompany.contractorLevel || 'CLASS_A', // 確保有預設值
+      address: newCompany.address ?? '',
+      phone: newCompany.phone ?? ''
     }
-    // console.log('表單資料:', formData.value) // 調試用
   } else {
     resetForm()
   }
@@ -126,10 +131,11 @@ const handleSubmit = async () => {
       companyName: formData.value.companyName.trim(),
       companyUnifiedNumber: formData.value.companyUnifiedNumber.trim(),
       companyType: formData.value.companyType,
-      contractorLevel: formData.value.contractorLevel
+      contractorLevel: formData.value.contractorLevel,
+      address: formData.value.address?.trim() ?? undefined,
+      phone: formData.value.phone?.trim() ?? undefined
     }
     
-    // console.log('📤 提交的公司資料:', submitData) // 調試用
     emit('submit', submitData)
   } catch (error) {
     console.error('Submit error:', error)
@@ -168,7 +174,7 @@ const clearError = (field: string) => {
         
         <!-- 公司名稱 -->
         <div class="mb-3">
-          <label for="companyName" class="form-label">
+          <label class="form-label">
             公司名稱 <span class="text-danger">*</span>
           </label>
           <input 
@@ -181,6 +187,7 @@ const clearError = (field: string) => {
             placeholder="請輸入公司名稱"
             maxlength="100"
             :disabled="isSubmitting"
+            aria-label="公司名稱"
           />
           <div v-if="errors.companyName" class="invalid-feedback">
             {{ errors.companyName }}
@@ -192,7 +199,7 @@ const clearError = (field: string) => {
 
         <!-- 統一編號 -->
         <div class="mb-3">
-          <label for="companyCode" class="form-label">
+          <label class="form-label">
             統一編號 <span class="text-danger">*</span>
           </label>
           <input 
@@ -205,6 +212,7 @@ const clearError = (field: string) => {
             placeholder="請輸入8位數統一編號"
             maxlength="8"
             :disabled="isSubmitting"
+            aria-label="統一編號"
           />
           <div v-if="errors.companyUnifiedNumber" class="invalid-feedback">
             {{ errors.companyUnifiedNumber }}
@@ -216,7 +224,7 @@ const clearError = (field: string) => {
 
         <!-- 公司類型 -->
         <div class="mb-3">
-          <label for="companyType" class="form-label">
+          <label class="form-label">
             公司類型 <span class="text-danger">*</span>
           </label>
           <select 
@@ -226,6 +234,7 @@ const clearError = (field: string) => {
             v-model="formData.companyType"
             @change="clearError('companyType')"
             :disabled="isSubmitting"
+            aria-label="公司類型"
           >
             <option 
               v-for="option in COMPANY_TYPE_OPTIONS" 
@@ -240,9 +249,49 @@ const clearError = (field: string) => {
           </div>
         </div>
 
+        <!-- 公司地址 -->
+        <div class="mb-3">
+          <label class="form-label">
+            {{ addressLabel }}
+          </label>
+          <input
+            id="companyAddress"
+            type="text"
+            class="form-control"
+            v-model="formData.address"
+            placeholder="請輸入地址"
+            maxlength="500"
+            :disabled="isSubmitting"
+            aria-label="公司地址"
+          />
+          <div class="form-text">
+            {{ (formData.address || '').length }}/500 字元
+          </div>
+        </div>
+
+        <!-- 公司電話 -->
+        <div class="mb-3">
+          <label class="form-label">
+            公司電話
+          </label>
+          <input
+            id="companyPhone"
+            type="text"
+            class="form-control"
+            v-model="formData.phone"
+            placeholder="請輸入公司電話"
+            maxlength="50"
+            :disabled="isSubmitting"
+            aria-label="公司電話"
+          />
+          <div class="form-text">
+            {{ (formData.phone || '').length }}/50 字元
+          </div>
+        </div>
+
         <!-- 營造等級（僅當公司類型為營造廠商時顯示） -->
         <div v-if="formData.companyType === 'CONTRACTOR'" class="mb-3">
-          <label for="contractorLevel" class="form-label">
+          <label class="form-label">
             營造等級 <span class="text-danger">*</span>
           </label>
           <select 
@@ -252,6 +301,7 @@ const clearError = (field: string) => {
             v-model="formData.contractorLevel"
             @change="clearError('contractorLevel')"
             :disabled="isSubmitting"
+            aria-label="營造等級"
           >
             <option 
               v-for="option in CONTRACTOR_LEVEL_OPTIONS" 

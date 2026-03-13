@@ -9,7 +9,7 @@
         </button>
         <nav aria-label="breadcrumb" class="flex-grow-1">
           <ol class="breadcrumb mb-0">
-            <li class="breadcrumb-item text-muted">施工項目維護</li>
+            <li class="breadcrumb-item text-muted">施工項目</li>
             <li class="breadcrumb-item text-muted">{{ currentItem?.name || '載入中...' }}</li>
             <li class="breadcrumb-item active" aria-current="page">抽查標準維護</li>
           </ol>
@@ -37,9 +37,7 @@
                     <div class="text-muted small mb-2">{{ currentItem?.description || '無描述' }}</div>
                     
                     <div class="d-flex flex-wrap gap-3 text-secondary small">
-                        <span><i class="fa fa-code-branch me-1"></i>版本: v{{ currentItem?.version || 1 }}</span>
-                        <span class="border-start ps-3"><i class="fa fa-calendar-alt me-1"></i>效期: {{ currentItem?.effectiveStartDate || '未設定' }} ~ {{ currentItem?.effectiveEndDate || '無期限' }}</span>
-                        <span v-if="currentItem?.copiedFromPccesCode" class="border-start ps-3 text-primary">
+                        <span v-if="currentItem?.copiedFromPccesCode" class="text-primary">
                             <i class="fa fa-file-import me-1"></i>來源 PCCES: {{ currentItem?.copiedFromPccesCode }}
                         </span>
                     </div>
@@ -404,8 +402,8 @@ const saveEdit = async () => {
             loadingItem.value = true
             // 同步更新該群組下所有子項的 manageProject
             const promises = mgmtItem.子項.map((sub: any) => {
-                if (!sub.id) return Promise.resolve()
-                return updateConstructionMajorItemStandard(itemId, sub.id, { manageProject: newVal })
+                if (!sub.id || !constructionId.value) return Promise.resolve()
+                return updateConstructionMajorItemStandard(constructionId.value, itemId, sub.id, { manageProject: newVal })
             })
             
             await Promise.all(promises)

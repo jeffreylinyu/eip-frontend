@@ -892,7 +892,6 @@ watch(
 // TreeGrid 事件處理
 const onActionComplete = (args: any) => {
   // 調試：記錄所有事件類型
-  console.log('TreeGrid 操作完成事件:', args.requestType, args)
   
   if (args.requestType === "save") {
     // 保存操作完成後更新 store
@@ -915,7 +914,6 @@ const onActionComplete = (args: any) => {
   // 處理拖拽移動/重新排序事件
   if (args.requestType === "rowDragAndDrop" || args.requestType === "reorder" || 
       args.requestType === "dragAndDrop" || args.requestType === "rowDrop") {
-    console.log('檢測到 TreeGrid 任務移動/重新排序，將去抖後保存')
     // 去抖：短延遲後僅觸發一次處理
     if ((processDragDropData as any)._timer) {
       clearTimeout((processDragDropData as any)._timer)
@@ -929,7 +927,6 @@ const onActionComplete = (args: any) => {
   // 處理刷新事件（拖拽操作完成的通知）
   // 將 refresh 視為拖拽完成的信號（某些情況僅會觸發 refresh）
   if (args.requestType === "refresh") {
-    console.log('檢測到 TreeGrid refresh，視為拖拽完成信號（去抖觸發保存）')
     if ((processDragDropData as any)._timer) {
       clearTimeout((processDragDropData as any)._timer)
     }
@@ -952,7 +949,6 @@ const onActionComplete = (args: any) => {
   ]
   
   if (!handledEvents.includes(args.requestType) && !skipEvents.includes(args.requestType)) {
-    console.log('⚠️ TreeGrid 檢測到未處理的事件類型，嘗試自動儲存:', args.requestType)
     
     if (currentVersion.value) {
       currentVersion.value.tasks = treeGridData.value.map((task: any) => {
@@ -971,14 +967,12 @@ const onActionComplete = (args: any) => {
       // 儲存到 localStorage
       scheduleStore.saveToLocalStorage();
       
-      console.log('✅ TreeGrid 未處理事件已自動儲存:', args.requestType)
     }
   }
 };
 
 // 數據綁定完成事件處理（保留作為備用）
 const onDataBound = () => {
-  console.log('TreeGrid 數據綁定和渲染已完成')
   // 暫時不使用 dataBound 事件，因為觸發時序不穩定
 }
 
@@ -987,11 +981,9 @@ const processDragDropData = () => {
   try {
     // 防止重複處理
     if (isProcessingRefresh) {
-      console.log('正在處理拖拽數據，跳過重複處理')
       return
     }
     
-    console.log('開始保存拖拽後的數據（並校正ID）')
     
     // 設置處理標記
     isProcessingRefresh = true
@@ -1006,11 +998,9 @@ const processDragDropData = () => {
     // 獲取 TreeGrid 的當前數據（已經包含拖拽後的最新結構）
     const flatData = treeGridInstance.flatData || treeGridInstance.getCurrentViewRecords()
     
-    console.log('從 TreeGrid 獲取的扁平數據:', flatData)
     
     // 以工具函式建樹
     const convertedTasks = buildTreeFromFlat(flatData)
-    console.log('轉換後的樹狀結構:', convertedTasks)
     // 先更新到 currentVersion（結構）
     currentVersion.value.tasks = convertedTasks;
     // 為缺少 Uid 的節點補齊 Uid
@@ -1040,21 +1030,16 @@ const processDragDropData = () => {
 
     // 依賴 Predecessor 同步至新 ID
     rewritePredecessorByIdMap(currentVersion.value.tasks, idMap)
-    console.log('ID校正完成並已同步依賴關係')
     
     // 更新父項聚合欄位（Start/End/Duration/Cost/Amount）
-    console.log('開始更新父項聚合欄位...')
     updateParentDurations(currentVersion.value.tasks)
-    console.log('父項聚合欄位更新完成')
     
     // 更新 store 並保存到 localStorage
-    console.log('保存數據到 store 和 localStorage...')
     scheduleStore.updateVersion(
       currentVersion.value.id,
       currentVersion.value
     );
     scheduleStore.saveToLocalStorage();
-    console.log('✅ 數據已保存到 localStorage')
     
     // 就地更新 TreeGrid flatData 的父項聚合欄位與 TaskID 顯示
     try {
@@ -1112,7 +1097,6 @@ const processDragDropData = () => {
       console.warn('就地更新聚合欄位失敗，但不影響資料：', e)
     }
     
-    console.log('✅ 拖拽數據保存完成（已校正ID，已就地更新顯示）')
     
   } catch (error) {
     console.error('拖拽數據保存錯誤:', error)
@@ -1120,13 +1104,11 @@ const processDragDropData = () => {
     // 延遲重置標記
     setTimeout(() => {
       isProcessingRefresh = false
-      console.log('拖拽處理標記已重置')
     }, 500)
   }
 }
 
 const onActionBegin = (args: any) => {
-  console.log("onActionBegin:", args.requestType, args);
 
   // 如果是右鍵選單觸發的編輯，打開 Modal
   if (args.requestType === "beginEdit") {
@@ -1508,7 +1490,6 @@ const handleTaskSave = () => {
         updateTreeGridData();
         
         showTaskDialog.value = false;
-        console.log('父項任務名稱已更新:', taskForm.value.TaskName);
         return;
       }
     }

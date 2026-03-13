@@ -15,7 +15,6 @@ export interface Construction {
   constructionBudget: number;
   // 新增缺少的欄位
   contractId?: string;
-  constructionScaleOverview?: string | null; // 新增：工程規模概述
   currentContractAmount?: number;
   leadOrganization?: string;
   constructionLevel?: string;
@@ -37,8 +36,8 @@ export interface Construction {
   signLevel?: SignLevel[];
   workDay?: number;
   durationType?: 'CALENDAR_DAYS' | 'WORKING_DAYS'; // 工期計算模式
-  totalExtensionDays?: number; // 累計展延天數（新增）
-  supervisoryCompany?: string; // 舊的監造公司欄位（手動輸入）
+  totalExtensionDays?: number; // 累計展延天數（已棄用，始終為 0）
+  totalStopDays?: number; // 累計停工天數（SPECIFIC_DATES）
   supervisoryCompanyName?: string | null; // 監造公司名稱（從工作空間設定自動取得）
   contractorCompanyName?: string | null; // 營造公司名稱（從工作空間設定自動取得）
   designCompany?: string | null; // 設計公司（工程案層級的基本資料，可手動填寫或選擇監造公司）
@@ -57,14 +56,13 @@ export interface SignLevel {
 // 創建工程案的數據接口
 export interface CreateConstructionRequest {
   workspaceId: string;
-  companyId: string; // 新增：公司 ID（必填，通常為營造廠ID 或 當前創建者所屬公司ID）
+  companyId?: string; // 公司 ID：新建專案通常需要，更新時可不提供
   contractorCompanyId?: string; // 新增：指定營造廠
   supervisionCompanyId?: string; // 新增：指定監造單位
   designCompany?: string; // 新增：設計公司（工程案層級的基本資料，可手動填寫或選擇監造公司）
   contractId: string; // 契約編號（後端會自動使用此值作為 constructionId）
   constructionName: string;
   constructionLocation: string;
-  constructionScaleOverview?: string | null; // 新增：工程規模概述
   leadOrganization: string;
   constructionBudget: number;
   currentContractAmount: number;
@@ -113,17 +111,15 @@ export const transformProjectFormToConstructionRequest = (
     return `${dateString}T${defaultTime}`;
   };
 
-  if (!companyId) {
-    throw new Error('companyId 為必填欄位，請確保已選擇工作空間且工作空間包含公司資訊');
-  }
+  const normalizedCompanyId =
+    typeof companyId === 'string' && companyId.trim().length > 0 ? companyId.trim() : undefined
 
   return {
     workspaceId: workspaceId,
-    companyId: companyId, // 新增：公司 ID
+    companyId: normalizedCompanyId,
     contractId: projectFormData.contract_number || '',
     constructionName: projectFormData.project_name || '',
     constructionLocation: projectFormData.project_location || '',
-    constructionScaleOverview: projectFormData.project_scale_overview || null, // 新增
     leadOrganization: projectFormData.host_agency || '',
     constructionBudget: parseFloat(projectFormData.project_amount) || 0,
     currentContractAmount: parseFloat(projectFormData.current_contract_amount) || parseFloat(projectFormData.project_amount) || 0,
@@ -275,9 +271,16 @@ export const getConstructionsByWorkspace = async (workspaceId: string): Promise<
  * 取得單一工程案詳情
  * @param constructionId 工程編號
  * @param workspaceId (可選) 工作空間編號
+ * @param viewType (可選) 視角
+ * @param designChangeId (可選) 變更設計版本 ID；不傳或 null 為預設版
  * @returns Promise<Construction>
  */
-export const getConstructionDetail = async (constructionId: string, workspaceId?: string, viewType?: string): Promise<Construction> => {
+export const getConstructionDetail = async (
+  constructionId: string,
+  workspaceId?: string,
+  viewType?: string,
+  designChangeId?: number | null
+): Promise<Construction> => {
   try {
     const params: any = { constructionId };
     if (workspaceId) {
@@ -286,12 +289,12 @@ export const getConstructionDetail = async (constructionId: string, workspaceId?
     if (viewType) {
       params.viewType = viewType;
     }
-    
-    // 注意：根據 API 文件，回傳格式是 { code, message, data: Construction }
-    // 如果 http.get 已經處理了 response.data，那這裡回傳的可能直接是 payload
-    // 假設 http client 已經處理過外層結構，直接回傳 data
+    if (designChangeId != null) {
+      params.designChangeId = designChangeId;
+    }
+
     const data = await http.get('/management/construction/get', { params });
-    
+
     return data as unknown as Construction;
   } catch (error) {
     console.error('❌ 獲取工程案詳情失敗:', error);
@@ -303,19 +306,20 @@ export const getConstructionDetail = async (constructionId: string, workspaceId?
  * 更新工程案
  * @param constructionId 工程案 ID
  * @param constructionData 更新的項目數據
- * @returns Promise<CreateConstructionResponse | Construction> 
- *   後端可能回傳 CreateConstructionResponse 或完整的 Construction 物件
+ * @param designChangeId (可選) 變更設計版本 ID；提供時後端僅更新該版本的 12 個版本欄位
+ * @returns Promise<CreateConstructionResponse | Construction>
  */
 export const updateConstruction = async (
-  constructionId: string, 
-  constructionData: CreateConstructionRequest
+  constructionId: string,
+  constructionData: CreateConstructionRequest,
+  designChangeId?: number | null
 ): Promise<CreateConstructionResponse | Construction> => {
   try {
-    const data = await http.patch('/management/construction/update', {
-      constructionId,
-      ...constructionData
-    });
-    // 後端可能直接回傳完整的 Construction 物件，或 CreateConstructionResponse
+    const payload: Record<string, unknown> = { constructionId, ...constructionData };
+    if (designChangeId != null) {
+      payload.designChangeId = designChangeId;
+    }
+    const data = await http.patch('/management/construction/update', payload);
     return data as unknown as CreateConstructionResponse | Construction;
   } catch (error) {
     console.error('❌ 更新工程案失敗:', error);
@@ -372,17 +376,15 @@ export interface CalendarEvent {
 export const getCalendarEvents = async (
   constructionId: string,
   startDate: string,
-  endDate: string
+  endDate: string,
+  ownerType?: string
 ): Promise<CalendarEvent[]> => {
   try {
+    const params: any = { start: startDate, end: endDate };
+    if (ownerType) params.ownerType = ownerType;
     const data = await http.get(
       `/management/constructions/${constructionId}/calendar/events`,
-      {
-        params: {
-          start: startDate,
-          end: endDate
-        }
-      }
+      { params }
     );
     return data as unknown as CalendarEvent[];
   } catch (error) {
@@ -449,7 +451,8 @@ export const calculateEndDate = async (
   constructionId: string,
   startDate: string,
   durationDays: number,
-  durationType?: 'CALENDAR_DAYS' | 'WORKING_DAYS'
+  durationType?: 'CALENDAR_DAYS' | 'WORKING_DAYS',
+  ownerType?: string
 ): Promise<CalculateEndDateResponse> => {
   try {
     if (!constructionId) {
@@ -462,16 +465,168 @@ export const calculateEndDate = async (
       durationDays
     };
     
-    // 如果有提供 durationType，則加入參數
-    // 如果未提供，後端會自動使用工程的 durationType 或預設值 WORKING_DAYS
     if (durationType) {
       params.durationType = durationType;
+    }
+    if (ownerType) {
+      params.ownerType = ownerType;
     }
     
     const data = await http.get(url, { params });
     return data as unknown as CalculateEndDateResponse;
   } catch (error) {
     console.error('試算完工日期失敗:', error);
+    throw error;
+  }
+};
+
+// ========== 行事曆設定 API ==========
+
+/** 行事曆設定 DTO */
+export interface CalendarSettings {
+  constructionId: string;
+  ownerType: string;
+  govHolidayEnabled: boolean;
+}
+
+/**
+ * 查詢行事曆設定（政府假日啟用狀態）
+ * GET /constructions/{constructionId}/calendar/settings
+ */
+export const getCalendarSettings = async (
+  constructionId: string,
+  ownerType?: string
+): Promise<CalendarSettings> => {
+  try {
+    const params: any = {};
+    if (ownerType) params.ownerType = ownerType;
+    const data = await http.get(
+      `/management/constructions/${constructionId}/calendar/settings`,
+      { params }
+    );
+    return data as unknown as CalendarSettings;
+  } catch (error) {
+    console.error('查詢行事曆設定失敗:', error);
+    throw error;
+  }
+};
+
+/**
+ * 更新行事曆設定（開關政府假日自動套用）
+ * PUT /constructions/{constructionId}/calendar/settings
+ */
+export const updateCalendarSettings = async (
+  constructionId: string,
+  settings: { govHolidayEnabled: boolean },
+  ownerType?: string
+): Promise<CalendarSettings> => {
+  try {
+    const params: any = {};
+    if (ownerType) params.ownerType = ownerType;
+    const data = await http.put(
+      `/management/constructions/${constructionId}/calendar/settings`,
+      settings,
+      { params }
+    );
+    return data as unknown as CalendarSettings;
+  } catch (error) {
+    console.error('更新行事曆設定失敗:', error);
+    throw error;
+  }
+};
+
+// 行事曆公文資訊介面
+export interface CalendarDocument {
+  id: number;
+  issueDate: string; // YYYY-MM-DD
+  documentNumber?: string; // 發文字號
+  subject?: string; // 主旨
+  sender?: string; // 發文者
+}
+
+/**
+ * 獲取工程案行事曆的公文發文日期資訊
+ * GET /constructions/{constructionId}/calendar/documents?start=...&end=...
+ */
+export const getCalendarDocuments = async (
+  constructionId: string,
+  startDate: string,
+  endDate: string
+): Promise<CalendarDocument[]> => {
+  try {
+    const data = await http.get(
+      `/management/constructions/${constructionId}/calendar/documents`,
+      {
+        params: {
+          start: startDate,
+          end: endDate
+        }
+      }
+    );
+    return data as unknown as CalendarDocument[];
+  } catch (error) {
+    console.error('獲取行事曆公文資訊失敗:', error);
+    throw error;
+  }
+};
+
+// 行事曆展延免計日期介面
+export interface CalendarExtensionDate {
+  date: string; // YYYY-MM-DD
+  description?: string; // 日期說明
+  extensionId: string; // 展延記錄 ID
+  extensionOrder: number; // 第幾次展延
+  extensionReason?: string; // 展延原因概要
+}
+
+// 職安報備相關設定（目前僅勞動檢查機構全銜）
+export interface LaborSafetySettings {
+  constructionId: string;
+  laborInspectionAgencyFullName: string | null;
+}
+
+export const getLaborSafetySettings = async (
+  constructionId: string
+): Promise<LaborSafetySettings> => {
+  if (!constructionId) {
+    throw new Error('查詢職安設定需要 constructionId');
+  }
+  const data = await http.get('/management/construction/labor-safety/settings', {
+    params: { constructionId },
+  });
+  return data as unknown as LaborSafetySettings;
+};
+
+export const updateLaborSafetySettings = async (
+  payload: LaborSafetySettings
+): Promise<LaborSafetySettings> => {
+  if (!payload?.constructionId) {
+    throw new Error('更新職安設定需要 constructionId');
+  }
+  const data = await http.patch('/management/construction/labor-safety/settings', payload);
+  return data as unknown as LaborSafetySettings;
+};
+
+/**
+ * 獲取工程案行事曆的展延免計日期資訊
+ * GET /constructions/{constructionId}/calendar/extension-dates?start=...&end=...
+ */
+export const getCalendarExtensionDates = async (
+  constructionId: string,
+  startDate: string,
+  endDate: string,
+  ownerType?: string
+): Promise<CalendarExtensionDate[]> => {
+  try {
+    const params: any = { start: startDate, end: endDate };
+    if (ownerType) params.ownerType = ownerType;
+    const data = await http.get(
+      `/management/constructions/${constructionId}/calendar/extension-dates`,
+      { params }
+    );
+    return data as unknown as CalendarExtensionDate[];
+  } catch (error) {
+    console.error('獲取行事曆展延免計日期失敗:', error);
     throw error;
   }
 };
@@ -486,5 +641,11 @@ export default {
   getCalendarEvents,
   createOrUpdateCalendarEvent,
   calculateEndDate,
-  getConstructionDetail
+  getConstructionDetail,
+  getCalendarSettings,
+  updateCalendarSettings,
+  getCalendarDocuments,
+  getCalendarExtensionDates,
+  getLaborSafetySettings,
+  updateLaborSafetySettings,
 };

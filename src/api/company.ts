@@ -12,6 +12,8 @@ export interface Company {
   contactPhone: string
   contactEmail: string
   address: string
+  /** 公司電話 */
+  phone?: string
   description?: string
   status: 'ACTIVE' | 'INACTIVE'
   ownerUserId: string
@@ -32,6 +34,10 @@ export interface CreateCompanyRequest {
   companyUnifiedNumber: string
   companyType: 'CONTRACTOR' | 'SUPERVISION' | 'THIRD_PARTY'
   contractorLevel?: 'CLASS_A' | 'CLASS_B' | 'CLASS_C' | 'CIVIL_CONTRACTOR' // 營造等級，僅當 companyType 為 CONTRACTOR 時需要
+  /** 公司地址 */
+  address?: string
+  /** 公司電話 */
+  phone?: string
 }
 
 export interface UpdateCompanyRequest {
@@ -41,6 +47,10 @@ export interface UpdateCompanyRequest {
   companyStatus?: 'Y' | 'N'
   companyType?: 'CONTRACTOR' | 'SUPERVISION' | 'THIRD_PARTY'
   contractorLevel?: 'CLASS_A' | 'CLASS_B' | 'CLASS_C' | 'CIVIL_CONTRACTOR' // 統一使用 contractorLevel
+  /** 公司地址 */
+  address?: string
+  /** 公司電話 */
+  phone?: string
 }
 
 export interface CompanyListResponse {
@@ -208,6 +218,7 @@ export const companyDataTransform = {
       contactPhone: apiData.contactPhone || apiData.contact_phone || '',
       contactEmail: apiData.contactEmail || apiData.contact_email || '',
       address: apiData.address || '',
+      phone: apiData.phone || '',
       description: apiData.description || '',
       status: apiData.status || 'ACTIVE',
       ownerUserId: apiData.ownerUserId || apiData.owner_user_id,
@@ -229,12 +240,19 @@ export const companyDataTransform = {
       companyUnifiedNumber: companyData.companyCode, // 前端的 companyCode 對應 API 的 companyUnifiedNumber
       companyType: companyData.companyType
     }
-    
+
     // 只有當公司類型是營造廠商時才添加營造等級
     if (companyData.companyType === 'CONTRACTOR' && companyData.contractorLevel) {
       apiData.contractorLevel = companyData.contractorLevel
     }
-    
+
+    if (companyData.address !== undefined) {
+      apiData.address = companyData.address
+    }
+    if (companyData.phone !== undefined) {
+      apiData.phone = companyData.phone
+    }
+
     return apiData
   },
 
@@ -248,6 +266,7 @@ export const companyDataTransform = {
       contactPhone: companyData.contactPhone,
       contactEmail: companyData.contactEmail,
       address: companyData.address,
+      phone: companyData.phone,
       description: companyData.description,
       status: companyData.status
     }

@@ -1,0 +1,46 @@
+/**
+ * 共用 Loading 樣式
+ * - .loading-overlay：全畫面遮罩，置中顯示 spinner + 選填文字（用於 API 等待等）
+ * - .loading-inline：行內載入（spinner + 文字），用於區塊內或按鈕旁
+ */
+
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  gap: 1rem;
+
+  .loading-overlay-spinner {
+    width: 3rem;
+    height: 3rem;
+    border-width: 0.3em;
+  }
+
+  .loading-overlay-text {
+    color: #fff;
+    margin: 0;
+    font-size: 1rem;
+  }
+}
+
+.loading-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+
+  .loading-inline-spinner {
+    flex-shrink: 0;
+  }
+
+  .loading-inline-text {
+    margin: 0;
+  }
+}

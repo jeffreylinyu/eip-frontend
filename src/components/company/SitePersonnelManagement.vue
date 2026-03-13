@@ -1,17 +1,22 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, getCurrentInstance } from 'vue'
-import { sitePersonnelApi, type SitePersonnel, POSITION_OPTIONS, STATUS_OPTIONS, type CreateSitePersonnelRequest } from '@/api/sitePersonnel'
+import { sitePersonnelApi, type SitePersonnel, STATUS_OPTIONS, type CreateSitePersonnelRequest } from '@/api/sitePersonnel'
+import { getOccupationOptions, getOccupationDisplayLabel, LEGACY_OCCUPATION_MAP, sortPersonnelByOccupation, type OccupationOption } from '@/api/sitePersonnelOccupations'
 import { getConstructionsByCompany, type Construction } from '@/api/construction'
 import Card from '@/components/bootstrap/Card.vue'
 import CardBody from '@/components/bootstrap/CardBody.vue'
 import Modal from '@/components/bootstrap/Modal.vue'
 import RepublicDatePicker from '@/components/bootstrap/RepublicDatePicker.vue'
 
-// Props
-const props = defineProps<{
-  companyId: string
-  companyName: string
-}>()
+// Props（companyType 用於區分監造/營造職稱選項，未傳則預設營造）
+const props = withDefaults(
+  defineProps<{
+    companyId: string
+    companyName: string
+    companyType?: 'CONTRACTOR' | 'SUPERVISION'
+  }>(),
+  { companyType: 'CONTRACTOR' }
+)
 
 const instance = getCurrentInstance()
 const proxy = instance?.proxy as any
@@ -35,6 +40,7 @@ const formData = ref<CreateSitePersonnelRequest>({
   phone: '',
   identityNumber: '',
   occupation: 'QUALITY',
+  occupationCategory: '',
   licenseNumber: '',
   licenseExpiryDate: '',
   companyId: props.companyId,
@@ -42,7 +48,19 @@ const formData = ref<CreateSitePersonnelRequest>({
   sex: 'M',
   status: 'Y',
   comments: '',
-  departmentCode: 'QT' // Default for QUALITY
+  departmentCode: 'QT', // Default for QUALITY
+  isDedicated: false
+})
+
+// 依公司類型取得職稱選項（監造無工地負責人）
+const occupationOptions = computed<OccupationOption[]>(() =>
+  getOccupationOptions(props.companyType)
+)
+
+// 當前所選職稱若有類別，顯示類別下拉選單
+const currentOccupationCategories = computed(() => {
+  const opt = occupationOptions.value.find(o => o.value === formData.value.occupation)
+  return opt?.categories ?? []
 })
 
 // 計算屬性
@@ -60,11 +78,11 @@ const filteredPersonnel = computed(() => {
     )
   }
 
-  // 職位過濾
+  // 職稱過濾
   if (selectedPosition.value) {
     filtered = filtered.filter(person => {
       const pos = person.occupation || person.position
-      return pos === selectedPosition.value || LEGACY_ROLE_MAP[pos!] === selectedPosition.value
+      return pos === selectedPosition.value || LEGACY_OCCUPATION_MAP[pos!] === selectedPosition.value
     })
   }
 
@@ -76,13 +94,15 @@ const filteredPersonnel = computed(() => {
   return filtered
 })
 
+/** 列表依職位大小排序（與 /basic/site-personnel 共用邏輯） */
+const sortedPersonnel = computed(() => sortPersonnelByOccupation(filteredPersonnel.value))
+
 const personnelByPosition = computed(() => {
   const result: Record<string, number> = {}
-  POSITION_OPTIONS.forEach(option => {
+  occupationOptions.value.forEach(option => {
     result[option.value] = personnel.value.filter(p => {
-       const pos = p.occupation || p.position
-       // 檢查直接匹配或舊代碼映射匹配
-       return (pos === option.value || LEGACY_ROLE_MAP[pos!] === option.value) && p.status === 'Y'
+      const pos = p.occupation || p.position
+      return (pos === option.value || LEGACY_OCCUPATION_MAP[pos!] === option.value) && p.status === 'Y'
     }).length
   })
   return result
@@ -96,26 +116,62 @@ const personnelByStatus = computed(() => {
   return result
 })
 
-// 工具函數
-// 舊職位代碼兼容映射
-const LEGACY_ROLE_MAP: Record<string, string> = {
-  'QUALITY_CONTROL': 'QUALITY',
-  'SAFETY_OFFICER': 'LABOUR_SAFETY',
-  'PROFESSIONAL_ENGINEER': 'TECHNICIAN'
+// 顯示「指派/任職紀錄」小窗
+const showAssignmentDetailModal = ref(false)
+const assignmentDetailTitle = ref('')
+const assignmentDetailList = ref<{ constructionId: string; workStartDate?: string | null; workEndDate?: string | null; isActive?: boolean }[]>([])
+
+function formatRepublicDate(v?: string | null): string {
+  if (!v) return ''
+  const iso = v.split('T')[0]
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const y = d.getFullYear() - 1911
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${y}年${mm}月${dd}日`
+}
+
+const openAssignmentDetail = (person: SitePersonnel) => {
+  const list = person.assignments || []
+  if (!list.length) return
+  assignmentDetailTitle.value = `${person.fullName} 的任職紀錄`
+  assignmentDetailList.value = list.map(a => ({
+    constructionId: a.constructionId,
+    workStartDate: a.workStartDate ?? null,
+    workEndDate: a.workEndDate ?? null,
+    isActive: a.isActive ?? false
+  }))
+  showAssignmentDetailModal.value = true
+}
+
+const closeAssignmentDetail = () => {
+  showAssignmentDetailModal.value = false
+  assignmentDetailList.value = []
+  assignmentDetailTitle.value = ''
 }
 
 const getPositionOption = (position: string | undefined) => {
   if (!position) return { label: '未設定', color: 'secondary', icon: 'fa-user' }
-  
-  // 先嘗試直接對應
-  let option = POSITION_OPTIONS.find(opt => opt.value === position)
-  
-  // 若找不到，嘗試映射舊代碼
-  if (!option && LEGACY_ROLE_MAP[position]) {
-    option = POSITION_OPTIONS.find(opt => opt.value === LEGACY_ROLE_MAP[position])
-  }
-  
+  const mapped = LEGACY_OCCUPATION_MAP[position] || position
+  const option = occupationOptions.value.find(opt => opt.value === mapped)
   return option || { label: position, color: 'secondary', icon: 'fa-user' }
+}
+
+/** 取得人員職稱顯示文字（含類別） */
+const getPersonOccupationLabel = (person: SitePersonnel) =>
+  getOccupationDisplayLabel(
+    person.occupation || person.position,
+    person.occupationCategory,
+    occupationOptions.value
+  )
+
+const getPersonDisplayOccupation = (person: SitePersonnel) => {
+  return getOccupationDisplayLabel(
+    person.occupation || person.position,
+    person.occupationCategory,
+    occupationOptions.value
+  )
 }
 
 const getStatusOption = (status: string) => {
@@ -165,24 +221,31 @@ const loadProjects = async () => {
 }
 
 const openPersonnelForm = (person?: SitePersonnel) => {
+  // 避免沿用前一次選擇的檔案
+  selectedPhotoFile.value = null
   if (person) {
     editingPersonnel.value = person
     selectedSex.value = person.sex
     selectedProjectId.value = person.constructionId || person.projectId || ''
+    const occ = person.occupation || person.position || 'QUALITY'
+    const mappedOcc = LEGACY_OCCUPATION_MAP[occ] || occ
+    const opt = occupationOptions.value.find(o => o.value === mappedOcc)
     formData.value = {
       fullName: person.fullName,
       email: person.email,
       phone: person.phone,
       identityNumber: person.identityNumber || '',
-      occupation: person.occupation || person.position || 'QUALITY',
+      occupation: mappedOcc,
+      occupationCategory: person.occupationCategory ?? '',
       licenseNumber: person.licenseNumber || '',
-      licenseExpiryDate: person.licenseExpiryDate ? person.licenseExpiryDate.split('T')[0] : '', // 處理日期格式
+      licenseExpiryDate: person.licenseExpiryDate ? person.licenseExpiryDate.split('T')[0] : '',
       companyId: person.companyId,
       workStartDate: person.workStartDate ? person.workStartDate.split('T')[0] : '',
       status: person.status,
       comments: person.comments || '',
       sex: person.sex,
-      departmentCode: person.departmentCode || POSITION_OPTIONS.find(opt => opt.value === (person.occupation || person.position))?.departmentCode || ''
+      departmentCode: person.departmentCode || opt?.departmentCode || 'QT',
+      isDedicated: person.isDedicated ?? false
     }
   } else {
     editingPersonnel.value = null
@@ -194,6 +257,7 @@ const openPersonnelForm = (person?: SitePersonnel) => {
       phone: '',
       identityNumber: '',
       occupation: 'QUALITY',
+      occupationCategory: '',
       licenseNumber: '',
       licenseExpiryDate: '',
       companyId: props.companyId,
@@ -201,7 +265,8 @@ const openPersonnelForm = (person?: SitePersonnel) => {
       sex: 'M',
       status: 'Y',
       comments: '',
-      departmentCode: 'QT'
+      departmentCode: 'QT',
+      isDedicated: false
     }
   }
   showPersonnelForm.value = true
@@ -232,21 +297,30 @@ const handlePersonnelFormSubmit = async () => {
     const formattedWorkStartDate = formatDateWithTime(formData.value.workStartDate)
 
     if (editingPersonnel.value) {
-      // 更新工地人員
-      await sitePersonnelApi.update({
+      const updateData = {
         memberId: editingPersonnel.value.memberId,
+        companyId: formData.value.companyId,
         fullName: formData.value.fullName,
         phone: formData.value.phone,
         email: formData.value.email,
         sex: formData.value.sex,
         occupation: formData.value.occupation,
+        occupationCategory: formData.value.occupationCategory || undefined,
         identityNumber: formData.value.identityNumber,
         licenseNumber: formData.value.licenseNumber,
         licenseExpiryDate: formattedLicenseExpiryDate,
         workStartDate: formattedWorkStartDate,
         status: formData.value.status,
-        comments: formData.value.comments
-      })
+        comments: formData.value.comments,
+        isDedicated: formData.value.isDedicated
+      }
+
+      // 更新工地人員（若有選檔則一併更新證照檔案）
+      if (selectedPhotoFile.value) {
+        await sitePersonnelApi.updateWithPhoto(updateData, selectedPhotoFile.value)
+      } else {
+        await sitePersonnelApi.update(updateData)
+      }
       
       // 檢查是否需要更新指派
       const originalProjectId = editingPersonnel.value.constructionId || editingPersonnel.value.projectId || ''
@@ -278,43 +352,22 @@ const handlePersonnelFormSubmit = async () => {
 
       let newMember: any
       if (selectedPhotoFile.value) {
-        // 使用 createWithPhoto API
         newMember = await sitePersonnelApi.createWithPhoto(requestData, selectedPhotoFile.value)
         if (proxy && proxy.$toast) proxy.$toast.success('工地人員建立成功！（含證照檔案）')
       } else {
         newMember = await sitePersonnelApi.create(requestData)
         if (proxy && proxy.$toast) proxy.$toast.success('工地人員建立成功！')
       }
-      
-      
-      // 如果沒有取得 memberId (可能是 createWithPhoto 回傳格式問題)，嘗試搜尋該人員
-      if (!newMember?.memberId && formData.value.fullName) {
-        try {
-          // 稍微延遲一下確保後端已寫入
-          await new Promise(resolve => setTimeout(resolve, 500))
-          const searchResults = await sitePersonnelApi.search(props.companyId, formData.value.fullName)
-          // 根據電話或 Email 進一步確認
-          const found = searchResults.find(p => 
-            p.fullName === formData.value.fullName && 
-            (p.phone === formData.value.phone || p.email === formData.value.email)
-          )
-          if (found) {
-            newMember = found
-          }
-        } catch (e) {
-          console.warn('Fallback search failed:', e)
-        }
-      }
 
-      // 新增後指派專案
-      if (selectedProjectId.value && newMember && newMember.memberId) {
-         await sitePersonnelApi.assignProject({
-           memberIdList: [newMember.memberId],
-           constructionId: selectedProjectId.value
-         })
-         if (proxy && proxy.$toast) proxy.$toast.success('已指派至所選專案')
-      } else if (selectedProjectId.value) {
-         if (proxy && proxy.$toast) proxy.$toast.warning('人員建立成功，但無法自動指派專案 (找不到人員ID)。請手動指派。')
+      // 新增後指派專案（一律使用 API 回傳的 memberId）
+      if (selectedProjectId.value && newMember?.memberId) {
+        await sitePersonnelApi.assignProject({
+          memberIdList: [newMember.memberId],
+          constructionId: selectedProjectId.value
+        })
+        if (proxy && proxy.$toast) proxy.$toast.success('已指派至所選專案')
+      } else if (selectedProjectId.value && !newMember?.memberId) {
+        if (proxy && proxy.$toast) proxy.$toast.warning('人員建立成功，但無法自動指派專案。請手動指派。')
       }
     }
     
@@ -353,7 +406,10 @@ const clearFilters = () => {
   selectedStatus.value = ''
 }
 
-const downloadLicense = async (person: SitePersonnel) => {
+// 預覽：用「新分頁」開啟，確保瀏覽器原生工具列存在（下載/列印/縮放等）
+const previewLicenseInNewTab = async (person: SitePersonnel) => {
+  // 先同步開新分頁，避免 async fetch 後被瀏覽器擋彈窗
+  const newTab = window.open('', '_blank')
   try {
     isLoading.value = true
     const blob = await sitePersonnelApi.downloadPhoto(person.memberId)
@@ -364,15 +420,17 @@ const downloadLicense = async (person: SitePersonnel) => {
       return
     }
 
-    // 建立下載連結
     const url = window.URL.createObjectURL(blob)
-    window.open(url, '_blank')
-    
-    // 清理資源 (延遲一下確保開啟成功)
-    setTimeout(() => window.URL.revokeObjectURL(url), 10000)
+    if (newTab) {
+      newTab.location.href = url
+      newTab.focus()
+    } else {
+      window.open(url, '_blank')
+    }
   } catch (error) {
     console.error('下載證照失敗:', error)
     if (proxy && proxy.$toast) proxy.$toast.error('無法下載證照，可能未上傳')
+    if (newTab) newTab.close()
   } finally {
     isLoading.value = false
   }
@@ -386,15 +444,19 @@ const handlePhotoFileUpload = (event: Event) => {
   }
 }
 
-// 監聽職位變化，自動設置部門代碼
+// 監聽職稱變化，自動設置部門代碼並清空不適用的類別
 const handleOccupationChange = () => {
-  const option = POSITION_OPTIONS.find(opt => opt.value === formData.value.occupation)
+  const option = occupationOptions.value.find(o => o.value === formData.value.occupation)
   if (option) {
     formData.value.departmentCode = option.departmentCode
+    if (!option.categories?.length) formData.value.occupationCategory = ''
+    else if (formData.value.occupationCategory && !option.categories.some(c => c.value === formData.value.occupationCategory)) {
+      formData.value.occupationCategory = ''
+    }
   }
 }
 
-// 載入測試資料 (僅填入表單)
+// 快速填入表單範例值 (僅填入表單)
 const loadTestData = () => {
   formData.value.fullName = '測試人員'
   formData.value.identityNumber = 'A123456789'
@@ -403,7 +465,7 @@ const loadTestData = () => {
   selectedSex.value = 'M'
   formData.value.occupation = 'QUALITY'
   handleOccupationChange() // 更新部門代碼
-  formData.value.comments = '自動填入的測試資料'
+  formData.value.comments = ''
 }
 
 // 生命週期
@@ -461,11 +523,11 @@ onMounted(async () => {
             </div>
           </div>
 
-          <!-- 職位過濾 -->
+          <!-- 職稱過濾 -->
           <div class="col-md-2">
             <select class="form-select" v-model="selectedPosition">
-              <option value="">所有職位</option>
-              <option v-for="position in POSITION_OPTIONS" :key="position.value" :value="position.value">
+              <option value="">所有職稱</option>
+              <option v-for="position in occupationOptions" :key="position.value" :value="position.value">
                 {{ position.label }}
               </option>
             </select>
@@ -530,11 +592,11 @@ onMounted(async () => {
         <Card>
           <CardBody class="p-0">
             <div class="table-responsive">
-              <table class="table table-hover mb-0 align-middle">
+              <table class="table a4-table mb-0 align-middle">
                 <thead>
                   <tr>
                     <th>姓名</th>
-                    <th>職位</th>
+                    <th>職稱</th>
                     <th>所屬專案</th>
                     <th>聯絡資訊</th>
                     <th>狀態</th>
@@ -544,33 +606,48 @@ onMounted(async () => {
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="person in filteredPersonnel" :key="person.id">
+                  <tr v-for="person in sortedPersonnel" :key="person.id">
                     <td class="px-4">
                       <div>
-                        <div class="fw-bold">{{ person.fullName }}</div>
-                        <small class="text-muted">{{ person.identityNumber }}</small>
+                        <div class="fw-bold">{{ person.fullName || '未填寫' }}</div>
+                        <small class="text-muted">{{ person.identityNumber || '未填寫' }}</small>
                       </div>
                     </td>
                     <td class="px-4">
                       <span 
                         class="badge border px-2 pt-5px pb-5px rounded fs-12px d-inline-flex align-items-center"
                         :class="`border-${getPositionOption(person.occupation || person.position).color} text-${getPositionOption(person.occupation || person.position).color}`"
+                        :title="getPersonOccupationLabel(person)"
                       >
                         <i :class="`fa ${getPositionOption(person.occupation || person.position).icon} me-1`"></i>
-                        {{ getPositionOption(person.occupation || person.position).label }}
+                        {{ getPersonOccupationLabel(person) }}
                       </span>
                     </td>
                     <td class="px-4">
-                      <div v-if="person.constructionId || person.projectId" class="badge bg-light text-dark border">
-                        <i class="fa fa-hard-hat me-1 text-primary"></i>
-                        {{ getProjectName(person.constructionId || person.projectId) }}
+                      <div class="d-flex flex-column gap-1">
+                        <div
+                          v-if="(person.assignments || []).some(a => a.isActive)"
+                          class="badge bg-light text-dark border align-self-start"
+                        >
+                          <i class="fa fa-hard-hat me-1 text-primary"></i>
+                          {{ getProjectName(((person.assignments || []).find(a => a.isActive)?.constructionId) || person.constructionId || person.projectId) }}
+                        </div>
+                        <span
+                          v-if="person.assignments && person.assignments.length > 0"
+                          class="text-primary small text-decoration-underline align-self-start"
+                          style="cursor: pointer;"
+                          role="button"
+                          @click="openAssignmentDetail(person)"
+                        >
+                          任職紀錄
+                        </span>
+                        <span v-if="!person.assignments || person.assignments.length === 0" class="text-muted small">未指派</span>
                       </div>
-                      <span v-else class="text-muted small">-</span>
                     </td>
                     <td class="px-4">
                       <div class="small">
-                        <div><i class="fa fa-envelope me-1"></i>{{ person.email }}</div>
-                        <div><i class="fa fa-phone me-1"></i>{{ person.phone }}</div>
+                        <div><i class="fa fa-envelope me-1"></i>{{ person.email || '未填寫' }}</div>
+                        <div><i class="fa fa-phone me-1"></i>{{ person.phone || '未填寫' }}</div>
                       </div>
                     </td>
                     <td class="px-4">
@@ -584,25 +661,30 @@ onMounted(async () => {
                     </td>
                     <td class="px-4">
                       <div class="small">
-                        <div v-if="person.licenseNumber" class="mb-1">
-                          <i class="fa fa-id-card me-1"></i>{{ person.licenseNumber }}
-                        </div>
-                        <div v-if="person.licenseExpiryDate" class="text-muted mb-1">
-                          <i class="fa fa-calendar me-1"></i>{{ person.licenseExpiryDate.split('T')[0] }}
-                        </div>
-                        <button 
-                          v-if="person.hasPhoto"
-                          class="btn btn-xs btn-outline-info"
-                          @click="downloadLicense(person)"
-                          title="查看證照"
-                        >
-                           <i class="fa fa-file-alt me-1"></i>查看證照
-                        </button>
+                        <template v-if="person.licenseNumber || person.licenseExpiryDate || person.hasPhoto">
+                          <div v-if="person.licenseNumber" class="mb-1">
+                            <i class="fa fa-id-card me-1"></i>
+                            <span>{{ person.licenseNumber }}</span>
+                          </div>
+                          <div v-if="person.licenseExpiryDate" class="text-muted mb-1">
+                            <i class="fa fa-calendar me-1"></i>{{ formatRepublicDate(person.licenseExpiryDate) }}
+                          </div>
+                          <div v-if="person.hasPhoto" class="mb-1">
+                            <i class="fa fa-file-alt me-1"></i>
+                            <span
+                              class="text-decoration-underline text-primary"
+                              role="button"
+                              @click="previewLicenseInNewTab(person)"
+                              title="預覽證照"
+                            >預覽證照</span>
+                          </div>
+                        </template>
+                        <span v-else class="text-muted">未填寫</span>
                       </div>
                     </td>
                     <td class="px-4">
                       <div class="small">
-                        <div>{{ person.workStartDate ? person.workStartDate.split('T')[0] : '-' }}</div>
+                        <div>{{ formatRepublicDate(person.workStartDate) || '未填寫' }}</div>
                       </div>
                     </td>
                     <td class="px-4">
@@ -653,7 +735,7 @@ onMounted(async () => {
           <div class="d-flex justify-content-end mb-3">
             <button class="btn btn-outline-secondary btn-sm" type="button" @click="loadTestData">
               <i class="fa fa-magic me-1"></i>
-              填入測試資料
+              快速填入
             </button>
           </div>
           <div class="row g-3">
@@ -665,7 +747,7 @@ onMounted(async () => {
              </div>
 
             <div class="col-md-6">
-              <label class="form-label">姓名 *</label>
+              <label class="form-label">姓名 <span class="text-danger">*</span></label>
               <input
                 type="text"
                 class="form-control"
@@ -675,7 +757,7 @@ onMounted(async () => {
             </div>
             
             <div class="col-md-6">
-              <label class="form-label">身分證號 *</label>
+              <label class="form-label">身分證號 <span class="text-danger">*</span></label>
               <input
                 type="text"
                 class="form-control"
@@ -686,7 +768,7 @@ onMounted(async () => {
             </div>
             
              <div class="col-md-6">
-              <label class="form-label">性別 *</label>
+              <label class="form-label">性別 <span class="text-danger">*</span></label>
                <select class="form-select" v-model="selectedSex">
                 <option value="M">男</option>
                 <option value="F">女</option>
@@ -694,10 +776,19 @@ onMounted(async () => {
             </div>
 
             <div class="col-md-6">
-              <label class="form-label">職位</label>
-               <select class="form-select" v-model="formData.occupation" @change="handleOccupationChange">
-                <option v-for="pos in POSITION_OPTIONS" :key="pos.value" :value="pos.value">
+              <label class="form-label">職稱</label>
+              <select class="form-select" v-model="formData.occupation" @change="handleOccupationChange">
+                <option v-for="pos in occupationOptions" :key="pos.value" :value="pos.value">
                   {{ pos.label }}
+                </option>
+              </select>
+            </div>
+            <div v-if="currentOccupationCategories.length > 0" class="col-md-6">
+              <label class="form-label">類別</label>
+              <select class="form-select" v-model="formData.occupationCategory">
+                <option value="">請選擇類別</option>
+                <option v-for="cat in currentOccupationCategories" :key="cat.value" :value="cat.value">
+                  {{ cat.label }}
                 </option>
               </select>
             </div>
@@ -711,9 +802,21 @@ onMounted(async () => {
                 </option>
               </select>
             </div>
+
+            <div class="col-md-6 d-flex align-items-end pb-2">
+              <div class="form-check">
+                <input
+                  id="formIsDedicated"
+                  type="checkbox"
+                  class="form-check-input"
+                  v-model="formData.isDedicated"
+                />
+                <label class="form-check-label" for="formIsDedicated">是否專職</label>
+              </div>
+            </div>
             
             <div class="col-md-6">
-              <label class="form-label">電子信箱 *</label>
+              <label class="form-label">電子信箱 <span class="text-danger">*</span></label>
               <input
                 type="email"
                 class="form-control"
@@ -723,7 +826,7 @@ onMounted(async () => {
             </div>
             
             <div class="col-md-6">
-              <label class="form-label">聯絡電話 *</label>
+              <label class="form-label">聯絡電話 <span class="text-danger">*</span></label>
               <input
                 type="tel"
                 class="form-control"
@@ -757,14 +860,42 @@ onMounted(async () => {
               />
             </div>
 
-            <div class="col-md-6" v-if="!editingPersonnel">
-               <label class="form-label">上傳證照 (PDF/圖片)</label>
-               <input 
-                 type="file" 
-                 class="form-control" 
-                 accept=".pdf,.jpg,.jpeg,.png"
-                 @change="handlePhotoFileUpload"
-               />
+            <div class="col-md-6">
+              <label class="form-label">{{ editingPersonnel ? '更新證照檔案 (PDF/圖片)' : '上傳證照檔案 (PDF/圖片)' }}</label>
+
+              <div v-if="editingPersonnel?.hasPhoto" class="mb-2 small d-flex align-items-center gap-2 flex-wrap">
+                <span class="text-muted">
+                  <i class="fa fa-file-alt me-1"></i>已上傳
+                </span>
+                <span v-if="editingPersonnel.licenseNumber" class="text-muted">
+                  <i class="fa fa-id-card me-1"></i>{{ editingPersonnel.licenseNumber }}
+                </span>
+                <span
+                  class="text-decoration-underline text-primary"
+                  role="button"
+                  @click="previewLicenseInNewTab(editingPersonnel as any)"
+                  title="預覽證照"
+                >預覽證照</span>
+              </div>
+
+              <input
+                type="file"
+                class="form-control"
+                accept=".pdf,.jpg,.jpeg,.png"
+                @change="handlePhotoFileUpload"
+              />
+              <div class="form-text d-flex align-items-center justify-content-between">
+                <span v-if="selectedPhotoFile">已選擇：{{ selectedPhotoFile.name }}</span>
+                <span v-else class="text-muted">未選擇檔案</span>
+                <button
+                  v-if="selectedPhotoFile"
+                  type="button"
+                  class="btn btn-link btn-sm p-0"
+                  @click="selectedPhotoFile = null"
+                >
+                  清除
+                </button>
+              </div>
             </div>
 
             <div class="col-md-12">
@@ -784,6 +915,48 @@ onMounted(async () => {
         </form>
       </template>
     </Modal>
+
+    <!-- 指派工程／任職紀錄 Modal -->
+    <Modal
+      v-model:show="showAssignmentDetailModal"
+      :title="assignmentDetailTitle || '任職紀錄'"
+      icon="fa fa-hard-hat"
+      size="lg"
+      modal-id="assignmentDetailModal"
+      confirm-text="關閉"
+      confirm-icon="fa fa-times"
+      @confirm="closeAssignmentDetail"
+      @hide="closeAssignmentDetail"
+    >
+      <template #body>
+        <div v-if="assignmentDetailList.length">
+          <ul class="list-group">
+            <li
+              v-for="(item, idx) in assignmentDetailList"
+              :key="idx"
+              class="list-group-item d-flex justify-content-between align-items-center"
+            >
+              <div>
+                <div class="fw-bold">
+                  <i class="fa fa-hard-hat me-1 text-primary"></i>
+                  {{ getProjectName(item.constructionId) }}
+                </div>
+                <div class="text-muted small">
+                  到職：{{ formatRepublicDate(item.workStartDate) || '未填' }}
+                  <span class="mx-1">/</span>
+                  離職：{{ formatRepublicDate(item.workEndDate) || (item.isActive ? '在職中' : '未填') }}
+                </div>
+              </div>
+              <span class="badge bg-light text-secondary">
+                {{ item.constructionId }}
+              </span>
+            </li>
+          </ul>
+        </div>
+        <div v-else class="text-muted small">目前沒有任何指派紀錄。</div>
+      </template>
+    </Modal>
+
   </div>
 </template>
 

@@ -25,7 +25,7 @@ export const projectFormValidationRules: FieldValidationRules = {
     minLength: 5,
     maxLength: 200,
   },
-  
+
   host_agency: {
     minLength: 2,
     maxLength: 100,
@@ -76,6 +76,7 @@ export const projectFormValidationRules: FieldValidationRules = {
     dateRange: {
       startField: 'sign_date',
       endField: 'start_date',
+      message: '開工日期必須晚於訂約日期',
     },
   },
   

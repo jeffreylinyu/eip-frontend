@@ -3,7 +3,7 @@
     <div 
       v-if="show"
       :id="modalId"
-      class="modal fade show"
+      :class="['modal', 'fade', 'show', props.modalClass, { 'modal-elevated': props.elevateZIndex }]"
       tabindex="-1"
       :aria-labelledby="modalId + 'Label'"
       aria-hidden="false"
@@ -85,7 +85,7 @@
     <!-- Backdrop -->
     <div 
       v-if="show && backdrop !== false" 
-      class="modal-backdrop fade show"
+      :class="['modal-backdrop', 'fade', 'show', { 'modal-backdrop-elevated': props.elevateZIndex }]"
       @click="handleBackdropClick"
     ></div>
   </Teleport>
@@ -100,6 +100,8 @@ interface Props {
   icon?: string
   size?: 'sm' | 'lg' | 'xl' | 'xxl' | 'fullscreen'
   modalId?: string
+  /** 額外 class 掛在 modal 根節點（因 Teleport 無法自動繼承父層 class） */
+  modalClass?: string
   hideHeader?: boolean
   hideFooter?: boolean
   hideCloseButton?: boolean
@@ -115,6 +117,8 @@ interface Props {
   keyboard?: boolean
   draggable?: boolean  // 新增：是否可拖曳
   resizable?: boolean  // 新增：是否可調整大小
+  /** 提高 z-index，用於疊在其它 Modal 之上（例如從另一 Modal 內開啟的選擇器） */
+  elevateZIndex?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -122,6 +126,7 @@ const props = withDefaults(defineProps<Props>(), {
   icon: '',
   size: 'lg',
   modalId: 'modal',
+  modalClass: '',
   hideHeader: false,
   hideFooter: false,
   hideCloseButton: false,
@@ -136,7 +141,8 @@ const props = withDefaults(defineProps<Props>(), {
   backdrop: true,
   keyboard: true,
   draggable: true,  // 預設為可拖曳
-  resizable: true   // 預設為可調整大小
+  resizable: true,  // 預設為可調整大小
+  elevateZIndex: false
 })
 
 const emit = defineEmits<{
@@ -172,7 +178,6 @@ const handleConfirm = () => {
 }
 
 const handleBackdropClick = () => {
-  // console.log('Modal backdrop clicked')
   if (props.backdrop === true) {
     handleClose()
   }
@@ -180,7 +185,6 @@ const handleBackdropClick = () => {
 
 // 監聽show變化，處理body樣式
 watch(() => props.show, (newShow) => {
-  // console.log('Modal show changed:', newShow, 'modalId:', props.modalId)
   nextTick(() => {
     if (newShow) {
       document.body.classList.add('modal-open')
@@ -424,6 +428,14 @@ const stopResize = () => {
 
 .modal-backdrop {
   z-index: 1050;
+}
+
+.modal-elevated {
+  z-index: 1065 !important;
+}
+
+.modal-backdrop-elevated {
+  z-index: 1060 !important;
 }
 
 /* 確保modal在最上層 */

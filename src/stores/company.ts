@@ -138,7 +138,9 @@ export const useCompanyStore = defineStore('company', () => {
         companyUnifiedNumber: companyData.companyUnifiedNumber,
         companyType: companyData.companyType,
         contractorLevel: companyData.contractorLevel, // 統一使用 contractorLevel
-        companyStatus: 'Y' // 預設為啟用狀態
+        companyStatus: 'Y', // 預設為啟用狀態
+        address: companyData.address,
+        phone: companyData.phone
       }
       
       const response = await companyApi.update(updateData)

@@ -442,7 +442,6 @@ const onGridReady = (params: GridReadyEvent) => {
   gridApi.value = params.api;
   initializeData();
   
-  console.log('Grid 準備就緒，固定底部行數據:', pinnedBottomRowData.value);
   
   // 自動載入測試資料
   setTimeout(() => {
@@ -523,19 +522,9 @@ const generateTestData = () => {
     currentDate.setDate(currentDate.getDate() + 1);
   }
 
-  console.log(`生成 ${dayCount} 天的測試資料（從 2025-01-01 到今天）`);
 
   // 更新 rowData（只有測試資料，不含合計行，因為合計行固定在底部）
   rowData.value = [...testRows];
-
-  console.log('生成的測試資料行數:', testRows.length);
-  console.log('總行數（不含合計）:', rowData.value.length);
-  console.log('前3行資料:', rowData.value.slice(0, 3).map(row => ({
-    id: row.id,
-    type: row.type,
-    date: row.date,
-    firstMaterial: materials.value[0] ? row[materials.value[0].id] : null
-  })));
 
   // 更新合計行
   updateTotalRow();
@@ -561,7 +550,6 @@ const saveData = async () => {
       dateRows: rowData.value.filter((row) => row.type === "date"),
     };
 
-    console.log("儲存資料:", dataToSave);
 
     // 模擬 API 呼叫
     await new Promise((resolve) => setTimeout(resolve, 500));

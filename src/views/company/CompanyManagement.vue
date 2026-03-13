@@ -109,6 +109,7 @@ onMounted(() => {
           <SitePersonnelManagement 
             :company-id="selectedCompanyId" 
             :company-name="selectedCompanyName"
+            :company-type="(selectedCompany?.companyType === 'SUPERVISION' || selectedCompany?.companyType === 'CONTRACTOR' ? selectedCompany.companyType : 'CONTRACTOR')"
           />
         </div>
 

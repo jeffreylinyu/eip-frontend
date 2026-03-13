@@ -77,7 +77,6 @@ export function useValidation(
    * 執行表單驗證
    */
   const validateAll = (): boolean => {
-    // console.log('🔍 執行完整表單驗證...')
     isValidating.value = true
     
     try {
@@ -85,7 +84,6 @@ export function useValidation(
       errors.value = newErrors
       
       const valid = isFormValid(newErrors)
-      // console.log(`✅ 表單驗證${valid ? '通過' : '失敗'}:`, newErrors)
       
       return valid
     } finally {
@@ -97,7 +95,6 @@ export function useValidation(
    * 驗證單個欄位
    */
   const validateSingleField = (fieldName: string): boolean => {
-    // console.log(`🔍 驗證欄位: ${fieldName}`)
     
     const rule = validationRules[fieldName]
     if (!rule) {
@@ -115,14 +112,12 @@ export function useValidation(
         // 清除該欄位的錯誤
         const { [fieldName]: removed, ...rest } = errors.value
         errors.value = rest
-        // console.log(`✅ 欄位 ${fieldName} 驗證通過`)
       } else {
         // 設置錯誤
         errors.value = {
           ...errors.value,
           [fieldName]: result.message || '驗證失敗'
         }
-        // console.log(`❌ 欄位 ${fieldName} 驗證失敗: ${result.message}`)
       }
       
       return result.isValid
@@ -158,10 +153,8 @@ export function useValidation(
         delete newErrors[fieldName]
       })
       errors.value = newErrors
-      // console.log(`🧹 清除指定欄位錯誤: ${fieldNames.join(', ')}`)
     } else {
       errors.value = {}
-      // console.log('🧹 清除所有錯誤')
     }
   }
 
@@ -171,7 +164,6 @@ export function useValidation(
   const clearFieldError = (fieldName: string) => {
     const { [fieldName]: removed, ...rest } = errors.value
     errors.value = rest
-    // console.log(`🧹 清除欄位錯誤: ${fieldName}`)
   }
 
   /**
@@ -182,7 +174,6 @@ export function useValidation(
       ...errors.value,
       [fieldName]: message
     }
-    // console.log(`❌ 設置欄位錯誤: ${fieldName} = ${message}`)
   }
 
   /**
@@ -193,7 +184,6 @@ export function useValidation(
       ...errors.value,
       ...newErrors
     }
-    // console.log('❌ 設置多個錯誤:', newErrors)
   }
 
   /**

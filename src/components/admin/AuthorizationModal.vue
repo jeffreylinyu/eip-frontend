@@ -83,6 +83,7 @@ const loadData = async () => {
             permission: uc.constructionPermission || uc.permission // 優先使用新欄位
         }
     })
+    
 
   } catch (error) {
     console.error('Failed to load authorization data:', error)

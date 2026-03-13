@@ -10,6 +10,7 @@ import AppHeader from '@/components/app/Header.vue';
 import AppTopNav from '@/components/app/TopNav.vue';
 import AppFooter from '@/components/app/Footer.vue';
 import AppThemePanel from '@/components/app/ThemePanel.vue';
+import ExportLoadingPanel from '@/components/common/ExportLoadingPanel.vue';
 import router from './router';
 
 const appOption = useAppOptionStore();
@@ -74,5 +75,6 @@ document.querySelector('body').classList.add('app-init');
 		</div>
 		<app-footer v-if="appOption.appFooter" />
 		<app-theme-panel />
+		<ExportLoadingPanel />
 	</div>
 </template>

@@ -19,5 +19,7 @@ export const useAppOptionStore = defineStore("appOption", () => {
 		appFooter: false,
 		appFooterFixed: false,
 		appThemePanelToggled: false,
+    /** 是否顯示 B-1 監造計劃書核心資料填寫狀況 Modal（全域專案 Header 用） */
+    showCoreDataStatusModal: false,
 	}
 });

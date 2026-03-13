@@ -138,7 +138,6 @@ const savePreparer = async () => {
   isLoading.value = true
   try {
     // TODO: 實作儲存製表人資訊的 API
-    // console.log('儲存製表人資訊:', preparer.value)
   } catch (error) {
     console.error('儲存失敗:', error)
   } finally {
@@ -150,7 +149,6 @@ const completeReport = async () => {
   isLoading.value = true
   try {
     // TODO: 實作完成日報表的 API
-    // console.log('完成日報表')
     router.push('/daily-report/overview')
   } catch (error) {
     console.error('完成失敗:', error)
@@ -166,7 +164,6 @@ const goBack = () => {
 // 生命週期
 onMounted(() => {
   // TODO: 載入現有的製表人資訊資料
-  // console.log('載入製表人資訊資料')
 })
 </script>
 

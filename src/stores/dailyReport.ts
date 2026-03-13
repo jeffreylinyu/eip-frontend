@@ -149,7 +149,6 @@ export const useDailyReportStore = defineStore('dailyReport', () => {
     
     try {
       // TODO: 實作載入日報表的 API
-      // console.log('載入日報表:', reportId)
       
       // 模擬 API 回應
       await new Promise(resolve => setTimeout(resolve, 1000))
@@ -173,7 +172,6 @@ export const useDailyReportStore = defineStore('dailyReport', () => {
     
     try {
       // TODO: 實作儲存草稿的 API
-      // console.log('儲存草稿:', currentReport.value)
       
       // 模擬 API 回應
       await new Promise(resolve => setTimeout(resolve, 1000))
@@ -197,7 +195,6 @@ export const useDailyReportStore = defineStore('dailyReport', () => {
     
     try {
       // TODO: 實作送出審核的 API
-      // console.log('送出審核:', currentReport.value)
       
       // 模擬 API 回應
       await new Promise(resolve => setTimeout(resolve, 1000))
@@ -224,7 +221,6 @@ export const useDailyReportStore = defineStore('dailyReport', () => {
     
     try {
       // TODO: 實作從昨天複製資料的 API
-      // console.log('複製昨天的資料')
       
       // 模擬 API 回應
       await new Promise(resolve => setTimeout(resolve, 1000))
@@ -252,7 +248,6 @@ export const useDailyReportStore = defineStore('dailyReport', () => {
     
     try {
       // TODO: 實作載入日報表歷史的 API
-      // console.log('載入日報表歷史:', { projectId, startDate, endDate })
       
       // 模擬 API 回應
       await new Promise(resolve => setTimeout(resolve, 1000))
@@ -274,7 +269,6 @@ export const useDailyReportStore = defineStore('dailyReport', () => {
     
     try {
       // TODO: 實作匯出 Excel 的 API
-      // console.log('匯出 Excel:', reportId)
       
       // 模擬 API 回應
       await new Promise(resolve => setTimeout(resolve, 2000))
@@ -297,7 +291,6 @@ export const useDailyReportStore = defineStore('dailyReport', () => {
     
     try {
       // TODO: 實作匯入 Excel 的 API
-      // console.log('匯入 Excel:', file.name)
       
       // 模擬 API 回應
       await new Promise(resolve => setTimeout(resolve, 2000))

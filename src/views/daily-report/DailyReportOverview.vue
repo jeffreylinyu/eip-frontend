@@ -1230,6 +1230,7 @@ import {
   convertFromDetailResponse,
   type DailyReportExportVersion 
 } from '@/api/dailyReport'
+import { useExportLoading } from '@/composables/useExportLoading'
 import type {
   DailyReport,
   ExecutionSummaryItem,
@@ -1245,6 +1246,7 @@ import RepublicDatePicker from '@/components/bootstrap/RepublicDatePicker.vue'
 
 const route = useRoute()
 const workspaceStore = useWorkspaceStore()
+const { runWithExportLoading } = useExportLoading()
 
 // 取得當前工程 ID (優先從 URL 參數取得，否則從 Store 取得)
 const constructionId = computed(() => (route.query.constructionId as string) || workspaceStore.currentProject?.id || '')
@@ -1840,7 +1842,6 @@ const copyFromDate = async (date: string) => {
     // const response = await fetch(`/api/daily-reports?date=${date}`)
     // const data = await response.json()
     // 將資料填入 report.value
-    console.log('從日期帶入:', date)
   } catch (error) {
     console.error('複製失敗:', error)
     errors.value.push(`從 ${date} 帶入資料失敗`)
@@ -2226,7 +2227,6 @@ const saveDraft = async () => {
     // 將 API 回應轉換回前端格式（包含累計值）
     report.value = convertFromDetailResponse(response, report.value)
     
-    console.log('✅ 日報表儲存成功', response)
     alert('儲存成功')
   } catch (error) {
     console.error('儲存失敗:', error)
@@ -2250,9 +2250,11 @@ const exportWord = async (version: DailyReportExportVersion) => {
 
   isExporting.value = true
   try {
-    await exportDailyReportToWord(constructionId.value, report.value.reportDate, version)
-    console.log(`✅ 日報表匯出成功 (${version === 'construction' ? '營造' : '監造'}版)`)
+    await runWithExportLoading('daily-report-word', '工程日報表 Word', async (signal) => {
+      await exportDailyReportToWord(constructionId.value, report.value.reportDate!, version, { signal })
+    })
   } catch (error) {
+    if ((error as any)?.name === 'AbortError' || (error as any)?.code === 'ERR_CANCELED') return
     console.error('匯出失敗:', error)
     alert('匯出失敗，請檢查網路或稍後再試')
   } finally {
@@ -2270,20 +2272,16 @@ const loadReportByDate = async (date: string) => {
   
   isLoading.value = true
   try {
-    console.log(`📥 載入日報表: constructionId=${constructionId.value}, date=${date}`)
     const response = await getDailyReport(constructionId.value, date)
     
     if (response) {
       // 將 API 回應轉換為前端格式（包含累計值）
       report.value = convertFromDetailResponse(response, report.value)
-      console.log('✅ 日報表載入成功', response)
     } else {
-      console.log('ℹ️ 該日期無日報表資料')
     }
   } catch (error: any) {
     // 404 表示該日期沒有資料，這是正常情況
     if (error?.response?.status === 404) {
-      console.log('ℹ️ 該日期無日報表資料（404）')
     } else {
       console.error('載入日報表失敗:', error)
       // errors.value.push(`載入 ${date} 的日報表失敗`) // 暫時不顯示錯誤訊息，避免干擾

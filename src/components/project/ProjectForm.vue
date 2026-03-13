@@ -11,6 +11,14 @@ import Modal from '@/components/bootstrap/Modal.vue'
 import { validateForm, isFormValid } from '@/utils/validation'
 import { calculateEndDate } from '@/api/construction'
 
+/** 變更設計版本時僅可編輯的 12 個欄位（與後端一致） */
+const VERSION_EDITABLE_FIELD_KEYS = new Set([
+  'project_location', 'construction_period', 'project_amount',
+  'payment_method', 'advance_payment_ratio', 'retention_ratio',
+  'insurance_policy_number', 'insurance_company', 'insurance_type',
+  'insurance_start_date', 'insurance_end_date'
+])
+
 // Props
 const props = defineProps<{
   modelValue?: any
@@ -18,7 +26,9 @@ const props = defineProps<{
   showSubmitButton?: boolean
   submitButtonText?: string
   showResetButton?: boolean
-  mode?: 'create' | 'edit' | 'readonly' // 新增：組件使用模式
+  mode?: 'create' | 'edit' | 'readonly'
+  /** 為 true 時僅上述 12 欄可編輯，其餘唯讀（用於變更設計版本 Tab） */
+  versionFieldsOnly?: boolean
 }>()
 
 // 默認值
@@ -60,7 +70,6 @@ const formData = ref({
   project_name: "",
   contract_number: "",
   project_location: "",
-  project_scale_overview: "", // 新增：工程規模概述
   host_agency: "",
   // 新增：公司名稱顯示欄位
   supervisory_company_name: "",
@@ -125,6 +134,26 @@ const isSharedFieldsReadonly = computed(() => {
   return isReadonlyMode.value || !isSuperAdmin.value
 })
 
+// 變更設計版本模式：僅 12 欄可編輯，其餘改為資訊呈現（不用 input）
+const isVersionFieldsOnly = computed(() => propValues.value.versionFieldsOnly === true)
+const isFieldReadonly = (fieldKey: string) =>
+  isReadonlyMode.value || (isVersionFieldsOnly.value && !VERSION_EDITABLE_FIELD_KEYS.has(fieldKey))
+/** 非原契約時，非 12 欄改為純資訊顯示（不渲染 input） */
+const showFieldAsInfo = (fieldKey: string) =>
+  isVersionFieldsOnly.value && !VERSION_EDITABLE_FIELD_KEYS.has(fieldKey)
+/** 資訊顯示用：取得欄位顯示文字 */
+const getInfoDisplayValue = (fieldKey: string) => {
+  const v = formData.value[fieldKey]
+  if (v === undefined || v === null || v === '') return '－'
+  if (fieldKey === 'signLevel' && Array.isArray(v)) {
+    const titles = v.map((i: any) => i?.title).filter(Boolean)
+    return titles.length ? titles.join('、') : '－'
+  }
+  if (fieldKey === 'completion_date') return formattedCompletionDate.value || '－'
+  if (Array.isArray(v)) return v.length ? v.join('、') : '－'
+  return String(v)
+}
+
 // Modal 狀態
 const showChangeModal = ref(false)
 
@@ -132,94 +161,58 @@ const showChangeModal = ref(false)
 const calculatedEndDate = ref<string>('')
 const isCalculatingEndDate = ref(false)
 
-// 計算完工日期（功能已停用）
+// 累計停工天數（SPECIFIC_DATES 核准的免計日期數量）
+const totalStopDays = computed(() => {
+  return props.modelValue?.totalStopDays 
+    || workspaceStore.currentProject?.totalStopDays 
+    || 0
+})
+
+// 計算完工日期（呼叫後端 API）
 const calculateCompletionDate = async () => {
-  // 功能已停用，不執行任何操作
-  calculatedEndDate.value = ''
-  return
-  
-  /* 原功能代碼（已停用）
-  if (!formData.value.start_date || !formData.value.construction_period) {
-    calculatedEndDate.value = ''
-    return
-  }
-  
   const startDate = formData.value.start_date
-  const durationDays = parseInt(formData.value.construction_period) || 0
+  const period = parseInt(formData.value.construction_period)
+  const constructionId = workspaceStore.currentProject?.id
   
-  if (durationDays <= 0) {
-    calculatedEndDate.value = ''
+  if (!startDate || !period || period <= 0 || !constructionId) {
     return
   }
-  
-  // constructionId 是必填的，需要從 props、modelValue 或 workspace store 獲取
-  const constructionId = props.modelValue?.constructionId 
-    || props.modelValue?.id 
-    || workspaceStore.currentProject?.id
-  
-  // 如果是創建模式，可能還沒有 constructionId，需要先創建工程案才能計算
-  // 或者使用一個臨時的 constructionId（如果後端支援）
-  if (!constructionId && isCreateMode.value) {
-    // 創建模式下，如果還沒有 constructionId，無法計算
-    // 可以選擇不計算，或者使用預設值
-    calculatedEndDate.value = ''
-    return
-  }
-  
-  if (!constructionId) {
-    console.warn('無法計算完工日期：缺少工程編號', {
-      modelValue: props.modelValue,
-      currentProject: workspaceStore.currentProject
-    })
-    calculatedEndDate.value = ''
-    return
-  }
-  
-  // 獲取 durationType（可選）
-  // 如果用戶在表單中選擇了 durationType，就傳遞它
-  // 如果沒有選擇或為空，不傳遞，讓後端使用工程的預設值
-  const durationType = formData.value.duration_type 
-    ? (formData.value.duration_type as 'CALENDAR_DAYS' | 'WORKING_DAYS')
-    : undefined
   
   isCalculatingEndDate.value = true
   try {
-    // 如果提供了 durationType，會使用提供的值
-    // 如果未提供，後端會使用工程的 durationType 或預設值 WORKING_DAYS
-    const result = await calculateEndDate(constructionId, startDate, durationDays, durationType)
-    calculatedEndDate.value = result.completionDate
-    // 更新表單數據中的完工日期（用於顯示）
-    formData.value.completion_date = result.completionDate
+    const { calculateEndDate } = await import('@/api/construction')
+    const durationType = formData.value.duration_type as 'CALENDAR_DAYS' | 'WORKING_DAYS' | undefined
+    // 使用原工期（免計日已由後端 HolidayService 處理）
+    const result = await calculateEndDate(constructionId, startDate, period, durationType)
+    const returnedDate = result?.completionDate || (result as any)?.endDate
+    if (returnedDate) {
+      const endDate = returnedDate.split('T')[0]
+      calculatedEndDate.value = endDate
+      formData.value.completion_date = endDate
+    }
   } catch (error) {
     console.error('計算完工日期失敗:', error)
-    calculatedEndDate.value = ''
   } finally {
     isCalculatingEndDate.value = false
   }
-  */
 }
 
 // 監聽開工日期、工期和計算模式的變化，自動計算完工日期
-// 功能已停用
-/*
 watch(
   () => [formData.value.start_date, formData.value.construction_period, formData.value.duration_type],
   () => {
     if (isCreateMode.value || isEditMode.value) {
-      // 只在創建或編輯模式時計算
       calculateCompletionDate()
     }
   },
   { immediate: false }
 )
-*/
 
 // 監聽 modelValue 變化時，如果有完工日期，顯示它
 watch(
   () => props.modelValue?.completion_date,
   (newVal) => {
     if (newVal && (isEditMode.value || isReadonlyMode.value)) {
-      // 編輯或只讀模式下，如果有完工日期，直接顯示（來自後端）
       calculatedEndDate.value = newVal
       formData.value.completion_date = newVal
     }
@@ -252,18 +245,6 @@ const formattedCompletionDate = computed(() => {
   return formatCompletionDateToRepublic(dateValue)
 })
 
-// 累計展延天數（從 modelValue 或 workspaceStore 獲取）
-const totalExtensionDays = computed(() => {
-  return props.modelValue?.totalExtensionDays 
-    || workspaceStore.currentProject?.totalExtensionDays 
-    || 0
-})
-
-// 總工期計算（原工期 + 累計展延天數）
-const totalDuration = computed(() => {
-  const originalPeriod = parseInt(formData.value.construction_period) || 0
-  return originalPeriod + totalExtensionDays.value
-})
 
 // 變更紀錄假資料
 const mockContractChanges = ref([
@@ -317,6 +298,32 @@ const useSupervisoryCompanyAsDesign = () => {
   if (formData.value.supervisory_company_name) {
     formData.value.design_company = formData.value.supervisory_company_name
   }
+}
+
+// 格式化工程金額顯示（帶千分位逗點）
+const formattedProjectAmount = computed({
+  get: () => {
+    const value = formData.value.project_amount
+    if (!value || value === '') return ''
+
+    const numericValue = value.toString().replace(/[^\d]/g, '')
+    if (!numericValue) return ''
+
+    return formatNumber(numericValue)
+  },
+  set: (value: string) => {
+    const numericValue = value.replace(/[^\d]/g, '')
+    formData.value.project_amount = numericValue
+  }
+})
+
+// 處理工程金額輸入
+const handleProjectAmountInput = (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const value = target.value
+  const numericValue = value.replace(/[^\d]/g, '')
+  formData.value.project_amount = numericValue
+  validation.clearFieldError('project_amount')
 }
 
 // 格式化契約金額顯示（帶千分位逗點）
@@ -406,16 +413,17 @@ const removeSignLevel = (index: number) => {
 }
 
 // 方法
-const handleSubmit = async (silent: boolean = false) => {
+/** @returns 靜默模式時回傳 { submitted, errors? }，供父層判斷是否通過驗證 */
+const handleSubmit = async (silent: boolean = false): Promise<{ submitted: boolean; errors?: Record<string, string> } | void> => {
   if (silent) {
     // 靜默模式：只檢查驗證結果，不更新 UI
     const errors = validateForm(formData.value, projectFormValidationRules)
     const isValid = isFormValid(errors)
-    
     if (isValid) {
       emit('submit', formData.value)
+      return { submitted: true }
     }
-    return
+    return { submitted: false, errors }
   }
 
   // 先進行完整驗證
@@ -472,10 +480,9 @@ const handleFieldBlur = (fieldName: string) => {
 // 輔助函數：獲取欄位顯示名稱
 const getFieldDisplayName = (fieldName: string): string => {
   const fieldNameMap: { [key: string]: string } = {
-    project_name: '工程名稱',
+    project_name: '工程契約名稱',
     contract_number: '契約編號',
     project_location: '工程地點',
-    project_scale_overview: '工程規模概述',
     host_agency: '主辦機關',
     construction_period: '工期天數',
     project_amount: '工程金額',
@@ -520,60 +527,52 @@ defineExpose({
         <h6 class="fw-bold text-theme mb-3">
           <i class="fa fa-info-circle me-2"></i>工程基本資訊
         </h6>
-        <!-- 第一列：工程名稱，契約編號，工程類別/工程屬性 -->
+        <!-- 第一列：工程契約名稱，契約編號，工程類別/工程屬性 -->
         <div class="row g-3 mb-3">
           <div class="col-lg-4 col-md-6 col-12">
-            <label class="form-label" for="project_name"
-              >工程名稱</label
-            >
-            <input
-              id="project_name"
-              type="text"
-              :class="getFieldClass('project_name')"
-              v-model="formData.project_name"
-              name="project_name"
-              placeholder="請輸入工程名稱"
-              :readonly="isSharedFieldsReadonly"
-              :disabled="propValues.isSubmitting"
-              @focus="handleFieldFocus('project_name')"
-              @input="handleFieldInput('project_name')"
-              @blur="handleFieldBlur('project_name')"
-            />
-            <div 
-              v-if="validation.hasError('project_name')" 
-              class="invalid-feedback"
-            >
-              {{ validation.getFieldError('project_name') }}
-            </div>
+            <label class="form-label" for="project_name">工程契約名稱</label>
+            <div v-if="showFieldAsInfo('project_name')" class="form-info-value">{{ getInfoDisplayValue('project_name') }}</div>
+            <template v-else>
+              <input
+                id="project_name"
+                type="text"
+                :class="getFieldClass('project_name')"
+                v-model="formData.project_name"
+                name="project_name"
+                placeholder="請輸入工程契約名稱"
+                :readonly="isSharedFieldsReadonly"
+                :disabled="propValues.isSubmitting"
+                @focus="handleFieldFocus('project_name')"
+                @input="handleFieldInput('project_name')"
+                @blur="handleFieldBlur('project_name')"
+              />
+              <div v-if="validation.hasError('project_name')" class="invalid-feedback">{{ validation.getFieldError('project_name') }}</div>
+            </template>
           </div>
           <div class="col-lg-4 col-md-6 col-12">
-            <label class="form-label" for="contract_number"
-              >契約編號</label
-            >
-            <input
-              id="contract_number"
-              type="text"
-              :class="getFieldClass('contract_number')"
-              v-model="formData.contract_number"
-              name="contract_number"
-              placeholder="請輸入契約編號"
-              :readonly="isSharedFieldsReadonly"
-              :disabled="propValues.isSubmitting"
-              @input="handleFieldInput('contract_number')"
-              @blur="handleFieldBlur('contract_number')"
-            />
-            <div 
-              v-if="validation.hasError('contract_number')" 
-              class="invalid-feedback"
-            >
-              {{ validation.getFieldError('contract_number') }}
-            </div>
+            <label class="form-label" for="contract_number">契約編號</label>
+            <div v-if="showFieldAsInfo('contract_number')" class="form-info-value">{{ getInfoDisplayValue('contract_number') }}</div>
+            <template v-else>
+              <input
+                id="contract_number"
+                type="text"
+                :class="getFieldClass('contract_number')"
+                v-model="formData.contract_number"
+                name="contract_number"
+                placeholder="請輸入契約編號"
+                :readonly="isSharedFieldsReadonly"
+                :disabled="propValues.isSubmitting"
+                @input="handleFieldInput('contract_number')"
+                @blur="handleFieldBlur('contract_number')"
+              />
+              <div v-if="validation.hasError('contract_number')" class="invalid-feedback">{{ validation.getFieldError('contract_number') }}</div>
+            </template>
           </div>
           <div class="col-lg-4 col-md-12 col-12">
-            <label class="form-label"
-              >工程類別/工程屬性</label
-            >
+            <label class="form-label">工程類別/工程屬性</label>
+            <div v-if="showFieldAsInfo('project_category')" class="form-info-value">{{ getInfoDisplayValue('project_category') }}</div>
             <select
+              v-else
               :class="getFieldClass('project_category')"
               v-model="formData.project_category"
               name="project_category"
@@ -587,12 +586,7 @@ defineExpose({
               <option value="水利工程">水利工程</option>
               <option value="機電工程">機電工程</option>
             </select>
-            <div 
-              v-if="validation.hasError('project_category')" 
-              class="invalid-feedback"
-            >
-              {{ validation.getFieldError('project_category') }}
-            </div>
+            <div v-if="!showFieldAsInfo('project_category') && validation.hasError('project_category')" class="invalid-feedback">{{ validation.getFieldError('project_category') }}</div>
           </div>
         </div>
         
@@ -608,7 +602,7 @@ defineExpose({
               v-model="formData.project_location"
               name="project_location"
               placeholder="請輸入工程地點"
-              :readonly="isReadonlyMode"
+              :readonly="isFieldReadonly('project_location')"
               :disabled="propValues.isSubmitting"
               @input="handleFieldInput('project_location')"
               @blur="handleFieldBlur('project_location')"
@@ -625,10 +619,10 @@ defineExpose({
         <!-- 第三列：訂約日期，開工日期，工期（天），完工日期 -->
         <div class="row g-3 mb-3">
           <div class="col-lg-3 col-md-6 col-sm-12" style="max-width: 250px;">
-            <label class="form-label" for="sign_date"
-              >訂約日期</label
-            >
+            <label class="form-label" for="sign_date">訂約日期</label>
+            <div v-if="showFieldAsInfo('sign_date')" class="form-info-value">{{ getInfoDisplayValue('sign_date') }}</div>
             <RepublicDatePicker
+              v-else
               id="sign_date"
               aria-label="訂約日期"
               v-model="formData.sign_date"
@@ -642,10 +636,10 @@ defineExpose({
             />
           </div>
           <div class="col-lg-3 col-md-6 col-sm-12" style="max-width: 250px;">
-            <label class="form-label" for="start_date"
-              >開工日期</label
-            >
+            <label class="form-label" for="start_date">開工日期</label>
+            <div v-if="showFieldAsInfo('start_date')" class="form-info-value">{{ getInfoDisplayValue('start_date') }}</div>
             <RepublicDatePicker
+              v-else
               id="start_date"
               aria-label="開工日期"
               v-model="formData.start_date"
@@ -659,7 +653,7 @@ defineExpose({
             />
           </div>
           <div class="col-lg-3 col-md-6 col-sm-12" style="max-width: 250px;">
-            <label class="form-label">原合約工期（天）</label>
+            <label class="form-label">契約工期（天）</label>
             <input
               type="number"
               class="form-control"
@@ -667,21 +661,8 @@ defineExpose({
               name="construction_period"
               placeholder="請輸入工期"
               :disabled="propValues.isSubmitting"
-              :readonly="isReadonlyMode"
+              :readonly="isFieldReadonly('construction_period')"
             />
-            <!-- 展延資訊顯示（只讀模式或編輯模式時顯示） -->
-            <div v-if="(isEditMode || isReadonlyMode) && totalExtensionDays > 0" class="mt-2">
-              <div class="d-flex flex-column gap-1 small text-muted">
-                <div>
-                  <i class="fa fa-calendar-plus me-1"></i>
-                  累計展延天數：<span class="text-warning fw-bold">{{ totalExtensionDays }}</span> 天
-                </div>
-                <div>
-                  <i class="fa fa-calculator me-1"></i>
-                  總工期：<span class="text-primary fw-bold">{{ totalDuration }}</span> 天
-                </div>
-              </div>
-            </div>
           </div>
           <div class="col-lg-3 col-md-6 col-sm-12" style="max-width: 250px;">
             <label class="form-label">
@@ -690,119 +671,86 @@ defineExpose({
                  title="日曆天：以自然日曆計算，包含週六、週日及國定假日&#10;工作天：僅計算實際可施工的日子，排除週末和假日"
                  style="font-size: 0.875rem; cursor: help;"></i>
             </label>
-            <select
-              class="form-select"
-              v-model="formData.duration_type"
-              :disabled="propValues.isSubmitting || isReadonlyMode"
-            >
-              <option value="WORKING_DAYS">工作天</option>
-              <option value="CALENDAR_DAYS">日曆天</option>
-            </select>
-            <small class="form-text text-muted d-block mt-1">
-              <span v-if="formData.duration_type === 'WORKING_DAYS'">
-                <i class="fa fa-info-circle me-1"></i>
-                僅計算實際可施工的日子，排除週末和假日
-              </span>
-              <span v-else>
-                <i class="fa fa-info-circle me-1"></i>
-                以自然日曆計算，包含週六、週日及國定假日
-              </span>
-            </small>
+            <div v-if="showFieldAsInfo('duration_type')" class="form-info-value">{{ formData.duration_type === 'CALENDAR_DAYS' ? '日曆天' : '工作天' }}</div>
+            <template v-else>
+              <select
+                class="form-select"
+                v-model="formData.duration_type"
+                :disabled="propValues.isSubmitting || isReadonlyMode"
+              >
+                <option value="WORKING_DAYS">工作天</option>
+                <option value="CALENDAR_DAYS">日曆天</option>
+              </select>
+              <small class="form-text text-muted d-block mt-1">
+                <span v-if="formData.duration_type === 'WORKING_DAYS'"><i class="fa fa-info-circle me-1"></i>僅計算實際可施工的日子，排除週末和假日</span>
+                <span v-else><i class="fa fa-info-circle me-1"></i>以自然日曆計算，包含週六、週日及國定假日</span>
+              </small>
+            </template>
           </div>
           <div class="col-lg-3 col-md-6 col-sm-12" style="max-width: 250px;">
             <label class="form-label" for="completion_date">
               完工日期
-              <i class="fa fa-info-circle text-muted ms-1" 
-                 title="此功能已停用"
-                 style="font-size: 0.875rem;"></i>
+              <i class="fa fa-info-circle text-muted ms-1" title="根據開工日期、總工期及行事曆設定自動計算" style="font-size: 0.875rem;"></i>
             </label>
-            <div class="input-group">
-              <input
-                type="text"
-                class="form-control"
-                id="completion_date"
-                :value="formattedCompletionDate"
-                readonly
-                placeholder="自動計算"
-                style="background-color: var(--bs-secondary-bg); cursor: not-allowed;"
-              />
-              <span v-if="isCalculatingEndDate" class="input-group-text">
-                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-              </span>
-              <span v-else-if="formattedCompletionDate" class="input-group-text">
-                <i class="fa fa-calendar-check text-success"></i>
-              </span>
-            </div>
-            <small class="form-text text-muted d-block mt-1">
-              <i class="fa fa-info-circle me-1"></i>
-              根據開工日期和總工期自動計算
-              <span v-if="totalExtensionDays > 0" class="text-warning">
-                （含展延 {{ totalExtensionDays }} 天）
-              </span>
-              （包含
-              <a 
-                href="javascript:void(0)" 
-                class="text-primary text-decoration-underline"
-                @click.prevent="router.push('/calendar')"
-                style="cursor: pointer;"
-              >
-                假日設定
-              </a>
-              ）
-            </small>
+            <div v-if="showFieldAsInfo('completion_date')" class="form-info-value">{{ getInfoDisplayValue('completion_date') }}</div>
+            <template v-else>
+              <div class="input-group">
+                <input
+                  type="text"
+                  class="form-control"
+                  id="completion_date"
+                  :value="formattedCompletionDate"
+                  readonly
+                  placeholder="自動計算"
+                  style="background-color: var(--bs-secondary-bg); cursor: not-allowed;"
+                />
+                <span v-if="isCalculatingEndDate" class="input-group-text"><span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span></span>
+                <span v-else-if="formattedCompletionDate" class="input-group-text"><i class="fa fa-calendar-check text-success"></i></span>
+              </div>
+              <small class="form-text text-muted d-block mt-1">
+                <div v-if="formData.duration_type === 'WORKING_DAYS'">
+                  <router-link to="/calendar" class="text-decoration-none" style="color: #5bc0de;" title="前往行事曆查看假日設定">
+                    <i class="fa fa-calendar me-1"></i>假日定義依行事曆設定
+                    <i class="fa fa-external-link-alt ms-1" style="font-size: 0.7rem;"></i>
+                  </router-link>
+                </div>
+                <div v-if="totalStopDays > 0" :class="{ 'mt-1': formData.duration_type === 'WORKING_DAYS' }">
+                  <span style="color: #f5b849;"><i class="fa fa-pause-circle me-1"></i>含累計停工天數：{{ totalStopDays }} 天</span>
+                </div>
+              </small>
+            </template>
           </div>
         </div>
         
-        <!-- 第四列：工程規模概述 -->
-        <div class="row g-3 mb-3">
-          <div class="col-12">
-            <label class="form-label">工程規模概述</label>
-            <textarea
-              :class="getFieldClass('project_scale_overview')"
-              v-model="formData.project_scale_overview"
-              name="project_scale_overview"
-              rows="4"
-              placeholder="請輸入工程規模概述內容..."
-              :disabled="propValues.isSubmitting"
-              :readonly="isReadonlyMode"
-              @input="handleFieldInput('project_scale_overview')"
-              @blur="handleFieldBlur('project_scale_overview')"
-            ></textarea>
-          </div>
-        </div>
-
         <!-- 參與單位資訊 -->
         <h6 class="fw-bold text-theme mb-3 mt-4">
           <i class="fa fa-users me-2"></i>參與單位資訊
         </h6>
         <div class="row g-3 mb-3">
           <div class="col-lg-6 col-md-12 col-sm-12">
-            <label class="form-label"
-              >主辦機關</label
-            >
-            <input
-              type="text"
-              :class="getFieldClass('host_agency')"
-              v-model="formData.host_agency"
-              name="host_agency"
-              placeholder="請輸入主辦機關"
-              :disabled="propValues.isSubmitting"
-              :readonly="isReadonlyMode"
-              @input="handleFieldInput('host_agency')"
-              @blur="handleFieldBlur('host_agency')"
-            />
-            <div 
-              v-if="validation.hasError('host_agency')" 
-              class="invalid-feedback"
-            >
-              {{ validation.getFieldError('host_agency') }}
-            </div>
+            <label class="form-label">主辦機關</label>
+            <div v-if="showFieldAsInfo('host_agency')" class="form-info-value">{{ getInfoDisplayValue('host_agency') }}</div>
+            <template v-else>
+              <input
+                type="text"
+                :class="getFieldClass('host_agency')"
+                v-model="formData.host_agency"
+                name="host_agency"
+                placeholder="請輸入主辦機關"
+                :disabled="propValues.isSubmitting"
+                :readonly="isFieldReadonly('host_agency')"
+                @input="handleFieldInput('host_agency')"
+                @blur="handleFieldBlur('host_agency')"
+              />
+              <div v-if="validation.hasError('host_agency')" class="invalid-feedback">{{ validation.getFieldError('host_agency') }}</div>
+            </template>
           </div>
 
           <!-- 監造公司 -->
           <div class="col-lg-6 col-md-12 col-sm-12">
             <label class="form-label">監造公司</label>
-            <div class="input-group">
+            <div v-if="showFieldAsInfo('supervisory_company_name')" class="form-info-value">{{ getInfoDisplayValue('supervisory_company_name') }}</div>
+            <div v-else class="input-group">
               <input
                 type="text"
                 class="form-control"
@@ -810,12 +758,7 @@ defineExpose({
                 disabled
                 placeholder="由工作空間設定自動帶入"
               />
-              <button 
-                class="btn btn-outline-primary" 
-                type="button" 
-                @click="handleEditCompany('SUPERVISION')"
-                :disabled="propValues.isSubmitting || isReadonlyMode"
-              >
+              <button class="btn btn-outline-primary" type="button" @click="handleEditCompany('SUPERVISION')" :disabled="propValues.isSubmitting || isReadonlyMode">
                 <i class="fa fa-edit me-1"></i>編輯公司
               </button>
             </div>
@@ -824,7 +767,8 @@ defineExpose({
           <!-- 營造公司 -->
           <div class="col-lg-6 col-md-12 col-sm-12">
             <label class="form-label">營造公司</label>
-            <div class="input-group">
+            <div v-if="showFieldAsInfo('contractor_company_name')" class="form-info-value">{{ getInfoDisplayValue('contractor_company_name') }}</div>
+            <div v-else class="input-group">
               <input
                 type="text"
                 class="form-control"
@@ -832,42 +776,32 @@ defineExpose({
                 disabled
                 placeholder="由工作空間設定自動帶入"
               />
-              <button 
-                class="btn btn-outline-primary" 
-                type="button" 
-                @click="handleEditCompany('CONTRACTOR')"
-                :disabled="propValues.isSubmitting || isReadonlyMode"
-              >
+              <button class="btn btn-outline-primary" type="button" @click="handleEditCompany('CONTRACTOR')" :disabled="propValues.isSubmitting || isReadonlyMode">
                 <i class="fa fa-edit me-1"></i>編輯公司
               </button>
             </div>
           </div>
 
-          <!-- 設計公司（工程案層級的基本資料，可手動填寫或選擇監造公司） -->
+          <!-- 設計公司 -->
           <div class="col-lg-6 col-md-12 col-sm-12">
             <label class="form-label">設計公司</label>
-            <div class="input-group">
-              <input
-                type="text"
-                class="form-control"
-                v-model="formData.design_company"
-                :disabled="propValues.isSubmitting"
-              :readonly="isReadonlyMode"
-                placeholder="請輸入設計公司名稱或選擇監造公司"
-              />
-              <button 
-                class="btn btn-outline-secondary" 
-                type="button" 
-                @click="useSupervisoryCompanyAsDesign"
-                :disabled="propValues.isSubmitting || !formData.supervisory_company_name || isReadonlyMode"
-                title="使用監造公司作為設計公司"
-              >
-                <i class="fa fa-copy me-1"></i>同監造公司
-              </button>
-            </div>
-            <div class="form-text">
-              可手動輸入設計公司名稱，或點擊「同監造公司」按鈕自動填入監造公司名稱
-            </div>
+            <div v-if="showFieldAsInfo('design_company')" class="form-info-value">{{ getInfoDisplayValue('design_company') }}</div>
+            <template v-else>
+              <div class="input-group">
+                <input
+                  type="text"
+                  class="form-control"
+                  v-model="formData.design_company"
+                  :disabled="propValues.isSubmitting"
+                  :readonly="isFieldReadonly('design_company')"
+                  placeholder="請輸入設計公司名稱或選擇監造公司"
+                />
+                <button class="btn btn-outline-secondary" type="button" @click="useSupervisoryCompanyAsDesign" :disabled="propValues.isSubmitting || !formData.supervisory_company_name || isReadonlyMode" title="使用監造公司作為設計公司">
+                  <i class="fa fa-copy me-1"></i>同監造公司
+                </button>
+              </div>
+              <div class="form-text">可手動輸入設計公司名稱，或點擊「同監造公司」按鈕自動填入監造公司名稱</div>
+            </template>
           </div>
 
         </div>
@@ -878,43 +812,68 @@ defineExpose({
           <i class="fa fa-money-bill me-2"></i>契約金額管理
         </h6>
         
+        <!-- 工程金額 -->
+        <div class="row g-3 mb-3">
+          <div class="col-lg-6 col-md-12 col-sm-12">
+            <label class="form-label mb-2" for="project_amount">工程金額</label>
+            <div class="input-group">
+              <span class="input-group-text">NT$</span>
+              <input
+                id="project_amount"
+                type="text"
+                :class="getFieldClass('project_amount')"
+                v-model="formattedProjectAmount"
+                name="project_amount"
+                placeholder="請輸入工程金額"
+                :disabled="propValues.isSubmitting || isReadonlyMode"
+                @input="handleProjectAmountInput"
+                @blur="handleFieldBlur('project_amount')"
+              />
+            </div>
+            <div
+              v-if="validation.hasError('project_amount')"
+              class="invalid-feedback"
+            >
+              {{ validation.getFieldError('project_amount') }}
+            </div>
+            <small class="text-muted">請輸入工程金額</small>
+          </div>
+        </div>
+
         <!-- 目前契約金額 -->
         <div class="row g-3 mb-3">
           <div class="col-lg-6 col-md-12 col-sm-12">
             <div class="d-flex justify-content-between align-items-center mb-2">
               <label class="form-label mb-0" for="current_contract_amount">目前契約金額</label>
-              <button 
-                v-if="isEditMode && formData.current_contract_amount && !isReadonlyMode"
-                type="button" 
+              <button
+                v-if="!showFieldAsInfo('current_contract_amount') && isEditMode && formData.current_contract_amount && !isReadonlyMode"
+                type="button"
                 class="btn btn-outline-primary btn-sm"
                 @click="showChangeHistoryModal"
                 :disabled="propValues.isSubmitting"
               >
-                <i class="fa fa-history me-1"></i>
-                變更紀錄
+                <i class="fa fa-history me-1"></i>變更紀錄
               </button>
             </div>
-            <div class="input-group">
-              <span class="input-group-text">NT$</span>
-              <input
-                id="current_contract_amount"
-                type="text"
-                :class="getFieldClass('current_contract_amount')"
-                v-model="formattedContractAmount"
-                name="current_contract_amount"
-                placeholder="請輸入目前契約金額"
-                :disabled="propValues.isSubmitting || !isCreateMode"
-                @input="handleContractAmountInput"
-                @blur="handleFieldBlur('current_contract_amount')"
-              />
-            </div>
-            <div 
-              v-if="validation.hasError('current_contract_amount')" 
-              class="invalid-feedback"
-            >
-              {{ validation.getFieldError('current_contract_amount') }}
-            </div>
-            <small class="text-muted">請輸入目前契約金額</small>
+            <div v-if="showFieldAsInfo('current_contract_amount')" class="form-info-value">{{ formattedContractAmount ? `NT$ ${formattedContractAmount}` : '－' }}</div>
+            <template v-else>
+              <div class="input-group">
+                <span class="input-group-text">NT$</span>
+                <input
+                  id="current_contract_amount"
+                  type="text"
+                  :class="getFieldClass('current_contract_amount')"
+                  v-model="formattedContractAmount"
+                  name="current_contract_amount"
+                  placeholder="請輸入目前契約金額"
+                  :disabled="propValues.isSubmitting || !isCreateMode"
+                  @input="handleContractAmountInput"
+                  @blur="handleFieldBlur('current_contract_amount')"
+                />
+              </div>
+              <div v-if="validation.hasError('current_contract_amount')" class="invalid-feedback">{{ validation.getFieldError('current_contract_amount') }}</div>
+              <small class="text-muted">請輸入目前契約金額</small>
+            </template>
           </div>
         </div>
         
@@ -951,7 +910,7 @@ defineExpose({
                 min="0"
                 max="100"
                 :disabled="propValues.isSubmitting"
-              :readonly="isReadonlyMode"
+              :readonly="isFieldReadonly('advance_payment_ratio')"
                 @input="handleFieldInput('advance_payment_ratio')"
                 @blur="handleFieldBlur('advance_payment_ratio')"
               />
@@ -977,7 +936,7 @@ defineExpose({
                 min="0"
                 max="100"
                 :disabled="propValues.isSubmitting"
-              :readonly="isReadonlyMode"
+              :readonly="isFieldReadonly('retention_ratio')"
                 @input="handleFieldInput('retention_ratio')"
                 @blur="handleFieldBlur('retention_ratio')"
               />
@@ -998,45 +957,19 @@ defineExpose({
         </h6>
         <div class="mb-3">
           <label class="form-label">驗收方式/驗收階段（可複選）</label>
-          <div class="mt-2">
+          <div v-if="showFieldAsInfo('inspection_methods')" class="form-info-value">{{ getInfoDisplayValue('inspection_methods') }}</div>
+          <div v-else class="mt-2">
             <div class="form-check form-check-inline">
-              <input
-                class="form-check-input"
-                type="checkbox"
-                value="分段驗收"
-                v-model="formData.inspection_methods"
-                id="inspection1"
-                :disabled="propValues.isSubmitting || isReadonlyMode"
-              />
-              <label class="form-check-label" for="inspection1">
-                分段驗收
-              </label>
+              <input class="form-check-input" type="checkbox" value="分段驗收" v-model="formData.inspection_methods" id="inspection1" :disabled="propValues.isSubmitting || isReadonlyMode" />
+              <label class="form-check-label" for="inspection1">分段驗收</label>
             </div>
             <div class="form-check form-check-inline">
-              <input
-                class="form-check-input"
-                type="checkbox"
-                value="部分驗收"
-                v-model="formData.inspection_methods"
-                id="inspection2"
-                :disabled="propValues.isSubmitting || isReadonlyMode"
-              />
-              <label class="form-check-label" for="inspection2">
-                部分驗收
-              </label>
+              <input class="form-check-input" type="checkbox" value="部分驗收" v-model="formData.inspection_methods" id="inspection2" :disabled="propValues.isSubmitting || isReadonlyMode" />
+              <label class="form-check-label" for="inspection2">部分驗收</label>
             </div>
             <div class="form-check form-check-inline">
-              <input
-                class="form-check-input"
-                type="checkbox"
-                value="竣工驗收"
-                v-model="formData.inspection_methods"
-                id="inspection3"
-                :disabled="propValues.isSubmitting || isReadonlyMode"
-              />
-              <label class="form-check-label" for="inspection3">
-                竣工驗收
-              </label>
+              <input class="form-check-input" type="checkbox" value="竣工驗收" v-model="formData.inspection_methods" id="inspection3" :disabled="propValues.isSubmitting || isReadonlyMode" />
+              <label class="form-check-label" for="inspection3">竣工驗收</label>
             </div>
           </div>
         </div>
@@ -1057,7 +990,7 @@ defineExpose({
               name="insurance_policy_number"
               placeholder="請輸入保險單編號"
               :disabled="propValues.isSubmitting"
-              :readonly="isReadonlyMode"
+              :readonly="isFieldReadonly('insurance_policy_number')"
               @input="handleFieldInput('insurance_policy_number')"
               @blur="handleFieldBlur('insurance_policy_number')"
             />
@@ -1076,7 +1009,7 @@ defineExpose({
               v-model="formData.insurance_company"
               name="insurance_company"
               placeholder="請輸入保險公司名稱"
-              :readonly="isReadonlyMode"
+              :readonly="isFieldReadonly('insurance_company')"
               :disabled="propValues.isSubmitting"
               @input="handleFieldInput('insurance_company')"
               @blur="handleFieldBlur('insurance_company')"
@@ -1094,7 +1027,7 @@ defineExpose({
               list="insurance_type_options"
               placeholder="請選擇或輸入保險類型"
               :disabled="propValues.isSubmitting"
-              :readonly="isReadonlyMode"
+              :readonly="isFieldReadonly('insurance_type')"
               @input="handleFieldInput('insurance_type')"
               @blur="handleFieldBlur('insurance_type')"
             />
@@ -1156,54 +1089,29 @@ defineExpose({
         </h6>
         <div class="row mb-3">
           <div class="col-12">
-            <p class="text-muted mb-3">設定工程案的簽核層級，按層級順序進行審核。<strong>層級數字越小代表職位越高</strong>，例如：1-局長、2-副局長、3-技正、4-課長、5-承辦、6-協辦。</p>
-            
-            <div class="sign-level-list">
+            <p v-if="!showFieldAsInfo('signLevel')" class="text-muted mb-3">設定工程案的簽核層級，按層級順序進行審核。<strong>層級數字越小代表職位越高</strong>，例如：1-局長、2-副局長、3-技正、4-課長、5-承辦、6-協辦。</p>
+            <div v-if="showFieldAsInfo('signLevel')" class="form-info-value">{{ getInfoDisplayValue('signLevel') }}</div>
+            <div v-else class="sign-level-list">
               <div class="row g-3 mb-3">
-                <div 
-                  v-for="(item, index) in formData.signLevel" 
-                  :key="index"
-                  class="col-md-4"
-                >
+                <div v-for="(item, index) in formData.signLevel" :key="index" class="col-md-4">
                   <div class="sign-level-item d-flex align-items-center p-2 border rounded">
                     <div class="sign-level-number me-2">
                       <span class="badge bg-primary fs-6">{{ item.level }}</span>
                     </div>
                     <div class="sign-level-content flex-grow-1">
-                      <input 
-                        type="text" 
-                        class="form-control form-control-sm" 
-                        v-model="item.title"
-                        :placeholder="`第${item.level}層級職稱`"
-                        :disabled="propValues.isSubmitting"
-              :readonly="isReadonlyMode"
-                      >
+                      <input type="text" class="form-control form-control-sm" v-model="item.title" :placeholder="`第${item.level}層級職稱`" :disabled="propValues.isSubmitting" :readonly="isFieldReadonly('signLevel')" />
                     </div>
                     <div class="sign-level-actions ms-2" v-if="!isReadonlyMode">
-                      <button 
-                        type="button" 
-                        class="btn btn-sm btn-outline-danger"
-                        @click="removeSignLevel(index)"
-                        :disabled="formData.signLevel.length <= 1 || propValues.isSubmitting"
-                        title="刪除層級"
-                      >
+                      <button type="button" class="btn btn-sm btn-outline-danger" @click="removeSignLevel(index)" :disabled="formData.signLevel.length <= 1 || propValues.isSubmitting" title="刪除層級">
                         <i class="fa fa-trash"></i>
                       </button>
                     </div>
                   </div>
                 </div>
               </div>
-              
               <div class="text-center" v-if="!isReadonlyMode">
-                <button 
-                  type="button" 
-                  class="btn btn-outline-theme btn-sm"
-                  @click="addSignLevel"
-                  :disabled="propValues.isSubmitting"
-              :readonly="isReadonlyMode"
-                >
-                  <i class="fa fa-plus me-1"></i>
-                  新增簽核層級
+                <button type="button" class="btn btn-outline-theme btn-sm" @click="addSignLevel" :disabled="propValues.isSubmitting">
+                  <i class="fa fa-plus me-1"></i>新增簽核層級
                 </button>
               </div>
             </div>
@@ -1337,6 +1245,20 @@ defineExpose({
 </template>
 
 <style scoped>
+/* 變更設計版本時，非可編輯欄位以「類 input」資訊方式呈現，維持版面整齊 */
+.form-info-value {
+  display: block;
+  width: 100%;
+  min-height: 2.35rem;
+  padding: 0.375rem 0.75rem;
+  font-size: 0.9375rem;
+  color: var(--bs-body-color);
+  line-height: 1.5;
+  background-color: var(--bs-secondary-bg);
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--bs-border-radius);
+}
+
 /* 簽核層級設定樣式 */
 .sign-level-item {
   background-color: var(--bs-body-bg);

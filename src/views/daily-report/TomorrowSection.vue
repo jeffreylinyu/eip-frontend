@@ -111,7 +111,6 @@ const savePlans = async () => {
   isLoading.value = true
   try {
     // TODO: 實作儲存明日計畫的 API
-    // console.log('儲存明日計畫:', tomorrowPlans.value)
   } catch (error) {
     console.error('儲存失敗:', error)
   } finally {
@@ -130,7 +129,6 @@ const nextSection = () => {
 // 生命週期
 onMounted(() => {
   // TODO: 載入現有的明日計畫資料
-  // console.log('載入明日計畫資料')
 })
 </script>
 

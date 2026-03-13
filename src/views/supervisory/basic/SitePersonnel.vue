@@ -1,11 +1,5 @@
 <template>
   <div class="supervisory-site-personnel">
-    <div class="view-badge mb-3">
-      <span class="badge bg-primary">
-        <i class="bi bi-eye me-1"></i>
-        監造視角
-      </span>
-    </div>
     <SitePersonnelView />
   </div>
 </template>
@@ -27,9 +21,3 @@ onMounted(async () => {
 })
 </script>
 
-<style scoped>
-.view-badge {
-  display: flex;
-  justify-content: flex-end;
-}
-</style>

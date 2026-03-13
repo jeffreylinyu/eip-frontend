@@ -46,14 +46,14 @@ export function useViewPerspective() {
         // 檢查是否為 BaseResponse 格式 { code, message, data }
         if ('data' in response && response.data && typeof response.data === 'object') {
           if ('viewType' in response.data) {
-            viewTypeData = response.data as { viewType: string; viewTypeLabel: string }
-          } else if ('data' in response.data && response.data.data && typeof response.data.data === 'object') {
+            viewTypeData = response.data as unknown as { viewType: string; viewTypeLabel: string }
+          } else if ('data' in response.data && response.data.data && typeof response.data.data === 'object' && 'viewType' in response.data.data) {
             // 嵌套的 data.data 結構
-            viewTypeData = response.data.data as { viewType: string; viewTypeLabel: string }
+            viewTypeData = response.data.data as unknown as { viewType: string; viewTypeLabel: string }
           }
         } else if ('viewType' in response) {
           // 直接是資料格式
-          viewTypeData = response as { viewType: string; viewTypeLabel: string }
+          viewTypeData = response as unknown as { viewType: string; viewTypeLabel: string }
         }
       }
       

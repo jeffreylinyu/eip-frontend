@@ -1,5 +1,5 @@
 <template>
-  <div class="calendar-page">
+  <div class="calendar-page cal-dark">
     <PageHeader
       title="行事曆"
       icon="fa fa-calendar"
@@ -22,6 +22,17 @@ import CalendarWidget from '@/components/dashboard/CalendarWidget.vue'
 <style scoped>
 .calendar-page {
   padding: 1rem;
+}
+
+/* 暗色主題頁面背景 */
+.cal-dark {
+  color: #e4e6eb;
+}
+
+.cal-dark :deep(.page-header h1),
+.cal-dark :deep(.page-header .breadcrumb-item),
+.cal-dark :deep(.page-header .breadcrumb-item.active) {
+  color: #e4e6eb;
 }
 </style>
 

@@ -111,7 +111,6 @@ const saveInspections = async () => {
   isLoading.value = true
   try {
     // TODO: 實作儲存檢驗記錄的 API
-    // console.log('儲存檢驗記錄:', inspections.value)
   } catch (error) {
     console.error('儲存失敗:', error)
   } finally {
@@ -130,7 +129,6 @@ const nextSection = () => {
 // 生命週期
 onMounted(() => {
   // TODO: 載入現有的檢驗記錄資料
-  // console.log('載入檢驗記錄資料')
 })
 </script>
 
