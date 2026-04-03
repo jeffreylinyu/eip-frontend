@@ -590,10 +590,16 @@ router.beforeEach(async (to, from, next) => {
         }
 
         // 二次檢查：如果刷新後還是沒有，才踢到引導頁
+        // SUPER_ADMIN / ADMIN 需能進入系統建立公司或後台，與「無專案」邏輯一致，不因未關聯公司而卡死
         if (!authStore.user?.companyId) {
-            console.warn('Guard: Redirecting to access-status-guide (No Company ID)')
-            next('/access-status-guide');
-            return;
+            const roleForGate = authStore.user?.systemRole || authStore.user?.role
+            const isSystemAdmin =
+              roleForGate === 'SUPER_ADMIN' || roleForGate === 'ADMIN'
+            if (!isSystemAdmin) {
+              console.warn('Guard: Redirecting to access-status-guide (No Company ID)')
+              next('/access-status-guide')
+              return
+            }
         }
      }
 
