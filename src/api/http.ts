@@ -13,9 +13,12 @@ import toastService from '@/components/bootstrap/ToastService.js'
  * 優先順序：localStorage 自訂網址 > 環境變數 > 預設值
  */
 const getBaseURL = (): string => {
-  const customUrl = storage.get<string>(StorageKeys.CUSTOM_API_BASE_URL)
-  if (customUrl && customUrl.trim()) {
-    return customUrl.trim()
+  // 生產環境固定使用 VITE_API_URL，避免 localStorage 殘留 localhost 導致線上誤連本機。
+  if (!import.meta.env.PROD) {
+    const customUrl = storage.get<string>(StorageKeys.CUSTOM_API_BASE_URL)
+    if (customUrl && customUrl.trim()) {
+      return customUrl.trim()
+    }
   }
   return import.meta.env.VITE_API_URL || 'http://localhost:8080'
 }
@@ -36,6 +39,12 @@ const http: AxiosInstance = axios.create({
  * 用於開發者測試時即時更新 API 網址
  */
 export const updateBaseURL = (newBaseURL: string | null) => {
+  // 生產環境不允許動態覆寫 API 來源，維持與部署設定一致。
+  if (import.meta.env.PROD) {
+    http.defaults.baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
+    return
+  }
+
   if (newBaseURL && newBaseURL.trim()) {
     http.defaults.baseURL = newBaseURL.trim()
   } else {
