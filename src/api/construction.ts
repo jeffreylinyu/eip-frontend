@@ -95,26 +95,27 @@ export interface CreateConstructionRequest {
   contractId: string; // 契約編號（後端會自動使用此值作為 constructionId）
   constructionName: string;
   constructionLocation: string;
-  leadOrganization: string;
+  leadOrganization?: string | null;
   constructionBudget: number;
   currentContractAmount: number;
-  signDate: string;
-  constructionStartDate: string;
+  /** ISO 日期時間；未填請送 null，勿送空字串（後端 LocalDateTime 無法反序列化 ""） */
+  signDate?: string | null;
+  constructionStartDate?: string | null;
   // constructionEndDate 已移除，由後端自動計算
-  constructionConfirmDate: string;
+  constructionConfirmDate?: string | null;
   constructionProjectId: string;
   payMethod: string;
-  insuranceId: string;
-  insuranceCompanyName: string;
-  insuranceStartDate: string;
-  insuranceEndDate: string;
-  insuranceType: string;
+  insuranceId?: string | null;
+  insuranceCompanyName?: string | null;
+  insuranceStartDate?: string | null;
+  insuranceEndDate?: string | null;
+  insuranceType?: string | null;
   segmentedAcceptance: boolean;
   partialAcceptance: boolean;
   completionAcceptance: boolean;
   prePayRatio: number;
   retainedRatio: number;
-  constructionType: string;
+  constructionType?: string | null;
   signLevel: SignLevel[];
   workDay: number;
   durationType?: 'CALENDAR_DAYS' | 'WORKING_DAYS'; // 工期計算模式（可選，預設為 WORKING_DAYS）

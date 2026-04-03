@@ -162,33 +162,36 @@ const handleSubmit = async () => {
     // companyId 填入 營造廠 ID (作為主要擁有者/Main Contractor)
     // 準備 Payload
     // companyId 填入 營造廠 ID (作為主要擁有者/Main Contractor)
+    // 後端 ConstructionRequest 的 LocalDateTime 欄位若收到空字串 "" 會反序列化失敗（400）。
+    // 未填的日期／時間請送 null，勿送 ''。
+    const supervisionId = formData.supervisionCompanyId?.trim()
     const payload: CreateConstructionRequest = {
       workspaceId: '', // 留空，由後端處理
       companyId: formData.contractorCompanyId!,
       contractorCompanyId: formData.contractorCompanyId,
-      supervisionCompanyId: formData.supervisionCompanyId,
+      ...(supervisionId ? { supervisionCompanyId: supervisionId } : {}),
       contractId: formData.contractId!,
       constructionName: formData.constructionName!,
       constructionLocation: formData.constructionLocation!,
-      leadOrganization: '',
+      leadOrganization: null,
       constructionBudget: formData.constructionBudget || 0,
       currentContractAmount: formData.constructionBudget || 0,
-      signDate: '',
-      constructionStartDate: '',
-      constructionConfirmDate: '',
+      signDate: null,
+      constructionStartDate: null,
+      constructionConfirmDate: null,
       constructionProjectId: formData.contractId!,
       payMethod: formData.payMethod || '分期付款',
-      insuranceId: '',
-      insuranceCompanyName: '',
-      insuranceStartDate: '',
-      insuranceEndDate: '',
-      insuranceType: '',
+      insuranceId: null,
+      insuranceCompanyName: null,
+      insuranceStartDate: null,
+      insuranceEndDate: null,
+      insuranceType: null,
       segmentedAcceptance: formData.segmentedAcceptance || false,
       partialAcceptance: formData.partialAcceptance || false,
       completionAcceptance: formData.completionAcceptance || true,
       prePayRatio: 0,
       retainedRatio: 0,
-      constructionType: '',
+      constructionType: null,
       signLevel: [],
       workDay: formData.workDay || 0,
       durationType: formData.durationType
