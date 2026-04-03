@@ -223,8 +223,6 @@ export const useAppSidebarMenuStore = defineStore("appSidebarMenu", () => {
       children: [
         { text: "基本資料維護", url: getViewUrl("/basic/basic-data") },
         { text: "參與單位", url: getViewUrl("/basic/participation-units") },
-        // 施工項目維護（原本放在 B 類表單）
-        { text: "施工項目維護", url: "/forms/b-construction-maintenance" },
         { text: "工程項目標單", url: getViewUrl("/basic/project-item-database") },
         // 標單材料設定（原本放在 B 類表單）
         { text: "標單材料設定", url: "/forms/tender-material-settings" },
@@ -284,8 +282,10 @@ export const useAppSidebarMenuStore = defineStore("appSidebarMenu", () => {
         {
           text: "B類表單",
           children: [
+            { text: "施工項目維護", url: "/forms/b-construction-maintenance" },
             { text: "文件檔案分類表", url: "/forms/document-classification" },
             { text: "B-1 監造計劃書", url: "/forms/export-supervision-plan" },
+            { text: "B-2 安全衛生監督", url: "/forms/b2-safety-supervision-plan" },
           ],
         },
       ],

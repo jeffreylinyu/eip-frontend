@@ -44,6 +44,38 @@ export interface Construction {
   constructor?: string; // 承攬廠商（舊欄位）
   version?: number; // 新增：樂觀鎖版本號
   permission?: 'ADMIN' | 'MEMBER' | 'VIEWER'; // 新增：工程案權限 (覆蓋 user_workspace role)
+  /** 工程規模概述（B-1 頁面維護，依版本） */
+  constructionScaleOverview?: string | null;
+  /** B-2 地理人文環境概述（監造端維護，依版本） */
+  b2GeoHumanEnvironmentOverview?: string | null;
+  /** B-2 工程地點及客觀環境 */
+  b2LocationObjectiveEnvironment?: string | null;
+  /** B-2 工程規模概述（與 B-1 欄位不同） */
+  b2ConstructionScaleOverview?: string | null;
+  /** B-2 工程預算（固定格式文字） */
+  b2ConstructionBudgetText?: string | null;
+  /** B-2 緊急應變組織圖（JSON） */
+  b2EmergencyOrgChartJson?: string | null;
+  /** B-2：確認已完成安全衛生設施勾選維護（依版本） */
+  b2SafetyFacilityAcknowledged?: boolean;
+  /** P-1 工程規模概述（營造端維護，依版本） */
+  p1ConstructionScaleOverview?: string | null;
+  /** P-1 工地研判：地質概況 */
+  p1GeologyOverview?: string | null;
+  /** P-1 工地研判：工址現況調查 */
+  p1SiteCurrentConditionSurvey?: string | null;
+  /** P-1 工地研判：地下埋設物調查 */
+  p1UndergroundUtilitiesSurvey?: string | null;
+  /** P-1 工地研判：氣象及水文 */
+  p1MeteorologyHydrology?: string | null;
+  /** P-1 工地研判：鄰房調查 */
+  p1NeighboringBuildingSurvey?: string | null;
+  /** P-1 施工機械設備資源（JSON） */
+  p1MechanicalResourcesJson?: string | null;
+  /** P-1 物料市場調查 */
+  p1MaterialMarketSurvey?: string | null;
+  /** P-1 人力資源預定進場時間表（JSON） */
+  p1ManpowerEntryScheduleJson?: string | null;
   // role?: string; // 注意：API 回傳的 role 現在代表職稱 (Job Title)
 }
 
@@ -86,6 +118,38 @@ export interface CreateConstructionRequest {
   signLevel: SignLevel[];
   workDay: number;
   durationType?: 'CALENDAR_DAYS' | 'WORKING_DAYS'; // 工期計算模式（可選，預設為 WORKING_DAYS）
+  /** 工程規模概述（B-1 頁面維護，更新時可選） */
+  constructionScaleOverview?: string | null;
+  /** B-2 地理人文環境概述 */
+  b2GeoHumanEnvironmentOverview?: string | null;
+  /** B-2 工程地點及客觀環境 */
+  b2LocationObjectiveEnvironment?: string | null;
+  /** B-2 工程規模概述 */
+  b2ConstructionScaleOverview?: string | null;
+  /** B-2 工程預算 */
+  b2ConstructionBudgetText?: string | null;
+  /** B-2 緊急應變組織圖（JSON） */
+  b2EmergencyOrgChartJson?: string | null;
+  /** B-2：確認已完成安全衛生設施勾選維護（依版本） */
+  b2SafetyFacilityAcknowledged?: boolean;
+  /** P-1 工程規模概述（營造端維護，依版本） */
+  p1ConstructionScaleOverview?: string | null;
+  /** P-1 工地研判：地質概況 */
+  p1GeologyOverview?: string | null;
+  /** P-1 工地研判：工址現況調查 */
+  p1SiteCurrentConditionSurvey?: string | null;
+  /** P-1 工地研判：地下埋設物調查 */
+  p1UndergroundUtilitiesSurvey?: string | null;
+  /** P-1 工地研判：氣象及水文 */
+  p1MeteorologyHydrology?: string | null;
+  /** P-1 工地研判：鄰房調查 */
+  p1NeighboringBuildingSurvey?: string | null;
+  /** P-1 施工機械設備資源（JSON） */
+  p1MechanicalResourcesJson?: string | null;
+  /** P-1 物料市場調查 */
+  p1MaterialMarketSurvey?: string | null;
+  /** P-1 人力資源預定進場時間表（JSON） */
+  p1ManpowerEntryScheduleJson?: string | null;
 }
 
 // API 回應接口
@@ -326,6 +390,149 @@ export const updateConstruction = async (
     throw error;
   }
 };
+
+export const uploadB2EmergencyOrgChartImage = async (
+  constructionId: string,
+  file: Blob,
+  designChangeId?: number | null
+): Promise<{ objectName: string; signedUrl?: string | null }> => {
+  const form = new FormData()
+  form.append('constructionId', constructionId)
+  if (designChangeId != null) form.append('designChangeId', String(designChangeId))
+  form.append('file', file, `b2-emergency-orgchart-${constructionId}.png`)
+
+  const data = await http.post('/management/construction/b2/emergency-orgchart-image/upload', form, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  })
+  return data as unknown as { objectName: string; signedUrl?: string | null }
+}
+
+/**
+ * 依目前版本標單由 AI 產出工程規模概述（供 B-1 監造計劃書使用），不寫入 DB。
+ * 標單無資料時回傳空字串；失敗時後端回傳 503 與 error 訊息。
+ */
+export const getConstructionScaleOverviewAiGenerate = async (
+  constructionId: string,
+  designChangeId?: number | null
+): Promise<{ text: string }> => {
+  const params: Record<string, string> = { constructionId };
+  if (designChangeId !== undefined && designChangeId !== null) {
+    params.designChangeId = String(designChangeId);
+  }
+  const data = await http.get('/management/construction/construction-scale-overview/ai-generate', { params });
+  return data as unknown as { text: string };
+};
+
+export type B2TextAiField =
+  | 'GEO_HUMAN_ENVIRONMENT_OVERVIEW'
+  | 'LOCATION_OBJECTIVE_ENVIRONMENT'
+  | 'CONSTRUCTION_SCALE_OVERVIEW'
+  | 'CONSTRUCTION_BUDGET_TEXT'
+
+/** 依目前版本監造標單由 AI 產出 B-2 文字欄位（安全衛生監督查核計畫），不寫入 DB。 */
+export const getB2TextsAiGenerate = async (
+  constructionId: string,
+  field: B2TextAiField,
+  designChangeId?: number | null
+): Promise<{ text: string }> => {
+  const params: Record<string, string> = { constructionId, field }
+  if (designChangeId !== undefined && designChangeId !== null) {
+    params.designChangeId = String(designChangeId)
+  }
+  const data = await http.get('/management/construction/b2-texts/ai-generate', { params })
+  return data as unknown as { text: string }
+}
+
+/** B-2 手動複製前一個版本（覆寫目標版本 B-2 內容與圖片關聯） */
+export const copyB2FromPreviousVersion = async (
+  constructionId: string,
+  sourceDesignChangeId: number | null | undefined,
+  targetDesignChangeId: number
+): Promise<{ copied: boolean }> => {
+  const params = new URLSearchParams()
+  params.set('constructionId', constructionId)
+  params.set('targetDesignChangeId', String(targetDesignChangeId))
+  if (sourceDesignChangeId != null) {
+    params.set('sourceDesignChangeId', String(sourceDesignChangeId))
+  }
+  const data = await http.post(`/management/construction/b2/copy-from-previous?${params.toString()}`)
+  return data as unknown as { copied: boolean }
+}
+
+/** 依目前版本營造標單由 AI 產出 P-1 工程規模概述，不寫入 DB。 */
+export const getP1TextAiGenerate = async (
+  constructionId: string,
+  designChangeId?: number | null
+): Promise<{ text: string }> => {
+  const params: Record<string, string> = { constructionId }
+  if (designChangeId !== undefined && designChangeId !== null) {
+    params.designChangeId = String(designChangeId)
+  }
+  const data = await http.get('/management/construction/p1-texts/ai-generate', { params })
+  return data as unknown as { text: string }
+}
+
+export type P1SiteJudgementAiField = 'GEOLOGY_OVERVIEW' | 'METEOROLOGY_HYDROLOGY'
+
+/** 依工程地點由 AI 產出 P-1 工地研判欄位，不寫入 DB。 */
+export const getP1SiteJudgementAiGenerate = async (
+  constructionId: string,
+  field: P1SiteJudgementAiField,
+  designChangeId?: number | null
+): Promise<{ text: string }> => {
+  const params: Record<string, string> = { constructionId, field }
+  if (designChangeId !== undefined && designChangeId !== null) {
+    params.designChangeId = String(designChangeId)
+  }
+  const data = await http.get('/management/construction/p1-site-judgement/ai-generate', { params })
+  return data as unknown as { text: string }
+}
+
+/** 依標單由 AI 產出 P-1 施工機械設備資源名稱清單。 */
+export const getP1MechanicalResourcesAiGenerate = async (
+  constructionId: string,
+  designChangeId?: number | null
+): Promise<{ names: string[] }> => {
+  const params: Record<string, string> = { constructionId }
+  if (designChangeId !== undefined && designChangeId !== null) {
+    params.designChangeId = String(designChangeId)
+  }
+  const data = await http.get('/management/construction/p1-mechanical-resources/ai-generate', { params })
+  return data as unknown as { names: string[] }
+}
+
+/** 依標單由 AI 產出 P-1 物料市場調查。 */
+export const getP1MaterialMarketSurveyAiGenerate = async (
+  constructionId: string,
+  designChangeId?: number | null
+): Promise<{ text: string }> => {
+  const params: Record<string, string> = { constructionId }
+  if (designChangeId !== undefined && designChangeId !== null) {
+    params.designChangeId = String(designChangeId)
+  }
+  const data = await http.get('/management/construction/p1-material-market-survey/ai-generate', { params })
+  return data as unknown as { text: string }
+}
+
+/** 依資料依據日取得 P-1 人力資源預設最大可用量 */
+export const getP1ManpowerDefaultMaxAvailable = async (
+  constructionId: string,
+  dataReferenceDate: string
+): Promise<{
+  siteManagerCount: number
+  qualityEngineerCount: number
+  labourSafetyCount: number
+  siteEngineerCount: number
+}> => {
+  const params: Record<string, string> = { constructionId, dataReferenceDate }
+  const data = await http.get('/management/construction/p1-manpower-entry-schedule/default-max-available', { params })
+  return data as unknown as {
+    siteManagerCount: number
+    qualityEngineerCount: number
+    labourSafetyCount: number
+    siteEngineerCount: number
+  }
+}
 
 /**
  * 刪除工程案

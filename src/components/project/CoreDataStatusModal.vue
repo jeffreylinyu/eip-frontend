@@ -188,7 +188,7 @@
                         </span>
                       </div>
                       <p class="small text-muted mb-2">
-                        負責人、工地負責人、專任工程人員、品管人員、勞安人員、行政人員、現場人員數量統計
+                        負責人、工地負責人、專任工程人員、品管人員、勞安人員、行政人員、現場工程師／現場施工人員數量統計
                       </p>
                       <div v-if="sitePersonnelVersionError" class="small text-danger mb-2">
                         <i class="fa fa-exclamation-circle me-1"></i>{{ sitePersonnelVersionError }}

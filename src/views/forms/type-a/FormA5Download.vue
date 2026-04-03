@@ -56,7 +56,7 @@
                 class="btn btn-sm btn-outline-secondary"
                 type="button"
                 :disabled="isLoading || !hasCurrentProject"
-                @click="loadEstimateDetails"
+                @click="() => loadEstimateDetails()"
               >
                 <span v-if="isLoading" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
                 <i v-else class="fa fa-sync me-1"></i>重新載入

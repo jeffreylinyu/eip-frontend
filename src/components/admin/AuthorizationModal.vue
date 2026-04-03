@@ -18,7 +18,7 @@ const isLoading = ref(false)
 const joinedProjects = ref<any[]>([])
 const allProjects = ref<Construction[]>([])
 const selectedProjectId = ref('')
-const selectedRole = ref(ConstructionRoleEnum.SITE_WORKER) // 預設角色
+const selectedRole = ref(ConstructionRoleEnum.SITE_ENGINEER) // 預設角色
 const selectedPermission = ref(ConstructionPermissionEnum.VIEWER) // 預設權限
 
 // 角色選項 (職位/職稱)
@@ -29,7 +29,9 @@ const roleOptions = [
   { value: ConstructionRoleEnum.ARCHITECT, label: '建築師' },
   { value: ConstructionRoleEnum.CONSTRUCTION_MANAGER, label: '工地負責人' },
   { value: ConstructionRoleEnum.ADMIN_STAFF, label: '行政人員' },
-  { value: ConstructionRoleEnum.SITE_WORKER, label: '現場人員' },
+  { value: ConstructionRoleEnum.SITE_ENGINEER, label: '現場工程師' },
+  { value: ConstructionRoleEnum.SITE_CONSTRUCTION_WORKER, label: '現場施工人員' },
+  { value: ConstructionRoleEnum.SITE_WORKER, label: '現場人員（舊）' },
   { value: ConstructionRoleEnum.OWNER, label: '負責人' },
   { value: ConstructionRoleEnum.ADMIN, label: '公司管理員' }
 ]
@@ -117,7 +119,7 @@ const handleGrant = async () => {
     
     // 清空選擇
     selectedProjectId.value = ''
-    selectedRole.value = ConstructionRoleEnum.SITE_WORKER
+    selectedRole.value = ConstructionRoleEnum.SITE_ENGINEER
     selectedPermission.value = ConstructionPermissionEnum.VIEWER
     
     emit('change')

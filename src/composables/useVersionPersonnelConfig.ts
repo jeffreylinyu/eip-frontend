@@ -45,11 +45,11 @@ export function getLevelByBudget(amount: number): string {
 }
 
 const REQUIRED_PERSONNEL: Record<string, Record<ConfigRoleKey, number>> = {
-  A5: { QUALITY: 1, LABOUR_SAFETY: 1, TECHNICIAN: 0 },
-  A4: { QUALITY: 1, LABOUR_SAFETY: 1, TECHNICIAN: 0 },
-  A3: { QUALITY: 1, LABOUR_SAFETY: 1, TECHNICIAN: 1 },
-  A2: { QUALITY: 2, LABOUR_SAFETY: 1, TECHNICIAN: 1 },
-  A1: { QUALITY: 3, LABOUR_SAFETY: 2, TECHNICIAN: 2 }
+  A5: { OWNER: 0, CONSTRUCTION_MANAGER: 0, QUALITY: 1, LABOUR_SAFETY: 1, TECHNICIAN: 0 },
+  A4: { OWNER: 0, CONSTRUCTION_MANAGER: 0, QUALITY: 1, LABOUR_SAFETY: 1, TECHNICIAN: 0 },
+  A3: { OWNER: 0, CONSTRUCTION_MANAGER: 0, QUALITY: 1, LABOUR_SAFETY: 1, TECHNICIAN: 1 },
+  A2: { OWNER: 0, CONSTRUCTION_MANAGER: 0, QUALITY: 2, LABOUR_SAFETY: 1, TECHNICIAN: 1 },
+  A1: { OWNER: 0, CONSTRUCTION_MANAGER: 0, QUALITY: 3, LABOUR_SAFETY: 2, TECHNICIAN: 2 }
 }
 
 /** 依契約金額級距回傳所需人數（僅品管/勞安/技師，用於建議配置表；負責人/工地負責人由各版本檢核另行加入） */
@@ -353,7 +353,7 @@ function computeGapsForLabourSafetyBySlots(
       if (a.constructionId !== constructionId) continue
       const start = toDateOnly(a.workStartDate)
       if (!start) continue
-      const end = (a.end ? toDateOnly(a.workEndDate) : null) ?? intervalEnd
+      const end = (a.workEndDate ? toDateOnly(a.workEndDate) : null) ?? intervalEnd
       const s = start < intervalStart ? intervalStart : start
       const e = end > intervalEnd ? intervalEnd : end
       if (s > intervalEnd || e < intervalStart) continue

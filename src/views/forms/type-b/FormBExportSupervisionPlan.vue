@@ -10,14 +10,185 @@
       ]"
     />
 
-    <!-- 監造計畫送審紀錄（提取區塊，不使用卡片/頁面 Header） -->
-    <FormBPlanSubmissionRecords embedded />
+    <!-- 工程規模概述（依版本維護，B-1 匯出時帶入） -->
+    <Card v-if="hasCurrentProject" class="mb-3 report-card report-card--full">
+      <CardHeader class="report-card__header">
+        <div class="d-flex flex-wrap align-items-center justify-content-between w-100 gap-2">
+          <div class="d-flex align-items-center gap-2">
+            <i class="fa fa-ruler-combined report-card__icon text-primary"></i>
+            <span class="report-card__title">工程規模概述</span>
+          </div>
+          <DesignChangeVersionSwitcher
+            :model-value="selectedDesignChangeId"
+            :construction-id="currentProject?.id"
+            @update:model-value="onVersionChange"
+          />
+        </div>
+      </CardHeader>
+      <CardBody class="report-card__body">
+        <div v-if="loadingOverview" class="text-center py-3 text-muted">
+          <i class="fa fa-spinner fa-spin me-2"></i>載入中…
+        </div>
+        <template v-else>
+          <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+            <label class="form-label small text-muted mb-0">此內容會帶入 B-1 監造計劃書匯出，可依版本分別維護。</label>
+            <button
+              type="button"
+              class="btn-ai-generate"
+              :disabled="aiOverviewLoading || !currentProject?.id"
+              @click="generateOverviewByAi"
+              title="依目前版本標單由 AI 產出工程規模概述（用於 B-1 監造計劃書）"
+            >
+              <i class="fa me-2" :class="aiOverviewLoading ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
+              {{ aiOverviewLoading ? '生成中…' : '依標單 AI 生成' }}
+            </button>
+          </div>
+          <textarea
+            v-model="overviewText"
+            class="form-control"
+            rows="4"
+            placeholder="請輸入工程規模概述…"
+            :disabled="savingOverview"
+            @blur="saveOverview"
+          />
+          <div v-if="savingOverview" class="small text-muted">
+            <i class="fa fa-spinner fa-spin me-1"></i>儲存中…
+          </div>
+        </template>
+      </CardBody>
+    </Card>
+
+    <!-- 監造計畫送審紀錄：僅監造視角顯示（營造不載入元件、不發 API） -->
+    <FormBPlanSubmissionRecords v-if="showPlanSubmissionBlock" embedded />
+
+    <LoadingOverlay :show="aiOverviewLoading" text="AI 生成中…" />
   </div>
 </template>
 
 <script setup lang="ts">
+import { ref, computed, watch } from 'vue'
+import { useViewPerspective, ViewType } from '@/composables/useViewPerspective'
 import PageHeader from '@/components/bootstrap/PageHeader.vue'
+import Card from '@/components/bootstrap/Card.vue'
+import CardHeader from '@/components/bootstrap/CardHeader.vue'
+import CardBody from '@/components/bootstrap/CardBody.vue'
+import DesignChangeVersionSwitcher from '@/components/common/DesignChangeVersionSwitcher.vue'
+import LoadingOverlay from '@/components/common/LoadingOverlay.vue'
 import FormBPlanSubmissionRecords from '@/views/forms/type-b/FormBPlanSubmissionRecords.vue'
+import { useWorkspaceStore } from '@/stores/workspace'
+import { getConstructionDetail, updateConstruction, getConstructionScaleOverviewAiGenerate } from '@/api/construction'
+
+const workspaceStore = useWorkspaceStore()
+const { fetchViewType } = useViewPerspective()
+
+/** 送審紀錄區塊僅監造；依後端視角解析，避免與 composable 同步狀態不一致 */
+const showPlanSubmissionBlock = ref(false)
+
+async function refreshPlanSubmissionVisibility() {
+  const wid = workspaceStore.currentWorkspace?.id
+  if (!wid) {
+    showPlanSubmissionBlock.value = false
+    return
+  }
+  try {
+    const vt = await fetchViewType(wid)
+    showPlanSubmissionBlock.value = vt === ViewType.SUPERVISORY
+  } catch {
+    showPlanSubmissionBlock.value = false
+  }
+}
+
+const hasCurrentProject = computed(() => !!workspaceStore.currentProject?.id)
+const currentProject = computed(() => workspaceStore.currentProject)
+
+const selectedDesignChangeId = ref<number | null>(null)
+const overviewText = ref('')
+const loadingOverview = ref(false)
+const savingOverview = ref(false)
+const aiOverviewLoading = ref(false)
+
+async function loadOverview() {
+  const cid = currentProject.value?.id
+  const wid = currentProject.value?.workspaceId
+  if (!cid || !wid) {
+    overviewText.value = ''
+    lastLoadedOverview.value = ''
+    return
+  }
+  loadingOverview.value = true
+  try {
+    const data = await getConstructionDetail(cid, wid, 'SUPERVISORY', selectedDesignChangeId.value)
+    overviewText.value = data.constructionScaleOverview ?? ''
+    lastLoadedOverview.value = overviewText.value
+  } catch {
+    overviewText.value = ''
+    lastLoadedOverview.value = ''
+  } finally {
+    loadingOverview.value = false
+  }
+}
+
+function onVersionChange(value: number | null) {
+  selectedDesignChangeId.value = value
+}
+
+async function saveOverview() {
+  const cid = currentProject.value?.id
+  if (!cid || overviewText.value === lastLoadedOverview.value) return
+  savingOverview.value = true
+  try {
+    await updateConstruction(cid, { constructionScaleOverview: overviewText.value } as any, selectedDesignChangeId.value)
+    lastLoadedOverview.value = overviewText.value
+  } catch {
+    // 可選：toast 錯誤
+  } finally {
+    savingOverview.value = false
+  }
+}
+
+async function generateOverviewByAi() {
+  const cid = currentProject.value?.id
+  if (!cid) return
+  aiOverviewLoading.value = true
+  try {
+    const res = await getConstructionScaleOverviewAiGenerate(cid, selectedDesignChangeId.value)
+    overviewText.value = res?.text?.trim() ?? ''
+    if (!overviewText.value) {
+      // 標單無資料時後端回傳空字串
+      if (typeof (window as any).alert === 'function') (window as any).alert('目前版本無標單資料，或 AI 未產出內容。請先匯入標單或手動填寫。')
+    } else {
+      // 生成成功後自動儲存至目前版本
+      await saveOverview()
+    }
+  } catch (e: any) {
+    const msg = e?.response?.data?.error || e?.response?.data?.detail || e?.message || '生成失敗，請稍後再試或手動填寫。'
+    if (typeof (window as any).alert === 'function') (window as any).alert(msg)
+  } finally {
+    aiOverviewLoading.value = false
+  }
+}
+
+const lastLoadedOverview = ref('')
+
+watch(
+  [hasCurrentProject, selectedDesignChangeId],
+  () => {
+    if (hasCurrentProject.value) loadOverview()
+    else {
+      overviewText.value = ''
+      lastLoadedOverview.value = ''
+    }
+  },
+  { immediate: true }
+)
+
+watch(
+  () => workspaceStore.currentWorkspace?.id,
+  () => {
+    void refreshPlanSubmissionVisibility()
+  },
+  { immediate: true }
+)
 </script>
 
 <style scoped>

@@ -120,9 +120,50 @@ const router = createRouter({
       meta: { requiresAuth: true }
     },
     {
+      path: '/forms/b-construction-maintenance/:id/safety-standards',
+      redirect: (to) => ({
+        path: `/forms/b-construction-maintenance/${String(to.params.id)}/standards`,
+        query: { ...to.query, tab: 'safety' },
+      }),
+    },
+    {
       path: '/forms/export-supervision-plan',
       component: () => import('../views/forms/type-b/FormBExportSupervisionPlan.vue'),
       meta: { requiresAuth: true }
+    },
+    {
+      path: '/forms/b2-safety-supervision-plan',
+      component: () => import('../views/forms/type-b/FormB2SafetySupervisionPlan.vue'),
+      meta: { requiresAuth: true, requiresSupervisory: true }
+    },
+    {
+      path: '/forms/p4-safety-supervision-plan',
+      redirect: '/forms/b2-safety-supervision-plan'
+    },
+    {
+      path: '/forms/subdivision-work-items',
+      component: () => import('../views/forms/type-b/FormSubdivisionWorkItems.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/forms/p1-overall-construction-plan',
+      component: () => import('../views/forms/type-b/FormP1OverallConstructionPlan.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/forms/subdivision-work-items/:itemId/construction-standards',
+      component: () => import('../views/forms/type-b/FormSubdivisionWorkItemStandardsView.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/forms/subdivision-work-items/:itemId/safety-standards',
+      component: () => import('../views/forms/type-b/FormSubdivisionWorkItemStandardsView.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/forms/plan-submission-records',
+      component: () => import('../views/forms/type-b/FormBPlanSubmissionRecords.vue'),
+      meta: { requiresAuth: true, requiresSupervisory: true }
     },
     {
       path: '/forms/document-classification',
@@ -172,6 +213,11 @@ const router = createRouter({
     {
       path: '/admin/inspection-standard',
       component: () => import('../views/admin/InspectionStandard.vue'),
+      meta: { requiresAuth: true, requiresAdmin: true }
+    },
+    {
+      path: '/admin/safety-health-inspection-standard',
+      component: () => import('../views/admin/SafetyHealthInspectionStandard.vue'),
       meta: { requiresAuth: true, requiresAdmin: true }
     },
     {
@@ -466,6 +512,46 @@ router.beforeEach(async (to, from, next) => {
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     next('/page/login');
     return;
+  }
+
+  // 監造計畫送審紀錄獨立頁：直接依後端 /viewType/resolve 字串判斷（與 composable 載入時序無關）
+  if (authStore.isAuthenticated && (to.meta as { requiresSupervisory?: boolean }).requiresSupervisory) {
+    const systemRole = authStore.user?.systemRole || authStore.user?.role
+    const isSuperAdmin = systemRole === 'SUPER_ADMIN' || systemRole === 'ADMIN'
+    if (!isSuperAdmin) {
+      const wid = workspaceStore.currentWorkspace?.id
+      if (wid) {
+        try {
+          const response = await http.get<{
+            code?: number
+            data?: { viewType?: string; data?: { viewType?: string } }
+          }>(`/management/viewType/resolve?workspaceId=${wid}`)
+          let userViewType: string | null = null
+          if (response && typeof response === 'object') {
+            if ('data' in response && response.data && typeof response.data === 'object') {
+              if ('viewType' in response.data) {
+                userViewType = (response.data as { viewType?: string }).viewType ?? null
+              } else if (
+                'data' in response.data &&
+                (response.data as { data?: { viewType?: string } }).data &&
+                typeof (response.data as { data?: { viewType?: string } }).data === 'object'
+              ) {
+                userViewType =
+                  (response.data as { data?: { viewType?: string } }).data?.viewType ?? null
+              }
+            } else if ('viewType' in response) {
+              userViewType = (response as { viewType?: string }).viewType ?? null
+            }
+          }
+          if (userViewType === 'CONTRACTOR') {
+            next('/forms/b-construction-maintenance')
+            return
+          }
+        } catch {
+          // 解析失敗不強制導離，避免誤擋監造；API 已由後端擋營造
+        }
+      }
+    }
   }
 
   // 3.1 公司管理權限檢查（公司 OWNER / ADMIN）

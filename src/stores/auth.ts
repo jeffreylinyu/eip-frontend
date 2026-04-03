@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { storage, StorageKeys } from '@/utils/storage'
 import { authApi, type LoginData, type User } from '@/api/user'
+import { getGoogleIdToken } from '@/firebase'
 import { useWorkspaceStore } from '@/stores/workspace'
 
 export const useAuthStore = defineStore('auth', () => {
@@ -77,6 +78,51 @@ export const useAuthStore = defineStore('auth', () => {
       return { 
         success: false, 
         message: error.response?.data?.message || '登入失敗，請檢查您的憑證' 
+      }
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  /** Google 登入：Firebase ID Token → 後端換發系統 JWT */
+  const loginWithGoogle = async () => {
+    isLoading.value = true
+    try {
+      const idToken = await getGoogleIdToken()
+      if (!idToken) {
+        return { success: false, message: 'Google 登入已取消或失敗' }
+      }
+      const response = await authApi.loginWithFirebase(idToken)
+      token.value = response.jwtToken
+      storage.set(StorageKeys.AUTH_TOKEN, response.jwtToken)
+      await fetchCurrentUser(response.userId)
+      if (user.value) {
+        storage.set(StorageKeys.AUTH_USER, user.value)
+      } else {
+        user.value = {
+          id: response.id?.toString() || response.userId,
+          userId: response.userId,
+          username: '',
+          email: '',
+          role: response.role || '',
+          createdAt: '',
+          updatedAt: '',
+          verify: false
+        }
+        storage.set(StorageKeys.AUTH_USER, user.value)
+      }
+      try {
+        const workspaceStore = useWorkspaceStore()
+        await workspaceStore.initWorkspaces()
+      } catch (error) {
+        console.warn('⚠️ 工作空間初始化失敗:', error)
+      }
+      return { success: true, message: '登入成功' }
+    } catch (error: any) {
+      console.error('❌ Google 登入失敗:', error)
+      return {
+        success: false,
+        message: error.response?.data?.message || error?.message || 'Google 登入失敗'
       }
     } finally {
       isLoading.value = false
@@ -199,6 +245,7 @@ export const useAuthStore = defineStore('auth', () => {
     isAuthenticated,
     // Actions
     login,
+    loginWithGoogle,
     logout,
     clearAuthState,
     initAuth,

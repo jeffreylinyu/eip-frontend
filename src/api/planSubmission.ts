@@ -1,3 +1,4 @@
+import type { AxiosRequestConfig } from 'axios'
 import http from '@/api/http'
 
 // ===========================
@@ -37,8 +38,10 @@ export interface PlanSubmissionRecord {
   reviewDate: string | null
   reviewComment: string | null
   note: string | null
-  /** 使用資料版本：null = 原契約，非 null = design_change.id（舊資料可能無此欄位） */
+  /** 使用資料版本：null = 原契約，非 null = design_change.id（無資料依據日時使用） */
   designChangeId?: number | null
+  /** 資料依據日（YYYY-MM-DD），多版本時由使用者選擇，系統依此日判斷版本與在職人員 */
+  dataReferenceDate?: string | null
   createdBy: string | null
   createdAt: string | null
   supervisionDocument: DocumentReferenceDto | null
@@ -63,7 +66,7 @@ export type PlanSubmissionRequestConfig = { skipAuthRedirectOn401?: boolean }
 export async function getPlanSubmissions(constructionId: string, config?: PlanSubmissionRequestConfig): Promise<PlanSubmissionRecord[]> {
   const data = await http.get<any>(
     `/management/constructions/${encodeURIComponent(constructionId)}/plan-submissions`,
-    config ?? {}
+    (config ?? {}) as AxiosRequestConfig
   )
   const result = unwrap<PlanSubmissionRecord[]>(data)
   return Array.isArray(result) ? result : []
@@ -80,7 +83,7 @@ export async function getPlanSubmission(constructionId: string, id: number): Pro
 /** 新增送審紀錄 */
 export async function createPlanSubmission(
   constructionId: string,
-  body: { submissionDate?: string; note?: string }
+  body: { submissionDate?: string; note?: string; dataReferenceDate?: string }
 ): Promise<PlanSubmissionRecord | null> {
   const data = await http.post<any>(
     `/management/constructions/${encodeURIComponent(constructionId)}/plan-submissions`,
@@ -100,6 +103,7 @@ export async function updatePlanSubmission(
     reviewComment?: string
     note?: string
     designChangeId?: number | null
+    dataReferenceDate?: string | null
   }
 ): Promise<PlanSubmissionRecord | null> {
   const data = await http.put<any>(
@@ -109,15 +113,15 @@ export async function updatePlanSubmission(
   return unwrap<PlanSubmissionRecord>(data) ?? null
 }
 
-/** 僅更新送審紀錄的「使用資料版本」（null = 原契約） */
+/** 僅更新送審紀錄的「使用資料版本」或「資料依據日」 */
 export async function updatePlanSubmissionDesignChangeId(
   constructionId: string,
   id: number,
-  designChangeId: number | null
+  payload: { designChangeId?: number | null; dataReferenceDate?: string | null }
 ): Promise<PlanSubmissionRecord | null> {
   const data = await http.patch<any>(
     `/management/constructions/${encodeURIComponent(constructionId)}/plan-submissions/${id}/design-change-id`,
-    { designChangeId }
+    payload
   )
   return unwrap<PlanSubmissionRecord>(data) ?? null
 }

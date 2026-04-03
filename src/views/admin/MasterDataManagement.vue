@@ -265,7 +265,7 @@
                     <th width="5%">順序</th>
                     <th width="20%">項目名稱</th>
                     <th width="15%">進度</th>
-                    <th width="15%">施工流程</th>
+                    <th width="15%">施工階段</th>
                     <th width="15%">檢查標準</th>
                     <th width="10%">操作</th>
                   </tr>
@@ -527,7 +527,7 @@
               />
             </div>
             <div class="col-md-6 mb-3">
-              <label class="form-label">施工流程</label>
+              <label class="form-label">施工階段（施工前／中／後）</label>
               <input
                 type="text"
                 class="form-control"

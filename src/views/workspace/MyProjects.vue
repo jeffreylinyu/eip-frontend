@@ -26,10 +26,12 @@ const getRoleLabel = (role: string) => {
     [ConstructionRoleEnum.CONSTRUCTION_MANAGER]: '工地負責人',
     [ConstructionRoleEnum.ADMIN_STAFF]: '行政人員',
     [ConstructionRoleEnum.SITE_WORKER]: '現場人員',
+    [ConstructionRoleEnum.SITE_ENGINEER]: '現場工程師',
+    [ConstructionRoleEnum.SITE_CONSTRUCTION_WORKER]: '現場施工人員',
     [ConstructionRoleEnum.OWNER]: '負責人',
     [ConstructionRoleEnum.ADMIN]: '公司管理員'
   }
-  return roleMap[role] || role || '現場人員'
+  return roleMap[role] || role || '—'
 }
 
 // 權限顯示 Helper

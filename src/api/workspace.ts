@@ -69,7 +69,7 @@ export interface WorkspaceDetailResponse {
   companyRole: 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER'  // 工作空間權限（向後兼容）
   workspacePermission?: 'ADMIN' | 'MEMBER' | 'VIEWER'  // 新欄位：工作空間權限（優先使用）
   userRoleInCompany: 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER'  // 公司在工作空間中的角色（向後兼容）
-  userJobTitleInCompany?: 'OWNER' | 'ADMIN' | 'LABOUR_SAFETY' | 'CONSTRUCTION_MANAGER' | 'TECHNICIAN' | 'ARCHITECT' | 'QUALITY' | 'ADMIN_STAFF' | 'SITE_WORKER'  // 新欄位：用戶在公司中的職位（優先使用）
+  userJobTitleInCompany?: 'OWNER' | 'ADMIN' | 'LABOUR_SAFETY' | 'CONSTRUCTION_MANAGER' | 'TECHNICIAN' | 'ARCHITECT' | 'QUALITY' | 'ADMIN_STAFF' | 'SITE_WORKER' | 'SITE_ENGINEER' | 'SITE_CONSTRUCTION_WORKER'  // 新欄位：用戶在公司中的職位（優先使用）
   companyCount: number
   companies?: WorkspaceCompany[]
 }

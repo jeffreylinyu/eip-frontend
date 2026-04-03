@@ -8,6 +8,8 @@ export interface LaborSafetyReportItem {
   status: string
   /** 使用資料版本（變更設計版本）；null 代表原契約 */
   designChangeId?: number | null
+  /** 資料依據日（YYYY-MM-DD）；O-4 多版本時由使用者選擇，用於決定版本與在職人員 */
+  dataReferenceDate?: string | null
   organizationName?: string | null
   totalMaleWorkers?: number | null
   totalFemaleWorkers?: number | null
@@ -107,6 +109,7 @@ export const updateLaborSafetyReportStatus = async (
 
 export interface LaborSafetyReportUpdatePayload {
   designChangeId?: number | null
+  dataReferenceDate?: string | null
   organizationName?: string | null
   totalMaleWorkers?: number | null
   totalFemaleWorkers?: number | null

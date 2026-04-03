@@ -120,6 +120,8 @@ export interface ConstructionPccesCode {
   remark: string | null;
   parentId: number | null;      // 父項目 ID（用於建立階層關係）
   type: PccesItemType | null;   // 項目類型
+  /** 是否為安全衛生設施（使用者勾選，非匯入檔；預設 false） */
+  isSafetyHealthFacility?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -132,7 +134,7 @@ export interface ConstructionStandard {
   pccesCode: string;
   itemName: string;
   dataSource: string;
-  workProcess: string;    // 施工階段
+  workProcess: string;    // 施工階段（work_process）
   manageProject: string;  // 管理項目
   checkStandard: string;  // 抽查標準
   checkTiming: string;    // 抽查時機
@@ -148,6 +150,8 @@ export interface ConstructionStandard {
 
 export interface ConstructionMajorItem {
   id: string;
+  /** 同工程同版本清單順序（0 起） */
+  sortOrder?: number;
   name: string;
   /** 變更設計版本：null = 原契約 */
   designChangeId?: number | null;
@@ -159,6 +163,8 @@ export interface ConstructionMajorItem {
   createdBy?: string;
   updatedBy?: string;
   standards?: any[];
+  /** 安全衛生抽查標準明細（與施工抽查分開） */
+  safetyStandards?: ConstructionMajorItemStandardResponse[];
 }
 
 export interface ConstructionMajorItemRequest {
@@ -276,6 +282,43 @@ export async function copyPccesFromTo(
 }
 
 /**
+ * 更新單筆工項「是否為安全衛生設施」（使用者勾選，非 PCCES 匯入欄位）
+ */
+export async function updatePccesCodeSafetyHealthFacility(
+  constructionId: string,
+  id: number,
+  isSafetyHealthFacility: boolean,
+  designChangeId?: number | null
+): Promise<void> {
+  const params = new URLSearchParams({
+    constructionId,
+    isSafetyHealthFacility: String(isSafetyHealthFacility)
+  });
+  if (designChangeId !== undefined && designChangeId !== null) {
+    params.append('designChangeId', String(designChangeId));
+  }
+  await http.patch(`/management/generate/pccesCodes/${id}/safety-health-facility?${params}`);
+}
+
+export interface PccesSafetyHealthBatchRequest {
+  constructionId: string;
+  designChangeId?: number | null;
+  ids: number[];
+  isSafetyHealthFacility: boolean;
+}
+
+/**
+ * 批次更新多筆工項「是否為安全衛生設施」（同一值，供樹狀父層一次勾選）
+ */
+export async function batchUpdatePccesCodeSafetyHealthFacility(
+  body: PccesSafetyHealthBatchRequest
+): Promise<{ updated: number }> {
+  const res = await http.patch('/management/generate/pccesCodes/safety-health-facility/batch', body);
+  const data = res as { updated?: number };
+  return { updated: data.updated ?? 0 };
+}
+
+/**
  * 取得施工項目列表（有 pccesCode 的項目）
  */
 export async function getConstructionItems(
@@ -355,6 +398,19 @@ export async function getConstructionMajorItems(
     return response as unknown as PageableResponse<ConstructionMajorItem>;
 }
 
+/** 調整施工大項（施工項目）在同工程、同版本内的顯示順序 */
+export async function reorderConstructionMajorItems(payload: {
+  constructionId: string;
+  designChangeId?: number | null;
+  orderedIds: string[];
+}): Promise<void> {
+  await http.put('/management/construction-major-items/reorder', {
+    constructionId: payload.constructionId,
+    designChangeId: payload.designChangeId ?? null,
+    orderedIds: payload.orderedIds,
+  });
+}
+
 /**
  * 取得單一施工大項
  */
@@ -409,11 +465,13 @@ export async function getConstructionMajorItemAiSuggest(
 
 /**
  * 從前一個版本複製施工大項（含抽查標準）到目標版本。sourceDesignChangeId 不傳或 null = 原契約
+ * @param options.overwrite true：先清空目標版本再複製；false（預設）：合併併入
  */
 export async function copyConstructionMajorItemsFromPrevious(
   constructionId: string,
   sourceDesignChangeId: number | null | undefined,
-  targetDesignChangeId: number
+  targetDesignChangeId: number,
+  options?: { overwrite?: boolean }
 ): Promise<{ copiedCount: number }> {
   const params = new URLSearchParams({
     constructionId,
@@ -421,6 +479,9 @@ export async function copyConstructionMajorItemsFromPrevious(
   });
   if (sourceDesignChangeId !== undefined && sourceDesignChangeId !== null) {
     params.append('sourceDesignChangeId', String(sourceDesignChangeId));
+  }
+  if (options?.overwrite === true) {
+    params.append('overwrite', 'true');
   }
   const response = await http.post<{ copiedCount: number }>(
     `/management/construction-major-items/copy-from-previous?${params}`
@@ -440,7 +501,10 @@ export interface ConstructionMajorItemStandardResponse {
     id: number;
     stepOrder: number;
     itemName?: string;
+    /** 施工階段（施工前階段、施工中階段、施工後階段等），work_process */
     workProcess?: string;
+    /** 施工流程（施工項目），對應詳表「施工流程明細」欄；每群組下至多四項對齊 B-1 詳表列 */
+    workProcessDetail?: string;
     manageProject?: string;
     checkStandard?: string;
     checkTiming?: string;
@@ -479,9 +543,154 @@ export async function copyStandardFromPcces(constructionId: string, id: string, 
 }
 
 /**
+ * 2-3) AI 同步生成並覆寫「施工 + 安全衛生」抽查標準（共用同一組施工階段/流程）
+ */
+export async function aiGenerateOverwriteConstructionMajorItemAllStandards(
+    constructionId: string,
+    majorItemId: string
+): Promise<{
+    constructionStandards: ConstructionMajorItemStandardResponse[]
+    safetyStandards: ConstructionMajorItemStandardResponse[]
+}> {
+    const response = await http.post(
+        `/management/construction-major-items/${majorItemId}/standards/ai-generate-overwrite-all?constructionId=${encodeURIComponent(constructionId)}`,
+        undefined,
+        {
+            timeout: 300000, // 5 分鐘：AI 同步生成可能需 1~3 分鐘以上
+        }
+    )
+    const data = response as unknown as {
+        constructionStandards?: ConstructionMajorItemStandardResponse[]
+        safetyStandards?: ConstructionMajorItemStandardResponse[]
+    }
+    return {
+        constructionStandards: data?.constructionStandards ?? [],
+        safetyStandards: data?.safetyStandards ?? [],
+    }
+}
+
+/** 手動新增一筆施工抽查標準明細（body 可省略） */
+export async function createConstructionMajorItemStandard(
+    constructionId: string,
+    majorItemId: string,
+    data?: Partial<ConstructionMajorItemStandardResponse>
+): Promise<ConstructionMajorItemStandardResponse> {
+    const response = await http.post<unknown>(
+        `/management/construction-major-items/${majorItemId}/standards?constructionId=${encodeURIComponent(constructionId)}`,
+        data ?? {}
+    );
+    return response as unknown as ConstructionMajorItemStandardResponse;
+}
+
+/** 手動新增一筆安全衛生抽查標準明細（body 可省略） */
+export async function createConstructionMajorItemSafetyStandard(
+    constructionId: string,
+    majorItemId: string,
+    data?: Partial<ConstructionMajorItemStandardResponse>
+): Promise<ConstructionMajorItemStandardResponse> {
+    const response = await http.post<unknown>(
+        `/management/construction-major-items/${majorItemId}/safety-standards?constructionId=${encodeURIComponent(constructionId)}`,
+        data ?? {}
+    );
+    return response as unknown as ConstructionMajorItemStandardResponse;
+}
+
+/**
  * 3) 編輯單筆施工抽查標準明細
  */
 export async function updateConstructionMajorItemStandard(constructionId: string, id: string, standardId: number, data: Partial<ConstructionMajorItemStandardResponse>): Promise<ConstructionMajorItemStandardResponse> {
     const response = await http.patch(`/management/construction-major-items/${id}/standards/${standardId}?constructionId=${encodeURIComponent(constructionId)}`, data);
     return response as unknown as ConstructionMajorItemStandardResponse;
+}
+
+/** 安全衛生抽查標準明細（監造施工大項） */
+export async function getConstructionMajorItemSafetyStandards(constructionId: string, id: string): Promise<ConstructionMajorItemStandardResponse[]> {
+    const response = await http.get(`/management/construction-major-items/${id}/safety-standards?constructionId=${encodeURIComponent(constructionId)}`);
+    return response as unknown as ConstructionMajorItemStandardResponse[];
+}
+
+export async function copySafetyStandardFromPcces(constructionId: string, id: string, sourcePccesCode: string): Promise<ConstructionMajorItemStandardResponse[]> {
+    const response = await http.post(`/management/construction-major-items/${id}/safety-standards/copy?constructionId=${encodeURIComponent(constructionId)}`, { sourcePccesCode });
+    return response as unknown as ConstructionMajorItemStandardResponse[];
+}
+
+export async function updateConstructionMajorItemSafetyStandard(constructionId: string, id: string, standardId: number, data: Partial<ConstructionMajorItemStandardResponse>): Promise<ConstructionMajorItemStandardResponse> {
+    const response = await http.patch(`/management/construction-major-items/${id}/safety-standards/${standardId}?constructionId=${encodeURIComponent(constructionId)}`, data);
+    return response as unknown as ConstructionMajorItemStandardResponse;
+}
+
+/** 刪除單筆施工抽查標準明細（一列檢查點） */
+export async function deleteConstructionMajorItemStandard(
+    constructionId: string,
+    majorItemId: string,
+    standardId: number
+): Promise<void> {
+    await http.delete(
+        `/management/construction-major-items/${majorItemId}/standards/${standardId}?constructionId=${encodeURIComponent(constructionId)}`
+    );
+}
+
+/** 刪除該施工階段區塊內全部明細 */
+export async function deleteConstructionMajorItemStandardsByPhase(
+    constructionId: string,
+    majorItemId: string,
+    phaseKey: string
+): Promise<void> {
+    await http.delete(
+        `/management/construction-major-items/${majorItemId}/standards/by-phase?constructionId=${encodeURIComponent(constructionId)}&phaseKey=${encodeURIComponent(phaseKey)}`
+    );
+}
+
+/** 刪除該施工階段、該管理項目下全部明細 */
+export async function deleteConstructionMajorItemStandardsByManageProject(
+    constructionId: string,
+    majorItemId: string,
+    phaseKey: string,
+    manageProject: string,
+    /** 可選：限縮 work_process_detail（未分類請傳空字串） */
+    workProcessDetail?: string | null
+): Promise<void> {
+    let qs = `constructionId=${encodeURIComponent(constructionId)}&phaseKey=${encodeURIComponent(phaseKey)}&manageProject=${encodeURIComponent(manageProject)}`;
+    if (workProcessDetail !== undefined && workProcessDetail !== null) {
+        qs += `&workProcessDetail=${encodeURIComponent(workProcessDetail)}`;
+    }
+    await http.delete(
+        `/management/construction-major-items/${majorItemId}/standards/by-manage-project?${qs}`
+    );
+}
+
+export async function deleteConstructionMajorItemSafetyStandard(
+    constructionId: string,
+    majorItemId: string,
+    standardId: number
+): Promise<void> {
+    await http.delete(
+        `/management/construction-major-items/${majorItemId}/safety-standards/${standardId}?constructionId=${encodeURIComponent(constructionId)}`
+    );
+}
+
+export async function deleteConstructionMajorItemSafetyStandardsByPhase(
+    constructionId: string,
+    majorItemId: string,
+    phaseKey: string
+): Promise<void> {
+    await http.delete(
+        `/management/construction-major-items/${majorItemId}/safety-standards/by-phase?constructionId=${encodeURIComponent(constructionId)}&phaseKey=${encodeURIComponent(phaseKey)}`
+    );
+}
+
+export async function deleteConstructionMajorItemSafetyStandardsByManageProject(
+    constructionId: string,
+    majorItemId: string,
+    phaseKey: string,
+    manageProject: string,
+    workProcessDetail?: string | null
+): Promise<void> {
+    let qs = `constructionId=${encodeURIComponent(constructionId)}&phaseKey=${encodeURIComponent(phaseKey)}&manageProject=${encodeURIComponent(manageProject)}`;
+    if (workProcessDetail !== undefined && workProcessDetail !== null) {
+        qs += `&workProcessDetail=${encodeURIComponent(workProcessDetail)}`;
+    }
+    await http.delete(
+        `/management/construction-major-items/${majorItemId}/safety-standards/by-manage-project?${qs}`
+    );
 }

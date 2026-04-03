@@ -21,7 +21,7 @@ export interface Company {
   updatedAt: string
   // 新增字段（來自 CompanyMember）
   userRole?: 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER'  // 向後兼容：公司職位
-  jobTitle?: 'OWNER' | 'ADMIN' | 'LABOUR_SAFETY' | 'CONSTRUCTION_MANAGER' | 'TECHNICIAN' | 'ARCHITECT' | 'QUALITY' | 'ADMIN_STAFF' | 'SITE_WORKER'  // 新欄位：公司職位
+  jobTitle?: 'OWNER' | 'ADMIN' | 'LABOUR_SAFETY' | 'CONSTRUCTION_MANAGER' | 'TECHNICIAN' | 'ARCHITECT' | 'QUALITY' | 'ADMIN_STAFF' | 'SITE_WORKER' | 'SITE_ENGINEER' | 'SITE_CONSTRUCTION_WORKER'  // 新欄位：公司職位
   companyPermission?: 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER'  // 新欄位：公司權限
   joinedAt?: string
   memberCount?: number

@@ -1,3 +1,4 @@
+import type { AxiosRequestConfig } from 'axios'
 import http from './http'
 
 export interface DocumentClassification {
@@ -8,6 +9,8 @@ export interface DocumentClassification {
   itemNumber: string
   documentName: string
   retentionYears: number
+  /** B 類：規定提送日程 */
+  requiredSubmissionSchedule?: string | null
   isDefault: boolean
   isLocked: boolean
   constructionMajorItemId?: string | null
@@ -21,12 +24,14 @@ export interface CreateDocumentClassificationRequest {
   category: string
   documentName: string
   retentionYears?: number
+  requiredSubmissionSchedule?: string
 }
 
 export interface UpdateDocumentClassificationRequest {
   documentName?: string
   retentionYears?: number
   itemNumber?: string
+  requiredSubmissionSchedule?: string
 }
 
 export interface BatchUpdateItem {
@@ -34,6 +39,7 @@ export interface BatchUpdateItem {
   itemNumber?: string
   documentName?: string
   retentionYears?: number
+  requiredSubmissionSchedule?: string
 }
 
 export interface BatchUpdateDocumentClassificationRequest {
@@ -45,7 +51,10 @@ export const documentClassificationApi = {
    * 取得某工程案的所有文件分類項目
    */
   async getAll(constructionId: string, config?: { skipAuthRedirectOn401?: boolean }): Promise<DocumentClassification[]> {
-    const response: any = await http.get(`/management/constructions/${constructionId}/document-classification`, config ?? {})
+    const response: any = await http.get(
+      `/management/constructions/${constructionId}/document-classification`,
+      (config ?? {}) as AxiosRequestConfig
+    )
     return response.data || response
   },
 

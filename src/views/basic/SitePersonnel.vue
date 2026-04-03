@@ -952,13 +952,6 @@ const handleAssignSubmit = async () => {
   }
   const startDateOnly = toDateOnly(startRaw) || startRaw
 
-  // 到職日不應晚於今天（合理判斷）
-  const today = new Date().toISOString().slice(0, 10)
-  if (startDateOnly > today) {
-    alert('到職日不應晚於今天')
-    return
-  }
-
   // 曾在此專案離職者，新到職日應晚於其最後離職日
   for (const memberId of selectedPersonnelIds.value) {
     const person = allPersonnel.value.find((p) => p.memberId === memberId)
@@ -975,7 +968,8 @@ const handleAssignSubmit = async () => {
     await sitePersonnelApi.assignProject({
       memberIdList: selectedPersonnelIds.value,
       constructionId: currentProject.value.constructionId,
-      assignmentStartDate: startRaw
+      assignmentStartDate: startRaw,
+      companyId: getCurrentCompanyId() ?? undefined
     })
     showAssignModal.value = false
     await loadData()
@@ -1027,7 +1021,8 @@ const handleResignSubmit = async () => {
       await sitePersonnelApi.removeProject({
         memberIdList: [resignTargetPerson.value.memberId],
         constructionId: currentProject.value.constructionId,
-        assignmentEndDate: endRaw
+        assignmentEndDate: endRaw,
+        companyId: getCurrentCompanyId() ?? undefined
       })
     }
     showResignModal.value = false
@@ -1069,7 +1064,8 @@ const handleReinstateSubmit = async () => {
     await sitePersonnelApi.assignProject({
       memberIdList: [reinstateTargetPerson.value.memberId],
       constructionId: currentProject.value.constructionId,
-      assignmentStartDate: startRaw
+      assignmentStartDate: startRaw,
+      companyId: getCurrentCompanyId() ?? undefined
     })
     showReinstateModal.value = false
     reinstateTargetPerson.value = null
@@ -1092,7 +1088,8 @@ const deletePersonnelAssignment = async (person: SitePersonnel) => {
     await sitePersonnelApi.removeProject({
       memberIdList: [person.memberId],
       constructionId: currentProject.value.constructionId,
-      hardDeleteAssignment: true
+      hardDeleteAssignment: true,
+      companyId: getCurrentCompanyId() ?? undefined
     })
     await loadData()
   } catch (error) {

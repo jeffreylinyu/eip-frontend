@@ -110,6 +110,33 @@ export async function getContractAmountsByVersion(
   return Array.isArray(list) ? list : []
 }
 
+/** 依「資料依據日」取得適用版本（與 B-1／O-4 匯出共用後端判斷邏輯）。 */
+export interface EffectiveVersionForDate {
+  designChangeId: number | null
+  versionLabel: string
+  versionRange: string
+}
+
+export async function getEffectiveVersionForDate(
+  constructionId: string,
+  date: string,
+  sourceType?: 'CONTRACTOR' | 'SUPERVISORY',
+  config?: DesignChangeRequestConfig
+): Promise<EffectiveVersionForDate | null> {
+  const cid = constructionId?.trim()
+  if (!cid || !date) return null
+  const params: Record<string, string> = { date }
+  if (sourceType) params.sourceType = sourceType
+  const data = await http.get<EffectiveVersionForDate | { code: number; data?: EffectiveVersionForDate }>(
+    `/management/constructions/${encodeURIComponent(cid)}/design-changes/effective-version`,
+    { params, ...config }
+  )
+  const item = unwrapData(data)
+  return item && typeof item === 'object' && 'versionLabel' in item
+    ? (item as unknown as EffectiveVersionForDate)
+    : null
+}
+
 /** 刪除變更設計 */
 export async function deleteDesignChange(constructionId: string, id: number): Promise<boolean> {
   const data = await http.delete<{ deleted?: boolean } | { code: number; data?: unknown }>(

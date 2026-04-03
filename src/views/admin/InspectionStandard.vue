@@ -280,8 +280,14 @@
               ></e-column>
               <e-column
                 field="workProcess"
-                headerText="施工流程"
-                width="120"
+                headerText="施工階段"
+                width="130"
+                textAlign="Left"
+              ></e-column>
+              <e-column
+                field="workProcessDetail"
+                headerText="施工流程（施工項目）"
+                width="160"
                 textAlign="Left"
               ></e-column>
               <e-column

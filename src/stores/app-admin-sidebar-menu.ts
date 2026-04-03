@@ -52,6 +52,11 @@ export const useAppAdminSidebarMenuStore = defineStore("appAdminSidebarMenu", ()
         url: "/admin/inspection-standard",
       },
       {
+        text: "安全衛生抽查標準表",
+        icon: "bi bi-shield-check",
+        url: "/admin/safety-health-inspection-standard",
+      },
+      {
         text: "材料抽查標準表",
         icon: "bi bi-box-seam",
         url: "/admin/material-inspection-standard",

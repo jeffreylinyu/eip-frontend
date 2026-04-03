@@ -13,6 +13,7 @@ import '@fortawesome/fontawesome-free/scss/v4-shims.scss';
 import 'bootstrap-icons/font/bootstrap-icons.css';
 import 'bootstrap';
 import './scss/styles.scss';
+import '@/firebase';
 
 // Syncfusion License 註冊
 import { registerLicense, setCulture, L10n } from '@syncfusion/ej2-base'

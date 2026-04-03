@@ -93,6 +93,11 @@
 
 <script setup lang="ts">
 import { computed, watch, nextTick, ref, onMounted, onUnmounted } from 'vue'
+import { readScrollSnapshot, restoreScrollSnapshot } from '@/utils/scrollPreserve'
+
+/** 多個 Modal 同時開啟時只鎖一次、全關閉後才還原捲動 */
+let modalBodyLockDepth = 0
+let modalBodyLockScroll: ReturnType<typeof readScrollSnapshot> | null = null
 
 interface Props {
   show: boolean
@@ -187,6 +192,10 @@ const handleBackdropClick = () => {
 watch(() => props.show, (newShow) => {
   nextTick(() => {
     if (newShow) {
+      if (modalBodyLockDepth === 0) {
+        modalBodyLockScroll = readScrollSnapshot()
+      }
+      modalBodyLockDepth++
       document.body.classList.add('modal-open')
       // 計算scrollbar寬度並設置padding
       const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth
@@ -195,8 +204,14 @@ watch(() => props.show, (newShow) => {
       }
       emit('shown')
     } else {
+      modalBodyLockDepth = Math.max(0, modalBodyLockDepth - 1)
       document.body.classList.remove('modal-open')
       document.body.style.paddingRight = ''
+      if (modalBodyLockDepth === 0 && modalBodyLockScroll) {
+        const pos = modalBodyLockScroll
+        modalBodyLockScroll = null
+        restoreScrollSnapshot(pos)
+      }
       emit('hidden')
     }
   })

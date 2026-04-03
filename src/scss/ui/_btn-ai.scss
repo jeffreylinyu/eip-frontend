@@ -54,3 +54,10 @@
     cursor: not-allowed;
   }
 }
+
+/** 與階層表工具列的 btn-sm 並排時略縮內距 */
+.btn-ai-generate.btn-ai-generate--toolbar {
+  padding: 0.35rem 0.85rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}

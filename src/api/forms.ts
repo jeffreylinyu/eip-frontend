@@ -182,6 +182,46 @@ export const formBApi = {
       url: '/management/generate/export/report/BOne',
       method: 'POST',
       data: request,
+      timeout: 300000, // 5 分鐘，與後端 async request-timeout 一致，避免客戶端先斷線
+      signal: options?.signal
+    })
+    return response
+  }
+
+  ,
+
+  /**
+   * 匯出安全衛生監督查核計畫（B-2）
+   * @param request ExportConstructionReportRequest
+   * @param options.signal 可傳入 AbortSignal 以支援中途取消
+   * @returns AxiosResponse<Blob>
+   */
+  exportSafetySupervisionCheckPlan: async (
+    request: ExportConstructionReportRequest,
+    options?: { signal?: AbortSignal }
+  ) => {
+    const response = await downloadBlob({
+      url: '/management/generate/export/report/BTwo',
+      method: 'POST',
+      data: request,
+      timeout: 300000,
+      signal: options?.signal
+    })
+    return response
+  }
+}
+
+// P類表單 - P-1 整體施工計畫匯出（營造）
+export const formPApi = {
+  exportP1OverallConstructionPlan: async (
+    request: ExportConstructionReportRequest,
+    options?: { signal?: AbortSignal }
+  ) => {
+    const response = await downloadBlob({
+      url: '/management/generate/export/report/POne',
+      method: 'POST',
+      data: request,
+      timeout: 300000,
       signal: options?.signal
     })
     return response

@@ -188,6 +188,13 @@ export const useAppContractorSidebarMenuStore = defineStore("appContractorSideba
                   { text: "O-4 職安報備書", url: "/forms/o4-labour-safety" },
                 ],
               },
+              {
+                text: "P類(計劃書)表單",
+                children: [
+                  { text: "分項工程維護", url: "/forms/subdivision-work-items" },
+                  { text: "P-1 整體施工計畫", url: "/forms/p1-overall-construction-plan" },
+                ],
+              },
         ],
       },
 

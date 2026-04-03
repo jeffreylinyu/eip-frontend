@@ -21,7 +21,9 @@ export enum ConstructionJobTitleEnum {
   ARCHITECT = "ARCHITECT",            // 建築師
   QUALITY = "QUALITY",                // 品管
   ADMIN_STAFF = "ADMIN_STAFF",        // 行政人員
-  SITE_WORKER = "SITE_WORKER"         // 現場人員
+  SITE_WORKER = "SITE_WORKER",        // 現場人員（舊資料相容）
+  SITE_ENGINEER = "SITE_ENGINEER",    // 現場工程師
+  SITE_CONSTRUCTION_WORKER = "SITE_CONSTRUCTION_WORKER" // 現場施工人員（營造）
 }
 
 /**
@@ -36,7 +38,9 @@ export enum ConstructionRoleEnum {
   ARCHITECT = "ARCHITECT",
   QUALITY = "QUALITY",
   ADMIN_STAFF = "ADMIN_STAFF",
-  SITE_WORKER = "SITE_WORKER"
+  SITE_WORKER = "SITE_WORKER",
+  SITE_ENGINEER = "SITE_ENGINEER",
+  SITE_CONSTRUCTION_WORKER = "SITE_CONSTRUCTION_WORKER"
 }
 
 export interface UserConstructionRequest {

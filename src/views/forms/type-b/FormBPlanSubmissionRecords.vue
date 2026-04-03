@@ -6,7 +6,7 @@
       icon="fa fa-clipboard-list"
       :breadcrumbs="[
         { text: '表單生成與管理', href: 'javascript:;' },
-        { text: 'B類表單', href: 'javascript:;' },
+        { text: 'P類(計劃書)表單', href: 'javascript:;' },
         { text: '監造計畫送審紀錄', active: true }
       ]"
     />
@@ -31,7 +31,19 @@
                 <thead>
                   <tr>
                     <th class="psr-th-num">送審次數、日期及文號</th>
-                    <th class="psr-th-version">使用資料版本</th>
+                    <th class="psr-th-version">
+                      <span class="psr-th-version-label">
+                        資料依據日
+                        <span
+                          class="psr-info-icon"
+                          data-tooltip="此日期用於判斷匯出時要套用的版本與人員統計口徑。"
+                          aria-label="資料依據日說明"
+                          tabindex="0"
+                        >
+                          <i class="fa fa-circle-info"></i>
+                        </span>
+                      </span>
+                    </th>
                     <th class="psr-th-doc">監造單位審查結果</th>
                     <th class="psr-th-doc">工程分局審查結果</th>
                     <th class="psr-th-actions">操作</th>
@@ -44,20 +56,25 @@
                       <div class="psr-num-title">第 {{ record.submissionNumber }} 次</div>
                     </td>
 
-                    <!-- 使用資料版本 -->
+                    <!-- 資料依據日（多版本時才顯示，依此日判斷版本與在職人員） -->
                     <td class="psr-cell psr-cell-version" @click.stop>
-                      <select
-                        v-if="versionOptions.length > 0"
-                        class="form-select form-select-sm psr-version-select"
-                        :value="record.designChangeId ?? ''"
+                      <RepublicDatePicker
+                        v-if="versionOptions.length > 1"
+                        :model-value="record.dataReferenceDate ?? ''"
+                        input-class="form-control form-control-sm psr-date-input"
                         :disabled="isSavingVersionByRecord[record.id]"
-                        @change="onVersionChange(record, ($event.target as HTMLSelectElement).value)"
+                        :use-republic-year="true"
+                        :hide-icon="true"
+                        @update:model-value="(val: string) => onDataReferenceDateChange(record, val ?? '')"
+                      />
+                      <div
+                        v-if="versionOptions.length > 1 && record.dataReferenceDate && effectiveVersionByRecordId[record.id]"
+                        class="psr-muted small mt-1"
                       >
-                        <option v-for="opt in versionOptions" :key="String(opt.id ?? '')" :value="opt.id ?? ''">
-                          {{ opt.label }}
-                        </option>
-                      </select>
-                      <span v-else class="psr-muted small">－</span>
+                        適用版本：{{ effectiveVersionByRecordId[record.id].versionLabel }}
+                        <span v-if="effectiveVersionByRecordId[record.id].versionRange">（{{ effectiveVersionByRecordId[record.id].versionRange }}）</span>
+                      </div>
+                      <span v-else-if="versionOptions.length <= 1" class="psr-muted small">－</span>
                     </td>
 
                     <!-- 監造單位審查結果 -->
@@ -344,10 +361,13 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useWorkspaceStore } from '@/stores/workspace'
+import { useViewPerspective, ViewType } from '@/composables/useViewPerspective'
 import PageHeader from '@/components/bootstrap/PageHeader.vue'
 import Modal from '@/components/bootstrap/Modal.vue'
 import DocumentPicker from '@/components/document/DocumentPicker.vue'
+import RepublicDatePicker from '@/components/bootstrap/RepublicDatePicker.vue'
 import FormTableOperationMenu from '@/components/forms/FormTableOperationMenu.vue'
 import {
   getPlanSubmissions,
@@ -359,7 +379,7 @@ import {
   type PlanSubmissionRecord,
   type DocumentReferenceDto
 } from '@/api/planSubmission'
-import { getDesignChangeList, type DesignChangeItem } from '@/api/designChange'
+import { getDesignChangeList, getEffectiveVersionForDate, type DesignChangeItem } from '@/api/designChange'
 import { getDesignChangeIntervalISO } from '@/utils/designChangeIntervals'
 import { formBApi, downloadBlobAsFile } from '@/api/forms'
 import { extractFileNameFromResponse } from '@/utils/blobDownload'
@@ -376,6 +396,8 @@ const props = withDefaults(defineProps<{ embedded?: boolean }>(), {
 })
 const embedded = computed(() => !!props.embedded)
 
+const router = useRouter()
+const { fetchViewType } = useViewPerspective()
 const workspaceStore = useWorkspaceStore()
 const hasCurrentProject = computed(() => !!workspaceStore.currentProject?.id)
 const constructionId = computed(() => workspaceStore.currentProject?.id ?? '')
@@ -393,6 +415,8 @@ const { runWithExportLoading } = useExportLoading()
 // 使用資料版本（變更設計）選項
 const designChangeList = ref<DesignChangeItem[]>([])
 const isSavingVersionByRecord = ref<Record<number, boolean>>({})
+// 資料依據日 → 適用版本（由後端共用邏輯回傳）
+const effectiveVersionByRecordId = ref<Record<number, { versionLabel: string; versionRange: string }>>({})
 
 function formatToRepublicDate(isoDate: string): string {
   if (!isoDate?.trim()) return ''
@@ -434,20 +458,40 @@ async function loadDesignChangeList() {
   }
 }
 
-async function onVersionChange(record: PlanSubmissionRecord, raw: string) {
-  const nextId = raw === '' ? null : Number(raw)
-  if (nextId !== null && Number.isNaN(nextId)) return
+async function fetchEffectiveVersionForRecord(record: PlanSubmissionRecord) {
+  const cid = constructionId.value
+  if (!cid || !record.dataReferenceDate) return
+  try {
+    const v = await getEffectiveVersionForDate(cid, record.dataReferenceDate, 'SUPERVISORY')
+    if (v) {
+      effectiveVersionByRecordId.value = {
+        ...effectiveVersionByRecordId.value,
+        [record.id]: { versionLabel: v.versionLabel, versionRange: v.versionRange }
+      }
+    }
+  } catch { /* ignore */ }
+}
+
+async function onDataReferenceDateChange(record: PlanSubmissionRecord, dateStr: string) {
   const cid = constructionId.value
   if (!cid) return
+  const value = dateStr?.trim() || undefined
   isSavingVersionByRecord.value[record.id] = true
   try {
-    const updated = await updatePlanSubmissionDesignChangeId(cid, record.id, nextId)
+    const updated = await updatePlanSubmissionDesignChangeId(cid, record.id, { dataReferenceDate: value ?? null })
     if (updated) {
       const idx = records.value.findIndex(r => r.id === record.id)
       if (idx !== -1) records.value[idx] = { ...records.value[idx], ...updated }
+      if (value) {
+        await fetchEffectiveVersionForRecord({ ...record, dataReferenceDate: value })
+      } else {
+        const next = { ...effectiveVersionByRecordId.value }
+        delete next[record.id]
+        effectiveVersionByRecordId.value = next
+      }
     }
   } catch (e: any) {
-    alert(e?.response?.data?.message ?? e?.message ?? '更新版本失敗')
+    alert(e?.response?.data?.message ?? e?.message ?? '更新資料依據日失敗')
   } finally {
     isSavingVersionByRecord.value[record.id] = false
   }
@@ -461,6 +505,7 @@ async function loadRecords() {
     const [list] = await Promise.all([getPlanSubmissions(cid), loadDesignChangeList()])
     records.value = list
     refreshDocCache()
+    list.filter((r) => r.dataReferenceDate).forEach((r) => fetchEffectiveVersionForRecord(r))
   } catch {
     records.value = []
   } finally {
@@ -512,11 +557,34 @@ async function doQuickAdd() {
   const cid = constructionId.value
   if (!cid) return
   try {
-    await createPlanSubmission(cid, {})
+    await createPlanSubmission(cid, {
+      dataReferenceDate: getDefaultDataReferenceDateForNewRecord()
+    })
     await loadRecords()
   } catch (e: any) {
     alert(e?.response?.data?.message ?? e?.message ?? '新增失敗')
   }
+}
+
+function getDefaultDataReferenceDateForNewRecord(): string {
+  const today = new Date().toISOString().slice(0, 10)
+  const list = [...designChangeList.value].sort(
+    (a, b) => new Date(a.effectiveDate).getTime() - new Date(b.effectiveDate).getTime()
+  )
+  if (list.length === 0) return today
+  for (let i = 0; i < list.length; i++) {
+    const interval = getDesignChangeIntervalISO({
+      item: list[i],
+      index: i,
+      designChangeList: list,
+      projectEndDate: ''
+    })
+    if (!interval.start) continue
+    const start = interval.start
+    const end = interval.end || '9999-12-31'
+    if (today >= start && today <= end) return start
+  }
+  return today
 }
 
 // ===========================
@@ -780,6 +848,21 @@ async function doUnlinkFromDetail() {
 // 狀態顯示
 // ===========================
 onMounted(async () => {
+  // 獨立頁：營造導離（雙保險；路由與後端亦會擋）
+  if (!embedded.value) {
+    const wid = workspaceStore.currentWorkspace?.id
+    if (wid) {
+      try {
+        const vt = await fetchViewType(wid)
+        if (vt === ViewType.CONTRACTOR) {
+          await router.replace('/forms/b2-safety-supervision-plan')
+          return
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }
   if (hasCurrentProject.value) {
     await loadRecords()
     await refreshDocCache()
@@ -865,8 +948,71 @@ onMounted(async () => {
 }
 
 .psr-th-num { width: 140px; }
-.psr-th-version { width: 180px; }
+.psr-th-version { width: 260px; }
 .psr-th-actions { width: 96px; text-align: center; }
+.psr-th-version-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.psr-info-icon {
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 0.85rem;
+  cursor: help;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  line-height: 1;
+  position: relative;
+}
+
+.psr-info-icon::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 8px);
+  transform: translateX(-50%);
+  min-width: 260px;
+  max-width: 360px;
+  padding: 0.45rem 0.6rem;
+  border-radius: 0.45rem;
+  background: rgba(15, 23, 42, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: rgba(255, 255, 255, 0.94);
+  font-size: 0.76rem;
+  line-height: 1.35;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 30;
+  transition: opacity 0.15s ease;
+  white-space: normal;
+}
+
+.psr-info-icon::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 2px);
+  transform: translateX(-50%);
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 6px solid rgba(255, 255, 255, 0.18);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 30;
+}
+
+.psr-info-icon:hover::after,
+.psr-info-icon:hover::before,
+.psr-info-icon:focus-visible::after,
+.psr-info-icon:focus-visible::before {
+  opacity: 1;
+}
 
 .psr-cell {
   border: 1.5px solid var(--psr-border);
@@ -987,6 +1133,22 @@ onMounted(async () => {
 }
 
 .psr-version-select:focus {
+  border-color: var(--psr-accent, #60a5fa);
+  box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.2);
+}
+
+.psr-date-input {
+  background-color: var(--psr-input-bg, #2d3139);
+  border: 1px solid var(--psr-input-border, #3a3d42);
+  color: var(--psr-text, #e4e6eb);
+  font-size: 0.85rem;
+  min-width: 100%;
+}
+.psr-date-input:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+.psr-date-input:focus {
   border-color: var(--psr-accent, #60a5fa);
   box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.2);
 }

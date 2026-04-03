@@ -14,6 +14,7 @@
           v-if="constructionId"
           :construction-id="constructionId"
           v-model="selectedDesignChangeId"
+          :source-type="designChangeSourceType"
         />
       </template>
     </PageHeader>
@@ -184,6 +185,13 @@
               :template="'unitTemplate'"
             ></e-column>
             <e-column
+              field="isSafetyHealthFacility"
+              headerText="安全衛生設施"
+              width="120"
+              textAlign="Center"
+              :template="'safetyHealthTemplate'"
+            ></e-column>
+            <e-column
               field="quantity"
               headerText="總量"
               width="120"
@@ -224,6 +232,35 @@
 
           <template v-slot:unitTemplate="{ data }">
             <span :class="getCellClass(data, 'unit')">{{ data.unit }}</span>
+          </template>
+
+          <template v-slot:safetyHealthTemplate="{ data }">
+            <div class="d-flex align-items-center justify-content-center px-1" @click.stop>
+              <template v-if="isSafetyTreeParentNode(data)">
+                <input
+                  :key="`pcces-safety-parent-${safetyUiVersion}-${data.id}`"
+                  type="checkbox"
+                  class="form-check-input m-0"
+                  :checked="getParentSafetyGroupState(data) === 'all'"
+                  :indeterminate="getParentSafetyGroupState(data) === 'some'"
+                  :disabled="savingSafetyBatch"
+                  :class="{ 'opacity-50': savingSafetyBatch }"
+                  title="群組：點擊將底下所有工項一併勾選或取消（僅葉節點會寫入資料庫）"
+                  @click.stop.prevent="onParentSafetyHealthChange(data, $event)"
+                />
+              </template>
+              <template v-else>
+                <input
+                  :key="`pcces-safety-leaf-${safetyUiVersion}-${data.id}`"
+                  type="checkbox"
+                  class="form-check-input m-0"
+                  :checked="isSafetyChecked(data)"
+                  :disabled="savingSafetyId === data.id || savingSafetyBatch"
+                  title="勾選表示此工項為安全衛生設施（非匯入檔欄位）"
+                  @change="onSafetyHealthChange(data, $event)"
+                />
+              </template>
+            </div>
           </template>
 
           <!-- 總量模板 -->
@@ -323,7 +360,9 @@ import {
   type ImportPccesRequest,
   PccesItemType
 } from '@/api/pcces'
+import { usePccesSafetyHealthTreeGrid } from '@/composables/usePccesSafetyHealthTreeGrid'
 import { getDesignChangeList } from '@/api/designChange'
+import { useViewPerspective } from '@/composables/useViewPerspective'
 import { Sort, Resize, Filter } from '@syncfusion/ej2-vue-treegrid'
 import type { TreeGridComponent } from '@syncfusion/ej2-vue-treegrid'
 
@@ -338,9 +377,18 @@ interface ProjectItem {
   itemNo: string | null
   parentId: number | null
   type: string | null
+  /** 是否為安全衛生設施（使用者勾選，預設否） */
+  isSafetyHealthFacility: boolean
 }
 
 const workspaceStore = useWorkspaceStore()
+const { isContractor, isSupervisory } = useViewPerspective()
+
+/** 與版本切換器一致：監造／營造各自變更設計列表 */
+const designChangeSourceType = computed<'SUPERVISORY' | 'CONTRACTOR' | undefined>(() =>
+  isSupervisory.value ? 'SUPERVISORY' : isContractor.value ? 'CONTRACTOR' : undefined
+)
+
 const constructionId = computed(() => workspaceStore.currentProject?.id || '')
 
 const items = ref<ProjectItem[]>([])
@@ -440,7 +488,16 @@ async function applyDiffFromPreviousVersion() {
     const prev = candidates && candidates.length > 0 ? candidates.shift()! : null
     if (!prev) {
       ;(it as any).diffAll = true
-      ;(it as any).diff = { itemNo: true, code: true, name: true, unit: true, quantity: true, price: true, amount: true }
+      ;(it as any).diff = {
+        itemNo: true,
+        code: true,
+        name: true,
+        unit: true,
+        safetyHealth: true,
+        quantity: true,
+        price: true,
+        amount: true
+      }
       continue
     }
     const diff: Record<string, boolean> = {}
@@ -449,6 +506,7 @@ async function applyDiffFromPreviousVersion() {
     if (!sameNumber(it.quantity, prev.quantity)) diff.quantity = true
     if (!sameNumber(it.price, prev.price)) diff.price = true
     if (!sameNumber(it.amount, prev.amount)) diff.amount = true
+    if (!!it.isSafetyHealthFacility !== !!prev.isSafetyHealthFacility) diff.safetyHealth = true
     ;(it as any).diffAll = false
     ;(it as any).diff = diff
   }
@@ -472,6 +530,23 @@ const isFullscreen = ref(false)
 
 // 提供 TreeGrid 服務（移除 Page 因為不需要分頁）
 provide('treegrid', [Sort, Resize, Filter])
+
+const {
+  savingSafetyId,
+  savingSafetyBatch,
+  safetyUiVersion,
+  getParentSafetyGroupState,
+  onParentSafetyHealthChange,
+  onSafetyHealthChange,
+  isSafetyTreeParentNode,
+  isSafetyChecked
+} = usePccesSafetyHealthTreeGrid({
+  items,
+  treeGridData,
+  getConstructionId: () => constructionId.value,
+  getDesignChangeId: () => selectedDesignChangeId.value,
+  alert: (msg) => alert(msg)
+})
 
 // 匯入相關
 const showImportModal = ref(false)
@@ -629,6 +704,7 @@ const buildTreeData = (items: ProjectItem[]): any[] => {
       code: item.code || '',
       name: item.name || '',
       unit: item.unit || '',
+      isSafetyHealthFacility: item.isSafetyHealthFacility === true,
       quantity: item.quantity,
       price: item.price,
       amount: item.amount,
@@ -680,7 +756,8 @@ const convertToProjectItem = (code: ConstructionPccesCode): ProjectItem => ({
   amount: code.amount,
   itemNo: code.itemNo,
   parentId: code.parentId,
-  type: code.type
+  type: code.type,
+  isSafetyHealthFacility: code.isSafetyHealthFacility === true
 })
 
 // 載入變更設計列表（依生效日升序）
@@ -691,7 +768,8 @@ const fetchDesignChangeList = async () => {
     return
   }
   try {
-    const list = await getDesignChangeList(cid)
+    const st = designChangeSourceType.value
+    const list = st ? await getDesignChangeList(cid, st) : await getDesignChangeList(cid)
     designChangeList.value = [...list].sort(
       (a, b) => new Date(a.effectiveDate).getTime() - new Date(b.effectiveDate).getTime()
     )
@@ -880,6 +958,10 @@ watch(diffEnabled, async () => {
   } catch (e) {
     console.error('套用版本差異失敗:', e)
   }
+})
+
+watch(designChangeSourceType, () => {
+  if (constructionId.value) fetchDesignChangeList()
 })
 
 // 初始化（需先載入變更設計列表，複製前一版才能正確算出來源版本）

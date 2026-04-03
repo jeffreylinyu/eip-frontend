@@ -48,7 +48,6 @@ const formData = ref<CreateSitePersonnelRequest>({
   sex: 'M',
   status: 'Y',
   comments: '',
-  departmentCode: 'QT', // Default for QUALITY
   isDedicated: false
 })
 
@@ -244,7 +243,6 @@ const openPersonnelForm = (person?: SitePersonnel) => {
       status: person.status,
       comments: person.comments || '',
       sex: person.sex,
-      departmentCode: person.departmentCode || opt?.departmentCode || 'QT',
       isDedicated: person.isDedicated ?? false
     }
   } else {
@@ -265,7 +263,6 @@ const openPersonnelForm = (person?: SitePersonnel) => {
       sex: 'M',
       status: 'Y',
       comments: '',
-      departmentCode: 'QT',
       isDedicated: false
     }
   }
@@ -329,7 +326,9 @@ const handlePersonnelFormSubmit = async () => {
             // 指派新專案
             await sitePersonnelApi.assignProject({
               memberIdList: [editingPersonnel.value.memberId],
-              constructionId: selectedProjectId.value
+              constructionId: selectedProjectId.value,
+              assignmentStartDate: formData.value.workStartDate?.split('T')[0] || new Date().toISOString().split('T')[0],
+              companyId: props.companyId
             })
             if (proxy && proxy.$toast) proxy.$toast.success('專案指派已更新')
          } else if (originalProjectId) {
@@ -363,7 +362,9 @@ const handlePersonnelFormSubmit = async () => {
       if (selectedProjectId.value && newMember?.memberId) {
         await sitePersonnelApi.assignProject({
           memberIdList: [newMember.memberId],
-          constructionId: selectedProjectId.value
+          constructionId: selectedProjectId.value,
+          assignmentStartDate: formData.value.workStartDate?.split('T')[0] || new Date().toISOString().split('T')[0],
+          companyId: props.companyId
         })
         if (proxy && proxy.$toast) proxy.$toast.success('已指派至所選專案')
       } else if (selectedProjectId.value && !newMember?.memberId) {
@@ -444,11 +445,10 @@ const handlePhotoFileUpload = (event: Event) => {
   }
 }
 
-// 監聽職稱變化，自動設置部門代碼並清空不適用的類別
+// 監聽職稱變化，清空不適用的類別
 const handleOccupationChange = () => {
   const option = occupationOptions.value.find(o => o.value === formData.value.occupation)
   if (option) {
-    formData.value.departmentCode = option.departmentCode
     if (!option.categories?.length) formData.value.occupationCategory = ''
     else if (formData.value.occupationCategory && !option.categories.some(c => c.value === formData.value.occupationCategory)) {
       formData.value.occupationCategory = ''
@@ -464,7 +464,7 @@ const loadTestData = () => {
   formData.value.phone = '0912345678'
   selectedSex.value = 'M'
   formData.value.occupation = 'QUALITY'
-  handleOccupationChange() // 更新部門代碼
+  handleOccupationChange() // 清空不適用類別
   formData.value.comments = ''
 }
 

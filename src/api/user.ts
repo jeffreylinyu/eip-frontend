@@ -126,6 +126,11 @@ export const authApi = {
     return http.post('/management/user/login', data)
   },
 
+  /** Firebase Google 登入（後端驗證 idToken 後回傳與帳密登入相同結構） */
+  loginWithFirebase: (idToken: string): Promise<LoginResponse> => {
+    return http.post('/management/user/login/firebase', { idToken })
+  },
+
   // 登出（需要傳入 userId）
   logout: (userId: string): Promise<void> => {
     return http.post('/management/user/logout', { userId })

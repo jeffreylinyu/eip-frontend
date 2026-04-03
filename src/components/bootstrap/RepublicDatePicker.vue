@@ -332,6 +332,7 @@ watch(() => props.modelValue, (newValue) => {
 
   .republic-date-picker :deep(.dp__input_icon) {
     right: 12px !important;
+    left: auto !important;
   }
 }
 
@@ -393,13 +394,27 @@ watch(() => props.modelValue, (newValue) => {
   padding-left: 0 !important;
 }
 
-.republic-date-picker :deep(.hide-icon .dp__input) {
-  padding-right: 0 !important; /* Reset padding when icon is hidden */
-  padding-left: 10px !important;
-  text-align: left !important;
+/* 無 icon 時：與 form-select / form-control 一致 padding（4px 36px 4px 8px），日期靠左 */
+.republic-date-picker :deep(.dp__main.hide-icon) {
+  justify-content: flex-start !important;
+  padding: 4px 36px 4px 8px !important;
 }
 
-.republic-date-picker :deep(.hide-icon .dp__input_icon) {
+.republic-date-picker :deep(.dp__main.hide-icon .dp__input_wrap) {
+  justify-content: flex-start !important;
+  padding: 0 !important;
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+}
+
+.republic-date-picker :deep(.dp__main.hide-icon .dp__input) {
+  padding: 0 !important;
+  text-align: left !important;
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+}
+
+.republic-date-picker :deep(.dp__main.hide-icon .dp__input_icon) {
   display: none !important;
 }
 
@@ -419,6 +434,7 @@ watch(() => props.modelValue, (newValue) => {
   color: var(--bs-secondary) !important;
   position: absolute !important;
   right: 12px !important;
+  left: auto !important; /* 防止第三方樣式殘留 left 導致 icon 貼邊或錯位 */
   top: 50% !important;
   transform: translateY(-50%) !important;
   pointer-events: none !important;

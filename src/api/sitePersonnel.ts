@@ -12,7 +12,6 @@ export interface SitePersonnel {
   companyId: string
   constructionId?: string // 所屬工程案 ID
   projectId?: string // Alias for constructionId
-  departmentCode?: string
   subDepartmentCode?: string
   level?: string
   occupation?: string // 職稱（父項）
@@ -45,7 +44,6 @@ export interface CreateSitePersonnelRequest {
   email: string
   occupation?: string
   occupationCategory?: string
-  departmentCode?: string
   subDepartmentCode?: string
   level?: string
   licenseNumber?: string
@@ -69,7 +67,6 @@ export interface UpdateSitePersonnelRequest {
   sex?: 'M' | 'F'
   occupation?: string
   occupationCategory?: string
-  departmentCode?: string
   subDepartmentCode?: string
   level?: string
   licenseNumber?: string
@@ -87,6 +84,8 @@ export interface AssignProjectRequest {
   constructionId: string
   /** 到職日（YYYY-MM-DD） */
   assignmentStartDate: string
+  /** 公司 ID（必傳：監造端須傳監造公司 ID，後端依此判斷使用監造/營造人員表） */
+  companyId?: string
 }
 
 // 移除專案請求
@@ -98,6 +97,8 @@ export interface RemoveProjectRequest {
   assignmentEndDate?: string
   /** 是否要硬刪除此工程的任職紀錄（不寫離職日，直接刪除 assignment） */
   hardDeleteAssignment?: boolean
+  /** 公司 ID（監造端須傳監造公司 ID，後端依此判斷使用監造/營造人員表） */
+  companyId?: string
 }
 
 export interface SitePersonnelListResponse {
@@ -262,7 +263,6 @@ export const sitePersonnelDataTransform = {
       companyId: apiData.companyId,
       constructionId: apiData.constructionId || apiData.projectId,
       projectId: apiData.constructionId || apiData.projectId, // Alias
-      departmentCode: apiData.departmentCode,
       subDepartmentCode: apiData.subDepartmentCode,
       level: apiData.level,
       occupation: apiData.occupation,
@@ -292,7 +292,6 @@ export const sitePersonnelDataTransform = {
       companyId: personnelData.companyId,
       occupation: personnelData.occupation,
       occupationCategory: personnelData.occupationCategory,
-      departmentCode: personnelData.departmentCode,
       licenseNumber: personnelData.licenseNumber,
       licenseExpiryDate: personnelData.licenseExpiryDate,
       workStartDate: personnelData.workStartDate,

@@ -9,8 +9,10 @@ const props = withDefaults(
     modelValue: number | null
     /** 工程案 ID，不傳則使用當前工作空間選中的工程案 */
     constructionId?: string
+    /** 變更設計列表來源（營造／監造分開維護時請帶入） */
+    sourceType?: 'CONTRACTOR' | 'SUPERVISORY'
   }>(),
-  { constructionId: undefined }
+  { constructionId: undefined, sourceType: undefined }
 )
 
 const emit = defineEmits<{
@@ -34,15 +36,20 @@ async function fetchDesignChangeList() {
     return
   }
   try {
-    designChangeList.value = await getDesignChangeList(cid)
+    const st = props.sourceType
+    if (st === 'CONTRACTOR' || st === 'SUPERVISORY') {
+      designChangeList.value = await getDesignChangeList(cid, st)
+    } else {
+      designChangeList.value = await getDesignChangeList(cid)
+    }
   } catch {
     designChangeList.value = []
   }
 }
 
 watch(
-  effectiveConstructionId,
-  (cid) => {
+  [effectiveConstructionId, () => props.sourceType],
+  ([cid]) => {
     if (cid) fetchDesignChangeList()
     else designChangeList.value = []
   },
@@ -162,6 +169,7 @@ function selectTab(id: number | null) {
 }
 .version-switcher-tabs {
   display: inline-flex;
+  align-items: stretch;
   background: transparent;
   border-radius: 10px;
   padding: 2px;
@@ -170,6 +178,7 @@ function selectTab(id: number | null) {
   display: inline-flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 2px;
   padding: 8px 14px;
   border: 1px solid transparent;

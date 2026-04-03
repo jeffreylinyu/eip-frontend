@@ -236,7 +236,7 @@
                 >
                 <thead>
                   <tr>
-                    <th style="width: 160px;">{{ designChangeList.length > 0 ? '狀態／使用資料版本' : '狀態' }}</th>
+                    <th :style="{ width: versionOptions.length > 1 ? '220px' : '160px' }">{{ versionOptions.length > 1 ? '狀態／資料依據日' : designChangeList.length > 0 ? '狀態／使用資料版本' : '狀態' }}</th>
                     <th style="min-width: 180px;">總機構 / 事業單位</th>
                     <th style="min-width: 160px;">事業單位分類號碼</th>
                     <th style="min-width: 140px;">行業標準分類號碼</th>
@@ -264,16 +264,21 @@
                         <option value="APPROVED">已核准</option>
                         <option value="REJECTED">已退回</option>
                       </select>
-                      <select
+                      <RepublicDatePicker
                         v-if="versionOptions.length > 1"
-                        class="form-select form-select-sm mt-1"
-                        :value="r.designChangeId ?? ''"
-                        @change="onLaborVersionChange(r, ($event.target as HTMLSelectElement).value, 'CONTRACTOR')"
+                        :model-value="r.dataReferenceDate ?? ''"
+                        input-class="form-control form-control-sm mt-1"
+                        :use-republic-year="true"
+                        :hide-icon="true"
+                        @update:model-value="(val: string) => onLaborDataReferenceDateChange(r, val || null, 'CONTRACTOR')"
+                      />
+                      <div
+                        v-if="versionOptions.length > 1 && r.dataReferenceDate && effectiveVersionByReportId[r.id]"
+                        class="small text-secondary mt-1"
                       >
-                        <option v-for="opt in versionOptions" :key="String(opt.id)" :value="opt.id ?? ''">
-                          {{ opt.label }}
-                        </option>
-                      </select>
+                        適用版本：{{ effectiveVersionByReportId[r.id].versionLabel }}
+                        <span v-if="effectiveVersionByReportId[r.id].versionRange" class="opacity-75">（{{ effectiveVersionByReportId[r.id].versionRange }}）</span>
+                      </div>
                     </td>
                     <td class="align-middle">
                       <select
@@ -657,7 +662,7 @@ import { getDocumentCenterList, type DocumentCenterListItem } from '@/api/docume
 import { formA3Api, downloadBlobAsFile, handleApiError } from '@/api/forms'
 import { useExportLoading } from '@/composables/useExportLoading'
 import { getLaborSafetySettings, updateLaborSafetySettings, type LaborSafetySettings } from '@/api/construction'
-import { getDesignChangeList, type DesignChangeItem } from '@/api/designChange'
+import { getDesignChangeList, getEffectiveVersionForDate, type DesignChangeItem } from '@/api/designChange'
 import { getDesignChangeIntervalISO } from '@/utils/designChangeIntervals'
 
 const route = useRoute()
@@ -709,6 +714,8 @@ const isLoadingLaborSafetyMembers = ref(false)
 
 // 職安報備書：版本由使用者選擇（不依日期推算）
 const designChangeList = ref<DesignChangeItem[]>([])
+// O-4 資料依據日 → 適用版本（由後端共用邏輯回傳）
+const effectiveVersionByReportId = ref<Record<number, { versionLabel: string; versionRange: string }>>({})
 
 type StaffingTierKey = 'LT30' | '30_99' | '100_PLUS' | '300_PLUS' | '500_PLUS'
 const LABOR_SAFETY_STAFFING_TIERS: { key: StaffingTierKey; range: string; requirement: string }[] = [
@@ -1437,6 +1444,9 @@ async function loadLaborReportList(source: 'SUPERVISORY' | 'CONTRACTOR' = 'CONTR
     linkedDocByReportId.value = linked
     linkedRefIdByReportId.value = refIds
     attachmentCountByReportId.value = counts
+    if (source === 'CONTRACTOR') {
+      laborReports.value.filter((x) => x.dataReferenceDate).forEach((x) => fetchEffectiveVersionForLaborReport(x))
+    }
   } catch (e) {
     console.error('載入職安報備列表失敗', e)
   }
@@ -1450,6 +1460,37 @@ async function onLaborVersionChange(r: LaborSafetyReportItem, raw: string, sourc
     if (idx !== -1) laborReports.value[idx] = { ...laborReports.value[idx], ...updated }
   } catch (e) {
     console.error('更新職安報備使用資料版本失敗', e)
+  }
+}
+
+async function fetchEffectiveVersionForLaborReport(r: LaborSafetyReportItem) {
+  const cid = constructionId.value
+  if (!cid || !r.dataReferenceDate) return
+  try {
+    const v = await getEffectiveVersionForDate(cid, r.dataReferenceDate, 'CONTRACTOR')
+    if (v) {
+      effectiveVersionByReportId.value = {
+        ...effectiveVersionByReportId.value,
+        [r.id]: { versionLabel: v.versionLabel, versionRange: v.versionRange }
+      }
+    }
+  } catch { /* ignore */ }
+}
+
+async function onLaborDataReferenceDateChange(r: LaborSafetyReportItem, value: string | null, source: 'SUPERVISORY' | 'CONTRACTOR') {
+  try {
+    const updated = await updateLaborSafetyReportFields(r.id, { dataReferenceDate: value || undefined }, source)
+    const idx = laborReports.value.findIndex(x => x.id === r.id)
+    if (idx !== -1) laborReports.value[idx] = { ...laborReports.value[idx], ...updated }
+    if (value) {
+      await fetchEffectiveVersionForLaborReport({ ...r, dataReferenceDate: value })
+    } else {
+      const next = { ...effectiveVersionByReportId.value }
+      delete next[r.id]
+      effectiveVersionByReportId.value = next
+    }
+  } catch (e) {
+    console.error('更新職安報備資料依據日失敗', e)
   }
 }
 

@@ -198,6 +198,38 @@ export const masterDataApi = {
     return http.delete(`/management/standard/work-process/${id}`)
   },
 
+  // ========== 安全衛生抽查程序主檔（與施工抽查分開） ==========
+
+  searchSafetyHealthWorkProcesses: (params?: WorkProcessStandardSearchParams): Promise<WorkProcessStandardPage> => {
+    return http.get('/management/standard/safety-health-work-process', { params })
+  },
+
+  getSafetyHealthWorkProcessByPccesCode: (pccesCode: string): Promise<PccesWorkProcessStandard[]> => {
+    return http.get(`/management/standard/safety-health-work-process/by-pcces-code/${pccesCode}`)
+  },
+
+  createSafetyHealthWorkProcess: (
+    data: Omit<PccesWorkProcessStandard, 'id' | 'createdAt' | 'updatedAt'>
+  ): Promise<PccesWorkProcessStandard> => {
+    return http.post('/management/standard/safety-health-work-process', data)
+  },
+
+  updateSafetyHealthWorkProcess: (
+    id: number,
+    data: Partial<Omit<PccesWorkProcessStandard, 'id' | 'createdAt' | 'updatedAt'>>
+  ): Promise<PccesWorkProcessStandard> => {
+    return http.put(`/management/standard/safety-health-work-process/${id}`, data)
+  },
+
+  deleteSafetyHealthWorkProcess: (id: number): Promise<void> => {
+    return http.delete(`/management/standard/safety-health-work-process/${id}`)
+  },
+
+  /** 清空安全衛生主檔後，自施工抽查標準主檔全量複製（僅 Admin） */
+  cloneSafetyHealthWorkProcessFromConstruction: (): Promise<number> => {
+    return http.post('/management/standard/safety-health-work-process/clone-from-construction')
+  },
+
   // ========== PCCES 總項目目錄 ==========
 
   /**

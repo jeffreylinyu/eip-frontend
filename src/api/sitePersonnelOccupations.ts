@@ -11,7 +11,6 @@ export interface OccupationCategoryOption {
 export interface OccupationOption {
   value: string
   label: string
-  departmentCode: string
   color: string
   icon: string
   /** 有子項時顯示類別下拉選單 */
@@ -57,23 +56,24 @@ const CONSTRUCTION_MANAGER_CATEGORIES: OccupationCategoryOption[] = [
 
 /** 監造單位 - 工地人員職稱選項（無「工地負責人」） */
 export const SUPERVISION_OCCUPATION_OPTIONS: OccupationOption[] = [
-  { value: 'OWNER', label: '負責人', departmentCode: 'BS', color: 'primary', icon: 'fa-user-tie' },
-  { value: 'LABOUR_SAFETY', label: '勞安人員', departmentCode: 'LS', color: 'danger', icon: 'fa-shield-alt', categories: LABOUR_SAFETY_CATEGORIES },
-  { value: 'TECHNICIAN', label: '專任工程人員', departmentCode: 'TL', color: 'info', icon: 'fa-user-graduate', categories: TECHNICIAN_CATEGORIES },
-  { value: 'QUALITY', label: '公共工程品質管理人員', departmentCode: 'QT', color: 'warning', icon: 'fa-check-circle', categories: QUALITY_CATEGORIES },
-  { value: 'ADMIN_STAFF', label: '行政人員', departmentCode: 'AS', color: 'success', icon: 'fa-user' },
-  { value: 'SITE_WORKER', label: '現場人員', departmentCode: 'SW', color: 'secondary', icon: 'fa-user-nurse' }
+  { value: 'OWNER', label: '負責人', color: 'primary', icon: 'fa-user-tie' },
+  { value: 'LABOUR_SAFETY', label: '勞安人員', color: 'danger', icon: 'fa-shield-alt', categories: LABOUR_SAFETY_CATEGORIES },
+  { value: 'TECHNICIAN', label: '專任工程人員', color: 'info', icon: 'fa-user-graduate', categories: TECHNICIAN_CATEGORIES },
+  { value: 'QUALITY', label: '公共工程品質管理人員', color: 'warning', icon: 'fa-check-circle', categories: QUALITY_CATEGORIES },
+  { value: 'ADMIN_STAFF', label: '行政人員', color: 'success', icon: 'fa-user' },
+  { value: 'SITE_ENGINEER', label: '現場工程師', color: 'secondary', icon: 'fa-user-gear' }
 ]
 
 /** 營造單位 - 工地人員職稱選項（含「工地負責人」） */
 export const CONTRACTOR_OCCUPATION_OPTIONS: OccupationOption[] = [
-  { value: 'OWNER', label: '負責人', departmentCode: 'BS', color: 'primary', icon: 'fa-user-tie' },
-  { value: 'LABOUR_SAFETY', label: '勞安人員', departmentCode: 'LS', color: 'danger', icon: 'fa-shield-alt', categories: LABOUR_SAFETY_CATEGORIES },
-  { value: 'TECHNICIAN', label: '專任工程人員', departmentCode: 'TL', color: 'info', icon: 'fa-user-graduate', categories: TECHNICIAN_CATEGORIES },
-  { value: 'CONSTRUCTION_MANAGER', label: '工地負責人', departmentCode: 'CM', color: 'primary', icon: 'fa-hard-hat', categories: CONSTRUCTION_MANAGER_CATEGORIES },
-  { value: 'QUALITY', label: '公共工程品質管理人員', departmentCode: 'QT', color: 'warning', icon: 'fa-check-circle', categories: QUALITY_CATEGORIES },
-  { value: 'ADMIN_STAFF', label: '行政人員', departmentCode: 'AS', color: 'success', icon: 'fa-user' },
-  { value: 'SITE_WORKER', label: '現場人員', departmentCode: 'SW', color: 'secondary', icon: 'fa-user-nurse' }
+  { value: 'OWNER', label: '負責人', color: 'primary', icon: 'fa-user-tie' },
+  { value: 'LABOUR_SAFETY', label: '勞安人員', color: 'danger', icon: 'fa-shield-alt', categories: LABOUR_SAFETY_CATEGORIES },
+  { value: 'TECHNICIAN', label: '專任工程人員', color: 'info', icon: 'fa-user-graduate', categories: TECHNICIAN_CATEGORIES },
+  { value: 'CONSTRUCTION_MANAGER', label: '工地負責人', color: 'primary', icon: 'fa-hard-hat', categories: CONSTRUCTION_MANAGER_CATEGORIES },
+  { value: 'QUALITY', label: '公共工程品質管理人員', color: 'warning', icon: 'fa-check-circle', categories: QUALITY_CATEGORIES },
+  { value: 'ADMIN_STAFF', label: '行政人員', color: 'success', icon: 'fa-user' },
+  { value: 'SITE_ENGINEER', label: '現場工程師', color: 'secondary', icon: 'fa-user-gear' },
+  { value: 'SITE_CONSTRUCTION_WORKER', label: '現場施工人員', color: 'secondary', icon: 'fa-people-carry' }
 ]
 
 /** 依公司類型取得職稱選項 */
@@ -93,7 +93,6 @@ export const LEGACY_OCCUPATION_MAP: Record<string, string> = {
 export const POSITION_OPTIONS_FLAT = CONTRACTOR_OCCUPATION_OPTIONS.map(o => ({
   value: o.value,
   label: o.label,
-  departmentCode: o.departmentCode,
   color: o.color,
   icon: o.icon
 }))
@@ -101,6 +100,7 @@ export const POSITION_OPTIONS_FLAT = CONTRACTOR_OCCUPATION_OPTIONS.map(o => ({
 /** 取得職稱的顯示名稱（含類別） */
 export function getOccupationDisplayLabel(occupation: string | undefined, occupationCategory: string | undefined, options: OccupationOption[]): string {
   if (!occupation) return '未設定'
+  if (occupation === 'SITE_WORKER') return '現場人員'
   const opt = options.find(o => o.value === occupation) || options.find(o => LEGACY_OCCUPATION_MAP[occupation] === o.value)
   const title = opt?.label ?? occupation
   if (occupationCategory && opt?.categories?.length) {
@@ -116,7 +116,7 @@ export function normalizeOccupationValue(v: string | undefined): string {
   return LEGACY_OCCUPATION_MAP[v] || v
 }
 
-/** 職位大小排序順序（數字越小越前面）：負責人 > 工地負責人 > 專任工程人員 > 勞安 > 品管 > 行政 > 現場 */
+/** 職位大小排序順序（數字越小越前面）：負責人 > 工地負責人 > 專任工程人員 > 勞安 > 品管 > 行政 > 現場類 */
 export const OCCUPATION_ORDER: Record<string, number> = {
   OWNER: 0,
   CONSTRUCTION_MANAGER: 1,
@@ -124,6 +124,8 @@ export const OCCUPATION_ORDER: Record<string, number> = {
   LABOUR_SAFETY: 3,
   QUALITY: 4,
   ADMIN_STAFF: 5,
+  SITE_ENGINEER: 6,
+  SITE_CONSTRUCTION_WORKER: 7,
   SITE_WORKER: 6
 }
 

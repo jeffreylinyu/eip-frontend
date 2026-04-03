@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter, RouterLink } from 'vue-router'
 import { useAppOptionStore } from '@/stores/app-option'
 import { useAuthStore } from '@/stores/auth'
@@ -25,6 +25,25 @@ const customApiBaseUrl = ref<string>('')
 
 // 預設 API Base URL（用於顯示）
 const defaultApiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080'
+
+const showGoogleLogin = computed(
+	() => Boolean(import.meta.env.VITE_FIREBASE_API_KEY && import.meta.env.VITE_FIREBASE_APP_ID)
+)
+
+async function onGoogleLogin() {
+	errorMessage.value = ''
+	const result = await authStore.loginWithGoogle()
+	if (result.success) {
+		if (rememberMe.value && authStore.user?.email) {
+			storage.set(StorageKeys.LOGIN_REMEMBER_EMAIL, authStore.user.email)
+		} else if (!rememberMe.value) {
+			storage.remove(StorageKeys.LOGIN_REMEMBER_EMAIL)
+		}
+		router.push('/')
+	} else {
+		errorMessage.value = result.message
+	}
+}
 
 // 更新自訂 API Base URL
 const updateCustomApiBaseUrl = () => {
@@ -172,6 +191,23 @@ onBeforeUnmount(() => {
 					<span v-if="authStore.isLoading" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
 					{{ authStore.isLoading ? '登入中...' : '登入' }}
 				</button>
+
+				<template v-if="showGoogleLogin">
+					<div class="d-flex align-items-center my-3">
+						<hr class="flex-grow-1 border-secondary opacity-25" />
+						<span class="px-2 small text-inverse text-opacity-50">或</span>
+						<hr class="flex-grow-1 border-secondary opacity-25" />
+					</div>
+					<button
+						type="button"
+						class="btn btn-outline-light btn-lg d-block w-100 fw-500 mb-3"
+						:disabled="authStore.isLoading"
+						@click="onGoogleLogin"
+					>
+						<i class="fab fa-google me-2"></i>
+						使用 Google 登入
+					</button>
+				</template>
 
 				<div class="text-center text-inverse text-opacity-50">
 					還沒有帳戶嗎？ <RouterLink to="/page/register">註冊</RouterLink>.

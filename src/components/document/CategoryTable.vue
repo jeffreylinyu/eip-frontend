@@ -38,6 +38,7 @@
               <th style="width: 50px">#</th>
               <th style="width: 80px">編號</th>
               <th>文件名稱</th>
+              <th v-if="showScheduleColumn" style="min-width: 160px">規定提送日程</th>
               <th style="width: 100px">保存年限</th>
               <th style="width: 150px">操作</th>
             </tr>
@@ -78,6 +79,22 @@
                   </div>
                   <div v-else @click="startEdit(item)" class="cursor-pointer">
                     {{ item.documentName }}
+                  </div>
+                </td>
+
+                <!-- 規定提送日程（僅 B 類） -->
+                <td v-if="showScheduleColumn">
+                  <div v-if="editingId === item.id">
+                    <input
+                      type="text"
+                      class="form-control form-control-sm"
+                      v-model="editForm.requiredSubmissionSchedule"
+                      placeholder="例：訂約後30日內"
+                      @keyup.enter="saveEdit(item)"
+                    >
+                  </div>
+                  <div v-else @click="startEdit(item)" class="cursor-pointer small">
+                    {{ item.requiredSubmissionSchedule || defaultScheduleText }}
                   </div>
                 </td>
                 
@@ -127,7 +144,7 @@
           <!-- 無資料顯示 (vuedraggable 不處理空狀態，所以另外寫) -->
           <tbody v-else>
             <tr>
-              <td colspan="5" class="text-center text-muted py-3">
+              <td :colspan="tableColSpan" class="text-center text-muted py-3">
                 尚無分類項目
               </td>
             </tr>
@@ -149,6 +166,15 @@
                   @keyup.esc="cancelAdd"
                 >
               </td>
+              <td v-if="showScheduleColumn">
+                <input
+                  type="text"
+                  class="form-control form-control-sm"
+                  v-model="addForm.requiredSubmissionSchedule"
+                  placeholder="規定提送日程"
+                  @keyup.enter="confirmAdd"
+                >
+              </td>
               <td>
                 <input 
                   type="number" 
@@ -166,7 +192,7 @@
               </td>
             </tr>
             <tr v-else>
-              <td colspan="5">
+              <td :colspan="tableColSpan">
                 <button class="btn btn-sm btn-link text-decoration-none" @click="startAdd">
                   <i class="bi bi-plus-lg"></i> 新增項目
                 </button>
@@ -180,9 +206,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
+import { ref, watch, nextTick, computed } from 'vue'
 import draggable from 'vuedraggable'
 import type { DocumentClassification } from '@/api/documentClassification'
+
+const defaultScheduleText = '訂約後30日內'
 
 const props = defineProps<{
   category: string
@@ -191,9 +219,12 @@ const props = defineProps<{
   isDynamic?: boolean // 是否為 D 類 (無法手動新增/刪除，只能同步)
 }>()
 
+const showScheduleColumn = computed(() => props.category === 'B')
+const tableColSpan = computed(() => (showScheduleColumn.value ? 6 : 5))
+
 const emit = defineEmits<{
-  (e: 'add', data: { documentName: string, retentionYears: number }): void
-  (e: 'update', id: number, data: { documentName: string, retentionYears: number }): void
+  (e: 'add', data: { documentName: string, retentionYears: number, requiredSubmissionSchedule?: string }): void
+  (e: 'update', id: number, data: { documentName: string, retentionYears: number, requiredSubmissionSchedule?: string }): void
   (e: 'delete', id: number): void
   (e: 'sync'): void
   (e: 'reorder', items: DocumentClassification[]): void
@@ -218,13 +249,14 @@ const toggleCollapse = () => {
 const isAdding = ref(false)
 const addForm = ref({
   documentName: '',
-  retentionYears: 15
+  retentionYears: 15,
+  requiredSubmissionSchedule: defaultScheduleText
 })
 const addInput = ref<HTMLInputElement | null>(null)
 
 const startAdd = async () => {
   isAdding.value = true
-  addForm.value = { documentName: '', retentionYears: 15 }
+  addForm.value = { documentName: '', retentionYears: 15, requiredSubmissionSchedule: defaultScheduleText }
   await nextTick()
   addInput.value?.focus()
 }
@@ -238,7 +270,13 @@ const confirmAdd = () => {
     alert('請輸入文件名稱')
     return
   }
-  emit('add', { ...addForm.value })
+  emit('add', {
+    documentName: addForm.value.documentName,
+    retentionYears: addForm.value.retentionYears,
+    ...(showScheduleColumn.value
+      ? { requiredSubmissionSchedule: addForm.value.requiredSubmissionSchedule?.trim() || defaultScheduleText }
+      : {})
+  })
   isAdding.value = false
 }
 
@@ -246,7 +284,8 @@ const confirmAdd = () => {
 const editingId = ref<number | null>(null)
 const editForm = ref({
   documentName: '',
-  retentionYears: 15
+  retentionYears: 15,
+  requiredSubmissionSchedule: defaultScheduleText
 })
 const nameInput = ref<HTMLInputElement | null>(null)
 
@@ -256,7 +295,8 @@ const startEdit = async (item: DocumentClassification) => {
   editingId.value = item.id
   editForm.value = {
     documentName: item.documentName,
-    retentionYears: item.retentionYears
+    retentionYears: item.retentionYears,
+    requiredSubmissionSchedule: item.requiredSubmissionSchedule?.trim() || defaultScheduleText
   }
   await nextTick()
   const input = document.querySelector(`input[value="${item.documentName}"]`) as HTMLInputElement
@@ -272,7 +312,13 @@ const saveEdit = (item: DocumentClassification) => {
     alert('請輸入文件名稱')
     return
   }
-  emit('update', item.id, { ...editForm.value })
+  emit('update', item.id, {
+    documentName: editForm.value.documentName,
+    retentionYears: editForm.value.retentionYears,
+    ...(showScheduleColumn.value
+      ? { requiredSubmissionSchedule: editForm.value.requiredSubmissionSchedule?.trim() ?? '' }
+      : {})
+  })
   editingId.value = null
 }
 

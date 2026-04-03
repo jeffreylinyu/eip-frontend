@@ -456,7 +456,7 @@ onBeforeUnmount(() => {
               <Card>
                 <CardBody>
                   <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h6 class="text-muted mb-0 text-uppercase">現場人員</h6>
+                    <h6 class="text-muted mb-0 text-uppercase">現場人力</h6>
                     <i class="fa fa-users text-muted"></i>
                   </div>
                   <h2 class="mb-2">38/45</h2>

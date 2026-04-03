@@ -105,13 +105,20 @@ const loadData = async () => {
   }
 }
 
-const handleAdd = async (category: string, data: { documentName: string, retentionYears: number }) => {
+const handleAdd = async (
+  category: string,
+  data: { documentName: string, retentionYears: number, requiredSubmissionSchedule?: string }
+) => {
   if (!currentConstructionId.value) return
   
   try {
     await documentClassificationApi.create(currentConstructionId.value, {
       category,
-      ...data
+      documentName: data.documentName,
+      retentionYears: data.retentionYears,
+      ...(category === 'B' && data.requiredSubmissionSchedule != null
+        ? { requiredSubmissionSchedule: data.requiredSubmissionSchedule }
+        : {})
     })
     if (proxy?.$toast) proxy.$toast.success('新增成功')
     await loadData()
@@ -121,11 +128,19 @@ const handleAdd = async (category: string, data: { documentName: string, retenti
   }
 }
 
-const handleUpdate = async (category: string, id: number, data: { documentName: string, retentionYears: number }) => {
+const handleUpdate = async (
+  category: string,
+  id: number,
+  data: { documentName: string, retentionYears: number, requiredSubmissionSchedule?: string }
+) => {
   if (!currentConstructionId.value) return
   
   try {
-    await documentClassificationApi.update(currentConstructionId.value, id, data)
+    await documentClassificationApi.update(currentConstructionId.value, id, {
+      documentName: data.documentName,
+      retentionYears: data.retentionYears,
+      ...(category === 'B' ? { requiredSubmissionSchedule: data.requiredSubmissionSchedule ?? '' } : {})
+    })
     if (proxy?.$toast) proxy.$toast.success('更新成功')
     await loadData()
   } catch (error) {
@@ -185,7 +200,10 @@ const handleReorder = async (items: DocumentClassification[]) => {
       id: item.id,
       itemNumber: item.itemNumber, // 前端已計算好的新編號
       documentName: item.documentName,
-      retentionYears: item.retentionYears
+      retentionYears: item.retentionYears,
+      ...(item.category === 'B'
+        ? { requiredSubmissionSchedule: item.requiredSubmissionSchedule ?? '' }
+        : {})
     }))
 
     await documentClassificationApi.batchUpdate(currentConstructionId.value, {
