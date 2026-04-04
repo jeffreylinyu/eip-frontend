@@ -173,7 +173,7 @@
 <script setup lang="ts">
 import { computed, onMounted, defineComponent, getCurrentInstance } from 'vue'
 import { useRouter } from 'vue-router'
-import { useOnboardingStore } from '@/stores/onboarding'
+import { useOnboardingStore, onboardingCacheKey } from '@/stores/onboarding'
 import { useWorkspaceStore } from '@/stores/workspace'
 import PageHeader from '@/components/bootstrap/PageHeader.vue'
 
@@ -183,7 +183,12 @@ const store = useOnboardingStore()
 const workspaceStore = useWorkspaceStore()
 
 const constructionId = computed(() => workspaceStore.currentProject?.id || '')
-const status = computed(() => store.currentStatus)
+/** 開通頁固定為監造流程，與 fetchStatus(..., 'SUPERVISORY') 寫入的快取鍵一致（避免目前視角為營造時讀錯鍵） */
+const status = computed(() => {
+  const id = constructionId.value
+  if (!id) return undefined
+  return store.statusByConstructionId[onboardingCacheKey(id, 'SUPERVISORY')]
+})
 
 const passedCount = computed(() => {
   const s = status.value
@@ -213,7 +218,7 @@ const allPassed = computed(() => {
 
 const refresh = async () => {
   if (!constructionId.value) return
-  await store.fetchStatus(constructionId.value, true)
+  await store.fetchStatus(constructionId.value, true, 'SUPERVISORY')
 }
 
 const goDashboard = () => {
@@ -238,7 +243,7 @@ const toSupervisory = (baseUrl: string) => {
 
 onMounted(async () => {
   if (!constructionId.value) return
-  await store.fetchStatus(constructionId.value, true)
+  await store.fetchStatus(constructionId.value, true, 'SUPERVISORY')
 })
 
 const CheckCard = defineComponent({

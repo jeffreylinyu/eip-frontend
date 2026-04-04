@@ -4,7 +4,7 @@ import { ref, computed, watch } from 'vue'
 import { storage, StorageKeys } from '@/utils/storage'
 import { workspaceApi, transformWorkspaceFromApi, transformWorkspaceToApi, type WorkspaceDetailResponse, type WorkspaceCompany, type InviteCompanyRequest, type RemoveCompanyRequest, type ParticipatingUnitsResponse } from '@/api/workspace'
 import { useUserCacheStore, type UserBasicInfo } from '@/stores/user-cache'
-import { userApi, authApi } from '@/api/user'
+import { userApi, authApi, countDistinctConstructionProjects, dedupeJoinedProjectsByConstructionId } from '@/api/user'
 import { getConstructionsByWorkspace, getConstructionDetail, type Construction, type SignLevel } from '@/api/construction'
 import { useAuthStore } from '@/stores/auth'
 
@@ -741,7 +741,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
           if (authStore.user?.userId) {
               try {
                   const joinedProjects = await userApi.getJoinedProjects(authStore.user.userId)
-                  joinedProjectsCount.value = Array.isArray(joinedProjects) ? joinedProjects.length : 0
+                  joinedProjectsCount.value = countDistinctConstructionProjects(joinedProjects)
               } catch (err) {
                    console.warn('Failed to fetch joined projects count:', err)
               }
@@ -771,8 +771,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
                 const userProjects = await userApi.getJoinedProjects(authStore.user.userId)
                 
                 if (Array.isArray(userProjects) && userProjects.length > 0) {
-                  // 獲取第一個工程案的詳情
-                  const firstProject = userProjects[0]
+                  const uniqueProjects = dedupeJoinedProjectsByConstructionId(userProjects)
+                  const firstProject = uniqueProjects[0]
                   const constructionId = firstProject.constructionId || firstProject.projectId
                   
                   if (constructionId) {

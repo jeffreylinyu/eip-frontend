@@ -4,6 +4,7 @@ import { useWorkspaceStore } from '@/stores/workspace';
 import { useCompanyStore } from '@/stores/company';
 import { useAppOptionStore } from '@/stores/app-option';
 import http from '@/api/http';
+import { applyAllowedViewTypesFromResolveResponse } from '@/composables/useViewPerspective';
 import { dailyReportRoutes } from './dailyReport';
 
 const router = createRouter({
@@ -398,9 +399,10 @@ const router = createRouter({
       meta: { requiresAuth: true, viewType: 'SHARED' }
     },
     
-    { 
-      path: '/:pathMatch(.*)*', 
-      component: () => import('../views/PageError.vue') 
+    {
+      path: '/:pathMatch(.*)*',
+      component: () => import('../views/PageError.vue'),
+      meta: { isNotFoundFallback: true }
     }
   ],
 });
@@ -413,8 +415,8 @@ router.beforeEach(async (to, from, next) => {
   // onboarding gate（監造端）
   const { useOnboardingStore } = await import('@/stores/onboarding')
   const onboardingStore = useOnboardingStore()
-  const { useViewPerspective } = await import('@/composables/useViewPerspective')
-  const { isSupervisory } = useViewPerspective()
+  const { useViewPerspective, ViewType } = await import('@/composables/useViewPerspective')
+  const { isSupervisory, viewType } = useViewPerspective()
   
   // 視角路由檢查（在認證檢查之後）
   if (to.meta.viewType && authStore.isAuthenticated) {
@@ -427,57 +429,33 @@ router.beforeEach(async (to, from, next) => {
         const systemRole = authStore.user?.systemRole || authStore.user?.role
         const isSuperAdmin = systemRole === 'SUPER_ADMIN' || systemRole === 'ADMIN'
         
-        // 使用 http 客戶端獲取視角類型
-        const response = await http.get<{ 
-          code: number
-          data: { 
-            viewType: string
-            viewTypeLabel: string
-          }
-        }>(`/management/viewType/resolve?workspaceId=${workspaceId}`)
-        
-        // http.get 已經處理了 response.data，所以這裡需要正確解析
-        let userViewType: string | null = null
-        
-        if (response && typeof response === 'object') {
-          // 檢查是否為 BaseResponse 格式 { code, message, data }
-          if ('data' in response && response.data && typeof response.data === 'object') {
-            if ('viewType' in response.data) {
-              userViewType = (response.data as any).viewType
-            } else if ('data' in response.data && response.data.data && typeof response.data.data === 'object') {
-              // 嵌套的 data.data 結構
-              userViewType = (response.data.data as any).viewType
-            }
-          } else if ('viewType' in response) {
-            // 直接是資料格式
-            userViewType = (response as any).viewType
-          }
-        }
-        
-        if (userViewType) {
-          // 系統管理員可以訪問所有視角
+        const response = await http.get<unknown>(
+          `/management/viewType/resolve?workspaceId=${workspaceId}`
+        )
+
+        const parsed = applyAllowedViewTypesFromResolveResponse(response)
+        const userViewType = parsed.viewType
+        const allowed = parsed.allowedViewTypes
+
+        if (userViewType || allowed.length > 0) {
           if (isSuperAdmin) {
-            // 管理員可以繼續訪問
-          } else {
-            // 非管理員：檢查視角是否匹配
-            // 監造只能看監造，營造只能看營造
-            if (userViewType !== requiredViewType) {
-              // 視角不匹配，重定向到用戶對應的視角路由
-              const currentPath = to.path
-              const viewPrefix = userViewType.toLowerCase()
-              
-              // 如果路徑已經有視角前綴，替換它；否則添加視角前綴
-              let redirectPath = currentPath
-              if (currentPath.startsWith('/supervisory/') || currentPath.startsWith('/contractor/')) {
-                redirectPath = currentPath.replace(/^\/(supervisory|contractor)/, `/${viewPrefix}`)
-              } else if (!currentPath.startsWith('/shared/') && !currentPath.startsWith('/admin/')) {
-                redirectPath = `/${viewPrefix}${currentPath}`
-              }
-              
-              if (redirectPath !== currentPath) {
-                next(redirectPath)
-                return
-              }
+            // 管理員可訪問所有視角
+          } else if (allowed.length > 0 && allowed.includes(requiredViewType)) {
+            // 同時隸屬監造與營造等公司時，依 allowed 放行
+          } else if (userViewType && userViewType !== requiredViewType) {
+            const currentPath = to.path
+            const viewPrefix = userViewType.toLowerCase()
+
+            let redirectPath = currentPath
+            if (currentPath.startsWith('/supervisory/') || currentPath.startsWith('/contractor/')) {
+              redirectPath = currentPath.replace(/^\/(supervisory|contractor)/, `/${viewPrefix}`)
+            } else if (!currentPath.startsWith('/shared/') && !currentPath.startsWith('/admin/')) {
+              redirectPath = `/${viewPrefix}${currentPath}`
+            }
+
+            if (redirectPath !== currentPath) {
+              next(redirectPath)
+              return
             }
           }
         }
@@ -659,7 +637,14 @@ router.beforeEach(async (to, from, next) => {
           ]
 
           const isAllowed = allowedPrefixes.some((p) => to.path === p || to.path.startsWith(p))
-          const status = await onboardingStore.fetchStatus(constructionId, false)
+          const vt = viewType.value
+          const onboardingOwner =
+            vt === ViewType.CONTRACTOR
+              ? 'CONTRACTOR'
+              : vt === ViewType.SUPERVISORY
+                ? 'SUPERVISORY'
+                : undefined
+          const status = await onboardingStore.fetchStatus(constructionId, false, onboardingOwner)
           if (!status.completed && !isAllowed) {
             next('/supervisory/basic/setup-overview')
             return

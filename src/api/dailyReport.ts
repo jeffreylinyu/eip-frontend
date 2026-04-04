@@ -110,10 +110,18 @@ export interface DailyReportDetailResponse {
  * @param constructionId 工程ID
  * @param reportDate 日期 (YYYY-MM-DD)
  */
-export const getDailyReport = async (constructionId: string, reportDate: string): Promise<DailyReportDetailResponse> => {
+export const getDailyReport = async (
+  constructionId: string,
+  reportDate: string,
+  ownerType?: string
+): Promise<DailyReportDetailResponse> => {
   try {
-    const response = await http.get(`/management/constructions/${constructionId}/daily-reports/${reportDate}`);
-    return response as unknown as DailyReportDetailResponse;
+    const params = ownerType ? { ownerType } : undefined
+    const response = await http.get(
+      `/management/constructions/${constructionId}/daily-reports/${reportDate}`,
+      params ? { params } : undefined
+    )
+    return response as unknown as DailyReportDetailResponse
   } catch (error) {
     console.error('查詢施工日誌失敗:', error);
     throw error;
@@ -129,11 +137,17 @@ export const getDailyReport = async (constructionId: string, reportDate: string)
 export const saveDailyReport = async (
   constructionId: string,
   reportDate: string,
-  data: DailyReportSaveRequest
+  data: DailyReportSaveRequest,
+  ownerType?: string
 ): Promise<DailyReportDetailResponse> => {
   try {
-    const response = await http.put(`/management/constructions/${constructionId}/daily-reports/${reportDate}`, data);
-    return response as unknown as DailyReportDetailResponse;
+    const params = ownerType ? { ownerType } : undefined
+    const response = await http.put(
+      `/management/constructions/${constructionId}/daily-reports/${reportDate}`,
+      data,
+      params ? { params } : undefined
+    )
+    return response as unknown as DailyReportDetailResponse
   } catch (error) {
     console.error('儲存施工日誌失敗:', error);
     throw error;
@@ -479,17 +493,19 @@ export const exportDailyReportToWord = async (
   constructionId: string,
   reportDate: string,
   version: DailyReportExportVersion = 'construction',
-  options?: { signal?: AbortSignal }
+  options?: { signal?: AbortSignal; ownerType?: string }
 ): Promise<void> => {
   try {
     // 將版本參數轉換為 API 所需的類型
     const type: DailyReportExportType = version === 'construction' ? 'CONSTRUCTOR' : 'SUPERVISOR';
-    
+    const params: Record<string, string> = { type }
+    if (options?.ownerType) params.ownerType = options.ownerType
+
     // 使用共用的 blob 下載工具（GET 請求，type 作為查詢參數）
     const response = await downloadBlob({
       url: `/management/constructions/${constructionId}/daily-reports/${reportDate}/export`,
       method: 'GET',
-      params: { type },
+      params,
       timeout: 60000,
       signal: options?.signal
     });

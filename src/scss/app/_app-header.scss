@@ -164,6 +164,7 @@
 		align-items: center;
 		justify-content: flex-end;
 		flex: 1;
+		gap: rem(8px);
 		
 		& .menu-item {
 			height: 100%;
@@ -211,8 +212,91 @@
 						right: $spacer;
 					}
 				}
+				
+				// 與視角切換、文字按鈕統一的圓形圖示鈕（搜尋、設定、通知）
+				&.header-chrome-icon-btn {
+					padding: 0;
+					width: rem(36px);
+					height: rem(36px);
+					border-radius: rem(999px);
+					justify-content: center;
+					background: rgba(var(--#{$prefix}app-header-link-color-rgb), 0.08);
+					border: 1px solid rgba(var(--#{$prefix}app-header-link-color-rgb), 0.12);
+					box-shadow: inset 0 1px 0 rgba(var(--#{$prefix}app-header-link-color-rgb), 0.06);
+					transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+					
+					&:hover {
+						background: rgba(var(--#{$prefix}app-header-link-color-rgb), 0.14);
+						border-color: rgba(var(--#{$prefix}app-header-link-color-rgb), 0.22);
+						color: var(--#{$prefix}app-header-link-color);
+					}
+					
+					& .menu-icon {
+						font-size: rem(18px);
+					}
+					
+					& .menu-badge {
+						top: rem(6px);
+						
+						@if $enable-rtl {
+							left: rem(7px);
+						} @else {
+							right: rem(7px);
+						}
+					}
+				}
+			}
+			
+			// 核心資料填寫狀況等文字按鈕（與膠囊工具列同系）
+			& .header-chrome-text-btn {
+				border: none;
+				margin: 0;
+				border-radius: rem(999px);
+				padding: rem(6px) rem(14px);
+				font-size: $font-size-sm;
+				font-weight: $font-weight-semibold;
+				letter-spacing: 0.02em;
+				line-height: 1.2;
+				display: inline-flex;
+				align-items: center;
+				gap: rem(6px);
+				white-space: nowrap;
+				background: rgba(var(--#{$prefix}app-header-link-color-rgb), 0.08);
+				border: 1px solid rgba(var(--#{$prefix}app-header-link-color-rgb), 0.12);
+				color: var(--#{$prefix}app-header-link-color);
+				box-shadow: inset 0 1px 0 rgba(var(--#{$prefix}app-header-link-color-rgb), 0.06);
+				transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+				
+				&:hover {
+					background: rgba(var(--#{$prefix}primary-rgb), 0.16);
+					border-color: rgba(var(--#{$prefix}primary-rgb), 0.35);
+					color: var(--#{$prefix}primary);
+				}
+				
+				&:focus-visible {
+					outline: 0;
+					box-shadow:
+						inset 0 1px 0 rgba(var(--#{$prefix}app-header-link-color-rgb), 0.06),
+						0 0 0 2px rgba(var(--#{$prefix}primary-rgb), 0.35);
+				}
 			}
 		}
+	}
+	
+	// 視角切換器外層與上列按鈕共用表面（放在 .menu 外亦可被 ViewTypeSwitcher 使用）
+	& .header-chrome-pill-surface {
+		border-radius: rem(999px);
+		background: rgba(var(--#{$prefix}app-header-link-color-rgb), 0.08);
+		border: 1px solid rgba(var(--#{$prefix}app-header-link-color-rgb), 0.12);
+		box-shadow:
+			inset 0 1px 0 rgba(var(--#{$prefix}app-header-link-color-rgb), 0.06),
+			0 2px 8px rgba(0, 0, 0, 0.08);
+	}
+	
+	[data-bs-theme='dark'] & .header-chrome-pill-surface {
+		box-shadow:
+			inset 0 1px 0 rgba(var(--#{$prefix}app-header-link-color-rgb), 0.06),
+			0 2px 8px rgba(0, 0, 0, 0.2);
 	}
 	& .menu-search {
 		position: absolute;

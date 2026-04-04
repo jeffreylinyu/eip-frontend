@@ -43,9 +43,13 @@ export enum ConstructionRoleEnum {
   SITE_CONSTRUCTION_WORKER = "SITE_CONSTRUCTION_WORKER"
 }
 
+/** 與後端一致：SUPERVISORY | CONTRACTOR */
+export type ConstructionParticipantScope = 'SUPERVISORY' | 'CONTRACTOR'
+
 export interface UserConstructionRequest {
   userId: string;
   constructionId: string;
+  participantScope?: ConstructionParticipantScope;
   role?: string;              // 職位：LABOUR_SAFETY, QUALITY ...（向後兼容）
   jobTitle?: string;           // 新欄位：工程案職位（優先使用）
   permission?: string;         // 權限：ADMIN, MEMBER, VIEWER（向後兼容）
@@ -57,6 +61,7 @@ export interface UserConstructionResponse {
   id: number;
   userId: string;
   constructionId: string;
+  participantScope?: ConstructionParticipantScope;
   role: string;  // 職位（向後兼容）
   jobTitle?: string;  // 新欄位：工程案職位（優先使用）
   permission: string;  // 權限（向後兼容）
@@ -78,7 +83,7 @@ export const userConstructionApi = {
   /**
    * 更新用戶在工程案中的權限
    */
-  updatePermission: async (data: { userId: string; constructionId: string; permission: string }): Promise<UserConstructionResponse> => {
+  updatePermission: async (data: { userId: string; constructionId: string; permission: string; participantScope: ConstructionParticipantScope }): Promise<UserConstructionResponse> => {
     const response = await http.patch('/management/userConstruction/updatePermission', data);
     return (response as any).data || response;
   },
@@ -86,7 +91,7 @@ export const userConstructionApi = {
   /**
    * 更新用戶在工程案中的角色
    */
-  updateRole: async (data: { userId: string; constructionId: string; role: string }): Promise<UserConstructionResponse> => {
+  updateRole: async (data: { userId: string; constructionId: string; role: string; participantScope: ConstructionParticipantScope }): Promise<UserConstructionResponse> => {
     const response = await http.patch('/management/userConstruction/updateRole', data);
     return (response as any).data || response;
   },
@@ -94,17 +99,19 @@ export const userConstructionApi = {
   /**
    * 移除用戶從工程案
    */
-  remove: async (targetUserId: string, constructionId: string): Promise<void> => {
+  remove: async (targetUserId: string, constructionId: string, participantScope: ConstructionParticipantScope): Promise<void> => {
     await http.delete(`/management/userConstruction/remove`, {
-      params: { targetUserId, constructionId }
+      params: { targetUserId, constructionId, participantScope }
     });
   },
 
   /**
    * 獲取工程案的所有成員
    */
-  getMembers: async (constructionId: string): Promise<UserConstructionResponse[]> => {
-    const response = await http.get(`/management/userConstruction/construction/${constructionId}/members`);
+  getMembers: async (constructionId: string, participantScope?: ConstructionParticipantScope): Promise<UserConstructionResponse[]> => {
+    const response = await http.get(`/management/userConstruction/construction/${constructionId}/members`, {
+      params: participantScope ? { participantScope } : undefined
+    });
     const data = (response as any).data || response;
     return Array.isArray(data) ? data : [];
   },

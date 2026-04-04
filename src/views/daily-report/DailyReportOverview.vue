@@ -1231,6 +1231,7 @@ import {
   type DailyReportExportVersion 
 } from '@/api/dailyReport'
 import { useExportLoading } from '@/composables/useExportLoading'
+import { useViewPerspective, ViewType } from '@/composables/useViewPerspective'
 import type {
   DailyReport,
   ExecutionSummaryItem,
@@ -1247,6 +1248,14 @@ import RepublicDatePicker from '@/components/bootstrap/RepublicDatePicker.vue'
 const route = useRoute()
 const workspaceStore = useWorkspaceStore()
 const { runWithExportLoading } = useExportLoading()
+const { viewType } = useViewPerspective()
+
+const dailyReportOwnerTypeParam = computed(() => {
+  const v = viewType.value
+  if (v === ViewType.SUPERVISORY) return 'SUPERVISORY'
+  if (v === ViewType.CONTRACTOR) return 'CONTRACTOR'
+  return undefined
+})
 
 // 取得當前工程 ID (優先從 URL 參數取得，否則從 Store 取得)
 const constructionId = computed(() => (route.query.constructionId as string) || workspaceStore.currentProject?.id || '')
@@ -2221,7 +2230,8 @@ const saveDraft = async () => {
     const response = await saveDailyReport(
       constructionId.value,
       report.value.reportDate,
-      saveRequest
+      saveRequest,
+      dailyReportOwnerTypeParam.value
     )
     
     // 將 API 回應轉換回前端格式（包含累計值）
@@ -2251,7 +2261,10 @@ const exportWord = async (version: DailyReportExportVersion) => {
   isExporting.value = true
   try {
     await runWithExportLoading('daily-report-word', '工程日報表 Word', async (signal) => {
-      await exportDailyReportToWord(constructionId.value, report.value.reportDate!, version, { signal })
+      await exportDailyReportToWord(constructionId.value, report.value.reportDate!, version, {
+        signal,
+        ownerType: dailyReportOwnerTypeParam.value
+      })
     })
   } catch (error) {
     if ((error as any)?.name === 'AbortError' || (error as any)?.code === 'ERR_CANCELED') return
@@ -2272,7 +2285,7 @@ const loadReportByDate = async (date: string) => {
   
   isLoading.value = true
   try {
-    const response = await getDailyReport(constructionId.value, date)
+    const response = await getDailyReport(constructionId.value, date, dailyReportOwnerTypeParam.value)
     
     if (response) {
       // 將 API 回應轉換為前端格式（包含累計值）
@@ -2313,6 +2326,10 @@ watch(
   },
   { immediate: true }
 )
+
+watch(viewType, () => {
+  if (report.value.reportDate) loadReportByDate(report.value.reportDate)
+})
 
 // 生命週期
 onMounted(() => {

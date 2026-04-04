@@ -179,23 +179,23 @@ workspaceStore.initWorkspaces();
       <div class="menu-item" v-if="hasCurrentProject">
         <button
           type="button"
-          class="btn btn-sm btn-outline-primary d-flex align-items-center"
+          class="header-chrome-text-btn"
           @click="appOption.showCoreDataStatusModal = true"
         >
-          <i class="fa fa-clipboard-check me-1"></i>
+          <i class="fa fa-clipboard-check" aria-hidden="true"></i>
           <span class="d-none d-md-inline">核心資料填寫狀況</span>
         </button>
       </div>
 			
 			<div class="menu-item">
-				<a href="#" v-on:click="toggleAppHeaderSearch" data-toggle-class="app-header-menu-search-toggled" data-toggle-target=".app" class="menu-link">
+				<a href="#" v-on:click="toggleAppHeaderSearch" data-toggle-class="app-header-menu-search-toggled" data-toggle-target=".app" class="menu-link header-chrome-icon-btn" aria-label="搜尋選單">
 					<div class="menu-icon"><i class="bi bi-search nav-icon"></i></div>
 				</a>
 			</div>
 			
 			<!-- 設定下拉選單 -->
 			<div class="menu-item dropdown dropdown-mobile-full">
-				<a href="#" data-bs-toggle="dropdown" data-bs-display="static" class="menu-link" title="設定與管理">
+				<a href="#" data-bs-toggle="dropdown" data-bs-display="static" class="menu-link header-chrome-icon-btn" title="設定與管理" aria-label="設定與管理">
 					<div class="menu-icon"><i class="fa fa-cogs nav-icon"></i></div>
 				</a>
 				<div class="dropdown-menu fade dropdown-menu-end w-280px p-0 mt-1">
@@ -230,7 +230,7 @@ workspaceStore.initWorkspaces();
 				</div>
 			</div>
 			<div class="menu-item dropdown dropdown-mobile-full">
-				<a href="#" data-bs-toggle="dropdown" data-bs-display="static" class="menu-link">
+				<a href="#" data-bs-toggle="dropdown" data-bs-display="static" class="menu-link header-chrome-icon-btn" aria-label="通知">
 					<div class="menu-icon"><i class="bi bi-bell nav-icon"></i></div>
 					<div class="menu-badge bg-theme" v-if="notificationData && notificationData.length > 0"></div>
 				</a>

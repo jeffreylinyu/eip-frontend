@@ -1,5 +1,36 @@
 import http from './http'
 
+/** 已加入專案列表中，不同參與側（監造／營造）會重複同一工程案；以工程案 ID 去重後的筆數 */
+export function countDistinctConstructionProjects(list: unknown): number {
+  if (!Array.isArray(list)) return 0
+  const seen = new Set<string>()
+  for (const p of list as { projectId?: string; constructionId?: string }[]) {
+    const id = p?.projectId ?? p?.constructionId
+    if (id == null || id === '') continue
+    seen.add(String(id))
+  }
+  return seen.size
+}
+
+/** 依工程案 ID 去重，保留 API 回傳順序中的第一筆（供自動選取第一個工程案等） */
+export function dedupeJoinedProjectsByConstructionId(list: unknown): any[] {
+  if (!Array.isArray(list)) return []
+  const seen = new Set<string>()
+  const out: any[] = []
+  for (const p of list as any[]) {
+    const id = p?.projectId ?? p?.constructionId
+    if (id == null || id === '') {
+      out.push(p)
+      continue
+    }
+    const key = String(id)
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(p)
+  }
+  return out
+}
+
 export interface LoginData {
   password: string
   email: string
@@ -117,6 +148,11 @@ export const userApi = {
     const response = await http.get('/management/admin/user/all')
     const data = (response as any).data || response
     return Array.isArray(data) ? data : []
+  },
+
+  /** 停用使用者（軟刪除，SUPER_ADMIN / ADMIN） */
+  delete: async (userId: string): Promise<void> => {
+    await http.delete(`/management/admin/user/${encodeURIComponent(userId)}`)
   }
 }
 

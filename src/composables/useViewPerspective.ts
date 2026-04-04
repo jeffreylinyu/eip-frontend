@@ -14,6 +14,62 @@ export enum ViewType {
   SHARED = 'SHARED'            // 共用（個人設定、通知等）
 }
 
+/** 與路由守衛共用：後端 resolve 回傳的允許視角 */
+const allowedViewTypesGlobal = ref<string[]>([])
+
+type ResolvePayload = {
+  viewType: string | null
+  allowedViewTypes: string[]
+}
+
+/** 從 http 回傳物件解析 viewType / allowedViewTypes（供 composable 與 router 共用） */
+export function parseViewResolveResponse(response: unknown): ResolvePayload {
+  let viewType: string | null = null
+  let allowedRaw: unknown = null
+
+  if (response && typeof response === 'object') {
+    const r = response as Record<string, unknown>
+    if ('data' in r && r.data && typeof r.data === 'object') {
+      const d = r.data as Record<string, unknown>
+      if ('viewType' in d && typeof d.viewType === 'string') {
+        viewType = d.viewType
+        allowedRaw = d.allowedViewTypes
+      } else if (
+        'data' in d &&
+        d.data &&
+        typeof d.data === 'object' &&
+        'viewType' in (d.data as object)
+      ) {
+        const inner = d.data as Record<string, unknown>
+        if (typeof inner.viewType === 'string') viewType = inner.viewType
+        allowedRaw = inner.allowedViewTypes
+      }
+    } else if ('viewType' in r && typeof r.viewType === 'string') {
+      viewType = r.viewType
+      allowedRaw = r.allowedViewTypes
+    }
+  }
+
+  let allowedViewTypes: string[] = []
+  if (Array.isArray(allowedRaw)) {
+    allowedViewTypes = allowedRaw.map((x) => String(x).toUpperCase())
+  }
+  if (allowedViewTypes.length === 0 && viewType) {
+    allowedViewTypes = [viewType]
+  }
+
+  return { viewType, allowedViewTypes }
+}
+
+/**
+ * 同步全域允許視角（路由守衛在解析 API 後呼叫，與 Header 切換器一致）
+ */
+export function applyAllowedViewTypesFromResolveResponse(response: unknown): ResolvePayload {
+  const parsed = parseViewResolveResponse(response)
+  allowedViewTypesGlobal.value = parsed.allowedViewTypes
+  return parsed
+}
+
 /**
  * 視角判斷 Composable
  * 用於判斷用戶在當前工作空間的視角類型
@@ -24,46 +80,25 @@ export function useViewPerspective() {
   
   // 當前視角（可手動切換）
   const currentViewType = ref<ViewType | null>(null)
+
+  const allowedViewTypes = computed(() => allowedViewTypesGlobal.value)
   
   // 從後端獲取視角類型
   const fetchViewType = async (workspaceId: string): Promise<ViewType> => {
     try {
-      const response = await http.get<{ 
-        code: number
-        message: string
-        data: { 
-          viewType: string
-          viewTypeLabel: string
-        }
-      }>(`/management/viewType/resolve?workspaceId=${workspaceId}`)
-      
-      // http.get 已經處理了 response.data，所以這裡直接使用 response
-      // 如果 response 是 BaseResponse 格式，則 response.data 包含實際資料
-      // 如果 response 已經是 data 部分，則直接使用
-      let viewTypeData: { viewType: string; viewTypeLabel: string } | null = null
-      
-      if (response && typeof response === 'object') {
-        // 檢查是否為 BaseResponse 格式 { code, message, data }
-        if ('data' in response && response.data && typeof response.data === 'object') {
-          if ('viewType' in response.data) {
-            viewTypeData = response.data as unknown as { viewType: string; viewTypeLabel: string }
-          } else if ('data' in response.data && response.data.data && typeof response.data.data === 'object' && 'viewType' in response.data.data) {
-            // 嵌套的 data.data 結構
-            viewTypeData = response.data.data as unknown as { viewType: string; viewTypeLabel: string }
-          }
-        } else if ('viewType' in response) {
-          // 直接是資料格式
-          viewTypeData = response as unknown as { viewType: string; viewTypeLabel: string }
-        }
+      const response = await http.get<unknown>(
+        `/management/viewType/resolve?workspaceId=${workspaceId}`
+      )
+
+      const parsed = applyAllowedViewTypesFromResolveResponse(response)
+
+      if (parsed.viewType) {
+        return parsed.viewType as ViewType
       }
-      
-      if (viewTypeData?.viewType) {
-        const viewType = viewTypeData.viewType as ViewType
-        return viewType
-      }
-      
+
       return await getViewTypeFromCompanyType()
     } catch (error) {
+      allowedViewTypesGlobal.value = []
       // 降級處理：根據用戶公司類型判斷
       return await getViewTypeFromCompanyType()
     }
@@ -73,19 +108,24 @@ export function useViewPerspective() {
   const getViewTypeFromCompanyType = async (): Promise<ViewType> => {
     const user = authStore.user
     if (!user) return ViewType.SUPERVISORY
-    
-    // 如果是 SUPER_ADMIN，預設為 SUPERVISORY（監造視角）
+
+    const adminRoles = [ViewType.SUPERVISORY, ViewType.CONTRACTOR]
     if (user.systemRole === 'SUPER_ADMIN' || user.role === 'SUPER_ADMIN') {
+      allowedViewTypesGlobal.value = adminRoles
       return ViewType.SUPERVISORY
     }
-    
-    // 根據當前工作空間的公司類型判斷
+    if (user.systemRole === 'ADMIN' || user.role === 'ADMIN') {
+      allowedViewTypesGlobal.value = adminRoles
+      return ViewType.SUPERVISORY
+    }
+
     const currentWorkspace = workspaceStore.currentWorkspace
     if (!currentWorkspace) return ViewType.SUPERVISORY
-    
-    // 確保參與單位資料已載入
-    if (!workspaceStore.participatingUnits.supervisoryCompany && 
-        !workspaceStore.participatingUnits.contractorCompany) {
+
+    if (
+      !workspaceStore.participatingUnits.supervisoryCompany &&
+      !workspaceStore.participatingUnits.contractorCompany
+    ) {
       try {
         await workspaceStore.fetchParticipatingUnits(currentWorkspace.id)
       } catch (error) {
@@ -93,21 +133,37 @@ export function useViewPerspective() {
         return ViewType.SUPERVISORY
       }
     }
-    
-    // 從參與單位中查找用戶公司的類型
+
     const participatingUnits = workspaceStore.participatingUnits
-    
-    // 檢查是否為監造公司
-    if (participatingUnits.supervisoryCompany?.companyId === user.companyId) {
-      return ViewType.SUPERVISORY
+    const ids =
+      user.companyIds && user.companyIds.length > 0
+        ? user.companyIds
+        : user.companyId
+          ? [user.companyId]
+          : []
+    const supId = participatingUnits.supervisoryCompany?.companyId
+    const conId = participatingUnits.contractorCompany?.companyId
+    const allow: string[] = []
+    if (supId && ids.includes(supId)) allow.push(ViewType.SUPERVISORY)
+    if (conId && ids.includes(conId)) allow.push(ViewType.CONTRACTOR)
+    if (allow.length > 0) {
+      allowedViewTypesGlobal.value = allow
+      return allow.includes(ViewType.SUPERVISORY)
+        ? ViewType.SUPERVISORY
+        : (allow[0] as ViewType)
     }
-    
-    // 檢查是否為營造公司
-    if (participatingUnits.contractorCompany?.companyId === user.companyId) {
-      return ViewType.CONTRACTOR
+
+    if (user.companyId) {
+      if (supId === user.companyId) {
+        allowedViewTypesGlobal.value = [ViewType.SUPERVISORY]
+        return ViewType.SUPERVISORY
+      }
+      if (conId === user.companyId) {
+        allowedViewTypesGlobal.value = [ViewType.CONTRACTOR]
+        return ViewType.CONTRACTOR
+      }
     }
-    
-    // 預設為共用視角
+
     return ViewType.SUPERVISORY
   }
   
@@ -187,6 +243,12 @@ export function useViewPerspective() {
   const resetViewType = () => {
     currentViewType.value = null
   }
+
+  const canUseViewType = (t: ViewType) => {
+    const allowed = allowedViewTypesGlobal.value
+    if (allowed.length === 0) return false
+    return allowed.includes(t)
+  }
   
   // 獲取視角顯示名稱
   const getViewTypeLabel = (type: ViewType): string => {
@@ -204,7 +266,8 @@ export function useViewPerspective() {
     // 狀態
     viewType,
     currentViewType,
-    
+    allowedViewTypes,
+
     // 計算屬性
     isSupervisory,
     isContractor,
@@ -218,6 +281,7 @@ export function useViewPerspective() {
     resetViewType,
     fetchViewType,
     getViewTypeLabel,
-    getViewTypeFromCompanyType
+    getViewTypeFromCompanyType,
+    canUseViewType
   }
 }

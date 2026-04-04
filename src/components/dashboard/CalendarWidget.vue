@@ -362,7 +362,7 @@ const loadDailyReport = async () => {
   try {
     const dateStr = formatDateString(selectedDate.value) // YYYY-MM-DD（本地時間）
     const constructionId = workspaceStore.currentProject.id
-    const report = await getDailyReport(constructionId, dateStr)
+    const report = await getDailyReport(constructionId, dateStr, effectiveCalendarOwnerType.value)
     dailyReport.value = report
   } catch (error: any) {
     // 如果沒有施工日誌（404），設為 null
@@ -378,7 +378,7 @@ const loadDailyReport = async () => {
 }
 
 // 監聽選中日期變化，自動載入施工日誌
-watch([selectedDate, () => workspaceStore.currentProject], () => {
+watch([selectedDate, () => workspaceStore.currentProject, effectiveCalendarOwnerType], () => {
   loadDailyReport()
 }, { immediate: true })
 

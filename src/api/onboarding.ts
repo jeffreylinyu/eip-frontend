@@ -27,10 +27,12 @@ export const onboardingApi = {
   getStatus: async (
     constructionId: string,
     designChangeId?: number | null,
-    config?: OnboardingRequestConfig
+    config?: OnboardingRequestConfig,
+    ownerType?: string
   ): Promise<SupervisoryOnboardingStatus> => {
     const params: Record<string, string> = {}
     if (designChangeId !== undefined && designChangeId !== null) params.designChangeId = String(designChangeId)
+    if (ownerType) params.ownerType = ownerType
     return await http.get(`/management/constructions/${constructionId}/onboarding/status`, { params, ...config })
   },
   complete: async (constructionId: string): Promise<SupervisoryOnboardingStatus> => {

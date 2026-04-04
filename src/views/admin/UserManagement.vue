@@ -73,6 +73,31 @@ const formatRole = (role: string | undefined) => {
   return roleMap[role] || role
 }
 
+const currentRole = computed(() => authStore.user?.systemRole || authStore.user?.role || '')
+
+const canDeleteRow = (row: User) => {
+  const selfId = authStore.user?.userId
+  if (!selfId || row.userId === selfId) return false
+  const targetRole = row.systemRole || row.role || 'USER'
+  if (currentRole.value === 'ADMIN' && targetRole !== 'USER') return false
+  return true
+}
+
+const deleteUser = async (row: User) => {
+  if (!canDeleteRow(row)) return
+  const ok = window.confirm(
+    `確定要停用使用者「${row.username || row.userId}」嗎？\n帳號將無法登入，且自公司與工作空間關聯中移除。`
+  )
+  if (!ok) return
+  try {
+    await userApi.delete(row.userId)
+    await loadData()
+  } catch (e) {
+    console.error('刪除使用者失敗:', e)
+    alert('刪除失敗，請確認權限或稍後再試')
+  }
+}
+
 // 格式化公司列表（顯示公司名稱）
 const formatCompanies = (user: User) => {
   if (user.companyNames && user.companyNames.length > 0) {
@@ -142,6 +167,7 @@ onMounted(() => {
           <e-column field="isPaidUser" headerText="付費用戶" width="100" textAlign="Center" :template="'paidUserTemplate'"></e-column>
           <e-column field="createdAt" headerText="建立時間" width="150" textAlign="Center" :template="'createdAtTemplate'"></e-column>
           <e-column field="updatedAt" headerText="更新時間" width="150" textAlign="Center" :template="'updatedAtTemplate'"></e-column>
+          <e-column headerText="操作" width="100" textAlign="Center" :template="'actionsTemplate'"></e-column>
         </e-columns>
 
         <template v-slot:roleTemplate="{ data }">
@@ -168,6 +194,18 @@ onMounted(() => {
 
         <template v-slot:updatedAtTemplate="{ data }">
           <span>{{ formatDate(data.updatedAt) }}</span>
+        </template>
+
+        <template v-slot:actionsTemplate="{ data }">
+          <button
+            v-if="canDeleteRow(data)"
+            type="button"
+            class="btn btn-sm btn-outline-danger"
+            @click.stop="deleteUser(data)"
+          >
+            刪除
+          </button>
+          <span v-else class="text-muted small">—</span>
         </template>
       </ejs-grid>
     </div>

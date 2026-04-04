@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
-import { userApi } from '@/api/user'
-import { companyApi } from '@/api/company'
 import { getAllConstructions, getConstructionsByCompany, type Construction } from '@/api/construction'
-import { userConstructionApi, ConstructionPermissionEnum, ConstructionRoleEnum } from '@/api/userConstruction'
+import { userConstructionApi, ConstructionPermissionEnum, ConstructionRoleEnum, type ConstructionParticipantScope } from '@/api/userConstruction'
 import Card from '@/components/bootstrap/Card.vue'
+
+/** 管理後台專用：不依頂部監造/營造切換，新增時可指定任一侧；列表顯示後端回傳之全部授權列 */
+const ADMIN_INVITE_SCOPES: ConstructionParticipantScope[] = ['SUPERVISORY', 'CONTRACTOR']
 
 const props = defineProps<{
   modelValue: boolean
@@ -13,6 +14,15 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits(['update:modelValue', 'change'])
+
+const selectedInviteScope = ref<ConstructionParticipantScope>('SUPERVISORY')
+
+const participantScopeLabel = (s?: string) =>
+  s === 'CONTRACTOR' ? '營造' : '監造'
+
+/** 列表與表單：監造／營造不同色，便於掃視 */
+const participantScopeBadgeClass = (s?: string) =>
+  s === 'CONTRACTOR' ? 'badge text-bg-warning' : 'badge text-bg-primary'
 
 const isLoading = ref(false)
 const joinedProjects = ref<any[]>([])
@@ -97,8 +107,15 @@ const loadData = async () => {
 // 可供選擇的專案 (排除已加入的)
 const availableProjects = computed(() => {
   if (!allProjects.value.length) return []
-  const joinedIds = new Set(joinedProjects.value.map(p => p.constructionId))
-  return allProjects.value.filter(p => !joinedIds.has(p.constructionId))
+  const scope = selectedInviteScope.value
+  const joinedKeys = new Set(
+    joinedProjects.value.map(
+      p => `${p.constructionId}:${p.participantScope || 'SUPERVISORY'}`
+    )
+  )
+  return allProjects.value.filter(
+    p => !joinedKeys.has(`${p.constructionId}:${scope}`)
+  )
 })
 
 // 提交授權
@@ -110,6 +127,7 @@ const handleGrant = async () => {
     await userConstructionApi.invite({
       userId: props.user.userId,
       constructionId: selectedProjectId.value,
+      participantScope: selectedInviteScope.value,
       role: selectedRole.value,
       permission: selectedPermission.value
     })
@@ -136,7 +154,11 @@ const handleRemove = async (project: any) => {
 
     isLoading.value = true
     try {
-        await userConstructionApi.remove(props.user.userId, project.constructionId)
+        await userConstructionApi.remove(
+          props.user.userId,
+          project.constructionId,
+          (project.participantScope || 'SUPERVISORY') as ConstructionParticipantScope
+        )
         await loadData()
         emit('change')
     } catch (error) {
@@ -149,6 +171,7 @@ const handleRemove = async (project: any) => {
 
 watch(() => props.modelValue, (val) => {
   if (val) {
+    selectedInviteScope.value = 'SUPERVISORY'
     loadData()
     selectedProjectId.value = ''
   }
@@ -176,8 +199,27 @@ const closeModal = () => {
           <Card class="mb-4 bg-dark text-white">
             <div class="card-body">
               <h6 class="card-title fw-bold mb-3 text-white">新增權限</h6>
+              <p class="small text-white-50 mb-2">
+                下方列表為該帳號之<strong class="text-white">全部</strong>工程授權（含監造／營造分列）。新增時請選擇參與側。
+              </p>
               <div class="row g-2 align-items-end">
-                <div class="col-md-5">
+                <div class="col-md-2">
+                  <label class="form-label small text-white-50">參與側</label>
+                  <select
+                    class="form-select"
+                    v-model="selectedInviteScope"
+                    :disabled="isLoading"
+                  >
+                    <option
+                      v-for="s in ADMIN_INVITE_SCOPES"
+                      :key="s"
+                      :value="s"
+                    >
+                      {{ participantScopeLabel(s) }}
+                    </option>
+                  </select>
+                </div>
+                <div class="col-md-4">
                   <label class="form-label small text-white-50">選擇專案</label>
                   <select class="form-select" v-model="selectedProjectId" :disabled="isLoading">
                     <option value="">請選擇專案...</option>
@@ -186,7 +228,7 @@ const closeModal = () => {
                     </option>
                   </select>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
                   <label class="form-label small text-white-50">職稱 (Role)</label>
                   <select class="form-select" v-model="selectedRole" :disabled="isLoading">
                     <option v-for="opt in roleOptions" :key="opt.value" :value="opt.value">
@@ -230,15 +272,19 @@ const closeModal = () => {
                 <tr>
                   <th>專案名稱</th>
                   <th>專案編號</th>
+                  <th>參與側</th>
                   <th>職稱 (Role)</th>
                   <th>權限 (Permission)</th>
                   <th class="text-end">操作</th>
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="p in joinedProjects" :key="p.id">
+                <tr v-for="p in joinedProjects" :key="`${p.id}-${p.participantScope || 'SUPERVISORY'}`">
                   <td class="fw-bold">{{ p.constructionName }}</td>
                   <td>{{ p.constructionId }}</td>
+                  <td>
+                    <span :class="participantScopeBadgeClass(p.participantScope)">{{ participantScopeLabel(p.participantScope) }}</span>
+                  </td>
                   <td>
                     <span class="badge bg-light text-dark border">{{ getRoleLabel(p.role) }}</span>
                   </td>

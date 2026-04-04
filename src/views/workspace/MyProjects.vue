@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, getCurrentInstance } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { userApi } from '@/api/user'
+import { useViewPerspective, ViewType } from '@/composables/useViewPerspective'
 import { useAuthStore } from '@/stores/auth'
 import { useWorkspaceStore } from '@/stores/workspace'
 import constructionApi from '@/api/construction'
@@ -11,6 +12,8 @@ import PageHeader from '@/components/bootstrap/PageHeader.vue'
 const authStore = useAuthStore()
 const workspaceStore = useWorkspaceStore()
 const router = useRouter()
+const route = useRoute()
+const { viewType } = useViewPerspective()
 const { proxy } = getCurrentInstance() as any
 
 const isLoading = ref(false)
@@ -74,6 +77,57 @@ const getStatusColor = (status: string) => {
   return statusMap[status] || 'secondary'
 }
 
+/** 同一工程案多筆 user_construction（監造／營造）合併為一組 */
+function groupJoinedProjectsByConstruction(simpleProjects: any[]): { constructionKey: string; rows: any[] }[] {
+  const map = new Map<string, any[]>()
+  const noId: any[] = []
+  for (const p of simpleProjects) {
+    const cid = p.projectId || p.constructionId
+    if (cid == null || cid === '') {
+      noId.push(p)
+      continue
+    }
+    const key = String(cid)
+    if (!map.has(key)) map.set(key, [])
+    map.get(key)!.push(p)
+  }
+  const groups = Array.from(map.entries()).map(([constructionKey, rows]) => ({ constructionKey, rows }))
+  for (const p of noId) {
+    groups.push({ constructionKey: `__noid_${groups.length}`, rows: [p] })
+  }
+  return groups
+}
+
+function normalizeScope(s: string | undefined): string {
+  return (s || '').toUpperCase()
+}
+
+function pickParticipantRowForView(rows: any[], vt: ViewType): any {
+  const wantScope = vt === ViewType.CONTRACTOR ? 'CONTRACTOR' : 'SUPERVISORY'
+  const match = rows.find((r) => normalizeScope(r.participantScope) === wantScope)
+  return match || rows[0]
+}
+
+/** 列表頁顯示用：依路由或全域視角決定要秀的參與側角色／權限 */
+const listEffectiveViewType = computed(() => {
+  if (route.path.startsWith('/contractor/')) return ViewType.CONTRACTOR
+  if (route.path.startsWith('/supervisory/')) return ViewType.SUPERVISORY
+  return viewType.value
+})
+
+const projectsForDisplay = computed(() => {
+  return projects.value.map((p) => {
+    const rows = (p as any)._participantRows
+    const row = Array.isArray(rows) ? pickParticipantRowForView(rows, listEffectiveViewType.value) : p
+    return {
+      ...p,
+      role: row.role,
+      permission: row.permission,
+      participantScope: row.participantScope
+    }
+  })
+})
+
 const loadProjects = async () => {
     if (!authStore.user?.userId) return
     
@@ -92,13 +146,16 @@ const loadProjects = async () => {
             return
         }
 
-        // 2. 取得每個專案的完整詳情 (包含廠商資訊)
-        const detailPromises = simpleProjects.map(async (p: any) => {
+        const projectGroups = groupJoinedProjectsByConstruction(simpleProjects)
+
+        // 2. 每個工程案只取一次詳情；多參與側資料保留在 _participantRows
+        const detailPromises = projectGroups.map(async ({ constructionKey, rows }) => {
+            const p = rows[0]
             try {
-                const constructionId = p.constructionId || p.projectId
+                const constructionId = p.constructionId || p.projectId || constructionKey
                 
-                if (!constructionId) {
-                    return p
+                if (!constructionId || constructionKey.startsWith('__noid_')) {
+                    return { ...p, _participantRows: rows }
                 }
                 
                 // 先獲取詳情（不傳 workspaceId，讓 API 自動判斷）
@@ -108,7 +165,7 @@ const loadProjects = async () => {
                 const workspaceId = p.workspaceId || detail.workspaceId
                 
                 // 合併資料
-                let finalDetail = { ...p, ...detail, id: constructionId, workspaceId }
+                let finalDetail = { ...p, ...detail, id: constructionId, workspaceId, _participantRows: rows }
                 
                 // 如果 API 沒有返回公司名稱，嘗試從工作空間的參與單位獲取
                 if ((!finalDetail.contractorCompanyName || !finalDetail.supervisoryCompanyName) && workspaceId) {
@@ -131,10 +188,9 @@ const loadProjects = async () => {
                 }
                 
                 // 確保原有屬性存在，並覆蓋詳情
-                // 統一 ID 欄位，確保 click event 不會出錯
                 return finalDetail
             } catch (err) {
-                return p // 失敗時回傳原始資料
+                return { ...p, _participantRows: rows }
             }
         })
 
@@ -270,7 +326,7 @@ onMounted(() => {
                 </div>
             </div>
             
-            <div v-else-if="projects.length === 0" class="text-center py-5">
+            <div v-else-if="projectsForDisplay.length === 0" class="text-center py-5">
                 <div class="mb-3">
                     <i class="fa fa-folder-open fa-3x text-muted"></i>
                 </div>
@@ -279,7 +335,7 @@ onMounted(() => {
             
             <div v-else class="project-grid">
                 <div 
-                    v-for="project in projects" 
+                    v-for="project in projectsForDisplay" 
                     :key="project.id" 
                     class="project-card"
                     :class="{ 'active': workspaceStore.currentProject?.id === project.id }"
