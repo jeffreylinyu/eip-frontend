@@ -5,8 +5,30 @@ import axios, {
   InternalAxiosRequestConfig
 } from 'axios'
 import { storage, StorageKeys } from '@/utils/storage'
+import { resolveEffectiveViewTypeForHttpRequest } from '@/utils/effectiveViewTypeApi'
 import router from '@/router'
 import toastService from '@/components/bootstrap/ToastService.js'
+
+/** 後端以 401 回傳「視角／權限不符」時，不應當成登入過期而清 token */
+function isPerspectiveOrPermission401Payload(data: unknown): boolean {
+  const msg =
+    data && typeof data === 'object'
+      ? String(
+          (data as Record<string, unknown>).message ??
+            (data as Record<string, unknown>).error ??
+            ''
+        )
+      : ''
+  if (!msg) return false
+  return (
+    msg.includes('僅供營造') ||
+    msg.includes('僅供監造') ||
+    msg.includes('營造端') ||
+    msg.includes('營造視角') ||
+    msg.includes('監造使用') ||
+    msg.includes('無權以此視角')
+  )
+}
 
 /**
  * 獲取當前的 API Base URL
@@ -84,6 +106,12 @@ http.interceptors.request.use(
       config.headers!['userId'] = authUser.userId
     }
 
+    // 雙視角：後端 resolveViewType 會驗證標頭須在允許視角內（/forms 等路由無 contractor 前綴時依 localStorage）
+    const effectiveView = resolveEffectiveViewTypeForHttpRequest()
+    if (effectiveView) {
+      config.headers!['X-Effective-View-Type'] = effectiveView
+    }
+
     return config
   },
   (error: AxiosError) => {
@@ -126,6 +154,17 @@ http.interceptors.response.use(
               storage.remove(StorageKeys.AUTH_TOKEN)
               storage.remove(StorageKeys.AUTH_USER)
             })
+            return Promise.reject(error)
+          }
+
+          const errorDataEarly = response.data as Record<string, unknown> | undefined
+          if (isPerspectiveOrPermission401Payload(errorDataEarly)) {
+            const text =
+              (typeof errorDataEarly?.message === 'string' && errorDataEarly.message) ||
+              (typeof errorDataEarly?.error === 'string' && errorDataEarly.error) ||
+              '目前視角無權限存取此功能，請確認已切換監造／營造'
+            console.warn('[Auth] 401 視角／權限（非登入過期）:', text)
+            toastService.warning(text)
             return Promise.reject(error)
           }
 

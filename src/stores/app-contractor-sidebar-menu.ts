@@ -3,19 +3,7 @@ import { computed, ref } from "vue";
 import { useAuthStore } from '@/stores/auth';
 import { useWorkspaceStore } from '@/stores/workspace';
 import { useViewPerspective } from '@/composables/useViewPerspective';
-
-interface MenuItem {
-  text?: string;
-  is_header?: boolean;
-  is_divider?: boolean;
-  url?: string;
-  icon?: string;
-  highlight?: boolean;
-  children?: MenuItem[];
-  label?: string;
-  isTutorial?: boolean;
-  requiresAdmin?: boolean;
-}
+import type { SidebarMenuItem as MenuItem } from '@/types/sidebar-menu'
 
 export const useAppContractorSidebarMenuStore = defineStore("appContractorSidebarMenu", () => {
   const authStore = useAuthStore()
@@ -61,6 +49,9 @@ export const useAppContractorSidebarMenuStore = defineStore("appContractorSideba
 
   const filterMenuItems = (items: MenuItem[]): MenuItem[] => {
     return items.filter(item => {
+      if (item.visible === false) {
+        return false
+      }
       if (item.isTutorial && item.url && isTutorialHidden(item.url)) {
         return false
       }
@@ -69,6 +60,9 @@ export const useAppContractorSidebarMenuStore = defineStore("appContractorSideba
       }
       if (item.children) {
         item.children = filterMenuItems(item.children)
+        if (item.children.length === 0 && !item.url) {
+          return false
+        }
       }
       return true
     })
@@ -198,11 +192,12 @@ export const useAppContractorSidebarMenuStore = defineStore("appContractorSideba
         ],
       },
 
-      // 施工日誌管理
-      { text: "施工日誌管理", is_header: true },
+      // 施工日誌管理（營造端暫不顯示）
+      { text: "施工日誌管理", is_header: true, visible: false },
       {
         text: "施工日誌管理",
         icon: "bi bi-journal-text",
+        visible: false,
         children: [
           { text: "施工日誌", url: "/daily-report" },
           { text: "材料進場", url: "/daily-report/materials" },

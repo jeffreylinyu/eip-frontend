@@ -35,7 +35,7 @@ import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
 const route = useRoute()
-const { initViewType, setViewType, allowedViewTypes, canUseViewType } = useViewPerspective()
+const { initViewType, setViewType, allowedViewTypes, canUseViewType, viewType } = useViewPerspective()
 const workspaceStore = useWorkspaceStore()
 const authStore = useAuthStore()
 
@@ -80,9 +80,19 @@ const showSwitcher = computed(() => {
   return availableOptions.value.length >= 2
 })
 
+/** 有路由前綴以前綴為準；/forms、/basic 等無前綴則依全域 viewType（與 X-Effective-View-Type／localStorage 一致） */
 const isRouteActiveForView = (t: ViewType) => {
-  if (t === ViewType.CONTRACTOR) return route.path.startsWith('/contractor/')
-  if (t === ViewType.SUPERVISORY) return route.path.startsWith('/supervisory/')
+  const path = route.path
+  if (t === ViewType.CONTRACTOR) {
+    if (path.startsWith('/contractor')) return true
+    if (path.startsWith('/supervisory')) return false
+    return viewType.value === ViewType.CONTRACTOR
+  }
+  if (t === ViewType.SUPERVISORY) {
+    if (path.startsWith('/supervisory')) return true
+    if (path.startsWith('/contractor')) return false
+    return viewType.value === ViewType.SUPERVISORY
+  }
   return false
 }
 

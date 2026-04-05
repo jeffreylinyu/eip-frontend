@@ -4,19 +4,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useWorkspaceStore } from '@/stores/workspace';
 import { useViewPerspective } from '@/composables/useViewPerspective';
 import { useOnboardingStore } from '@/stores/onboarding'
-
-interface MenuItem {
-  text?: string;
-  is_header?: boolean;
-  is_divider?: boolean;
-  url?: string;
-  icon?: string;
-  highlight?: boolean;
-  children?: MenuItem[];
-  label?: string;
-  isTutorial?: boolean; // 標記為教學頁面
-  requiresAdmin?: boolean; // 標記為需要管理員權限
-}
+import type { SidebarMenuItem as MenuItem } from '@/types/sidebar-menu'
 
 export const useAppSidebarMenuStore = defineStore("appSidebarMenu", () => {
   // 隱藏的教學頁面 URL 列表（從 localStorage 讀取）
@@ -71,26 +59,23 @@ export const useAppSidebarMenuStore = defineStore("appSidebarMenu", () => {
     return false
   }
 
-  // 過濾選單項目（移除被隱藏的教學頁面和無權限的項目）
+  // 過濾選單項目（visible、教學隱藏、權限、空子層）
   const filterMenuItems = (items: MenuItem[]): MenuItem[] => {
     return items.filter(item => {
-      // 如果是教學頁面且被隱藏，則過濾掉
+      if (item.visible === false) {
+        return false
+      }
       if (item.isTutorial && item.url && isTutorialHidden(item.url)) {
         return false
       }
-      
-      // 如果需要管理員權限但用戶沒有權限，則過濾掉
       if (item.requiresAdmin && !hasAdminPermission()) {
         return false
       }
-      
-      // 如果有子選單，遞迴過濾
       if (item.children) {
         item.children = filterMenuItems(item.children)
-        // 如果過濾後子選單為空，也過濾掉父項目（可選）
-        // if (item.children.length === 0) {
-        //   return false
-        // }
+        if (item.children.length === 0 && !item.url) {
+          return false
+        }
       }
       return true
     })

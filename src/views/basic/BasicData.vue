@@ -410,12 +410,9 @@ watch(() => route.path, async (newPath, oldPath) => {
       if (workspaceStore.currentProject) {
         await loadCurrentProjectData()
       }
-    } else if (workspaceStore.currentWorkspace?.id) {
-      // 其他情況（如首次載入），才需要初始化視角
-      await initViewType(workspaceStore.currentWorkspace.id)
-      if (workspaceStore.currentProject) {
-        await loadCurrentProjectData()
-      }
+    } else if (workspaceStore.currentProject) {
+      // 同視角下子頁切換（如 /contractor/ → /contractor/basic/basic-data）：勿再 initViewType，避免覆寫營造視角
+      await loadCurrentProjectData()
     }
   }
 }, { immediate: false })

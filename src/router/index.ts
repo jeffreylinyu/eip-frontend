@@ -4,7 +4,10 @@ import { useWorkspaceStore } from '@/stores/workspace';
 import { useCompanyStore } from '@/stores/company';
 import { useAppOptionStore } from '@/stores/app-option';
 import http from '@/api/http';
-import { applyAllowedViewTypesFromResolveResponse } from '@/composables/useViewPerspective';
+import {
+  applyAllowedViewTypesFromResolveResponse,
+  syncViewPerspectiveFromRouteMeta
+} from '@/composables/useViewPerspective';
 import { dailyReportRoutes } from './dailyReport';
 
 const router = createRouter({
@@ -658,6 +661,10 @@ router.beforeEach(async (to, from, next) => {
   
   // 通過檢查
   next();
+});
+
+router.afterEach((to) => {
+  syncViewPerspectiveFromRouteMeta(to.meta);
 });
 
 export default router;

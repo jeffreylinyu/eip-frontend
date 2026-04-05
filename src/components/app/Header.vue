@@ -6,6 +6,7 @@ import { useAppOptionStore } from '@/stores/app-option';
 import { useAuthStore } from '@/stores/auth';
 import { RouterLink, useRouter } from 'vue-router';
 import { useWorkspaceStore } from '@/stores/workspace';
+import { useViewPerspective, ViewType } from '@/composables/useViewPerspective';
 import ViewTypeSwitcher from '@/components/app/ViewTypeSwitcher.vue';
 import CoreDataStatusModal from '@/components/project/CoreDataStatusModal.vue';
 
@@ -14,6 +15,7 @@ const authStore = useAuthStore();
 const router = useRouter();
 const notificationData = [];
 const workspaceStore = useWorkspaceStore();
+const { viewType } = useViewPerspective();
 
 // 登出功能
 const handleLogout = async () => {
@@ -70,8 +72,21 @@ const isAdminMode = computed(() => {
 });
 
 // 完整的品牌文字（用於 title 屬性）
+/** 左上品牌：雙視角時依監造／營造顯示參與單位公司名，否則用帳號所屬公司 */
+const brandCompanyName = computed(() => {
+  const units = workspaceStore.participatingUnits;
+  const vt = viewType.value;
+  if (vt === ViewType.CONTRACTOR && units.contractorCompany?.companyName) {
+    return units.contractorCompany.companyName;
+  }
+  if (vt === ViewType.SUPERVISORY && units.supervisoryCompany?.companyName) {
+    return units.supervisoryCompany.companyName;
+  }
+  return userCompanyName.value || '';
+});
+
 const getFullBrandText = computed(() => {
-  const company = userCompanyName.value || '工程智慧平台';
+  const company = brandCompanyName.value || '工程智慧平台';
   if (hasCurrentProject.value) {
     return `${company} - ${currentProjectName.value}`;
   }
@@ -104,6 +119,19 @@ const fetchUserCompanyName = async () => {
 watch(() => authStore.user?.companyId, () => {
     fetchUserCompanyName();
 }, { immediate: true });
+
+watch(
+  () => workspaceStore.currentWorkspace?.id,
+  async (id) => {
+    if (!id) return;
+    try {
+      await workspaceStore.fetchParticipatingUnits(id);
+    } catch {
+      /* 與工程案無關時略過 */
+    }
+  },
+  { immediate: true }
+);
 
 
 const onProjectSelected = (project) => {
@@ -160,7 +188,7 @@ workspaceStore.initWorkspaces();
 				</span>
 				<div class="brand-text-container">
 					<span class="brand-text" :title="getFullBrandText">
-						<span class="brand-text-part">{{ userCompanyName || '工程智慧平台' }}</span>
+						<span class="brand-text-part">{{ brandCompanyName || '工程智慧平台' }}</span>
 						<span v-if="hasCurrentProject" class="brand-text-suffix"> - {{ currentProjectName }}</span>
 					</span>
 				</div>

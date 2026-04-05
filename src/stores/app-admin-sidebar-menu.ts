@@ -1,16 +1,21 @@
 import { defineStore } from "pinia";
 import { computed } from "vue";
 import { useAuthStore } from '@/stores/auth';
+import type { SidebarMenuItem as MenuItem } from '@/types/sidebar-menu'
 
-interface MenuItem {
-  text?: string;
-  is_header?: boolean;
-  is_divider?: boolean;
-  url?: string;
-  icon?: string;
-  highlight?: boolean;
-  children?: MenuItem[];
-  label?: string;
+function filterAdminMenuItems(items: MenuItem[]): MenuItem[] {
+  return items.filter((item) => {
+    if (item.visible === false) {
+      return false
+    }
+    if (item.children) {
+      item.children = filterAdminMenuItems(item.children)
+      if (item.children.length === 0 && !item.url) {
+        return false
+      }
+    }
+    return true
+  })
 }
 
 export const useAppAdminSidebarMenuStore = defineStore("appAdminSidebarMenu", () => {
@@ -94,12 +99,11 @@ export const useAppAdminSidebarMenuStore = defineStore("appAdminSidebarMenu", ()
       // { text: "系統設定", url: "/admin/settings", icon: "bi bi-gear" },
     ];
 
-    // 如果沒有管理員權限，返回空陣列
     if (!hasAdminPermission.value) {
       return [];
     }
 
-    return items;
+    return filterAdminMenuItems(items);
   });
 
   // Pinia setup store 必須回傳 object；computed/ref 會在 store 上自動 unref

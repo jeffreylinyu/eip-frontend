@@ -4,6 +4,8 @@ import { storage, StorageKeys } from '@/utils/storage'
 import { authApi, type LoginData, type User } from '@/api/user'
 import { getGoogleIdToken } from '@/firebase'
 import { useWorkspaceStore } from '@/stores/workspace'
+import { clearStoredEffectiveViewType } from '@/utils/effectiveViewTypeApi'
+import { clearViewTypeInitWorkspaceCache } from '@/composables/useViewPerspective'
 
 export const useAuthStore = defineStore('auth', () => {
   // 狀態
@@ -153,6 +155,8 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null
     storage.remove(StorageKeys.AUTH_TOKEN)
     storage.remove(StorageKeys.AUTH_USER)
+    clearStoredEffectiveViewType()
+    clearViewTypeInitWorkspaceCache()
   }
 
   // 獲取當前用戶信息

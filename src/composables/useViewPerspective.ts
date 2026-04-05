@@ -2,6 +2,12 @@ import { computed, ref } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useWorkspaceStore } from '@/stores/workspace'
 import http from '@/api/http'
+import {
+  setStoredEffectiveViewType,
+  clearStoredEffectiveViewType,
+  getStoredEffectiveViewType,
+  type EffectiveViewHeader
+} from '@/utils/effectiveViewTypeApi'
 
 /**
  * 視角類型
@@ -16,6 +22,32 @@ export enum ViewType {
 
 /** 與路由守衛共用：後端 resolve 回傳的允許視角 */
 const allowedViewTypesGlobal = ref<string[]>([])
+
+/**
+ * 使用者目前 UI 視角（Header 切換、initViewType 寫入），全應用共用。
+ * 若放在 useViewPerspective() 內每次呼叫新建 ref，會導致 ViewTypeSwitcher 與 Header 狀態不同步。
+ */
+const currentViewTypeGlobal = ref<ViewType | null>(null)
+
+/** 同一工作空間重複 initViewType 時，若全域視角已有效則略過 resolve（避免基本資料子頁反覆覆寫） */
+let lastInitViewTypeWorkspaceId: string | null = null
+
+/**
+ * 依路由 meta.viewType 同步 UI 視角與 localStorage（導航完成後呼叫，讓 Switcher 與 /contractor、/supervisory 路由一致）
+ */
+export function syncViewPerspectiveFromRouteMeta(meta: { viewType?: unknown } | undefined): void {
+  const raw = meta?.viewType
+  const s = typeof raw === 'string' ? raw.trim().toUpperCase() : ''
+  if (s !== 'CONTRACTOR' && s !== 'SUPERVISORY') return
+  const e = s === 'CONTRACTOR' ? ViewType.CONTRACTOR : ViewType.SUPERVISORY
+  currentViewTypeGlobal.value = e
+  setStoredEffectiveViewType(s as EffectiveViewHeader)
+}
+
+/** 登出時呼叫，避免下一帳號沿用 initViewType 短路狀態 */
+export function clearViewTypeInitWorkspaceCache(): void {
+  lastInitViewTypeWorkspaceId = null
+}
 
 type ResolvePayload = {
   viewType: string | null
@@ -77,9 +109,6 @@ export function applyAllowedViewTypesFromResolveResponse(response: unknown): Res
 export function useViewPerspective() {
   const authStore = useAuthStore()
   const workspaceStore = useWorkspaceStore()
-  
-  // 當前視角（可手動切換）
-  const currentViewType = ref<ViewType | null>(null)
 
   const allowedViewTypes = computed(() => allowedViewTypesGlobal.value)
   
@@ -171,8 +200,8 @@ export function useViewPerspective() {
   // 注意：由於降級處理是異步的，這裡只返回已設定的視角或 SUPERVISORY（預設監造視角）
   const viewType = computed<ViewType>(() => {
     // 如果手動設定了視角，優先使用
-    if (currentViewType.value) {
-      return currentViewType.value
+    if (currentViewTypeGlobal.value) {
+      return currentViewTypeGlobal.value
     }
     
     // 如果沒有當前工作空間，返回 SUPERVISORY（預設監造視角）
@@ -222,26 +251,70 @@ export function useViewPerspective() {
   
   // 設定視角（用於手動切換）
   const setViewType = (type: ViewType | null) => {
-    currentViewType.value = type
-  }
-  
-  // 初始化視角（從後端獲取）
-  const initViewType = async (workspaceId: string) => {
-    try {
-      const type = await fetchViewType(workspaceId)
-      currentViewType.value = type
-      return type
-    } catch (error) {
-      // 使用降級方案
-      const fallbackType = await getViewTypeFromCompanyType()
-      currentViewType.value = fallbackType
-      return fallbackType
+    currentViewTypeGlobal.value = type
+    if (type === ViewType.SUPERVISORY || type === ViewType.CONTRACTOR) {
+      setStoredEffectiveViewType(type as EffectiveViewHeader)
+    } else if (type === null) {
+      clearStoredEffectiveViewType()
     }
   }
-  
+
+  /**
+   * fetchViewType／降級取得 allowed 之後：
+   * 1) localStorage 偏好（須在 allowed 內）
+   * 2) 記憶體中已有視角且仍允許（避免基本資料等頁每次 initViewType 被後端預設監造覆蓋）
+   * 3) 伺服器預設
+   */
+  const pickInitialViewAfterWorkspaceResolve = (serverType: ViewType): ViewType => {
+    const allowed = allowedViewTypesGlobal.value.map((x) => String(x).toUpperCase())
+    const stored = getStoredEffectiveViewType()
+    if (stored && allowed.includes(stored)) {
+      currentViewTypeGlobal.value = stored as ViewType
+      return stored as ViewType
+    }
+    const mem = currentViewTypeGlobal.value
+    if (
+      mem &&
+      (mem === ViewType.SUPERVISORY || mem === ViewType.CONTRACTOR) &&
+      allowed.includes(mem)
+    ) {
+      return mem
+    }
+    currentViewTypeGlobal.value = serverType
+    if (serverType === ViewType.SUPERVISORY || serverType === ViewType.CONTRACTOR) {
+      setStoredEffectiveViewType(serverType as EffectiveViewHeader)
+    }
+    return serverType
+  }
+
+  // 初始化視角（從後端獲取）
+  const initViewType = async (workspaceId: string) => {
+    const mem = currentViewTypeGlobal.value
+    const allowed = allowedViewTypesGlobal.value.map((x) => String(x).toUpperCase())
+    if (
+      lastInitViewTypeWorkspaceId === workspaceId &&
+      mem &&
+      (mem === ViewType.SUPERVISORY || mem === ViewType.CONTRACTOR) &&
+      allowed.length > 0 &&
+      allowed.includes(mem)
+    ) {
+      return mem
+    }
+    lastInitViewTypeWorkspaceId = workspaceId
+    try {
+      const type = await fetchViewType(workspaceId)
+      return pickInitialViewAfterWorkspaceResolve(type)
+    } catch (error) {
+      const fallbackType = await getViewTypeFromCompanyType()
+      return pickInitialViewAfterWorkspaceResolve(fallbackType)
+    }
+  }
+
   // 重置視角（清除手動設定）
   const resetViewType = () => {
-    currentViewType.value = null
+    currentViewTypeGlobal.value = null
+    lastInitViewTypeWorkspaceId = null
+    clearStoredEffectiveViewType()
   }
 
   const canUseViewType = (t: ViewType) => {
@@ -265,7 +338,7 @@ export function useViewPerspective() {
   return {
     // 狀態
     viewType,
-    currentViewType,
+    currentViewType: currentViewTypeGlobal,
     allowedViewTypes,
 
     // 計算屬性
