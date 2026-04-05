@@ -8,7 +8,7 @@
     <div v-else class="hierarchy-root">
       <div
         v-if="showBulkToolbar"
-        class="hierarchy-bulk-toolbar d-flex flex-wrap align-items-center w-100"
+        class="hierarchy-bulk-toolbar d-flex flex-nowrap align-items-center w-100"
         role="region"
         aria-label="搜尋與階層展開收合"
       >
@@ -30,7 +30,7 @@
           </div>
         </slot>
         <div
-          class="hierarchy-bulk-toolbar__actions d-flex align-items-center gap-2 flex-shrink-0 ms-md-auto mt-2 mt-md-0"
+          class="hierarchy-bulk-toolbar__actions d-flex align-items-center gap-2 flex-shrink-0 ms-auto"
         >
           <button
             v-if="interactive && showAiGenerateButton"

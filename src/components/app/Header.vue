@@ -137,6 +137,15 @@ watch(
 const onProjectSelected = (project) => {
 };
 
+/** Header 使用者區塊：優先顯示名稱，無則 email（內頁僅登入後可進，不顯示「遊客」） */
+const headerUserLabel = computed(() => {
+	const u = authStore.user;
+	if (!u) return '';
+	const name = u.username?.trim();
+	if (name) return name;
+	return u.email?.trim() || '';
+});
+
 // 初始化工作空間數據
 workspaceStore.initWorkspaces();
 </script>
@@ -298,10 +307,11 @@ workspaceStore.initWorkspaces();
 						</div>
 					</div>
 					<div
+						v-if="headerUserLabel"
 						class="menu-text d-sm-block d-none menu-user-text"
-						:title="authStore.user?.email || '遊客'"
+						:title="headerUserLabel"
 					>
-						{{ authStore.user?.email || '遊客' }}
+						{{ headerUserLabel }}
 					</div>
 				</a>
 				<div class="dropdown-menu dropdown-menu-end me-lg-3 fs-11px mt-1">

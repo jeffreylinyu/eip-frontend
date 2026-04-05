@@ -45,7 +45,7 @@ const router = createRouter({
     },
     {
       path: '/forms/export-center',
-      component: () => import('../views/forms/ExportCenter.vue'),
+      redirect: '/',
       meta: { requiresAuth: true }
     },
     {
@@ -481,18 +481,19 @@ router.beforeEach(async (to, from, next) => {
     appOptionStore.appHeaderHide = false;
   }
 
-  // 2. 白名單檢查 (登入、註冊、引導頁、個人設定、錯誤頁)
-  const publicRoutes = ['/page/login', '/page/register', '/access-status-guide', '/user/profile'];
-  // 簡單檢查字串匹配 (可優化為正則或 meta 判斷)
-  if (publicRoutes.includes(to.path) || to.path.startsWith('/page/')) {
-    next();
-    return;
+  // 2. 訪客專用：僅 /page/*（登入、註冊等）。其餘路徑（含 404、引導頁、個人頁）皆須登入
+  if (to.path.startsWith('/page/')) {
+    if (authStore.isAuthenticated && to.meta.requiresGuest) {
+      next('/')
+      return
+    }
+    next()
+    return
   }
-  
-  // 3. 認證檢查
-  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
-    next('/page/login');
-    return;
+
+  if (!authStore.isAuthenticated) {
+    next('/page/login')
+    return
   }
 
   // 監造計畫送審紀錄獨立頁：直接依後端 /viewType/resolve 字串判斷（與 composable 載入時序無關）

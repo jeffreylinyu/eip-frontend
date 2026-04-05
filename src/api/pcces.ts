@@ -534,6 +534,18 @@ export async function getConstructionMajorItemStandards(constructionId: string, 
     return response as unknown as ConstructionMajorItemStandardResponse[];
 }
 
+/** 與 B-1 匯出 supervision_Plan_A-Page-Image.docx 內 {{aFlowImage}} 相同之施工流程圖 PNG */
+export async function fetchConstructionMajorItemB1FlowChartPng(
+    constructionId: string,
+    majorItemId: string
+): Promise<Blob> {
+    const buf = await http.get<ArrayBuffer>(
+        `/management/construction-major-items/${majorItemId}/b1-flow-chart.png?constructionId=${encodeURIComponent(constructionId)}`,
+        { responseType: 'arraybuffer' }
+    )
+    return new Blob([buf as unknown as ArrayBuffer], { type: 'image/png' })
+}
+
 /**
  * 2) 覆蓋式複製（從 PCCES 工項複製標準到施工大項）
  */

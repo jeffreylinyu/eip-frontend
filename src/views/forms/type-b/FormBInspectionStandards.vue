@@ -69,28 +69,46 @@
             @remove-row="onRemoveRow"
           >
             <template #bulk-left>
-              <div class="inspection-standards-kind-switch" role="tablist" aria-label="抽查標準分頁切換">
+              <div
+                class="inspection-standards-toolbar-bulk flex-grow-1 min-w-0 d-flex flex-nowrap align-items-center gap-3"
+              >
+                <div
+                  class="inspection-standards-kind-switch min-w-0"
+                  role="tablist"
+                  aria-label="抽查標準分頁切換"
+                >
+                  <button
+                    type="button"
+                    class="kind-seg kind-seg--construction"
+                    :class="{ 'is-active': activeStandardsTab === 'construction' }"
+                    role="tab"
+                    :aria-selected="activeStandardsTab === 'construction'"
+                    @click="setStandardsTab('construction')"
+                  >
+                    <i class="fa fa-clipboard-check me-2" aria-hidden="true"></i>
+                    施工抽查標準
+                  </button>
+                  <button
+                    type="button"
+                    class="kind-seg kind-seg--safety"
+                    :class="{ 'is-active': activeStandardsTab === 'safety' }"
+                    role="tab"
+                    :aria-selected="activeStandardsTab === 'safety'"
+                    @click="setStandardsTab('safety')"
+                  >
+                    <i class="fa fa-hard-hat me-2" aria-hidden="true"></i>
+                    安全衛生抽查標準
+                  </button>
+                </div>
                 <button
                   type="button"
-                  class="kind-seg kind-seg--construction"
-                  :class="{ 'is-active': activeStandardsTab === 'construction' }"
-                  role="tab"
-                  :aria-selected="activeStandardsTab === 'construction'"
-                  @click="setStandardsTab('construction')"
+                  class="btn btn-sm btn-outline-secondary inspection-standards-flowchart-btn flex-shrink-0"
+                  title="預覽施工流程圖（與匯出監造計畫書相同）"
+                  :disabled="!constructionId || loadingItem || flowChartLoading"
+                  @click="openB1FlowChartModal"
                 >
-                  <i class="fa fa-clipboard-check me-2" aria-hidden="true"></i>
-                  施工抽查標準
-                </button>
-                <button
-                  type="button"
-                  class="kind-seg kind-seg--safety"
-                  :class="{ 'is-active': activeStandardsTab === 'safety' }"
-                  role="tab"
-                  :aria-selected="activeStandardsTab === 'safety'"
-                  @click="setStandardsTab('safety')"
-                >
-                  <i class="fa fa-hard-hat me-2" aria-hidden="true"></i>
-                  安全衛生抽查標準
+                  <i class="fa fa-sitemap me-2" aria-hidden="true"></i>
+                  施工流程圖
                 </button>
               </div>
             </template>
@@ -142,6 +160,37 @@
 
     <!-- 編輯欄位 Modal (通用) -->
     <Modal
+      :show="showB1FlowChartModal"
+      title="施工流程圖"
+      icon="fa fa-sitemap"
+      size="xl"
+      :hide-footer="true"
+      :hide-confirm-button="true"
+      :elevate-z-index="true"
+      @update:show="onB1FlowChartModalShow"
+    >
+      <template #body>
+        <p class="text-muted small mb-3 mb-md-2">
+          與匯出監造計畫書時一併產生的施工流程圖相同，依目前本施工大項的施工階段與施工流程產生。
+        </p>
+        <div v-if="flowChartLoading" class="text-center py-5 text-muted">
+          <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+          載入流程圖中…
+        </div>
+        <div
+          v-else-if="b1FlowChartObjectUrl"
+          class="text-center bg-white rounded p-2 inspection-standards-flowchart-img-wrap"
+        >
+          <img
+            :src="b1FlowChartObjectUrl"
+            alt="施工流程圖"
+            class="img-fluid inspection-standards-flowchart-img"
+          />
+        </div>
+      </template>
+    </Modal>
+
+    <Modal
       :show="showEditModal"
       :title="editModalTitle"
       icon="fa fa-edit"
@@ -175,7 +224,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, nextTick, watch } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { 
@@ -191,6 +240,7 @@ import {
     deleteConstructionMajorItemStandardsByManageProject,
     deleteConstructionMajorItemSafetyStandard,
     deleteConstructionMajorItemSafetyStandardsByManageProject,
+    fetchConstructionMajorItemB1FlowChartPng,
     type ConstructionMajorItem, 
     type ConstructionMajorItemStandardResponse
 } from '@/api/pcces'
@@ -874,6 +924,48 @@ const editFlowItem = (phaseKey: string, flowIdx: number) => {
     showEditModal.value = true
 }
 
+/** 與 B-1 A-Page-Image 匯出圖一致（後端 FlowChartImageGenerator） */
+const showB1FlowChartModal = ref(false)
+const b1FlowChartObjectUrl = ref('')
+const flowChartLoading = ref(false)
+
+function revokeB1FlowChartUrl() {
+  if (b1FlowChartObjectUrl.value) {
+    URL.revokeObjectURL(b1FlowChartObjectUrl.value)
+    b1FlowChartObjectUrl.value = ''
+  }
+}
+
+function closeB1FlowChartModal() {
+  showB1FlowChartModal.value = false
+  revokeB1FlowChartUrl()
+}
+
+function onB1FlowChartModalShow(v: boolean) {
+  if (!v) closeB1FlowChartModal()
+}
+
+async function openB1FlowChartModal() {
+  if (!constructionId.value || !itemId) return
+  flowChartLoading.value = true
+  revokeB1FlowChartUrl()
+  showB1FlowChartModal.value = true
+  try {
+    const blob = await fetchConstructionMajorItemB1FlowChartPng(constructionId.value, itemId)
+    b1FlowChartObjectUrl.value = URL.createObjectURL(blob)
+  } catch (e) {
+    console.error(e)
+    scrollPreservingAlert('無法載入施工流程圖，請稍後再試')
+    showB1FlowChartModal.value = false
+  } finally {
+    flowChartLoading.value = false
+  }
+}
+
+onBeforeUnmount(() => {
+  revokeB1FlowChartUrl()
+})
+
 onMounted(() => {
   loadData()
 })
@@ -994,6 +1086,29 @@ onMounted(() => {
   display: inline-block;
   margin: 0 0.5rem;
   color: inherit;
+}
+
+.inspection-standards-toolbar-bulk .inspection-standards-kind-switch {
+  flex: 1 1 320px;
+  min-width: min(100%, 260px);
+  max-width: 720px;
+  width: auto;
+}
+
+.inspection-standards-flowchart-btn {
+  white-space: nowrap;
+  border-radius: 0.55rem;
+}
+
+.inspection-standards-flowchart-img-wrap {
+  max-height: 72vh;
+  overflow: auto;
+}
+
+.inspection-standards-flowchart-img {
+  max-width: 100%;
+  height: auto;
+  vertical-align: middle;
 }
 
 .inspection-standards-kind-switch {

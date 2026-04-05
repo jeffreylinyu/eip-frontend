@@ -34,6 +34,12 @@ const layoutWithoutHeader = computed(
 	() => appOption.appHeaderHide || isAccessStatusGuideRoute.value
 );
 
+/**
+ * 監造／營造首頁等共用同一個元件（如 Dashboard.vue）時，若僅換路由前綴 Vue 會重用實例、onMounted 不重跑。
+ * 以 path 為 key 強制重掛，切換視角後會重新載入頁面資料。
+ */
+const routerViewKey = computed(() => route.path);
+
 const progresses = [] as ProgressFinisher[];
 
 router.beforeEach(async (to, from) => {
@@ -87,7 +93,7 @@ document.querySelector('body').classList.add('app-init');
 		<app-top-nav v-if="appOption.appTopNav" />
 		<app-sidebar v-if="showAppSidebar" />
 		<div class="app-content" v-bind:class="appOption.appContentClass">
-			<router-view></router-view>
+			<router-view :key="routerViewKey" />
 		</div>
 		<app-footer v-if="appOption.appFooter" />
 		<app-theme-panel />
