@@ -558,6 +558,8 @@ router.beforeEach(async (to, from, next) => {
   
   // 4. 權限狀態檢查 (僅針對已登入用戶)
   if (authStore.isAuthenticated) {
+    // 已在引導頁時不可再 next 到同一路徑，否則守衛重入會無限重導、主控台洗版
+    const onAccessStatusGuide = to.path === '/access-status-guide'
 
      // 場景 A: 無公司
      if (!authStore.user?.companyId) {
@@ -577,7 +579,7 @@ router.beforeEach(async (to, from, next) => {
             const roleForGate = authStore.user?.systemRole || authStore.user?.role
             const isSystemAdmin =
               roleForGate === 'SUPER_ADMIN' || roleForGate === 'ADMIN'
-            if (!isSystemAdmin) {
+            if (!isSystemAdmin && !onAccessStatusGuide) {
               console.warn('Guard: Redirecting to access-status-guide (No Company ID)')
               next('/access-status-guide')
               return
@@ -599,7 +601,12 @@ router.beforeEach(async (to, from, next) => {
      // 修改：同時檢查工作空間數量與參與的工程案數量
      // 優先使用新欄位檢查系統角色
      const systemRole = authStore.user?.systemRole || authStore.user?.role
-     if (workspaceStore.workspaces.length === 0 && workspaceStore.joinedProjectsCount === 0 && systemRole !== 'SUPER_ADMIN') {
+     if (
+       !onAccessStatusGuide &&
+       workspaceStore.workspaces.length === 0 &&
+       workspaceStore.joinedProjectsCount === 0 &&
+       systemRole !== 'SUPER_ADMIN'
+     ) {
          console.warn('Guard: Redirecting to access-status-guide (No Workspaces or Projects)', {
              role: systemRole,
              workspaces: workspaceStore.workspaces.length,
