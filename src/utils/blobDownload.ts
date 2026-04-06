@@ -1,10 +1,16 @@
 /**
  * Blob 檔案下載工具
  * 用於處理需要下載二進位檔案（如 Word、PDF）的 API 請求
- * 直接使用 axios 以避免 http 攔截器處理 blob 資料
+ * 直接使用 axios 以避免 http 攔截器改寫成功回應的 blob；但認證標頭與 http 一致（含 X-Effective-View-Type）
  */
 
 import { storage, StorageKeys } from './storage'
+import { getApiBaseURL } from '@/utils/apiBaseUrl'
+import { resolveEffectiveViewTypeForHttpRequest } from '@/utils/effectiveViewTypeApi'
+import {
+  isPerspectiveOrPermission401Payload,
+  parseAxios401ResponseData
+} from '@/utils/authHttpErrors'
 import type { AxiosResponse, AxiosRequestConfig } from 'axios'
 
 export interface BlobDownloadOptions {
@@ -53,8 +59,9 @@ export const downloadBlob = async (options: BlobDownloadOptions): Promise<AxiosR
 
   // 構建 headers
   const headers: Record<string, string> = {
-    'Accept': 'application/octet-stream, application/vnd.openxmlformats-officedocument.wordprocessingml.document, */*',
-    'Authorization': `Bearer ${token}`,
+    Accept:
+      'application/octet-stream, application/vnd.openxmlformats-officedocument.wordprocessingml.document, */*',
+    Authorization: `Bearer ${token}`,
     ...customHeaders
   }
 
@@ -66,19 +73,15 @@ export const downloadBlob = async (options: BlobDownloadOptions): Promise<AxiosR
     headers['userId'] = authUser.userId
   }
 
+  const effectiveView = resolveEffectiveViewTypeForHttpRequest()
+  if (effectiveView) {
+    headers['X-Effective-View-Type'] = effectiveView
+  }
+
   // 動態導入 axios
   const axios = await import('axios')
 
-  // 取得目前應該使用的 API Base URL（與 http.ts 行為一致）
-  const getBaseURL = (): string => {
-    const customUrl = storage.get<string>(StorageKeys.CUSTOM_API_BASE_URL)
-    if (customUrl && typeof customUrl === 'string' && customUrl.trim()) {
-      return customUrl.trim()
-    }
-    return import.meta.env.VITE_API_URL || 'http://localhost:8080'
-  }
-
-  const baseURL = getBaseURL()
+  const baseURL = getApiBaseURL()
 
   // 構建請求配置
   const config: AxiosRequestConfig = {
@@ -107,7 +110,25 @@ export const downloadBlob = async (options: BlobDownloadOptions): Promise<AxiosR
   } catch (error: any) {
     const status = error?.response?.status
     if (status === 401) {
-      // 清除本地狀態，避免後續請求持續帶舊 token
+      const parsed401 = await parseAxios401ResponseData(error?.response?.data)
+
+      if (isPerspectiveOrPermission401Payload(parsed401)) {
+        const ep = parsed401 as Record<string, unknown>
+        const text =
+          (typeof ep?.message === 'string' && ep.message) ||
+          (typeof ep?.error === 'string' && ep.error) ||
+          '目前視角無權限存取此功能，請確認已切換監造／營造'
+        try {
+          const toastServiceModule = await import('@/components/bootstrap/ToastService.js')
+          toastServiceModule.default?.warning?.(text)
+        } catch {
+          /* ignore */
+        }
+        console.warn('[Auth] 401 視角／權限（blob 下載，非登入過期）:', text)
+        throw new Error(text)
+      }
+
+      // 登入過期：與 http 攔截器一致，清狀態並導向登入
       try {
         const [{ default: router }, toastServiceModule, authStoreModule] = await Promise.all([
           import('@/router'),
@@ -115,7 +136,6 @@ export const downloadBlob = async (options: BlobDownloadOptions): Promise<AxiosR
           import('@/stores/auth')
         ])
 
-        // 避免在登入頁重複提示/跳轉
         const currentPath = router.currentRoute.value.path
         const isLoginPage = currentPath === '/page/login' || currentPath.startsWith('/page/login')
 
@@ -127,8 +147,10 @@ export const downloadBlob = async (options: BlobDownloadOptions): Promise<AxiosR
           storage.remove(StorageKeys.AUTH_USER)
         }
 
-        // 不要把後端訊息（例如 JWT token not valid）直接顯示給用戶
-        const backendMessage = error?.response?.data?.message
+        const backendMessage =
+          parsed401 && typeof parsed401 === 'object'
+            ? (parsed401 as Record<string, unknown>).message
+            : undefined
         if (backendMessage) {
           console.warn('[Auth] 401 unauthorized (blob download):', backendMessage)
         }
@@ -178,4 +200,3 @@ export const extractFileNameFromResponse = (response: AxiosResponse): string | n
     return null
   }
 }
-

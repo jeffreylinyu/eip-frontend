@@ -6,50 +6,19 @@ import axios, {
 } from 'axios'
 import { storage, StorageKeys } from '@/utils/storage'
 import { resolveEffectiveViewTypeForHttpRequest } from '@/utils/effectiveViewTypeApi'
+import { getApiBaseURL } from '@/utils/apiBaseUrl'
+import {
+  isPerspectiveOrPermission401Payload,
+  parseAxios401ResponseData
+} from '@/utils/authHttpErrors'
 import router from '@/router'
 import toastService from '@/components/bootstrap/ToastService.js'
-
-/** 後端以 401 回傳「視角／權限不符」時，不應當成登入過期而清 token */
-function isPerspectiveOrPermission401Payload(data: unknown): boolean {
-  const msg =
-    data && typeof data === 'object'
-      ? String(
-          (data as Record<string, unknown>).message ??
-            (data as Record<string, unknown>).error ??
-            ''
-        )
-      : ''
-  if (!msg) return false
-  return (
-    msg.includes('僅供營造') ||
-    msg.includes('僅供監造') ||
-    msg.includes('營造端') ||
-    msg.includes('營造視角') ||
-    msg.includes('監造使用') ||
-    msg.includes('無權以此視角')
-  )
-}
-
-/**
- * 獲取當前的 API Base URL
- * 優先順序：localStorage 自訂網址 > 環境變數 > 預設值
- */
-const getBaseURL = (): string => {
-  // 生產環境固定使用 VITE_API_URL，避免 localStorage 殘留 localhost 導致線上誤連本機。
-  if (!import.meta.env.PROD) {
-    const customUrl = storage.get<string>(StorageKeys.CUSTOM_API_BASE_URL)
-    if (customUrl && customUrl.trim()) {
-      return customUrl.trim()
-    }
-  }
-  return import.meta.env.VITE_API_URL || 'http://localhost:8080'
-}
 
 /**
  * 建立一個預設的 Axios 實例，所有 API 請求都用它
  */
 const http: AxiosInstance = axios.create({
-  baseURL: getBaseURL(), // 初始化時使用預設值
+  baseURL: getApiBaseURL(), // 初始化時使用預設值
   timeout: 50000, // 超時設定：50s
   headers: {
     'Content-Type': 'application/json',
@@ -81,7 +50,7 @@ export const updateBaseURL = (newBaseURL: string | null) => {
 http.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     // 動態更新 baseURL（從 localStorage 讀取最新值）
-    const currentBaseURL = getBaseURL()
+    const currentBaseURL = getApiBaseURL()
     if (config.baseURL !== currentBaseURL) {
       config.baseURL = currentBaseURL
     }
@@ -138,7 +107,7 @@ http.interceptors.response.use(
     
     return response.data
   },
-  (error: AxiosError) => {
+  async (error: AxiosError) => {
     const { response } = error
     
     // 全域錯誤處理
@@ -157,11 +126,12 @@ http.interceptors.response.use(
             return Promise.reject(error)
           }
 
-          const errorDataEarly = response.data as Record<string, unknown> | undefined
-          if (isPerspectiveOrPermission401Payload(errorDataEarly)) {
+          const parsed401 = await parseAxios401ResponseData(response.data)
+          if (isPerspectiveOrPermission401Payload(parsed401)) {
+            const ep = parsed401 as Record<string, unknown>
             const text =
-              (typeof errorDataEarly?.message === 'string' && errorDataEarly.message) ||
-              (typeof errorDataEarly?.error === 'string' && errorDataEarly.error) ||
+              (typeof ep?.message === 'string' && ep.message) ||
+              (typeof ep?.error === 'string' && ep.error) ||
               '目前視角無權限存取此功能，請確認已切換監造／營造'
             console.warn('[Auth] 401 視角／權限（非登入過期）:', text)
             toastService.warning(text)
@@ -190,8 +160,10 @@ http.interceptors.response.use(
             if (isLoginPage) return
 
             // 不要把後端的技術訊息直接顯示給用戶（例如：JWT token not valid）
-            const errorData = response.data as any
-            const backendMessage = errorData?.message
+            const backendMessage =
+              parsed401 && typeof parsed401 === 'object'
+                ? (parsed401 as Record<string, unknown>).message
+                : undefined
             if (backendMessage) {
               console.warn('[Auth] 401 unauthorized:', backendMessage)
             }
@@ -203,8 +175,10 @@ http.interceptors.response.use(
             storage.remove(StorageKeys.AUTH_USER)
 
             if (isLoginPage) return
-            const errorData = response.data as any
-            const backendMessage = errorData?.message
+            const backendMessage =
+              parsed401 && typeof parsed401 === 'object'
+                ? (parsed401 as Record<string, unknown>).message
+                : undefined
             if (backendMessage) {
               console.warn('[Auth] 401 unauthorized:', backendMessage)
             }
