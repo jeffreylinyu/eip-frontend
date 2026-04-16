@@ -37,7 +37,7 @@
             <i class="fa fa-info-circle construction-intro-icon flex-shrink-0" aria-hidden="true"></i>
             <span class="construction-intro-pill flex-shrink-0">說明</span>
             <span class="construction-intro-line small min-w-0">
-              依版本維護<strong class="construction-kw">分項工程</strong>與<strong class="construction-kw">施工／安全衛生抽查標準</strong>（由監造匯入或複製前一版帶入）；名稱用於各表單之
+              依版本維護<strong class="construction-kw">分項工程</strong>與<strong class="construction-kw">抽查標準表</strong>（施工／安衛於標準頁內切換；由監造匯入或複製前一版帶入）；名稱用於各表單之
               <strong class="construction-hl">名稱＋後綴</strong>。
             </span>
           </div>
@@ -151,37 +151,32 @@
                   </td>
                   <td class="fw-bold">
                     {{ item.name }}
-                    <div
-                      class="small fw-normal mt-1 d-flex flex-wrap align-items-center gap-1 gap-sm-2"
-                    >
+                    <div class="small fw-normal mt-1 d-flex flex-wrap align-items-center gap-1 gap-sm-2">
                       <button
                         type="button"
                         class="standards-status-hit"
-                        title="開啟施工抽查標準"
-                        @click="goToSubdivisionStandards(item, 'construction')"
+                        title="開啟抽查標準表（頁內以分頁切換施工／安衛）"
+                        @click="goToSubdivisionStandards(item)"
                       >
-                        <span class="text-muted">施工抽查標準</span>
+                        <span class="text-muted">抽查標準表</span>
                         <span
-                          v-if="(item.constructionStandards?.length ?? 0) > 0"
-                          class="standards-pill standards-pill--filled"
-                          >已填寫 {{ item.constructionStandards?.length }} 筆</span
+                          :class="[
+                            'standards-pill',
+                            ((item.constructionStandards?.length ?? 0) + (item.safetyStandards?.length ?? 0)) > 0
+                              ? 'standards-pill--filled'
+                              : 'standards-pill--empty'
+                          ]"
                         >
-                        <span v-else class="standards-pill standards-pill--empty">無資料</span>
-                      </button>
-                      <span class="text-muted d-none d-sm-inline">&middot;</span>
-                      <button
-                        type="button"
-                        class="standards-status-hit"
-                        title="開啟安全衛生抽查標準"
-                        @click="goToSubdivisionStandards(item, 'safety')"
-                      >
-                        <span class="text-muted">安全衛生抽查標準</span>
-                        <span
-                          v-if="(item.safetyStandards?.length ?? 0) > 0"
-                          class="standards-pill standards-pill--filled"
-                          >已填寫 {{ item.safetyStandards?.length }} 筆</span
-                        >
-                        <span v-else class="standards-pill standards-pill--empty">無資料</span>
+                          <template
+                            v-if="
+                              ((item.constructionStandards?.length ?? 0) + (item.safetyStandards?.length ?? 0)) > 0
+                            "
+                          >
+                            施工 {{ item.constructionStandards?.length ?? 0 }} · 安衛
+                            {{ item.safetyStandards?.length ?? 0 }}
+                          </template>
+                          <template v-else>無資料</template>
+                        </span>
                       </button>
                     </div>
                   </td>
@@ -190,16 +185,9 @@
                     <button
                       type="button"
                       class="btn btn-sm btn-outline-primary me-2"
-                      @click="goToSubdivisionStandards(item, 'construction')"
+                      @click="goToSubdivisionStandards(item)"
                     >
-                      <i class="fa fa-list-check me-1"></i>施工抽查標準
-                    </button>
-                    <button
-                      type="button"
-                      class="btn btn-sm btn-outline-warning me-2"
-                      @click="goToSubdivisionStandards(item, 'safety')"
-                    >
-                      <i class="fa fa-hard-hat me-1"></i>安全衛生抽查標準
+                      <i class="fa fa-clipboard-list me-1"></i>抽查標準表
                     </button>
                     <button type="button" class="btn btn-sm btn-outline-secondary me-2" @click="editItem(item)">
                       <i class="fa fa-pen me-1"></i>編輯
@@ -304,17 +292,16 @@ const isCopying = ref(false)
 const isImportingSubdivision = ref(false)
 const importSubdivisionFileInput = ref<HTMLInputElement | null>(null)
 
-function goToSubdivisionStandards(item: SubdivisionWorkItem, kind: 'construction' | 'safety') {
-  const path =
-    kind === 'safety'
-      ? `/forms/subdivision-work-items/${item.id}/safety-standards`
-      : `/forms/subdivision-work-items/${item.id}/construction-standards`
+/** 與監造「施工項目」一致：統一進入抽查標準表，頁內以 Tab 切換施工／安衛 */
+function goToSubdivisionStandards(item: SubdivisionWorkItem, tab?: 'construction' | 'safety') {
   router.push({
-    path,
-    query:
-      selectedDesignChangeId.value != null
+    path: `/forms/subdivision-work-items/${item.id}/standards`,
+    query: {
+      ...(selectedDesignChangeId.value != null
         ? { designChangeId: String(selectedDesignChangeId.value) }
-        : {}
+        : {}),
+      ...(tab === 'safety' ? { tab: 'safety' } : {})
+    }
   })
 }
 

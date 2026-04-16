@@ -16,7 +16,13 @@ export interface ConstructionLocationMapImageInfo {
 
 export async function listConstructionLocationMaps(
   constructionId: string,
-  type: 'LOCATION_MAP' | 'SCOPE_DIAGRAM' | 'SECTION_DIAGRAM',
+  type:
+    | 'LOCATION_MAP'
+    | 'SCOPE_DIAGRAM'
+    | 'SECTION_DIAGRAM'
+    | 'P1_SITE_LOCATION_MAP'
+    | 'P1_MAIN_STANDARD_DRAWINGS'
+    | 'P1_SCHEDULED_PROJECT_PROGRESS',
   designChangeId?: number | null
 ): Promise<ConstructionLocationMapImageInfo[]> {
   const params: any = { constructionId, type }
@@ -32,7 +38,13 @@ export async function listConstructionLocationMaps(
 export async function uploadConstructionLocationMaps(
   constructionId: string,
   files: File[],
-  type: 'LOCATION_MAP' | 'SCOPE_DIAGRAM' | 'SECTION_DIAGRAM',
+  type:
+    | 'LOCATION_MAP'
+    | 'SCOPE_DIAGRAM'
+    | 'SECTION_DIAGRAM'
+    | 'P1_SITE_LOCATION_MAP'
+    | 'P1_MAIN_STANDARD_DRAWINGS'
+    | 'P1_SCHEDULED_PROJECT_PROGRESS',
   designChangeId?: number | null
 ): Promise<ConstructionLocationMapImageInfo[]> {
   const form = new FormData()
@@ -50,7 +62,13 @@ export async function uploadConstructionLocationMaps(
 export async function deleteConstructionLocationMap(
   constructionId: string,
   id: number,
-  type: 'LOCATION_MAP' | 'SCOPE_DIAGRAM' | 'SECTION_DIAGRAM',
+  type:
+    | 'LOCATION_MAP'
+    | 'SCOPE_DIAGRAM'
+    | 'SECTION_DIAGRAM'
+    | 'P1_SITE_LOCATION_MAP'
+    | 'P1_MAIN_STANDARD_DRAWINGS'
+    | 'P1_SCHEDULED_PROJECT_PROGRESS',
   designChangeId?: number | null
 ): Promise<void> {
   const params: any = { constructionId, type }

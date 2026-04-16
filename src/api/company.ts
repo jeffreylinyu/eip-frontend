@@ -201,6 +201,11 @@ export const companyApi = {
   // 移除公司成員
   async removeMember(companyId: string, targetUserId: string): Promise<void> {
     await http.delete(`/management/companyMember/remove/${companyId}/${targetUserId}`)
+  },
+
+  /** 更新公司成員權限（companyPermission） */
+  async updateMemberPermission(companyId: string, targetUserId: string, role: string): Promise<void> {
+    await http.patch('/management/companyMember/permission', { companyId, targetUserId, role })
   }
 }
 

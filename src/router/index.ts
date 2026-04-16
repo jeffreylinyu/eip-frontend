@@ -44,6 +44,11 @@ const router = createRouter({
       meta: { requiresAuth: true }
     },
     {
+      path: '/basic/insurance',
+      component: () => import('../views/basic/ConstructionInsurance.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
       path: '/forms/export-center',
       redirect: '/',
       meta: { requiresAuth: true }
@@ -150,19 +155,28 @@ const router = createRouter({
       meta: { requiresAuth: true }
     },
     {
+      path: '/forms/subdivision-work-items/:itemId/standards',
+      component: () => import('../views/forms/type-b/FormSubdivisionWorkItemStandardsView.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
       path: '/forms/p1-overall-construction-plan',
       component: () => import('../views/forms/type-b/FormP1OverallConstructionPlan.vue'),
       meta: { requiresAuth: true }
     },
     {
       path: '/forms/subdivision-work-items/:itemId/construction-standards',
-      component: () => import('../views/forms/type-b/FormSubdivisionWorkItemStandardsView.vue'),
-      meta: { requiresAuth: true }
+      redirect: (to) => ({
+        path: `/forms/subdivision-work-items/${String(to.params.itemId)}/standards`,
+        query: { ...to.query }
+      })
     },
     {
       path: '/forms/subdivision-work-items/:itemId/safety-standards',
-      component: () => import('../views/forms/type-b/FormSubdivisionWorkItemStandardsView.vue'),
-      meta: { requiresAuth: true }
+      redirect: (to) => ({
+        path: `/forms/subdivision-work-items/${String(to.params.itemId)}/standards`,
+        query: { ...to.query, tab: 'safety' }
+      })
     },
     {
       path: '/forms/plan-submission-records',
@@ -172,6 +186,11 @@ const router = createRouter({
     {
       path: '/forms/document-classification',
       component: () => import('../views/forms/DocumentClassification.vue'),
+      meta: { requiresAuth: true, requiresSupervisory: true }
+    },
+    {
+      path: '/forms/contractor-document-classification',
+      component: () => import('../views/forms/ContractorDocumentClassification.vue'),
       meta: { requiresAuth: true }
     },
     {
@@ -319,6 +338,23 @@ const router = createRouter({
       meta: { requiresAuth: true, viewType: 'SUPERVISORY' }
     },
     {
+      path: '/supervisory/basic/insurance',
+      redirect: '/supervisory/basic/insurance-project',
+      meta: { requiresAuth: true, viewType: 'SUPERVISORY' }
+    },
+    {
+      path: '/supervisory/basic/insurance-project',
+      component: () => import('../views/basic/ConstructionInsurance.vue'),
+      props: { fixedScope: 'PROJECT', hideScopeSwitcher: true, pageTitle: '工程保險（工程案）' },
+      meta: { requiresAuth: true, viewType: 'SUPERVISORY' }
+    },
+    {
+      path: '/supervisory/basic/insurance-company',
+      component: () => import('../views/basic/ConstructionInsurance.vue'),
+      props: { fixedScope: 'SUPERVISION_COMPANY_IN_PROJECT', hideScopeSwitcher: true, pageTitle: '工程保險（監造公司本案）' },
+      meta: { requiresAuth: true, viewType: 'SUPERVISORY' }
+    },
+    {
       path: '/supervisory/basic/participation-units',
       component: () => import('../views/supervisory/basic/ParticipationUnits.vue'),
       meta: { requiresAuth: true, viewType: 'SUPERVISORY' }
@@ -365,6 +401,12 @@ const router = createRouter({
     {
       path: '/contractor/basic/basic-data',
       component: () => import('../views/contractor/basic/BasicData.vue'),
+      meta: { requiresAuth: true, viewType: 'CONTRACTOR' }
+    },
+    {
+      path: '/contractor/basic/insurance',
+      component: () => import('../views/basic/ConstructionInsurance.vue'),
+      props: { fixedScope: 'PROJECT', hideScopeSwitcher: true, pageTitle: '工程保險' },
       meta: { requiresAuth: true, viewType: 'CONTRACTOR' }
     },
     {

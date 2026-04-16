@@ -29,7 +29,7 @@ export default {
         host_agency: '',
         contractor_name: '',
         construction_period: '',
-        project_amount: '',
+        current_contract_amount: '',
         project_grade: ''
       },
       isSubmitting: false
@@ -109,7 +109,7 @@ export default {
         host_agency: '',
         contractor_name: '',
         construction_period: '',
-        project_amount: '',
+        current_contract_amount: '',
         project_grade: ''
       };
     },
@@ -147,7 +147,7 @@ export default {
         constructionName: formData.project_name,
         constructionLocation: formData.project_location,
         contractId: formData.contract_number,
-        constructionBudget: formData.project_amount,
+        constructionBudget: formData.current_contract_amount,
         leadOrganization: formData.host_agency,
         constructor: formData.contractor_name,
         constructionLevel: formData.project_grade,
@@ -166,7 +166,7 @@ export default {
         { field: 'host_agency', label: '主辦機關' },
         { field: 'contractor_name', label: '承包商名稱' },
         { field: 'construction_period', label: '工期' },
-        { field: 'project_amount', label: '工程金額' },
+        { field: 'current_contract_amount', label: '契約金額' },
         { field: 'project_grade', label: '工程等級' }
       ];
       
@@ -177,9 +177,9 @@ export default {
         }
       }
       
-      // 驗證工程金額
-      if (isNaN(this.newProject.project_amount) || parseFloat(this.newProject.project_amount) <= 0) {
-        toastService.warning('請填寫有效的工程金額');
+      // 驗證契約金額
+      if (isNaN(this.newProject.current_contract_amount) || parseFloat(this.newProject.current_contract_amount) <= 0) {
+        toastService.warning('請填寫有效的契約金額');
         return false;
       }
       

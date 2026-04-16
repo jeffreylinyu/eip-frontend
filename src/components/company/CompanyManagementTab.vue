@@ -246,7 +246,7 @@ onMounted(() => {
         @mouseenter="handleCardMouseEnter(company.companyId)"
         @mouseleave="handleCardMouseLeave"
       >
-        <div class="card-body">
+        <div class="card-body company-card-body">
             <!-- Header: Title and Status -->
             <div class="d-flex justify-content-between align-items-start mb-3">
                 <h5 class="card-title mb-0 fw-bold text-truncate flex-grow-1 me-2" :title="company.companyName">
@@ -280,45 +280,51 @@ onMounted(() => {
                 </div>
             </div>
 
-            <!-- Role Badge -->
-            <div class="user-role-section mb-3 d-flex gap-2">
-                 <span 
+            <!-- Bottom Section (Role + Actions) -->
+            <div class="company-card-bottom">
+              <!-- Role Badge -->
+              <div class="user-role-section d-flex gap-2 flex-wrap">
+                <span
                   class="badge border px-2 pt-1 pb-1 rounded d-inline-flex align-items-center"
-                   :class="`border-${getTypeColor(company.companyType)} text-${getTypeColor(company.companyType)}`"
+                  :class="`border-${getTypeColor(company.companyType)} text-${getTypeColor(company.companyType)}`"
                 >
                   {{ getTypeLabel(company.companyType) }}
                 </span>
-                
+
                 <span class="badge bg-light text-dark border" title="角色">
-                    <i class="fa fa-user-tag me-1 text-muted"></i>
-                    {{ company.userRole === 'OWNER' ? '擁有者' :
-                       company.userRole === 'ADMIN' ? '管理員' :
-                       company.userRole === 'MEMBER' ? '成員' :
-                       company.userRole === 'VIEWER' ? '檢視者' : company.userRole }}
+                  <i class="fa fa-user-tag me-1 text-muted"></i>
+                  {{
+                    company.userRole === 'OWNER'
+                      ? '擁有者'
+                      : company.userRole === 'ADMIN'
+                        ? '管理員'
+                        : company.userRole === 'MEMBER'
+                          ? '成員'
+                          : company.userRole === 'VIEWER'
+                            ? '檢視者'
+                            : company.userRole
+                  }}
                 </span>
-            </div>
-            
-            <!-- Actions Section -->
-            <div class="companies-section p-2 rounded d-flex justify-content-end flex-wrap gap-2 align-items-center">
-                 <button 
-                   class="btn btn-sm btn-outline-light"
-                   @click.stop="openCompanyForm(company)"
-                   title="編輯公司資料"
-                 >
-                   <i class="fa fa-pen me-1"></i> 編輯公司
-                 </button>
-                 <button 
-                   class="btn btn-sm btn-outline-light"
-                   @click="handleManageMembers(company)"
-                 >
-                   <i class="fa fa-users me-1"></i> 人員管理
-                 </button>
-                 <button 
-                   class="btn btn-sm btn-outline-light"
-                   @click="handleManageSitePersonnel(company)"
-                 >
-                   <i class="fa fa-hard-hat me-1"></i> 工地人員
-                 </button>
+              </div>
+
+              <!-- Actions Section -->
+              <div
+                class="companies-section p-2 rounded d-flex justify-content-end flex-wrap gap-2 align-items-center"
+              >
+                <button
+                  class="btn btn-sm btn-outline-light"
+                  @click.stop="openCompanyForm(company)"
+                  title="編輯公司資料"
+                >
+                  <i class="fa fa-pen me-1"></i> 編輯公司
+                </button>
+                <button class="btn btn-sm btn-outline-light" @click="handleManageMembers(company)">
+                  <i class="fa fa-users me-1"></i> 人員管理
+                </button>
+                <button class="btn btn-sm btn-outline-light" @click="handleManageSitePersonnel(company)">
+                  <i class="fa fa-hard-hat me-1"></i> 工地人員
+                </button>
+              </div>
             </div>
         </div>
       </div>
@@ -345,6 +351,7 @@ onMounted(() => {
     grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
     gap: 1.5rem;
     padding-bottom: 2rem;
+    align-items: stretch;
 }
 
 .project-card {
@@ -355,6 +362,10 @@ onMounted(() => {
     cursor: default;
     border: 1px solid #333;
     position: relative;
+    display: flex;
+    flex-direction: column;
+    align-self: stretch;
+    min-height: 260px;
     /* overflow: hidden; Removed to allow dropdowns */
 }
 
@@ -363,6 +374,19 @@ onMounted(() => {
 .project-card .card-body {
     padding: 1.25rem;
     color: #fff;
+}
+
+.company-card-body {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.company-card-bottom {
+    margin-top: auto !important;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
 }
 
 .card-title {
@@ -376,7 +400,6 @@ onMounted(() => {
     border: 1px solid #444;
     border-radius: 8px;
     padding: 1rem;
-    margin-top: 1rem;
 }
 
 .dropdown-menu {

@@ -25,12 +25,12 @@
     >
       <!-- 自訂年份選擇器的每個選項 -->
       <template #year="{ value }" v-if="useRepublicYear">
-        民國{{ toRepublicYear(value) }}
+        {{ republicYearPrefix }}{{ toRepublicYear(value) }}
       </template>
       
       <!-- 自訂年份選擇器覆蓋層 -->
       <template #year-overlay-value="{ text }" v-if="useRepublicYear">
-        民國{{ toRepublicYear(parseInt(text)) }}
+        {{ republicYearPrefix }}{{ toRepublicYear(parseInt(text)) }}
       </template>
       
       <!-- 自訂星期標題 -->
@@ -56,7 +56,8 @@ import { ref, watch, computed, onMounted, nextTick } from 'vue'
 import VueDatePicker from '@vuepic/vue-datepicker'
 import '@vuepic/vue-datepicker/dist/main.css'
 import { toRepublicYear } from '@/utils/format'
-import { getCalendarEvents, type CalendarEvent } from '@/api/construction' 
+import { republicDateShowLiteralRef } from '@/utils/republicDateDisplayPrefs'
+import { getCalendarEvents, type CalendarEvent } from '@/api/construction'
 
 interface Props {
   modelValue?: string
@@ -67,6 +68,10 @@ interface Props {
   minDate?: string | Date
   maxDate?: string | Date
   useRepublicYear?: boolean
+  /**
+   * 民國年是否顯示「民國」前綴；未傳則依全站設定（republicDateDisplayPrefs／localStorage，預設不顯示）。
+   */
+  showRepublicLiteral?: boolean
   id?: string                      // 新增：input 元素的 id 屬性
   
   // --- 新增 Props ---
@@ -84,6 +89,7 @@ const props = withDefaults(defineProps<Props>(), {
   minDate: undefined,
   maxDate: undefined,
   useRepublicYear: true,
+  showRepublicLiteral: undefined,
   id: undefined,
   
   // --- 新增預設值 ---
@@ -97,6 +103,14 @@ const emit = defineEmits<{
   'blur': []
   'focus': []
 }>()
+
+const effectiveShowRepublicLiteral = computed(() =>
+  props.showRepublicLiteral !== undefined
+    ? props.showRepublicLiteral
+    : republicDateShowLiteralRef.value
+)
+
+const republicYearPrefix = computed(() => (effectiveShowRepublicLiteral.value ? '民國' : ''))
 
 // 內部日期值 (Date 對象)
 const internalDate = ref<Date | null>(null)
@@ -252,14 +266,15 @@ const yearRange = computed(() => {
 // 格式化顯示日期
 const formatDisplayDate = (date: Date): string => {
   if (!date) return ''
-  
+
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
-  
+
   if (props.useRepublicYear) {
     const republicYear = toRepublicYear(year)
-    return `民國${republicYear}年${month}月${day}日`
+    const prefix = effectiveShowRepublicLiteral.value ? '民國' : ''
+    return `${prefix}${republicYear}年${month}月${day}日`
   } else {
     return `${year}年${month}月${day}日`
   }

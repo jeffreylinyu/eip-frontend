@@ -21,7 +21,6 @@ const projectFormData = ref({
   host_agency: '',
   contractor_name: '',
   construction_period: '',
-  project_amount: '',
   current_contract_amount: '',
   // 工程類別/屬性
   project_category: '',
@@ -41,12 +40,6 @@ const projectFormData = ref({
   segmented_acceptance: false,
   partial_acceptance: false,
   completion_acceptance: false,
-  // 保險相關資訊
-  insurance_policy_number: '',
-  insurance_company: '',
-  insurance_start_date: '',
-  insurance_end_date: '',
-  insurance_type: '',
   // 簽核層級
   signLevel: []
 })
@@ -113,7 +106,6 @@ const openAddProject = () => {
     host_agency: '',
     contractor_name: '',
     construction_period: '',
-    project_amount: '',
     current_contract_amount: '',
     // 工程類別/屬性
     project_category: '',
@@ -133,12 +125,6 @@ const openAddProject = () => {
     segmented_acceptance: false,
     partial_acceptance: false,
     completion_acceptance: false,
-    // 保險相關資訊
-    insurance_policy_number: '',
-    insurance_company: '',
-    insurance_start_date: '',
-    insurance_end_date: '',
-    insurance_type: '',
     // 簽核層級
     signLevel: []
   }
@@ -156,7 +142,6 @@ const openEditProject = (project: WorkspaceProject) => {
     host_agency: project.hostAgency || '',
     contractor_name: project.managerName || '',
     construction_period: project.constructionPeriod || '',
-    project_amount: project.budget || '',
     current_contract_amount: project.currentContractAmount || '',
     // 工程類別/屬性
     project_category: project.projectCategory || '',
@@ -176,12 +161,6 @@ const openEditProject = (project: WorkspaceProject) => {
     segmented_acceptance: project.segmentedAcceptance || false,
     partial_acceptance: project.partialAcceptance || false,
     completion_acceptance: project.completionAcceptance || false,
-    // 保險相關資訊
-    insurance_policy_number: project.insurancePolicyNumber || '',
-    insurance_company: project.insuranceCompany || '',
-    insurance_start_date: project.insuranceStartDate ? project.insuranceStartDate.split('T')[0] : '',
-    insurance_end_date: project.insuranceEndDate ? project.insuranceEndDate.split('T')[0] : '',
-    insurance_type: project.insuranceType || '',
     // 簽核層級
     signLevel: project.signLevel || []
   }
@@ -275,7 +254,7 @@ const onProjectFormSubmit = async (formData: any) => {
       name: formData.project_name,
       workspaceId: workspaceStore.currentWorkspace?.id || workspaceStore.workspaces[0]?.id || '',
       location: formData.project_location,
-      budget: formData.project_amount,
+      budget: formData.current_contract_amount,
       status: 'PLANNING' as const,
       startDate: '',
       endDate: '',

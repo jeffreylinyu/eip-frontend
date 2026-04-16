@@ -21,11 +21,6 @@ export interface Construction {
   constructionConfirmDate?: string;
   constructionProjectId?: string;
   payMethod?: string;
-  insuranceId?: string;
-  insuranceCompanyName?: string;
-  insuranceStartDate?: string;
-  insuranceEndDate?: string;
-  insuranceType?: string;
   segmentedAcceptance?: boolean;
   partialAcceptance?: boolean;
   completionAcceptance?: boolean;
@@ -60,6 +55,8 @@ export interface Construction {
   b2SafetyFacilityAcknowledged?: boolean;
   /** P-1 工程規模概述（營造端維護，依版本） */
   p1ConstructionScaleOverview?: string | null;
+  /** P-1 施工執行方向（營造端維護，依版本） */
+  p1ConstructionExecutionDirection?: string | null;
   /** P-1 工地研判：地質概況 */
   p1GeologyOverview?: string | null;
   /** P-1 工地研判：工址現況調查 */
@@ -70,12 +67,66 @@ export interface Construction {
   p1MeteorologyHydrology?: string | null;
   /** P-1 工地研判：鄰房調查 */
   p1NeighboringBuildingSurvey?: string | null;
-  /** P-1 施工機械設備資源（JSON） */
+  /** P-1 施工機械設備資源預定進場時間表（JSON 陣列） */
   p1MechanicalResourcesJson?: string | null;
   /** P-1 物料市場調查 */
   p1MaterialMarketSurvey?: string | null;
+  /** P-1 進度異常管理門檻百分比（例：10） */
+  p1ProgressDelayThresholdPercent?: number | null;
+  /** P-1 施工前協調會議（自填） */
+  p1PreConstructionCoordinationMeeting?: string | null;
+  /** P-1 定期會議（自填） */
+  p1RegularMeetingFrequency?: string | null;
+  /** P-1 臨時用電設備 */
+  p1TempPowerEquipment?: string | null;
+  /** P-1 給排水設備 */
+  p1TempWaterDrainageEquipment?: string | null;
+  /** P-1 電訊設備 */
+  p1TempTelecomEquipment?: string | null;
+  /** P-1 臨時房舍 */
+  p1TempHousing?: string | null;
+  /** P-1 材料堆置場及加工區 */
+  p1TempMaterialStorageProcessingArea?: string | null;
+  /** P-1 修護場 */
+  p1TempRepairYard?: string | null;
+  /** P-1 拌合場 */
+  p1TempMixingPlant?: string | null;
+  /** P-1 材料實驗室 */
+  p1TempMaterialLab?: string | null;
+  /** P-1 施工道 */
+  p1TempConstructionRoad?: string | null;
+  /** P-1 施工測量（舊欄位，相容保留） */
+  p1ConstructionSurvey?: string | null;
+  /** P-1 測量儀器 */
+  p1SurveyInstruments?: string | null;
+  /** P-1 控制測量 */
+  p1ControlSurvey?: string | null;
+  /** P-1 控制測量精度要求 */
+  p1ControlSurveyAccuracyRequirements?: string | null;
+  /** P-1 施工測量 */
+  p1ConstructionSurveyWork?: string | null;
+  /** P-1 工地周圍現有灌排水系統（施工區域排水系統） */
+  p1SurroundingDrainageSystem?: string | null;
+  /** P-1 施工中擋水及抽水措施（施工區域排水系統） */
+  p1ConstructionDewateringMeasures?: string | null;
+  /** P-1 職業安全衛生教育訓練人數 */
+  p1SafetyHealthTrainingHeadcount?: number | null;
+  /** P-1 交通維持及安全管制 */
+  p1TrafficMaintenanceSafetyControl?: string | null;
+  /** P-1 車輛進出路線 */
+  p1VehicleAccessRoutes?: string | null;
+  /** P-1 竣工文件提送項目 */
+  p1CompletionDocumentSubmissionItems?: string | null;
   /** P-1 人力資源預定進場時間表（JSON） */
   p1ManpowerEntryScheduleJson?: string | null;
+  /** P-1：文件檔案分類表 P 類自訂列之預定施工／提送日、備註（JSON） */
+  p1CustomPPlanScheduleJson?: string | null;
+  /** P-1 施工流程概述 */
+  p1ConstructionProcessOverview?: string | null;
+  /** P-1 施工流程圖（JSON：nodes/edges） */
+  p1ConstructionProcessFlowJson?: string | null;
+  /** P-1 圖10.2／10.3 共用緊急聯絡表（JSON） */
+  p1EmergencyContactTableJson?: string | null;
   // role?: string; // 注意：API 回傳的 role 現在代表職稱 (Job Title)
 }
 
@@ -105,11 +156,6 @@ export interface CreateConstructionRequest {
   constructionConfirmDate?: string | null;
   constructionProjectId: string;
   payMethod: string;
-  insuranceId?: string | null;
-  insuranceCompanyName?: string | null;
-  insuranceStartDate?: string | null;
-  insuranceEndDate?: string | null;
-  insuranceType?: string | null;
   segmentedAcceptance: boolean;
   partialAcceptance: boolean;
   completionAcceptance: boolean;
@@ -135,6 +181,8 @@ export interface CreateConstructionRequest {
   b2SafetyFacilityAcknowledged?: boolean;
   /** P-1 工程規模概述（營造端維護，依版本） */
   p1ConstructionScaleOverview?: string | null;
+  /** P-1 施工執行方向（營造端維護，依版本） */
+  p1ConstructionExecutionDirection?: string | null;
   /** P-1 工地研判：地質概況 */
   p1GeologyOverview?: string | null;
   /** P-1 工地研判：工址現況調查 */
@@ -145,12 +193,66 @@ export interface CreateConstructionRequest {
   p1MeteorologyHydrology?: string | null;
   /** P-1 工地研判：鄰房調查 */
   p1NeighboringBuildingSurvey?: string | null;
-  /** P-1 施工機械設備資源（JSON） */
+  /** P-1 施工機械設備資源預定進場時間表（JSON 陣列） */
   p1MechanicalResourcesJson?: string | null;
   /** P-1 物料市場調查 */
   p1MaterialMarketSurvey?: string | null;
+  /** P-1 進度異常管理門檻百分比（例：10） */
+  p1ProgressDelayThresholdPercent?: number | null;
+  /** P-1 施工前協調會議（自填） */
+  p1PreConstructionCoordinationMeeting?: string | null;
+  /** P-1 定期會議（自填） */
+  p1RegularMeetingFrequency?: string | null;
+  /** P-1 臨時用電設備 */
+  p1TempPowerEquipment?: string | null;
+  /** P-1 給排水設備 */
+  p1TempWaterDrainageEquipment?: string | null;
+  /** P-1 電訊設備 */
+  p1TempTelecomEquipment?: string | null;
+  /** P-1 臨時房舍 */
+  p1TempHousing?: string | null;
+  /** P-1 材料堆置場及加工區 */
+  p1TempMaterialStorageProcessingArea?: string | null;
+  /** P-1 修護場 */
+  p1TempRepairYard?: string | null;
+  /** P-1 拌合場 */
+  p1TempMixingPlant?: string | null;
+  /** P-1 材料實驗室 */
+  p1TempMaterialLab?: string | null;
+  /** P-1 施工道 */
+  p1TempConstructionRoad?: string | null;
+  /** P-1 施工測量（舊欄位，相容保留） */
+  p1ConstructionSurvey?: string | null;
+  /** P-1 測量儀器 */
+  p1SurveyInstruments?: string | null;
+  /** P-1 控制測量 */
+  p1ControlSurvey?: string | null;
+  /** P-1 控制測量精度要求 */
+  p1ControlSurveyAccuracyRequirements?: string | null;
+  /** P-1 施工測量 */
+  p1ConstructionSurveyWork?: string | null;
+  /** P-1 工地周圍現有灌排水系統（施工區域排水系統） */
+  p1SurroundingDrainageSystem?: string | null;
+  /** P-1 施工中擋水及抽水措施（施工區域排水系統） */
+  p1ConstructionDewateringMeasures?: string | null;
+  /** P-1 職業安全衛生教育訓練人數 */
+  p1SafetyHealthTrainingHeadcount?: number | null;
+  /** P-1 交通維持及安全管制 */
+  p1TrafficMaintenanceSafetyControl?: string | null;
+  /** P-1 車輛進出路線 */
+  p1VehicleAccessRoutes?: string | null;
+  /** P-1 竣工文件提送項目 */
+  p1CompletionDocumentSubmissionItems?: string | null;
   /** P-1 人力資源預定進場時間表（JSON） */
   p1ManpowerEntryScheduleJson?: string | null;
+  /** P-1：文件檔案分類表 P 類自訂列之預定施工／提送日、備註（JSON） */
+  p1CustomPPlanScheduleJson?: string | null;
+  /** P-1 施工流程概述 */
+  p1ConstructionProcessOverview?: string | null;
+  /** P-1 施工流程圖（JSON） */
+  p1ConstructionProcessFlowJson?: string | null;
+  /** P-1 圖10.2／10.3 共用緊急聯絡表（JSON） */
+  p1EmergencyContactTableJson?: string | null;
 }
 
 // API 回應接口
@@ -186,19 +288,22 @@ export const transformProjectFormToConstructionRequest = (
     constructionName: projectFormData.project_name || '',
     constructionLocation: projectFormData.project_location || '',
     leadOrganization: projectFormData.host_agency || '',
-    constructionBudget: parseFloat(projectFormData.project_amount) || 0,
-    currentContractAmount: parseFloat(projectFormData.current_contract_amount) || parseFloat(projectFormData.project_amount) || 0,
+    // 契約金額：只使用「目前契約金額」（可隨變更設計變動）
+    // 相容處理：若舊表單仍有 project_amount，則僅作為 fallback
+    constructionBudget:
+      parseFloat(projectFormData.current_contract_amount) ||
+      parseFloat(projectFormData.project_amount) ||
+      0,
+    currentContractAmount:
+      parseFloat(projectFormData.current_contract_amount) ||
+      parseFloat(projectFormData.project_amount) ||
+      0,
     signDate: formatDateToISO(projectFormData.sign_date, '10:00:00'),
     constructionStartDate: formatDateToISO(projectFormData.start_date, '09:00:00'),
     // constructionEndDate 已移除，由後端根據開工日期和工作天數自動計算
     constructionConfirmDate: formatDateToISO(projectFormData.confirm_date || projectFormData.start_date, '10:30:00'),
     constructionProjectId: projectFormData.contract_number || '',
     payMethod: projectFormData.payment_method || '分期付款',
-    insuranceId: projectFormData.insurance_policy_number || '',
-    insuranceCompanyName: projectFormData.insurance_company || '',
-    insuranceStartDate: formatDateToISO(projectFormData.insurance_start_date, '00:00:00'),
-    insuranceEndDate: formatDateToISO(projectFormData.insurance_end_date, '00:00:00'),
-    insuranceType: projectFormData.insurance_type || '',
     segmentedAcceptance: projectFormData.inspection_methods?.includes('分段驗收') || false,
     partialAcceptance: projectFormData.inspection_methods?.includes('部分驗收') || false,
     completionAcceptance: projectFormData.inspection_methods?.includes('竣工驗收') || true,
@@ -408,6 +513,41 @@ export const uploadB2EmergencyOrgChartImage = async (
   return data as unknown as { objectName: string; signedUrl?: string | null }
 }
 
+export const uploadP1EmergencyContactFigureImage = async (
+  constructionId: string,
+  figure: 102 | 103 | 104,
+  file: Blob,
+  designChangeId?: number | null
+): Promise<{ objectName: string; signedUrl?: string | null }> => {
+  const form = new FormData()
+  form.append('constructionId', constructionId)
+  form.append('figure', String(figure))
+  if (designChangeId != null) form.append('designChangeId', String(designChangeId))
+  form.append('file', file, `p1-emergency-fig${figure}-${constructionId}.png`)
+
+  const data = await http.post('/management/construction/p1/emergency-contact-figure-image/upload', form, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  })
+  return data as unknown as { objectName: string; signedUrl?: string | null }
+}
+
+/** P-1 施工流程圖（前端 Mermaid 預覽截圖 PNG；依版本） */
+export const uploadP1ConstructionProcessFlowImage = async (
+  constructionId: string,
+  file: Blob,
+  designChangeId?: number | null
+): Promise<{ objectName: string; signedUrl?: string | null }> => {
+  const form = new FormData()
+  form.append('constructionId', constructionId)
+  if (designChangeId != null) form.append('designChangeId', String(designChangeId))
+  form.append('file', file, `p1-construction-process-flow-${constructionId}.png`)
+
+  const data = await http.post('/management/construction/p1/construction-process-flow-image/upload', form, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  })
+  return data as unknown as { objectName: string; signedUrl?: string | null }
+}
+
 /**
  * 依目前版本標單由 AI 產出工程規模概述（供 B-1 監造計劃書使用），不寫入 DB。
  * 標單無資料時回傳空字串；失敗時後端回傳 503 與 error 訊息。
@@ -473,6 +613,19 @@ export const getP1TextAiGenerate = async (
   return data as unknown as { text: string }
 }
 
+/** 依標單由 AI 產出 P-1「施工執行方向」，不寫入 DB。 */
+export const getP1ConstructionExecutionDirectionAiGenerate = async (
+  constructionId: string,
+  designChangeId?: number | null
+): Promise<{ text: string }> => {
+  const params: Record<string, string> = { constructionId }
+  if (designChangeId !== undefined && designChangeId !== null) {
+    params.designChangeId = String(designChangeId)
+  }
+  const data = await http.get('/management/construction/p1-construction-execution-direction/ai-generate', { params })
+  return data as unknown as { text: string }
+}
+
 export type P1SiteJudgementAiField = 'GEOLOGY_OVERVIEW' | 'METEOROLOGY_HYDROLOGY'
 
 /** 依工程地點由 AI 產出 P-1 工地研判欄位，不寫入 DB。 */
@@ -489,7 +642,7 @@ export const getP1SiteJudgementAiGenerate = async (
   return data as unknown as { text: string }
 }
 
-/** 依標單由 AI 產出 P-1 施工機械設備資源名稱清單。 */
+/** 依標單由 AI 產出 P-1 施工機械設備資源預定進場時間表之資源名稱清單。 */
 export const getP1MechanicalResourcesAiGenerate = async (
   constructionId: string,
   designChangeId?: number | null
@@ -500,6 +653,32 @@ export const getP1MechanicalResourcesAiGenerate = async (
   }
   const data = await http.get('/management/construction/p1-mechanical-resources/ai-generate', { params })
   return data as unknown as { names: string[] }
+}
+
+/** 依工程名稱、標單與分項工程產出 P-1 施工流程概述。 */
+export const getP1ConstructionProcessOverviewAiGenerate = async (
+  constructionId: string,
+  designChangeId?: number | null
+): Promise<{ text: string }> => {
+  const params: Record<string, string> = { constructionId }
+  if (designChangeId !== undefined && designChangeId !== null) {
+    params.designChangeId = String(designChangeId)
+  }
+  const data = await http.get('/management/construction/p1-construction-process/overview/ai-generate', { params })
+  return data as unknown as { text: string }
+}
+
+/** 依工程名稱、標單與分項工程產出 P-1 施工流程圖結構 JSON。 */
+export const getP1ConstructionProcessFlowAiGenerate = async (
+  constructionId: string,
+  designChangeId?: number | null
+): Promise<{ flowJson: string }> => {
+  const params: Record<string, string> = { constructionId }
+  if (designChangeId !== undefined && designChangeId !== null) {
+    params.designChangeId = String(designChangeId)
+  }
+  const data = await http.get('/management/construction/p1-construction-process/flow/ai-generate', { params })
+  return data as unknown as { flowJson: string }
 }
 
 /** 依標單由 AI 產出 P-1 物料市場調查。 */
@@ -513,6 +692,38 @@ export const getP1MaterialMarketSurveyAiGenerate = async (
   }
   const data = await http.get('/management/construction/p1-material-market-survey/ai-generate', { params })
   return data as unknown as { text: string }
+}
+
+/** P-1「施工區域排水系統」AI 欄位：周圍灌排／施工中擋水抽水 */
+export type P1DrainageAreaAiField = 'SURROUNDING_SYSTEM' | 'DEWATERING_MEASURES'
+
+/** 依工程地點、標單與分項由 AI 產出 P-1 施工區域排水子段落。 */
+export const getP1DrainageAreaAiGenerate = async (
+  constructionId: string,
+  field: P1DrainageAreaAiField,
+  designChangeId?: number | null
+): Promise<{ text: string }> => {
+  const params: Record<string, string> = { constructionId, field }
+  if (designChangeId !== undefined && designChangeId !== null) {
+    params.designChangeId = String(designChangeId)
+  }
+  const data = await http.get('/management/construction/p1-drainage-area/ai-generate', { params })
+  return data as unknown as { text: string }
+}
+
+/** 依分項工程帶入人力列並由 AI 建議群組名稱 */
+export const getP1ManpowerFromSubdivisionsAiGenerate = async (
+  constructionId: string,
+  designChangeId?: number | null
+): Promise<{ rows: { resourceName: string; groupName: string }[] }> => {
+  const params: Record<string, string> = { constructionId }
+  if (designChangeId !== undefined && designChangeId !== null) {
+    params.designChangeId = String(designChangeId)
+  }
+  const data = await http.get('/management/construction/p1-manpower-entry-schedule/from-subdivisions-ai', {
+    params
+  })
+  return data as unknown as { rows: { resourceName: string; groupName: string }[] }
 }
 
 /** 依資料依據日取得 P-1 人力資源預設最大可用量 */

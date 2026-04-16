@@ -8,6 +8,15 @@
         { text: '基本資料管理', href: 'javascript:;' },
         { text: '工地人員管理', active: true }
       ]"
+      :actions="[
+        {
+          text: '複製 Debug',
+          icon: 'fa fa-copy',
+          variant: 'btn-outline-secondary',
+          click: copyDebugSnapshot,
+          disabled: !debugSnapshot
+        }
+      ]"
     />
 
     <!-- 錯誤提示 -->
@@ -192,7 +201,7 @@
                         目前專案尚未指派任何人員，請點右上角「指派人員」。
                       </td>
                     </tr>
-                    <tr v-for="person in assignedPersonnelSorted" :key="`${person.memberId}-${personnelListKey}`">
+                    <tr v-for="person in assignedPersonnelSorted" :key="`${person.id || person.memberId}-${personnelListKey}`">
                       <td>
                         <span>{{ person.fullName || '未填寫' }}</span>
                         <div class="text-muted small">{{ person.identityNumber || '未填寫' }}</div>
@@ -307,7 +316,10 @@
                <router-link
                  v-if="canManageCompanyPersonnel"
                  class="btn btn-sm btn-outline-info"
-                 to="/company/site-personnel"
+                 :to="{
+                   path: '/company/site-personnel',
+                   query: { companyId: getCurrentCompanyId() || undefined }
+                 }"
                >
                  <i class="fa fa-external-link-alt me-1"></i>前往公司工地人員管理
                </router-link>
@@ -510,7 +522,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useProjectStore } from '@/stores/project'
 import { useWorkspaceStore } from '@/stores/workspace'
@@ -520,7 +532,7 @@ import { sitePersonnelApi, type SitePersonnel } from '@/api/sitePersonnel'
 import { useViewPerspective } from '@/composables/useViewPerspective'
 import { getOccupationOptions, getOccupationDisplayLabel, LEGACY_OCCUPATION_MAP, normalizeOccupationValue, sortPersonnelByOccupation, type OccupationOption } from '@/api/sitePersonnelOccupations'
 import { getDesignChangeList, getContractAmountsByVersion, type DesignChangeItem, type VersionContractAmount } from '@/api/designChange'
-import { computeVersionPersonnelConfig, getConfigRoleLabel, getLabourSafetyRequirementText, ALL_CONFIG_ROLE_KEYS, type PersonWithAssignments } from '@/composables/useVersionPersonnelConfig'
+import { computeVersionPersonnelConfig, getConfigRoleLabel, getLabourSafetyRequirementText, ALL_CONFIG_ROLE_KEYS, SUPERVISORY_FIXED_REQUIRED, type PersonWithAssignments } from '@/composables/useVersionPersonnelConfig'
 import { formatAmount } from '@/utils/format'
 import Modal from '@/components/bootstrap/Modal.vue'
 import RepublicDatePicker from '@/components/bootstrap/RepublicDatePicker.vue'
@@ -566,6 +578,50 @@ const assignmentStartDate = ref<string>('')
 // 當前專案
 const currentProject = computed(() => projectStore.currentProject)
 
+function dlog(...args: any[]) {
+  console.log('[SitePersonnelDebug]', ...args)
+}
+
+const debugSnapshot = ref<string>('')
+
+async function copyToClipboard(text: string): Promise<void> {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text)
+    return
+  }
+  // fallback
+  const ta = document.createElement('textarea')
+  ta.value = text
+  ta.style.position = 'fixed'
+  ta.style.left = '-9999px'
+  ta.style.top = '0'
+  document.body.appendChild(ta)
+  ta.focus()
+  ta.select()
+  document.execCommand('copy')
+  document.body.removeChild(ta)
+}
+
+async function copyDebugSnapshot() {
+  try {
+    if (!debugSnapshot.value) return
+    await copyToClipboard(debugSnapshot.value)
+    alert('已複製 Debug 資訊到剪貼簿')
+  } catch (e) {
+    console.error('複製失敗', e)
+    alert('複製失敗，請看 Console 錯誤')
+  }
+}
+
+/** 兼容不同專案 ID 欄位（constructionId / constructionProjectId） */
+function getCurrentProjectIdCandidates(): string[] {
+  const p: any = currentProject.value
+  const ids = [p?.constructionId, p?.constructionProjectId]
+    .filter((v: any) => typeof v === 'string' && v.trim())
+    .map((v: string) => v.trim())
+  return Array.from(new Set(ids))
+}
+
 /** 用於顯示的版本列表：原契約 + 各變更設計（人員配置建議依版本顯示） */
 const versionListForDisplay = computed(() => {
   const list: { id: number | null; label: string }[] = [{ id: null, label: '原契約' }]
@@ -577,22 +633,22 @@ const versionListForDisplay = computed(() => {
 
 // 是否在當前專案「目前在職」
 function hasActiveAssignmentForCurrentProject(p: SitePersonnel): boolean {
-  const cid = currentProject.value?.constructionId
-  if (!cid) return false
+  const ids = getCurrentProjectIdCandidates()
+  if (ids.length === 0) return false
   const list = p.assignments || []
-  return list.some(a => a.constructionId === cid && a.isActive)
+  return list.some(a => ids.includes(a.constructionId) && a.isActive)
 }
 
 // 是否曾被指派到當前專案（包含已離職）
 function hasAnyAssignmentForCurrentProject(p: SitePersonnel): boolean {
-  const cid = currentProject.value?.constructionId
-  if (!cid) return false
+  const ids = getCurrentProjectIdCandidates()
+  if (ids.length === 0) return false
   const list = p.assignments || []
   if (list.length) {
-    return list.some(a => a.constructionId === cid)
+    return list.some(a => ids.includes(a.constructionId))
   }
   // 兼容舊資料（沒有 assignments，用 constructionId 判斷）
-  return p.constructionId === cid
+  return !!p.constructionId && ids.includes(p.constructionId)
 }
 
 // 已指派的人員（含已離職：只要有此專案的任職紀錄就顯示）
@@ -636,22 +692,22 @@ function getPositionOption(position: string | undefined) {
 }
 
 function getCurrentAssignment(p: SitePersonnel) {
-  const cid = currentProject.value?.constructionId
-  if (!cid) return null
+  const ids = getCurrentProjectIdCandidates()
+  if (ids.length === 0) return null
   const list = p.assignments || []
   // 優先找「目前在職」的任職紀錄
-  const active = list.find(a => a.constructionId === cid && a.isActive)
+  const active = list.find(a => ids.includes(a.constructionId) && a.isActive)
   if (active) return active
   // 若沒有在職，退回找最近一筆（讓表格仍能顯示）
-  const history = list.filter(a => a.constructionId === cid)
+  const history = list.filter(a => ids.includes(a.constructionId))
   return history[history.length - 1] || null
 }
 
 function getAssignmentsForCurrentProject(p: SitePersonnel) {
-  const cid = currentProject.value?.constructionId
-  if (!cid) return []
+  const ids = getCurrentProjectIdCandidates()
+  if (ids.length === 0) return []
   const list = p.assignments || []
-  return list.filter(a => a.constructionId === cid)
+  return list.filter(a => ids.includes(a.constructionId))
 }
 
 /** 取日期字串的 YYYY-MM-DD 部分供比較 */
@@ -876,24 +932,25 @@ const personnelRoles = computed(() =>
 
 // 卡片分類模式已改為列表呈現，保留 personnelRoles 供其他邏輯使用
 
-// 獲取當前用戶的公司 ID
+// 獲取當前用戶的公司 ID（需依視角選對公司，避免同帳號有監造/營造時誤用另一側公司）
 const getCurrentCompanyId = (): string | null => {
-  // 優先使用 authStore 中的 companyId
-  if (authStore.user?.companyId) {
-    return authStore.user.companyId
+  const desiredType = isContractor.value ? 'CONTRACTOR' : 'SUPERVISION'
+
+  const authCompanyId = authStore.user?.companyId?.trim()
+  if (authCompanyId) {
+    const c = companyStore.getCompanyById(authCompanyId) as any
+    if (c && c.companyType === desiredType) return authCompanyId
   }
-  
-  // 如果沒有，嘗試從 companyStore 獲取第一個公司
-  if (companyStore.activeCompanies.length > 0) {
-    return companyStore.activeCompanies[0].companyId
-  }
-  
-  // 最後嘗試使用 workspace 的 companyId（作為備用）
-  if (workspaceStore.currentWorkspace?.companyId) {
-    return workspaceStore.currentWorkspace.companyId
-  }
-  
-  return null
+
+  const match = companyStore.activeCompanies.find((c: any) => c.companyType === desiredType)
+  if (match?.companyId) return match.companyId
+
+  // 最後備用：若工作空間上有 companyId（舊資料），仍回傳
+  const wsCompanyId = workspaceStore.currentWorkspace?.companyId?.trim()
+  if (wsCompanyId) return wsCompanyId
+
+  // 再退回任一公司（避免完全無法載入）
+  return companyStore.activeCompanies[0]?.companyId ?? null
 }
 
 const canManageCompanyPersonnel = computed(() => {
@@ -915,7 +972,86 @@ const loadData = async () => {
    
    isLoading.value = true
    try {
+     const p: any = currentProject.value
+     dlog('route', { href: window.location.href })
+     dlog('currentProject', {
+       constructionId: p?.constructionId,
+       constructionProjectId: p?.constructionProjectId,
+       constructionName: p?.constructionName
+     })
+     dlog('projectIdCandidates', getCurrentProjectIdCandidates())
+     dlog('companyIdForPersonnelList', companyId)
+
      allPersonnel.value = await sitePersonnelApi.getList(companyId)
+     const memberIdsAll = allPersonnel.value.map(x => x.memberId).filter(Boolean)
+     const memberIdCounts = memberIdsAll.reduce((acc: Record<string, number>, id) => {
+       acc[id] = (acc[id] || 0) + 1
+       return acc
+     }, {})
+     const duplicateMemberIds = Object.entries(memberIdCounts)
+       .filter(([, c]) => c > 1)
+       .map(([id, c]) => ({ memberId: id, count: c }))
+
+     const companyListLoadedPayload = {
+       total: allPersonnel.value.length,
+       withAssignments: allPersonnel.value.filter(x => (x.assignments || []).length > 0).length,
+       withoutAssignments: allPersonnel.value.filter(x => !(x.assignments || []).length).length,
+       memberIds: memberIdsAll.slice().sort(),
+       duplicateMemberIds,
+       distinctAssignmentConstructionIdsSample: Array.from(
+         new Set(
+           allPersonnel.value
+             .flatMap(x => (x.assignments || []).map(a => a.constructionId))
+             .filter(Boolean)
+         )
+       ).slice(0, 25)
+     }
+     dlog('companyListLoaded', companyListLoadedPayload)
+
+     await nextTick()
+     const postReactivePayload = {
+       assignedPersonnel: assignedPersonnel.value.length,
+       assignedPersonnelSorted: assignedPersonnelSorted.value.length,
+       availablePersonnel: availablePersonnel.value.length,
+       currentProjectExists: !!currentProject.value
+     }
+     dlog('postReactive', postReactivePayload)
+
+     if (getCurrentProjectIdCandidates().length) {
+       const ids = getCurrentProjectIdCandidates()
+       const hit = allPersonnel.value.filter(pp => {
+         const list = pp.assignments || []
+         return list.some(a => ids.includes(a.constructionId))
+       })
+       const missWithAssignments = allPersonnel.value.filter(pp => (pp.assignments || []).length > 0 && !hit.includes(pp))
+       const matchSummaryPayload = {
+         matchedPeople: hit.length,
+         unmatchedButHasAssignments: missWithAssignments.length
+       }
+       dlog('matchSummary', matchSummaryPayload)
+       dlog(
+         'unmatchedExamples',
+         missWithAssignments.slice(0, 10).map(pp => ({
+           memberId: pp.memberId,
+           fullName: pp.fullName,
+           assignmentConstructionIds: (pp.assignments || []).map(a => a.constructionId),
+           assignmentFlags: (pp.assignments || []).map(a => ({ id: a.id, isActive: a.isActive, workStartDate: a.workStartDate, workEndDate: a.workEndDate }))
+         }))
+       )
+
+       // 產生一鍵複製的快照（避免你要手動選取 Console）
+       debugSnapshot.value = [
+         '=== SitePersonnel Debug Snapshot ===',
+         `time: ${new Date().toISOString()}`,
+         `href: ${window.location.href}`,
+         `currentProject: ${JSON.stringify({ constructionId: p?.constructionId, constructionProjectId: p?.constructionProjectId, constructionName: p?.constructionName }, null, 2)}`,
+         `projectIdCandidates: ${JSON.stringify(getCurrentProjectIdCandidates(), null, 2)}`,
+         `companyIdForPersonnelList: ${companyId}`,
+         `companyListLoaded: ${JSON.stringify(companyListLoadedPayload, null, 2)}`,
+         `postReactive: ${JSON.stringify(postReactivePayload, null, 2)}`,
+         `matchSummary: ${JSON.stringify(matchSummaryPayload, null, 2)}`,
+       ].join('\n')
+     }
      personnelListKey.value += 1
    } catch (error) {
      console.error('載入人員失敗', error)
@@ -1209,15 +1345,6 @@ const levelRowsRight = [
 
 /** 合併為單一列表，供與勞安配置標準相同之網格顯示 */
 const levelRowsAll = [...levelRowsLeft, ...levelRowsRight]
-
-/** 監造：每個版本固定 負責人、工地負責人、專任工程人員、品管、勞安 各 1 */
-const SUPERVISORY_FIXED_REQUIRED = {
-  OWNER: 1,
-  CONSTRUCTION_MANAGER: 1,
-  TECHNICIAN: 1,
-  QUALITY: 1,
-  LABOUR_SAFETY: 1
-} as const
 
 /** 各版本人員配置狀況（共用 composable，供右側框與其他頁面使用） */
 const versionPersonnelConfig = computed(() => {

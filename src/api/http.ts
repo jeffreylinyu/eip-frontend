@@ -2,7 +2,8 @@ import axios, {
   AxiosInstance,
   AxiosResponse,
   AxiosError,
-  InternalAxiosRequestConfig
+  InternalAxiosRequestConfig,
+  AxiosHeaders
 } from 'axios'
 import { storage, StorageKeys } from '@/utils/storage'
 import { resolveEffectiveViewTypeForHttpRequest } from '@/utils/effectiveViewTypeApi'
@@ -49,6 +50,24 @@ export const updateBaseURL = (newBaseURL: string | null) => {
  */
 http.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
+    const getHeader = (name: string): string | undefined => {
+      const h: any = config.headers
+      if (!h) return undefined
+      // Axios v1: headers may be AxiosHeaders
+      if (typeof h.get === 'function') return h.get(name)
+      return h[name] ?? h[name.toLowerCase()]
+    }
+
+    const setHeader = (name: string, value: string) => {
+      const h: any = config.headers
+      if (!h) {
+        config.headers = new AxiosHeaders()
+      }
+      const hh: any = config.headers
+      if (typeof hh.set === 'function') hh.set(name, value)
+      else hh[name] = value
+    }
+
     // 動態更新 baseURL（從 localStorage 讀取最新值）
     const currentBaseURL = getApiBaseURL()
     if (config.baseURL !== currentBaseURL) {
@@ -72,13 +91,31 @@ http.interceptors.request.use(
     const authUser = storage.get<{ userId?: string }>(StorageKeys.AUTH_USER)
 
     if (authUser && authUser.userId) {
-      config.headers!['userId'] = authUser.userId
+      setHeader('userId', authUser.userId)
     }
 
     // 雙視角：後端 resolveViewType 會驗證標頭須在允許視角內（/forms 等路由無 contractor 前綴時依 localStorage）
-    const effectiveView = resolveEffectiveViewTypeForHttpRequest()
-    if (effectiveView) {
-      config.headers!['X-Effective-View-Type'] = effectiveView
+    // 若呼叫端已明確指定 X-Effective-View-Type（例如 /company/* 無前綴路由），則不要覆寫
+    if (!getHeader('X-Effective-View-Type')) {
+      const effectiveView = resolveEffectiveViewTypeForHttpRequest()
+      if (effectiveView) {
+        setHeader('X-Effective-View-Type', effectiveView)
+      }
+    }
+
+    // Debug：僅針對 companyList 印出實際送出的 view header（用來比對 6 vs 8 的根因）
+    try {
+      const url = String(config.url || '')
+      if (url.includes('/management/constructionMember/companyList')) {
+        // eslint-disable-next-line no-console
+        console.log('[HTTPDebug] companyList request', {
+          href: typeof window !== 'undefined' ? window.location.href : '',
+          params: (config as any)?.params,
+          effectiveViewHeader: getHeader('X-Effective-View-Type'),
+        })
+      }
+    } catch {
+      /* ignore */
     }
 
     return config
@@ -114,9 +151,14 @@ http.interceptors.response.use(
     if (response) {
       switch (response.status) {
         case 401: {
-          // 若請求標記為 skipAuthRedirectOn401（例如核心資料 Modal），僅清除認證、不 toast／不跳轉，讓呼叫方自行處理
+          const parsed401 = await parseAxios401ResponseData(response.data)
+          // 若請求標記為 skipAuthRedirectOn401（例如核心資料 Modal）：不跳轉登入頁
+          // 但「視角／權限不符」的 401 不可清 token，否則營造端會被誤導成登入過期
           const skipRedirect = (error.config as any)?.skipAuthRedirectOn401 === true
           if (skipRedirect) {
+            if (isPerspectiveOrPermission401Payload(parsed401)) {
+              return Promise.reject(error)
+            }
             import('@/stores/auth').then(({ useAuthStore }) => {
               useAuthStore().clearAuthState?.()
             }).catch(() => {
@@ -126,7 +168,6 @@ http.interceptors.response.use(
             return Promise.reject(error)
           }
 
-          const parsed401 = await parseAxios401ResponseData(response.data)
           if (isPerspectiveOrPermission401Payload(parsed401)) {
             const ep = parsed401 as Record<string, unknown>
             const text =

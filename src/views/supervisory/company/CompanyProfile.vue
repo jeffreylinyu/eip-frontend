@@ -41,11 +41,6 @@ const formData = ref<SupervisionCompanyProfileData>({
   payMethod: '',
   prePayRatio: null,
   retainedRatio: null,
-  insuranceId: '',
-  insuranceCompanyName: '',
-  insuranceType: '',
-  insuranceStartDate: '',
-  insuranceEndDate: '',
   signLevel: [{ level: 1, title: '' }]
 })
 const originalFormData = ref<SupervisionCompanyProfileData>({})
@@ -69,8 +64,6 @@ const loadProfile = async () => {
       signDate: data.signDate?.split('T')[0] || '',
       constructionStartDate: data.constructionStartDate?.split('T')[0] || '',
       constructionEndDate: data.constructionEndDate?.split('T')[0] || '',
-      insuranceStartDate: data.insuranceStartDate?.split('T')[0] || '',
-      insuranceEndDate: data.insuranceEndDate?.split('T')[0] || '',
       signLevel: signLevelData.length > 0 ? signLevelData : [{ level: 1, title: '' }]
     }
 
@@ -447,55 +440,7 @@ onMounted(async () => {
           </div>
         </div>
 
-        <!-- 保險相關資訊 -->
-        <h6 class="fw-bold text-theme mb-3 mt-4">
-          <i class="fa fa-shield-alt me-2"></i>保險相關資訊
-        </h6>
-        <div class="row g-3 mb-3">
-          <div class="col-lg-4 col-md-6 col-sm-12">
-            <label class="form-label">保險單編號</label>
-            <input type="text" class="form-control" v-model="formData.insuranceId" placeholder="請輸入保險單編號" :disabled="isSaving" />
-          </div>
-          <div class="col-lg-4 col-md-6 col-sm-12">
-            <label class="form-label">保險公司名稱</label>
-            <input type="text" class="form-control" v-model="formData.insuranceCompanyName" placeholder="請輸入保險公司名稱" :disabled="isSaving" />
-          </div>
-          <div class="col-lg-4 col-md-12 col-sm-12">
-            <label class="form-label">保險類型</label>
-            <input type="text" class="form-control" v-model="formData.insuranceType" list="insurance_type_options" placeholder="請選擇或輸入保險類型" :disabled="isSaving" />
-            <datalist id="insurance_type_options">
-              <option value="工程險">工程險</option>
-              <option value="雇主責任險">雇主責任險</option>
-              <option value="第三人責任險">第三人責任險</option>
-              <option value="專業責任險">專業責任險</option>
-              <option value="產品責任險">產品責任險</option>
-              <option value="綜合保險">綜合保險</option>
-              <option value="工程綜合保險">工程綜合保險</option>
-              <option value="營造工程綜合保險">營造工程綜合保險</option>
-              <option value="安裝工程綜合保險">安裝工程綜合保險</option>
-            </datalist>
-          </div>
-        </div>
-        <div class="row g-3 mb-3">
-          <div class="col-lg-6 col-md-6 col-sm-12">
-            <label class="form-label">保險有效期限（起）</label>
-            <RepublicDatePicker
-              v-model="formData.insuranceStartDate"
-              input-class="form-control"
-              :disabled="isSaving"
-              :use-republic-year="true"
-            />
-          </div>
-          <div class="col-lg-6 col-md-6 col-sm-12">
-            <label class="form-label">保險有效期限（訖）</label>
-            <RepublicDatePicker
-              v-model="formData.insuranceEndDate"
-              input-class="form-control"
-              :disabled="isSaving"
-              :use-republic-year="true"
-            />
-          </div>
-        </div>
+        <!-- 保險已改為「工程案保險」獨立頁（多筆＋附件/檔案夾），公司資料頁不再維護 -->
 
         <!-- 簽核層級設定 -->
         <h6 class="fw-bold text-theme mb-3 mt-4">

@@ -7,20 +7,69 @@
         { text: '表單', href: 'javascript:;' },
         { text: '文件檔案分類表', active: true }
       ]"
-      :actions="[
-        { text: '恢復全部預設值', icon: 'fa fa-undo', variant: 'btn-outline-danger', click: confirmResetAll }
-      ]"
-    />
+    >
+      <template v-if="hasCurrentProject && isSupervisory" #extra>
+        <DesignChangeVersionSwitcher
+          :model-value="selectedDesignChangeId"
+          :construction-id="currentProject?.id"
+          source-type="SUPERVISORY"
+          @update:model-value="onVersionChange"
+        />
+      </template>
+    </PageHeader>
 
-    <!-- Loading -->
-    <div v-if="loading" class="text-center py-5">
+    <div
+      v-if="hasCurrentProject && isSupervisory"
+      class="d-flex flex-wrap align-items-center justify-content-end gap-2 mb-4"
+    >
+      <div v-if="selectedDesignChangeId != null" class="btn-group">
+        <button
+          type="button"
+          class="btn btn-sm btn-outline-primary dropdown-toggle"
+          :disabled="isCopying"
+          data-bs-toggle="dropdown"
+          aria-expanded="false"
+          title="自上一變更設計版本複製文件分類表至目前版本（覆寫）"
+        >
+          <i class="fa me-1" :class="isCopying ? 'fa-spinner fa-spin' : 'fa-copy'"></i>
+          {{ isCopying ? '複製中…' : '複製前一版本' }}
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end">
+          <li>
+            <button
+              type="button"
+              class="dropdown-item text-danger"
+              :disabled="isCopying"
+              @click="copyFromPrevious"
+            >
+              覆寫目前版本
+            </button>
+          </li>
+        </ul>
+      </div>
+      <button type="button" class="btn btn-sm btn-outline-danger" @click="confirmResetVersion">
+        <i class="fa fa-undo me-1"></i>
+        恢復此版本預設值
+      </button>
+    </div>
+
+    <div v-if="!hasCurrentProject" class="alert alert-warning mb-0">
+      <i class="fa fa-exclamation-triangle me-2"></i>
+      請先於左側選擇工程案。
+    </div>
+
+    <div v-else-if="!isSupervisory" class="alert alert-info mb-0">
+      <i class="fa fa-info-circle me-2"></i>
+      此頁僅供監造端使用。
+    </div>
+
+    <div v-else-if="loading" class="text-center py-5">
       <div class="spinner-border text-primary" role="status">
         <span class="visually-hidden">Loading...</span>
       </div>
       <p class="mt-2 text-muted">載入中...</p>
     </div>
 
-    <!-- Content -->
     <div v-else>
       <CategoryTable
         v-for="cat in categories"
@@ -29,6 +78,11 @@
         :title="cat.name"
         :items="groupedItems[cat.code] || []"
         :is-dynamic="cat.code === 'D'"
+        :header-note="
+          cat.code === 'B'
+            ? '營造端可於「P類-計畫書」查看並複製您在此填寫的自訂項目與「規定提送日程」（不含預設列）。'
+            : undefined
+        "
         @add="(data) => handleAdd(cat.code, data)"
         @update="(id, data) => handleUpdate(cat.code, id, data)"
         @delete="(id) => handleDelete(id)"
@@ -42,61 +96,58 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, getCurrentInstance, watch } from 'vue'
 import { useWorkspaceStore } from '@/stores/workspace'
-import { useProjectStore } from '@/stores/project'
+import { useViewPerspective } from '@/composables/useViewPerspective'
 import { documentClassificationApi, type DocumentClassification } from '@/api/documentClassification'
 import PageHeader from '@/components/bootstrap/PageHeader.vue'
 import CategoryTable from '@/components/document/CategoryTable.vue'
+import DesignChangeVersionSwitcher from '@/components/common/DesignChangeVersionSwitcher.vue'
 
-// 定義 7 大分類
 const categories = [
   { code: 'A', name: 'A類' },
   { code: 'B', name: 'B類' },
   { code: 'C', name: 'C類' },
-  { code: 'D', name: 'D類 (動態)' }, // 特殊處理
+  { code: 'D', name: 'D類 (動態)' },
   { code: 'H', name: 'H類' },
   { code: 'I', name: 'I類' },
   { code: 'L', name: 'L類' }
 ]
 
+const workspaceStore = useWorkspaceStore()
+const { isSupervisory } = useViewPerspective()
 const instance = getCurrentInstance()
 const proxy = instance?.proxy as any
 
-const workspaceStore = useWorkspaceStore()
-const projectStore = useProjectStore()
+const currentProject = computed(() => workspaceStore.currentProject)
+const hasCurrentProject = computed(() => !!currentProject.value?.id)
+const constructionId = computed(() => currentProject.value?.id ?? '')
 
 const loading = ref(false)
+const isCopying = ref(false)
 const allItems = ref<DocumentClassification[]>([])
+const selectedDesignChangeId = ref<number | null>(null)
 
-// 取得當前工程 ID
-const currentConstructionId = computed(() => projectStore.currentProject?.constructionId)
-
-// 將項目分組
 const groupedItems = computed(() => {
   const groups: Record<string, DocumentClassification[]> = {}
-  categories.forEach(c => groups[c.code] = [])
-  
-  allItems.value.forEach(item => {
+  categories.forEach((c) => {
+    groups[c.code] = []
+  })
+  allItems.value.forEach((item) => {
     if (groups[item.category]) {
       groups[item.category].push(item)
     }
   })
-  
-  // 每個分組內按 itemNumber 排序
-  Object.keys(groups).forEach(key => {
+  Object.keys(groups).forEach((key) => {
     groups[key].sort((a, b) => a.itemNumber.localeCompare(b.itemNumber))
   })
-  
   return groups
 })
 
-// --- API 操作 ---
-
-const loadData = async () => {
-  if (!currentConstructionId.value) return
-  
+async function loadData() {
+  const cid = constructionId.value
+  if (!cid) return
   loading.value = true
   try {
-    allItems.value = await documentClassificationApi.getAll(currentConstructionId.value)
+    allItems.value = await documentClassificationApi.getAll(cid, selectedDesignChangeId.value)
   } catch (error) {
     console.error('載入失敗:', error)
     if (proxy?.$toast) proxy.$toast.error('無法載入分類表')
@@ -105,70 +156,97 @@ const loadData = async () => {
   }
 }
 
-const handleAdd = async (
-  category: string,
-  data: { documentName: string, retentionYears: number, requiredSubmissionSchedule?: string }
-) => {
-  if (!currentConstructionId.value) return
-  
+async function onVersionChange(versionId: number | null) {
+  selectedDesignChangeId.value = versionId
+  await loadData()
+}
+
+async function copyFromPrevious() {
+  const cid = constructionId.value
+  const tid = selectedDesignChangeId.value
+  if (!cid || tid == null) return
+  if (!confirm('確定以「上一變更設計版本」覆寫目前版本的文件分類表？此操作無法復原。')) return
+  isCopying.value = true
   try {
-    await documentClassificationApi.create(currentConstructionId.value, {
+    await documentClassificationApi.copyFromPrevious(cid, tid)
+    if (proxy?.$toast) proxy.$toast.success('已複製並覆寫')
+    await loadData()
+  } catch (e) {
+    console.error(e)
+    if (proxy?.$toast) proxy.$toast.error('複製失敗')
+  } finally {
+    isCopying.value = false
+  }
+}
+
+async function handleAdd(
+  category: string,
+  data: { documentName: string; retentionYears: number | null; requiredSubmissionSchedule?: string }
+) {
+  const cid = constructionId.value
+  if (!cid) return
+  try {
+    const created = await documentClassificationApi.create(cid, selectedDesignChangeId.value, {
       category,
       documentName: data.documentName,
-      retentionYears: data.retentionYears,
+      retentionYears: data.retentionYears ?? 15,
       ...(category === 'B' && data.requiredSubmissionSchedule != null
         ? { requiredSubmissionSchedule: data.requiredSubmissionSchedule }
         : {})
     })
+    allItems.value = [...allItems.value, created]
     if (proxy?.$toast) proxy.$toast.success('新增成功')
-    await loadData()
   } catch (error) {
     console.error('新增失敗:', error)
     if (proxy?.$toast) proxy.$toast.error('新增失敗')
   }
 }
 
-const handleUpdate = async (
+async function handleUpdate(
   category: string,
   id: number,
-  data: { documentName: string, retentionYears: number, requiredSubmissionSchedule?: string }
-) => {
-  if (!currentConstructionId.value) return
-  
+  data: {
+    documentName: string
+    retentionYears?: number | null
+    retentionPermanent?: boolean
+    requiredSubmissionSchedule?: string
+  }
+) {
+  const cid = constructionId.value
+  if (!cid) return
   try {
-    await documentClassificationApi.update(currentConstructionId.value, id, {
+    const updated = await documentClassificationApi.update(cid, id, selectedDesignChangeId.value, {
       documentName: data.documentName,
-      retentionYears: data.retentionYears,
+      ...(data.retentionYears !== undefined ? { retentionYears: data.retentionYears as number } : {}),
       ...(category === 'B' ? { requiredSubmissionSchedule: data.requiredSubmissionSchedule ?? '' } : {})
     })
+    allItems.value = allItems.value.map((item) => (item.id === id ? updated : item))
     if (proxy?.$toast) proxy.$toast.success('更新成功')
-    await loadData()
   } catch (error) {
     console.error('更新失敗:', error)
     if (proxy?.$toast) proxy.$toast.error('更新失敗')
   }
 }
 
-const handleDelete = async (id: number) => {
-  if (!currentConstructionId.value) return
-  
+async function handleDelete(id: number) {
+  const cid = constructionId.value
+  if (!cid) return
   try {
-    await documentClassificationApi.delete(currentConstructionId.value, id)
+    await documentClassificationApi.delete(cid, id, selectedDesignChangeId.value)
+    allItems.value = allItems.value.filter((item) => item.id !== id)
     if (proxy?.$toast) proxy.$toast.success('刪除成功')
-    await loadData()
   } catch (error) {
     console.error('刪除失敗:', error)
     if (proxy?.$toast) proxy.$toast.error('刪除失敗')
   }
 }
 
-const handleSyncD = async () => {
-  if (!currentConstructionId.value) return
-  
+async function handleSyncD() {
+  const cid = constructionId.value
+  if (!cid) return
   if (!confirm('確定要根據施工大項重新同步 D 類別嗎？目前的 D 類自訂內容將會被重置。')) return
-
   try {
-    await documentClassificationApi.syncCategoryD(currentConstructionId.value)
+    await documentClassificationApi.syncCategoryD(cid, selectedDesignChangeId.value)
     if (proxy?.$toast) proxy.$toast.success('D 類別同步完成')
     await loadData()
   } catch (error) {
@@ -177,74 +255,55 @@ const handleSyncD = async () => {
   }
 }
 
-const confirmResetAll = async () => {
-  if (!currentConstructionId.value) return
-  
-  if (!confirm('警告：確定要恢復所有分類為預設值嗎？\n此操作將刪除所有您自訂的項目！')) return
-
+async function confirmResetVersion() {
+  const cid = constructionId.value
+  if (!cid) return
+  const ver =
+    selectedDesignChangeId.value == null ? '原契約' : `變更設計（ID ${selectedDesignChangeId.value}）`
+  if (!confirm(`警告：確定將「${ver}」的文件分類表恢復為預設值？自訂項目將一併刪除。`)) return
   try {
-    await documentClassificationApi.resetAll(currentConstructionId.value)
+    allItems.value = await documentClassificationApi.resetAll(cid, selectedDesignChangeId.value)
     if (proxy?.$toast) proxy.$toast.success('已恢復預設值')
-    await loadData()
   } catch (error) {
     console.error('恢復失敗:', error)
     if (proxy?.$toast) proxy.$toast.error('恢復失敗')
   }
 }
 
-const handleReorder = async (items: DocumentClassification[]) => {
-  if (!currentConstructionId.value || items.length === 0) return
-
+async function handleReorder(items: DocumentClassification[]) {
+  const cid = constructionId.value
+  if (!cid || items.length === 0) return
   try {
-    const batchItems = items.map(item => ({
+    const batchItems = items.map((item) => ({
       id: item.id,
-      itemNumber: item.itemNumber, // 前端已計算好的新編號
+      itemNumber: item.itemNumber,
       documentName: item.documentName,
       retentionYears: item.retentionYears,
-      ...(item.category === 'B'
-        ? { requiredSubmissionSchedule: item.requiredSubmissionSchedule ?? '' }
-        : {})
+      ...(item.category === 'B' ? { requiredSubmissionSchedule: item.requiredSubmissionSchedule ?? '' } : {})
     }))
-
-    await documentClassificationApi.batchUpdate(currentConstructionId.value, {
-      items: batchItems
-    })
-
+    await documentClassificationApi.batchUpdate(cid, selectedDesignChangeId.value, { items: batchItems })
+    await loadData()
     if (proxy?.$toast) proxy.$toast.success('順序已儲存')
-    // 批次更新回傳的是新列表，可以直接用來更新，但目前 loadData 統一重抓保險
-    // await loadData() 
   } catch (error) {
     console.error('排序儲存失敗:', error)
     if (proxy?.$toast) proxy.$toast.error('排序儲存失敗')
-    await loadData() // 失敗時還原
+    await loadData()
   }
 }
 
-// --- 監聽與初始化 ---
-
-watch(currentConstructionId, (newId) => {
-  if (newId) {
-    loadData()
-  } else {
+watch(constructionId, (cid) => {
+  if (cid) void loadData()
+  else {
     allItems.value = []
   }
 })
 
 onMounted(async () => {
-  // 確保 WorkspaceStore 與 ProjectStore 初始化
   if (!workspaceStore.currentWorkspace) {
     await workspaceStore.initWorkspaces()
   }
-  if (!projectStore.currentProject) {
-    await projectStore.initProjects()
-  }
-  
-  if (currentConstructionId.value) {
-    loadData()
-  } else {
-    // 若初始化後仍無專案，可能需要提示使用者選擇專案
-    console.warn('DocumentClassification: No project selected')
+  if (constructionId.value) {
+    await loadData()
   }
 })
-
 </script>

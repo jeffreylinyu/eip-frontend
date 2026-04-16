@@ -31,6 +31,17 @@ const effectiveCalendarOwnerType = computed(() =>
   isSupervisoryUser.value ? calendarOwnerType.value : (viewType.value as string)
 )
 
+/**
+ * 施工日誌 API 僅接受 ownerType=SUPERVISORY|CONTRACTOR（見後端 resolveScmViewForConstructionApis）。
+ * 行事曆分頁「監造公司」為 SUPERVISION_COMPANY，須對應監造日誌；若把 viewType=SHARED 等原樣傳出會變成 ?ownerType=SHARED 而 401。
+ */
+const dailyReportOwnerTypeQueryParam = computed((): string | undefined => {
+  const raw = effectiveCalendarOwnerType.value
+  if (raw === 'SUPERVISORY' || raw === 'SUPERVISION_COMPANY') return 'SUPERVISORY'
+  if (raw === 'CONTRACTOR') return 'CONTRACTOR'
+  return undefined
+})
+
 // 狀態
 const currentDate = ref(new Date())
 const selectedDate = ref<Date | null>(new Date())
@@ -362,7 +373,7 @@ const loadDailyReport = async () => {
   try {
     const dateStr = formatDateString(selectedDate.value) // YYYY-MM-DD（本地時間）
     const constructionId = workspaceStore.currentProject.id
-    const report = await getDailyReport(constructionId, dateStr, effectiveCalendarOwnerType.value)
+    const report = await getDailyReport(constructionId, dateStr, dailyReportOwnerTypeQueryParam.value)
     dailyReport.value = report
   } catch (error: any) {
     // 如果沒有施工日誌（404），設為 null
@@ -378,7 +389,7 @@ const loadDailyReport = async () => {
 }
 
 // 監聽選中日期變化，自動載入施工日誌
-watch([selectedDate, () => workspaceStore.currentProject, effectiveCalendarOwnerType], () => {
+watch([selectedDate, () => workspaceStore.currentProject, dailyReportOwnerTypeQueryParam], () => {
   loadDailyReport()
 }, { immediate: true })
 

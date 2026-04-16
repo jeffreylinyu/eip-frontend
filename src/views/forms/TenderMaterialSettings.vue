@@ -1,12 +1,11 @@
 <script lang="ts">
 import { defineComponent, onMounted, ref, watch, computed } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { useRouter } from 'vue-router';
 // import { useProjectStore } from '@/stores/project'; // 假設有 project store 可以取得當前專案資訊
 import { tenderMaterialApi, type MaterialItem, type UpdateMaterialDetailRequest, type MaterialDetail } from '@/api/tenderMaterial';
 import toastService from '@/components/bootstrap/ToastService.js';
 import { debounce, throttle } from 'lodash';
 import { useWorkspaceStore } from '@/stores/workspace';
-import { getDesignChangeList } from '@/api/designChange';
 import RepublicDatePicker from '@/components/bootstrap/RepublicDatePicker.vue';
 import DesignChangeVersionSwitcher from '@/components/common/DesignChangeVersionSwitcher.vue';
 
@@ -17,7 +16,6 @@ export default defineComponent({
     DesignChangeVersionSwitcher
   },
   setup() {
-    const route = useRoute();
     const router = useRouter();
     const workspaceStore = useWorkspaceStore();
     
@@ -82,28 +80,6 @@ export default defineComponent({
 
     const constructionId = computed(() => workspaceStore.currentProject?.id || '');
     const selectedDesignChangeId = ref<number | null>(null);
-    const projectItemDatabaseUrl = computed(() => router.resolve('/basic/project-item-database').href);
-    const designChangeList = ref<{ id: number; effectiveDate: string }[]>([]);
-    const isCopying = ref(false);
-    const sourceDesignChangeIdForCopy = computed(() => {
-      const current = selectedDesignChangeId.value;
-      if (current == null) return null;
-      const list = designChangeList.value;
-      const idx = list.findIndex((d) => d.id === current);
-      if (idx <= 0) return null;
-      return list[idx - 1]?.id ?? null;
-    });
-    const fetchDesignChangeList = async () => {
-      const cid = constructionId.value;
-      if (!cid) { designChangeList.value = []; return; }
-      try {
-        const list = await getDesignChangeList(cid);
-        designChangeList.value = [...list].sort((a, b) => new Date(a.effectiveDate).getTime() - new Date(b.effectiveDate).getTime());
-      } catch {
-        designChangeList.value = [];
-      }
-    };
-
     const loadMaterials = async () => {
       if (!constructionId.value) {
         toastService.warning('請先選擇工程項目');
@@ -125,13 +101,10 @@ export default defineComponent({
       if (newVal) {
         materials.value = [];
         selectedDesignChangeId.value = null;
-        designChangeList.value = [];
-        await fetchDesignChangeList();
         loadMaterials();
       } else {
         materials.value = [];
         selectedDesignChangeId.value = null;
-        designChangeList.value = [];
       }
     });
 
@@ -212,34 +185,48 @@ export default defineComponent({
       savingStatus.value[id] = 'saving...'; // User typing visual feedback
       debouncedSaveMap.get(id)(item);
     };
+
+    // 項次（ref_item_no）編輯：以材料編碼為單位同步更新（同材料編碼的所有葉節點材料列）
+    const debouncedItemNoMap = new Map<string, any>();
+    const handleItemNoChange = (group: MaterialGroup) => {
+      if (!constructionId.value) return;
+      const code = group.pccesCode || '';
+      if (!code) return;
+      if (!debouncedItemNoMap.has(code)) {
+        debouncedItemNoMap.set(
+          code,
+          debounce(async (g: MaterialGroup) => {
+            try {
+              await tenderMaterialApi.updateMaterialItemNo({
+                pccesCode: g.pccesCode,
+                constructionId: constructionId.value,
+                designChangeId: selectedDesignChangeId.value,
+                itemNo: (g.items?.[0]?.itemNo ?? null) as any
+              });
+              // 同步更新同一材料編碼的所有列（前端顯示一致）
+              materials.value.forEach((m) => {
+                if (m.pccesCode === g.pccesCode) {
+                  m.itemNo = g.items?.[0]?.itemNo ?? null;
+                }
+              });
+              showSuccessToast();
+            } catch (e) {
+              console.error('Error updating material itemNo:', e);
+              toastService.error('儲存項次失敗');
+            }
+          }, 600)
+        );
+      }
+      debouncedItemNoMap.get(code)(group);
+    };
     
     // Checkbox 直接觸發儲存
     const handleCheckboxChange = (item: MaterialItem) => {
        saveItem(item);
     };
 
-    const handleCopyPrevious = async () => {
-      const cid = constructionId.value;
-      const target = selectedDesignChangeId.value;
-      if (!cid || target == null) return;
-      if (!confirm('確定要將前一個版本的材料設定與品質抽驗管控表複製到目前版本嗎？既有設定會被覆蓋。')) return;
-      isCopying.value = true;
-      try {
-        const source = sourceDesignChangeIdForCopy.value ?? undefined;
-        const { count } = await tenderMaterialApi.copyMaterialDetailFromPrevious(cid, source, target);
-        toastService.success(`已複製 ${count} 筆材料設定`);
-        loadMaterials();
-      } catch (e) {
-        console.error(e);
-        toastService.error('複製失敗，請稍後再試');
-      } finally {
-        isCopying.value = false;
-      }
-    };
-
     onMounted(async () => {
       if (constructionId.value) {
-        await fetchDesignChangeList();
         loadMaterials();
       }
     });
@@ -247,17 +234,13 @@ export default defineComponent({
     return {
       constructionId,
       selectedDesignChangeId,
-      projectItemDatabaseUrl,
-      designChangeList,
-      sourceDesignChangeIdForCopy,
-      isCopying,
-      handleCopyPrevious,
       materials,
       filteredMaterials,
       keyword,
       isLoading,
       savingStatus,
       handleTextChange,
+      handleItemNoChange,
       handleCheckboxChange,
       saveItem,
       fetchMaterials: loadMaterials,
@@ -306,15 +289,15 @@ export default defineComponent({
                 <i class="fa fa-info-circle me-2"></i>資料來源說明
               </h5>
               <p class="mb-2">
-                此頁面的材料資料來源自 <strong>工程項目標單</strong>（PCCES 工項資料）。
-                系統會自動從工程項目標單中取出<strong>材料類別</strong>的項目顯示於此。
+                此頁面的材料資料來源自 <strong>工程項目標單</strong>的<strong>單價分析</strong>。
+                系統會自動帶入「單價分析」中被勾選為<strong>材料</strong>的最底層項目。
               </p>
               <p class="mb-0">
-                如需新增或修改材料項目，請前往
-                <router-link :to="projectItemDatabaseUrl" class="alert-link">
+                如需新增或修改材料清單，請前往
+                <router-link to="/basic/project-item-database" class="alert-link">
                   <i class="fa fa-arrow-right me-1"></i>工程項目標單
                 </router-link>
-                頁面進行設定。
+                的「單價分析」分頁勾選材料。
               </p>
             </div>
 
@@ -326,23 +309,12 @@ export default defineComponent({
                  <input 
                    type="text" 
                    class="form-control shadow-none bg-transparent" 
-                   placeholder="搜尋項次、工項編碼或材料名稱..." 
+                   placeholder="搜尋工項編碼或材料名稱..." 
                    v-model="keyword"
                  >
                </div>
              </div>
              <div class="d-flex gap-2">
-               <button
-                 v-if="selectedDesignChangeId != null"
-                 type="button"
-                 class="btn btn-outline-info text-nowrap"
-                 :disabled="isCopying"
-                 @click="handleCopyPrevious"
-                 title="將前一個版本的材料設定與品質抽驗管控表複製到目前版本"
-               >
-                 <i class="fa me-1" :class="isCopying ? 'fa-spinner fa-spin' : 'fa-copy'"></i>
-                 {{ isCopying ? '複製中...' : '複製前一個版本' }}
-               </button>
                <button class="btn btn-outline-secondary text-nowrap" @click="fetchMaterials">
                  <i class="fa fa-sync me-1"></i>重新整理
                </button>
@@ -361,37 +333,49 @@ export default defineComponent({
                 <table class="table table-hover align-middle mb-0" style="min-width: 1000px;">
                   <thead class="sticky-top bg-body border-bottom">
                     <tr>
-                      <th class="text-center" style="width: 80px;">項次</th>
+                      <th style="width: 90px;">項次</th>
                       <th style="width: 120px;">工項編碼</th>
-                      <th style="min-width: 200px;">材料名稱/數量</th>
+                      <th style="min-width: 200px;">材料名稱／數量</th>
                       <th style="width: 200px;">預定進場日期</th>
                       <th class="text-center" style="width: 100px;">取樣試驗</th>
                       <th style="width: 150px;">預定送審日期</th>
                       <th class="text-center" style="width: 100px;">驗廠</th>
                       <th style="min-width: 300px;">送審資料</th>
-                      <th class="text-center" style="width: 160px;">操作</th>
+                      <th class="text-center" style="min-width: 180px;">操作</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr v-if="groupedMaterials.length === 0">
                       <td colspan="9" class="text-center py-4 text-muted">
-                        {{ materials.length === 0 ? '目前尚無資料' : '查無符合條件的資料' }}
+                        <div>{{ materials.length === 0 ? '目前尚無資料' : '查無符合條件的資料' }}</div>
+                        <div v-if="materials.length === 0" class="small mt-1">
+                          請至工程項目標單 &gt; 單價分析 勾選材料
+                        </div>
                       </td>
                     </tr>
                     <tr v-for="group in groupedMaterials" :key="group.pccesCode">
-                      <!-- 項次 (多筆) -->
-                      <td class="text-center">
-                        <div v-for="item in group.items" :key="item.id" class="small text-muted mb-1 last-mb-0">
-                          {{ item.itemNo }}
-                        </div>
+                      <!-- 項次 -->
+                      <td>
+                        <input
+                          type="text"
+                          class="form-control form-control-sm text-center font-monospace"
+                          placeholder="-"
+                          v-model="group.items[0].itemNo"
+                          @input="handleItemNoChange(group)"
+                        />
                       </td>
                       <!-- 編碼 -->
                       <td class="font-monospace fw-bold">{{ group.pccesCode }}</td>
                       <!-- 材料名稱 & 數量 (多筆) -->
                       <td>
                         <div class="fw-bolder fs-6 mb-2">{{ group.name }}</div>
-                        <div v-for="item in group.items" :key="item.id" class="fw-bold opacity-75 small mb-1 last-mb-0">
-                           {{ item.quantity }} {{ item.unit }}
+                        <div
+                          v-for="(item, idx) in group.items"
+                          :key="item.id"
+                          class="fw-bold opacity-75 small"
+                          :class="{ 'mb-1': idx < group.items.length - 1 }"
+                        >
+                          {{ item.quantity }} {{ item.unit }}
                         </div>
                       </td>
                       
@@ -475,14 +459,32 @@ export default defineComponent({
                         </div>
                       </td>
                       
-                      <!-- 操作 -->
+                      <!-- 操作：填寫狀況顯示於按鈕下方（同 pccesCode 共用一張管控表） -->
                       <td class="text-center">
-                         <button 
-                           class="btn btn-sm btn-outline-primary text-nowrap"
-                           @click="goToQualityControl(group.pccesCode)"
-                         >
-                           <i class="fa fa-list-check me-1"></i>品質抽驗管控表
-                         </button>
+                        <div class="d-flex flex-column align-items-center gap-2">
+                          <button
+                            type="button"
+                            class="btn btn-sm btn-outline-primary text-nowrap"
+                            @click="goToQualityControl(group.pccesCode)"
+                          >
+                            <i class="fa fa-list-check me-1"></i>品質抽驗管控表
+                          </button>
+                          <div class="px-1">
+                            <span
+                              v-if="(group.items[0]?.qualityControlStandardCount ?? 0) > 0"
+                              class="badge rounded-pill bg-success-subtle text-success border border-success-subtle"
+                              :title="'已建立 ' + group.items[0].qualityControlStandardCount + ' 筆品質抽驗管控表明細'"
+                            >
+                              <i class="fa fa-list-check me-1"></i>已建 {{ group.items[0].qualityControlStandardCount }} 筆
+                            </span>
+                            <span
+                              v-else
+                              class="badge rounded-pill bg-warning-subtle text-warning border border-warning-subtle"
+                            >
+                              <i class="fa fa-circle-exclamation me-1"></i>尚未建立管控表
+                            </span>
+                          </div>
+                        </div>
                       </td>
                     </tr>
                   </tbody>

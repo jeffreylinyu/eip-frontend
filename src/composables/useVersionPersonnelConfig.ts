@@ -26,6 +26,15 @@ export type ConfigRoleKey = 'OWNER' | 'CONSTRUCTION_MANAGER' | 'QUALITY' | 'LABO
 /** 各版本人員配置檢核用角色順序（負責人、工地負責人、專任工程人員、品管、勞安） */
 export const ALL_CONFIG_ROLE_KEYS: ConfigRoleKey[] = ['OWNER', 'CONSTRUCTION_MANAGER', 'QUALITY', 'LABOUR_SAFETY', 'TECHNICIAN']
 
+/** 監造：每個版本固定需求（不含工地負責人） */
+export const SUPERVISORY_FIXED_REQUIRED: Record<ConfigRoleKey, number> = {
+  OWNER: 1,
+  CONSTRUCTION_MANAGER: 0,
+  TECHNICIAN: 1,
+  QUALITY: 1,
+  LABOUR_SAFETY: 1
+}
+
 /** 級距 key（A5～A1） */
 export function getLevelKey(amount: number): string {
   if (amount < 5000000) return 'A5'

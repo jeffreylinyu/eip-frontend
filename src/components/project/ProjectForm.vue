@@ -13,10 +13,9 @@ import { calculateEndDate } from '@/api/construction'
 
 /** 變更設計版本時僅可編輯的 12 個欄位（與後端一致） */
 const VERSION_EDITABLE_FIELD_KEYS = new Set([
-  'project_location', 'construction_period', 'project_amount',
+  'project_location', 'construction_period',
+  'current_contract_amount',
   'payment_method', 'advance_payment_ratio', 'retention_ratio',
-  'insurance_policy_number', 'insurance_company', 'insurance_type',
-  'insurance_start_date', 'insurance_end_date'
 ])
 
 // Props
@@ -92,16 +91,8 @@ const formData = ref({
   retention_ratio: "",
   // 驗收方式
   inspection_methods: [],
-  // 保險相關資訊
-  insurance_policy_number: "",
-  insurance_company: "",
-  insurance_start_date: "",
-  insurance_end_date: "",
-  insurance_type: "",
   // 簽核層級
   signLevel: [],
-  // 變更紀錄
-  contract_changes: [],
 })
 
 // 整合驗證系統
@@ -153,9 +144,6 @@ const getInfoDisplayValue = (fieldKey: string) => {
   if (Array.isArray(v)) return v.length ? v.join('、') : '－'
   return String(v)
 }
-
-// Modal 狀態
-const showChangeModal = ref(false)
 
 // 完工日期計算相關
 const calculatedEndDate = ref<string>('')
@@ -246,48 +234,6 @@ const formattedCompletionDate = computed(() => {
 })
 
 
-// 變更紀錄假資料
-const mockContractChanges = ref([
-  {
-    id: '1',
-    changeDate: '2024-01-15',
-    changeReason: '材料價格上漲',
-    originalAmount: 10000000,
-    changeAmount: 500000,
-    newAmount: 10500000,
-    operator: '張經理'
-  },
-  {
-    id: '2', 
-    changeDate: '2024-02-20',
-    changeReason: '設計變更',
-    originalAmount: 10500000,
-    changeAmount: -200000,
-    newAmount: 10300000,
-    operator: '李副總'
-  }
-])
-
-// 顯示變更紀錄 Modal
-const showChangeHistoryModal = () => {
-  showChangeModal.value = true
-}
-
-// 關閉變更紀錄 Modal
-const closeChangeModal = () => {
-  showChangeModal.value = false
-}
-
-// 新增變更紀錄
-const addContractChange = () => {
-  // 這裡可以打開新增變更紀錄的 modal
-}
-
-// 查看變更紀錄詳情
-const viewContractChange = (change: any) => {
-  // 查看變更紀錄詳情
-}
-
 // 新增：處理公司編輯跳轉（目前僅為佔位符）
 const handleEditCompany = (type: string) => {
   // TODO: 實作跳轉至編輯公司畫面的邏輯
@@ -344,6 +290,57 @@ const formattedContractAmount = computed({
     const numericValue = value.replace(/[^\d]/g, '')
     formData.value.current_contract_amount = numericValue
   }
+})
+
+const contractAmountChineseText = computed(() => {
+  const raw = formData.value.current_contract_amount
+  if (!raw) return ''
+
+  const n = Math.floor(Number(String(raw).replace(/[^\d]/g, '')))
+  if (!Number.isFinite(n) || n <= 0) return ''
+
+  // 口語顯示：以「萬」為基底（例：2220萬 => 2千2百20萬；2億5千萬）
+  const toUnder10kText = (v: number, suffix: string): string => {
+    if (v <= 0) return ''
+
+    const qian = Math.floor(v / 1000)
+    const bai = Math.floor((v % 1000) / 100)
+    const shi = Math.floor((v % 100) / 10)
+    const ge = v % 10
+
+    let s = ''
+    if (qian) s += `${qian}千`
+    if (bai) s += `${bai}百`
+
+    const shiPart = shi * 10 + ge
+    // 尾數用 0~99 的口語數字（例：70、20、5）
+    if (shiPart) s += `${shiPart}`
+
+    // 若剛好是整千/整百，補上 0 元不顯示，直接接後綴
+    return `${s}${suffix}`
+  }
+
+  const toWanText = (wan: number): string => {
+    if (wan <= 0) return ''
+    if (wan < 10) return `${wan}萬`
+    return toUnder10kText(wan, '萬')
+  }
+
+  // 小於 1 萬也要顯示（例：9800 => 9千8百元；9870 => 9千8百70元）
+  if (n < 10000) return toUnder10kText(n, '元')
+
+  const zhao = Math.floor(n / 1000000000000)
+  const yi = Math.floor((n % 1000000000000) / 100000000)
+  const wan = Math.floor((n % 100000000) / 10000)
+  const yuan = n % 10000
+
+  const zhaoText = zhao > 0 ? `${zhao}兆` : ''
+  const yiText = yi > 0 ? `${yi}億` : ''
+  const wanText = toWanText(wan)
+  const yuanText = toUnder10kText(yuan, '元')
+
+  // 例：1兆、1兆2億、1兆20萬、2億5千萬、2220萬、1萬500元
+  return `${zhaoText}${yiText}${wanText}${yuanText}`
 })
 
 // 處理契約金額輸入
@@ -485,8 +482,7 @@ const getFieldDisplayName = (fieldName: string): string => {
     project_location: '工程地點',
     host_agency: '主辦機關',
     construction_period: '工期天數',
-    project_amount: '工程金額',
-    current_contract_amount: '目前契約金額',
+    current_contract_amount: '契約金額',
     project_grade: '工程等級分類',
     project_category: '工程類別',
     funding_source: '經費來源',
@@ -497,11 +493,6 @@ const getFieldDisplayName = (fieldName: string): string => {
     advance_payment_ratio: '預付款比例',
     retention_ratio: '保留款比例',
     inspection_methods: '驗收方式',
-    insurance_policy_number: '保險單編號',
-    insurance_company: '保險公司名稱',
-    insurance_start_date: '保險開始日期',
-    insurance_end_date: '保險結束日期',
-    insurance_type: '保險類型'
   }
   
   return fieldNameMap[fieldName] || fieldName
@@ -807,53 +798,16 @@ defineExpose({
         </div>
 
         
-        <!-- 契約金額管理 -->
+        <!-- 契約金額 -->
         <h6 class="fw-bold text-theme mb-3 mt-4">
           <i class="fa fa-money-bill me-2"></i>契約金額管理
         </h6>
-        
-        <!-- 工程金額 -->
-        <div class="row g-3 mb-3">
-          <div class="col-lg-6 col-md-12 col-sm-12">
-            <label class="form-label mb-2" for="project_amount">工程金額</label>
-            <div class="input-group">
-              <span class="input-group-text">NT$</span>
-              <input
-                id="project_amount"
-                type="text"
-                :class="getFieldClass('project_amount')"
-                v-model="formattedProjectAmount"
-                name="project_amount"
-                placeholder="請輸入工程金額"
-                :disabled="propValues.isSubmitting || isReadonlyMode"
-                @input="handleProjectAmountInput"
-                @blur="handleFieldBlur('project_amount')"
-              />
-            </div>
-            <div
-              v-if="validation.hasError('project_amount')"
-              class="invalid-feedback"
-            >
-              {{ validation.getFieldError('project_amount') }}
-            </div>
-            <small class="text-muted">請輸入工程金額</small>
-          </div>
-        </div>
 
-        <!-- 目前契約金額 -->
+        <!-- 契約金額（= 目前契約金額；可隨變更設計變動） -->
         <div class="row g-3 mb-3">
           <div class="col-lg-6 col-md-12 col-sm-12">
             <div class="d-flex justify-content-between align-items-center mb-2">
-              <label class="form-label mb-0" for="current_contract_amount">目前契約金額</label>
-              <button
-                v-if="!showFieldAsInfo('current_contract_amount') && isEditMode && formData.current_contract_amount && !isReadonlyMode"
-                type="button"
-                class="btn btn-outline-primary btn-sm"
-                @click="showChangeHistoryModal"
-                :disabled="propValues.isSubmitting"
-              >
-                <i class="fa fa-history me-1"></i>變更紀錄
-              </button>
+              <label class="form-label mb-0" for="current_contract_amount">契約金額</label>
             </div>
             <div v-if="showFieldAsInfo('current_contract_amount')" class="form-info-value">{{ formattedContractAmount ? `NT$ ${formattedContractAmount}` : '－' }}</div>
             <template v-else>
@@ -865,14 +819,21 @@ defineExpose({
                   :class="getFieldClass('current_contract_amount')"
                   v-model="formattedContractAmount"
                   name="current_contract_amount"
-                  placeholder="請輸入目前契約金額"
-                  :disabled="propValues.isSubmitting || !isCreateMode"
+                  placeholder="請輸入契約金額"
+                  :disabled="propValues.isSubmitting || isReadonlyMode || isFieldReadonly('current_contract_amount')"
                   @input="handleContractAmountInput"
                   @blur="handleFieldBlur('current_contract_amount')"
                 />
+                <span
+                  v-if="contractAmountChineseText"
+                  class="input-group-text text-muted"
+                  title="中文金額"
+                >
+                  {{ contractAmountChineseText }}
+                </span>
               </div>
               <div v-if="validation.hasError('current_contract_amount')" class="invalid-feedback">{{ validation.getFieldError('current_contract_amount') }}</div>
-              <small class="text-muted">請輸入目前契約金額</small>
+              <small class="text-muted">請輸入契約金額</small>
             </template>
           </div>
         </div>
@@ -974,114 +935,7 @@ defineExpose({
           </div>
         </div>
 
-        <!-- 保險相關資訊 -->
-        <h6 class="fw-bold text-theme mb-3 mt-4">
-          <i class="fa fa-shield-alt me-2"></i>保險相關資訊
-        </h6>
-        <div class="row g-3 mb-3">
-          <div class="col-lg-4 col-md-6 col-sm-12">
-            <label class="form-label"
-              >保險單編號</label
-            >
-            <input
-              type="text"
-              :class="getFieldClass('insurance_policy_number')"
-              v-model="formData.insurance_policy_number"
-              name="insurance_policy_number"
-              placeholder="請輸入保險單編號"
-              :disabled="propValues.isSubmitting"
-              :readonly="isFieldReadonly('insurance_policy_number')"
-              @input="handleFieldInput('insurance_policy_number')"
-              @blur="handleFieldBlur('insurance_policy_number')"
-            />
-            <div 
-              v-if="validation.hasError('insurance_policy_number')" 
-              class="invalid-feedback"
-            >
-              {{ validation.getFieldError('insurance_policy_number') }}
-            </div>
-          </div>
-          <div class="col-lg-4 col-md-6 col-sm-12">
-            <label class="form-label">保險公司名稱</label>
-            <input
-              type="text"
-              class="form-control"
-              v-model="formData.insurance_company"
-              name="insurance_company"
-              placeholder="請輸入保險公司名稱"
-              :readonly="isFieldReadonly('insurance_company')"
-              :disabled="propValues.isSubmitting"
-              @input="handleFieldInput('insurance_company')"
-              @blur="handleFieldBlur('insurance_company')"
-            />
-          </div>
-          <div class="col-lg-4 col-md-12 col-sm-12">
-            <label class="form-label"
-              >保險類型</label
-            >
-            <input
-              type="text"
-              :class="getFieldClass('insurance_type')"
-              v-model="formData.insurance_type"
-              name="insurance_type"
-              list="insurance_type_options"
-              placeholder="請選擇或輸入保險類型"
-              :disabled="propValues.isSubmitting"
-              :readonly="isFieldReadonly('insurance_type')"
-              @input="handleFieldInput('insurance_type')"
-              @blur="handleFieldBlur('insurance_type')"
-            />
-            <datalist id="insurance_type_options">
-              <option value="工程險">工程險</option>
-              <option value="雇主責任險">雇主責任險</option>
-              <option value="第三人責任險">第三人責任險</option>
-              <option value="專業責任險">專業責任險</option>
-              <option value="產品責任險">產品責任險</option>
-              <option value="綜合保險">綜合保險</option>
-              <option value="工程綜合保險">工程綜合保險</option>
-              <option value="營造工程綜合保險">營造工程綜合保險</option>
-              <option value="安裝工程綜合保險">安裝工程綜合保險</option>
-            </datalist>
-            <div 
-              v-if="validation.hasError('insurance_type')" 
-              class="invalid-feedback"
-            >
-              {{ validation.getFieldError('insurance_type') }}
-            </div>
-          </div>
-        </div>
-        <div class="row g-3 mb-3">
-          <div class="col-lg-6 col-md-6 col-sm-12">
-            <label class="form-label"
-              >保險有效期限（起）</label
-            >
-            <RepublicDatePicker
-              v-model="formData.insurance_start_date"
-              :input-class="getFieldClass('insurance_start_date')"
-              :disabled="propValues.isSubmitting || isReadonlyMode"
-              :show-error="validation.hasError('insurance_start_date')"
-              :error-message="validation.getFieldError('insurance_start_date')"
-              :use-republic-year="true"
-              @update:model-value="handleFieldInput('insurance_start_date')"
-              @blur="handleFieldBlur('insurance_start_date')"
-            />
-          </div>
-          <div class="col-lg-6 col-md-6 col-sm-12">
-            <label class="form-label"
-              >保險有效期限（訖）</label
-            >
-            <RepublicDatePicker
-              v-model="formData.insurance_end_date"
-              :input-class="getFieldClass('insurance_end_date')"
-              :disabled="propValues.isSubmitting || isReadonlyMode"
-              :show-error="validation.hasError('insurance_end_date')"
-              :error-message="validation.getFieldError('insurance_end_date')"
-              :use-republic-year="true"
-              @update:model-value="handleFieldInput('insurance_end_date')"
-              @blur="handleFieldBlur('insurance_end_date')"
-            />
-          </div>
-        </div>
+        <!-- 保險已改為獨立頁面（多筆 + 附件/檔案夾）：請至「工程保險」功能維護 -->
 
         <!-- 簽核層級設定 -->
         <h6 class="fw-bold text-theme mb-3 mt-4">
@@ -1176,71 +1030,6 @@ defineExpose({
       </button>
     </div>
 
-    <!-- 變更紀錄 Modal -->
-    <Modal
-      v-model:show="showChangeModal"
-      title="契約金額變更紀錄"
-      icon="fa fa-history"
-      size="xl"
-      modal-id="contract-change-modal"
-      :hide-confirm-button="true"
-      cancel-text="關閉"
-    >
-      <!-- 變更紀錄表格 -->
-      <div class="table-responsive">
-        <table class="table table-hover">
-          <thead class="table-light">
-            <tr>
-              <th>變更日期</th>
-              <th>變更原因</th>
-              <th>變更前金額</th>
-              <th>變更金額</th>
-              <th>變更後金額</th>
-              <th>操作人</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="change in mockContractChanges" :key="change.id">
-              <td>{{ change.changeDate }}</td>
-              <td>{{ change.changeReason }}</td>
-              <td>NT$ {{ Number(change.originalAmount).toLocaleString() }}</td>
-              <td>
-                <span :class="change.changeAmount > 0 ? 'text-success' : 'text-danger'">
-                  {{ change.changeAmount > 0 ? '+' : '' }}NT$ {{ Number(change.changeAmount).toLocaleString() }}
-                </span>
-              </td>
-              <td>NT$ {{ Number(change.newAmount).toLocaleString() }}</td>
-              <td>{{ change.operator }}</td>
-            </tr>
-            <tr v-if="mockContractChanges.length === 0">
-              <td colspan="6" class="text-center text-muted py-4">
-                尚無變更紀錄
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      
-      <!-- 自定義 Footer -->
-      <template #footer>
-        <button 
-          v-if="!isReadonlyMode"
-          type="button" 
-          class="btn btn-outline-primary"
-          @click="addContractChange"
-        >
-          <i class="fa fa-plus me-1"></i>
-          新增變更紀錄
-        </button>
-        <button 
-          type="button" 
-          class="btn btn-secondary" 
-          @click="closeChangeModal"
-        >
-          關閉
-        </button>
-      </template>
-    </Modal>
   </div>
 </template>
 

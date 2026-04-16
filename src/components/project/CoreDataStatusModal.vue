@@ -359,9 +359,10 @@ import { getPlanSubmissions } from '@/api/planSubmission'
 import { onboardingApi, type SupervisoryOnboardingStatus } from '@/api/onboarding'
 import { getDesignChangeList, getContractAmountsByVersion, type VersionContractAmount, type DesignChangeItem } from '@/api/designChange'
 import { sitePersonnelApi, type SitePersonnel } from '@/api/sitePersonnel'
-import { computeVersionPersonnelConfig, type PersonWithAssignments } from '@/composables/useVersionPersonnelConfig'
+import { computeVersionPersonnelConfig, SUPERVISORY_FIXED_REQUIRED, type PersonWithAssignments } from '@/composables/useVersionPersonnelConfig'
 import { useViewPerspective, ViewType } from '@/composables/useViewPerspective'
 import { RouterLink } from 'vue-router'
+import { isPerspectiveOrPermission401Payload, parseAxios401ResponseData } from '@/utils/authHttpErrors'
 
 const props = defineProps<{
   show: boolean
@@ -397,15 +398,6 @@ const versionAmounts = ref<VersionContractAmount[]>([])
 const companyPersonnel = ref<SitePersonnel[]>([])
 const sitePersonnelVersionError = ref<string | null>(null)
 
-/** 監造：每個版本固定 負責人、工地負責人、專任工程人員、品管、勞安 各 1 */
-const SUPERVISORY_FIXED_REQUIRED = {
-  OWNER: 1,
-  CONSTRUCTION_MANAGER: 1,
-  TECHNICIAN: 1,
-  QUALITY: 1,
-  LABOUR_SAFETY: 1
-} as const
-
 const sitePersonnelConfig = computed(() => {
   const cid = workspaceStore.currentProject?.id
   if (!cid || versionAmounts.value.length === 0) return { dataComplete: false as const, versions: [] }
@@ -416,7 +408,8 @@ const sitePersonnelConfig = computed(() => {
     constructionId: cid,
     projectStartDate: workspaceStore.currentProject?.signDate ?? null,
     projectEndDate: workspaceStore.currentProject?.endDate ?? null,
-    fixedRequired: SUPERVISORY_FIXED_REQUIRED
+    // 營造端依契約金額級距檢核；監造端用固定需求（與專案工地人員管理一致）
+    ...(isContractor.value ? {} : { fixedRequired: SUPERVISORY_FIXED_REQUIRED })
   })
 })
 
@@ -536,12 +529,28 @@ const refreshStatus = async () => {
     return
   }
   const authConfig = getAuthRequestConfig()
+  /** onboarding 後端依 ownerType 與標頭解析監造／營造視角；營造端務必帶 CONTRACTOR */
+  const onboardingOwnerType = isContractor.value ? 'CONTRACTOR' : 'SUPERVISORY'
 
   try {
     statusLoading.value = true
-    statusData.value = await onboardingApi.getStatus(constructionId, selectedDesignChangeId.value, authConfig)
+    statusData.value = await onboardingApi.getStatus(
+      constructionId,
+      selectedDesignChangeId.value,
+      authConfig,
+      onboardingOwnerType
+    )
   } catch (e: any) {
     if (e?.response?.status === 401) {
+      const parsed = await parseAxios401ResponseData(e?.response?.data)
+      if (isPerspectiveOrPermission401Payload(parsed)) {
+        const msg =
+          (parsed && typeof parsed === 'object' && typeof (parsed as Record<string, unknown>).message === 'string'
+            ? String((parsed as Record<string, unknown>).message)
+            : '') || '目前視角無權限存取此資料，請確認監造／營造視角或專案權限。'
+        statusError.value = msg
+        return
+      }
       authExpired.value = true
       return
     }
@@ -562,7 +571,10 @@ const refreshStatus = async () => {
       const [dcList, amounts, personnel] = await Promise.all([
         getDesignChangeList(constructionId, sourceType, authConfig),
         getContractAmountsByVersion(constructionId, sourceType, authConfig),
-        sitePersonnelApi.getList(companyId, authConfig)
+        sitePersonnelApi.getList(companyId, {
+          ...authConfig,
+          effectiveViewType: isContractor.value ? 'CONTRACTOR' : 'SUPERVISORY'
+        })
       ])
       designChangeListForIntervals.value = dcList
       versionAmounts.value = amounts
@@ -570,6 +582,15 @@ const refreshStatus = async () => {
     }
   } catch (e: any) {
     if (e?.response?.status === 401) {
+      const parsed = await parseAxios401ResponseData(e?.response?.data)
+      if (isPerspectiveOrPermission401Payload(parsed)) {
+        const msg =
+          (parsed && typeof parsed === 'object' && typeof (parsed as Record<string, unknown>).message === 'string'
+            ? String((parsed as Record<string, unknown>).message)
+            : '') || '目前視角無權限載入工地人員資料。'
+        sitePersonnelVersionError.value = msg
+        return
+      }
       authExpired.value = true
       return
     }
@@ -579,11 +600,14 @@ const refreshStatus = async () => {
 
   if (showDocClassificationCard.value) {
     try {
-      const items = await documentClassificationApi.getAll(constructionId, authConfig)
+      const items = await documentClassificationApi.getAll(constructionId, null, authConfig)
       docClassificationCount.value = Array.isArray(items) ? items.length : 0
     } catch (e: any) {
       if (e?.response?.status === 401) {
-        authExpired.value = true
+        const parsed = await parseAxios401ResponseData(e?.response?.data)
+        if (!isPerspectiveOrPermission401Payload(parsed)) {
+          authExpired.value = true
+        }
         return
       }
       console.warn('取得文件分類統計失敗', e)
@@ -597,7 +621,10 @@ const refreshStatus = async () => {
     submissionCount.value = Array.isArray(records) ? records.length : 0
   } catch (e: any) {
     if (e?.response?.status === 401) {
-      authExpired.value = true
+      const parsed = await parseAxios401ResponseData(e?.response?.data)
+      if (!isPerspectiveOrPermission401Payload(parsed)) {
+        authExpired.value = true
+      }
       return
     }
     console.warn('取得送審紀錄統計失敗', e)

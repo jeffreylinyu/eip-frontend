@@ -46,7 +46,6 @@ const formData = ref({
   design_company: "", // 設計公司（工程案層級的基本資料，可手動填寫或選擇監造公司）
   construction_period: "",
   duration_type: "WORKING_DAYS", // 工期計算模式
-  project_amount: "",
   current_contract_amount: "",
   // 工程類別/屬性
   project_category: "",
@@ -66,12 +65,7 @@ const formData = ref({
   segmented_acceptance: false,
   partial_acceptance: false,
   completion_acceptance: false,
-  // 保險相關資訊
-  insurance_policy_number: "",
-  insurance_company: "",
-  insurance_start_date: "",
-  insurance_end_date: "",
-  insurance_type: "",
+  // 保險已拆分為獨立頁面（多筆 + 附件/檔案夾）
   // 簽核層級
   signLevel: [],
   // 樂觀鎖版本
@@ -364,7 +358,6 @@ const clearFormData = () => {
       design_company: "",
       construction_period: "",
       duration_type: "WORKING_DAYS",
-      project_amount: "",
       current_contract_amount: "",
       project_category: "",
       sign_date: "",
@@ -379,11 +372,7 @@ const clearFormData = () => {
       segmented_acceptance: false,
       partial_acceptance: false,
       completion_acceptance: false,
-      insurance_policy_number: "",
-      insurance_company: "",
-      insurance_start_date: "",
-      insurance_end_date: "",
-      insurance_type: "",
+      // 保險已拆分為獨立頁面（多筆 + 附件/檔案夾）
       signLevel: [],
       version: 0,
     }
@@ -438,7 +427,6 @@ const mapProjectDataToForm = (project: any) => {
       design_company: project.designCompany || '',
       construction_period: project.constructionPeriod || project.workDay || '',
       duration_type: project.durationType || 'WORKING_DAYS', // 工期計算模式
-      project_amount: project.budget || '',
       current_contract_amount: project.currentContractAmount || project.budget || '',
       // 工程類別/屬性
       project_category: project.projectCategory || '',
@@ -458,12 +446,7 @@ const mapProjectDataToForm = (project: any) => {
       segmented_acceptance: project.segmentedAcceptance || false,
       partial_acceptance: project.partialAcceptance || false,
       completion_acceptance: project.completionAcceptance || false,
-      // 保險相關資訊
-      insurance_policy_number: project.insurancePolicyNumber || '',
-      insurance_company: project.insuranceCompany || '',
-      insurance_start_date: project.insuranceStartDate ? project.insuranceStartDate.split('T')[0] : '',
-      insurance_end_date: project.insuranceEndDate ? project.insuranceEndDate.split('T')[0] : '',
-      insurance_type: project.insuranceType || '',
+      // 保險已拆分為獨立頁面（多筆 + 附件/檔案夾）
       // 簽核層級
       signLevel: project.signLevel || [],
       // 映射版本號 (若無則預設 0)
@@ -634,11 +617,6 @@ const submitFormData = async (data?: any, isAutoSave: boolean = false) => {
           updatedConstruction.partialAcceptance ? '部分驗收' : '',
           updatedConstruction.completionAcceptance ? '竣工驗收' : ''
         ].filter(Boolean),
-        insurancePolicyNumber: updatedConstruction.insuranceId || '',
-        insuranceCompany: updatedConstruction.insuranceCompanyName || '',
-        insuranceStartDate: updatedConstruction.insuranceStartDate || '',
-        insuranceEndDate: updatedConstruction.insuranceEndDate || '',
-        insuranceType: updatedConstruction.insuranceType || '',
         constructionConfirmDate: updatedConstruction.constructionConfirmDate || '',
         constructionProjectId: updatedConstruction.constructionProjectId || '',
         supervisoryCompanyName: updatedConstruction.supervisoryCompanyName || null,

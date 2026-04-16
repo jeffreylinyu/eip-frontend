@@ -23,6 +23,11 @@ const companies = ref<Company[]>([])
 const selectedCompany = ref<Company | null>(null)
 const companyMembers = ref<any[]>([])
 
+// Member edit modal
+const showEditMemberModal = ref(false)
+const editingMember = ref<any>(null)
+const editingMemberRole = ref('MEMBER')
+
 // Modals
 const showCompanyModal = ref(false)
 const showEditCompanyModal = ref(false)
@@ -147,6 +152,28 @@ const handleCreateUser = async () => {
 const openAuthModal = (user: any) => {
   selectedUserForAuth.value = user
   showAuthModal.value = true
+}
+
+const openEditMemberModal = (member: any) => {
+  editingMember.value = member
+  editingMemberRole.value = String(member?.role || 'MEMBER')
+  showEditMemberModal.value = true
+}
+
+const handleUpdateMemberPermission = async () => {
+  if (!selectedCompany.value?.companyId || !editingMember.value) return
+  const targetUserId = editingMember.value.userId || editingMember.value.id
+  if (!targetUserId) return
+  try {
+    await companyApi.updateMemberPermission(selectedCompany.value.companyId, targetUserId, editingMemberRole.value)
+    toast.success('成員權限已更新')
+    showEditMemberModal.value = false
+    editingMember.value = null
+    await fetchMembers(selectedCompany.value.companyId)
+  } catch (error: any) {
+    console.error('Update member permission failed:', error)
+    toast.error(error.response?.data?.message || '更新失敗')
+  }
 }
 
 // 移除成員
@@ -377,6 +404,9 @@ const headerActions = computed(() => {
                         <button class="btn btn-sm btn-primary me-2" @click="openAuthModal(member)">
                           <i class="fa fa-key me-1"></i> 管理專案權限
                         </button>
+                        <button class="btn btn-sm btn-outline-secondary me-2" @click="openEditMemberModal(member)">
+                          <i class="fa fa-pen me-1"></i> 編輯
+                        </button>
                         <button class="btn btn-sm btn-outline-danger" @click="handleRemoveMember(member)" v-if="member.role !== 'OWNER'">
                           <i class="fa fa-trash"></i>
                         </button>
@@ -416,6 +446,40 @@ const headerActions = computed(() => {
       :user="selectedUserForAuth"
       :company-id="selectedCompany?.companyId"
     />
+
+    <!-- Modal: Edit Member Permission -->
+    <div v-if="showEditMemberModal" class="modal fade show" style="display: block; background: rgba(0,0,0,0.5);" tabindex="-1">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">編輯成員資料</h5>
+            <button type="button" class="btn-close" @click="showEditMemberModal = false"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-2">
+              <div class="text-muted small">成員</div>
+              <div class="fw-bold">{{ editingMember?.username || editingMember?.name || '-' }}</div>
+              <div class="text-muted small">{{ editingMember?.email || '-' }}</div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">公司權限</label>
+              <select class="form-select" v-model="editingMemberRole">
+                <option v-for="opt in companyRoleOptions" :key="opt.value" :value="opt.value">
+                  {{ opt.label }}
+                </option>
+              </select>
+              <div class="text-muted small mt-2">
+                注意：若為最後一位 OWNER，系統將不允許降級。
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" @click="showEditMemberModal = false">取消</button>
+            <button type="button" class="btn btn-primary" @click="handleUpdateMemberPermission">儲存</button>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- Modal: Create User (Simple Inline) -->
     <div v-if="showUserModal" class="modal fade show" style="display: block; background: rgba(0,0,0,0.5);" tabindex="-1">

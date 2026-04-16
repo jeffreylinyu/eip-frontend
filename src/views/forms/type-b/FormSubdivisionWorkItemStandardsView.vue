@@ -20,7 +20,7 @@
           <ol class="breadcrumb mb-0">
             <li class="breadcrumb-item text-muted">分項工程維護</li>
             <li class="breadcrumb-item text-muted">{{ currentItem?.name || '載入中...' }}</li>
-            <li class="breadcrumb-item active" aria-current="page">{{ pageTitle }}</li>
+            <li class="breadcrumb-item active" aria-current="page">抽查標準表</li>
           </ol>
         </nav>
       </div>
@@ -34,18 +34,20 @@
           <div v-else-if="loadError" class="alert alert-danger mb-0">{{ loadError }}</div>
           <template v-else-if="currentItem">
             <div class="d-flex flex-column flex-md-row justify-content-between align-items-start gap-3 mb-3">
-              <div>
+              <div class="flex-grow-1">
                 <h4 class="fw-bold mb-1">{{ currentItem.name }}</h4>
-                <div class="text-muted small mb-2">
+                <div class="text-muted small mb-0">
                   {{ currentItem.remark?.trim() ? currentItem.remark : '無備註' }}
                 </div>
+                <div class="inspection-standards-shared-hint small mt-2">
+                  <i class="fa fa-circle-info me-1" aria-hidden="true"></i>
+                  <span class="hint-strong">施工階段</span>與<span class="hint-strong">施工流程</span>為
+                  <span class="hint-strong">施工 / 安衛共用骨架</span>
+                  <span class="hint-sep">•</span>
+                  <span class="hint-strong">改一邊</span>
+                  <span class="hint-strong">另一邊也會同步變更</span>
+                </div>
               </div>
-            </div>
-
-            <div class="text-secondary small mb-3 mt-2">
-              <i class="fa fa-info-circle me-1"></i>
-              點擊表格儲存格可編輯明細（與監造「施工項目」標準頁相同操作）。若需從 PCCES
-              主檔整批套用，請由監造於「施工項目」操作後匯出 JSON，於分項清單頁匯入。
             </div>
 
             <InspectionStandardsPhasesTable
@@ -53,7 +55,7 @@
               :phases="itemData.phases"
               :interactive="true"
               :show-ai-generate-button="false"
-              :empty-text="emptyTableHint"
+              :empty-text="emptyPhaseText"
               :persistence-key="collapsePersistenceKey"
               @edit-field="editField"
               @edit-flow="editFlowItem"
@@ -63,7 +65,42 @@
               @remove-mgmt="onRemoveMgmt"
               @remove-flow="onRemoveFlow"
               @remove-row="onRemoveRow"
-            />
+            >
+              <template #bulk-left>
+                <div
+                  class="inspection-standards-toolbar-bulk flex-grow-1 min-w-0 d-flex flex-nowrap align-items-center gap-3"
+                >
+                  <div
+                    class="inspection-standards-kind-switch min-w-0"
+                    role="tablist"
+                    aria-label="抽查標準分頁切換"
+                  >
+                    <button
+                      type="button"
+                      class="kind-seg kind-seg--construction"
+                      :class="{ 'is-active': activeStandardsTab === 'construction' }"
+                      role="tab"
+                      :aria-selected="activeStandardsTab === 'construction'"
+                      @click="setStandardsTab('construction')"
+                    >
+                      <i class="fa fa-clipboard-check me-2" aria-hidden="true"></i>
+                      施工抽查標準
+                    </button>
+                    <button
+                      type="button"
+                      class="kind-seg kind-seg--safety"
+                      :class="{ 'is-active': activeStandardsTab === 'safety' }"
+                      role="tab"
+                      :aria-selected="activeStandardsTab === 'safety'"
+                      @click="setStandardsTab('safety')"
+                    >
+                      <i class="fa fa-hard-hat me-2" aria-hidden="true"></i>
+                      安全衛生抽查標準
+                    </button>
+                  </div>
+                </div>
+              </template>
+            </InspectionStandardsPhasesTable>
           </template>
         </CardBody>
       </Card>
@@ -161,6 +198,7 @@ import {
   deleteSubdivisionSafetyStandardsByPhase,
   deleteSubdivisionSafetyStandardsByManageProject,
   type SubdivisionWorkItem,
+  type SubdivisionWorkItemStandardLine,
   type SubdivisionWorkItemStandardUpdatePayload
 } from '@/api/subdivisionWorkItems'
 import type { ConstructionMajorItemStandardResponse } from '@/api/pcces'
@@ -169,8 +207,9 @@ import CardBody from '@/components/bootstrap/CardBody.vue'
 import Modal from '@/components/bootstrap/Modal.vue'
 import InspectionStandardsPhasesTable from '@/components/inspection/InspectionStandardsPhasesTable.vue'
 import {
-  buildInspectionPhasesFromLines,
+  buildMergedInspectionPhasesForTab,
   type InspectionPhaseBlock,
+  type InspectionStandardsKind,
   INSPECTION_PLACEHOLDER_FLOW,
   UNCLASSIFIED_WORK_PROCESS_FLOW_KEY
 } from '@/utils/buildInspectionPhasesFromLines'
@@ -193,17 +232,15 @@ const router = useRouter()
 const workspaceStore = useWorkspaceStore()
 const { isContractor } = useViewPerspective()
 
-const isSafetyMode = computed(() => route.path.includes('safety-standards'))
-const pageTitle = computed(() =>
-  isSafetyMode.value ? '安全衛生抽查標準維護' : '施工抽查標準維護'
-)
+/** 與監造「抽查標準表」頁：query ?tab=safety 或舊路由 redirect 對齊 */
+const activeStandardsTab = ref<InspectionStandardsKind>('construction')
+const isSafetyMode = computed(() => activeStandardsTab.value === 'safety')
+
 const masterKindLabel = computed(() =>
   isSafetyMode.value ? '安全衛生抽查標準來源（主檔）' : '施工抽查標準來源（主檔）'
 )
 
-const emptyTableHint = computed(() =>
-  isSafetyMode.value ? '目前尚無安全衛生抽查標準資料' : '目前尚無施工抽查標準資料'
-)
+const emptyPhaseText = computed(() => `目前尚無${masterKindLabel.value}資料`)
 
 const constructionId = computed(() => workspaceStore.currentProject?.id?.trim() ?? '')
 
@@ -222,17 +259,21 @@ const itemIdParam = computed(() => {
   return Number.isFinite(n) ? n : NaN
 })
 
+/** 施工／安衛共用同一套階段與流程骨架，摺疊狀態不分頁（與監造一致） */
 const collapsePersistenceKey = computed(() => {
   const cid = constructionId.value
   const sid = itemIdParam.value
   if (!cid || !Number.isFinite(sid)) return ''
   const d = designChangeId.value
-  return `${cid}:${sid}:${d === null ? 'null' : d}:${isSafetyMode.value ? 'safety' : 'construction'}`
+  return `${cid}:${sid}:${d === null ? 'null' : d}:contractor-subdivision-inspection-shared`
 })
 
 const loading = ref(false)
 const loadError = ref('')
 const currentItem = ref<SubdivisionWorkItem | null>(null)
+
+const standardsConstruction = ref<SubdivisionWorkItemStandardLine[]>([])
+const standardsSafety = ref<SubdivisionWorkItemStandardLine[]>([])
 
 const itemData = ref<{ phases: Record<string, InspectionPhaseBlock> }>({ phases: {} })
 
@@ -261,15 +302,39 @@ const addMgmtPhaseKey = ref('')
 const addMgmtFlowIdx = ref<number | null>(null)
 const addMgmtName = ref('')
 
-function rebuildItemDataFromCurrent() {
+function applyMergedDisplay() {
+  itemData.value = buildMergedInspectionPhasesForTab(
+    standardsConstruction.value,
+    standardsSafety.value,
+    activeStandardsTab.value
+  )
+}
+
+function syncStandardsFromCurrentItem() {
   if (!currentItem.value) {
+    standardsConstruction.value = []
+    standardsSafety.value = []
     itemData.value = { phases: {} }
     return
   }
-  const lines = isSafetyMode.value
-    ? currentItem.value.safetyStandards
-    : currentItem.value.constructionStandards
-  itemData.value = buildInspectionPhasesFromLines(lines ?? [])
+  standardsConstruction.value = currentItem.value.constructionStandards ?? []
+  standardsSafety.value = currentItem.value.safetyStandards ?? []
+  applyMergedDisplay()
+}
+
+function syncTabFromRouteQuery() {
+  const q = route.query.tab
+  if (q === 'safety') activeStandardsTab.value = 'safety'
+  else activeStandardsTab.value = 'construction'
+}
+
+function setStandardsTab(tab: InspectionStandardsKind) {
+  activeStandardsTab.value = tab
+  applyMergedDisplay()
+  const nextQuery = { ...route.query } as Record<string, string | string[] | undefined>
+  if (tab === 'safety') nextQuery.tab = 'safety'
+  else delete nextQuery.tab
+  router.replace({ path: route.path, query: nextQuery })
 }
 
 function groupRowsByManageProject(flow: any): { name: string; rows: any[] }[] {
@@ -310,6 +375,8 @@ async function load(options?: { quiet?: boolean }) {
   if (!cid) {
     loadError.value = '請先於左側選擇工程案'
     currentItem.value = null
+    standardsConstruction.value = []
+    standardsSafety.value = []
     itemData.value = { phases: {} }
     return
   }
@@ -317,26 +384,33 @@ async function load(options?: { quiet?: boolean }) {
   if (!Number.isFinite(idNum)) {
     loadError.value = '無效的分項編號'
     currentItem.value = null
+    standardsConstruction.value = []
+    standardsSafety.value = []
     itemData.value = { phases: {} }
     return
   }
   const quiet = options?.quiet === true
   if (!quiet) loading.value = true
   try {
+    syncTabFromRouteQuery()
     const rows = await listSubdivisionWorkItems(cid, designChangeId.value)
     const found = rows.find((r) => r.id === idNum) ?? null
     if (!found) {
       loadError.value = '找不到此分項工程，或已不屬於目前選取之版本'
       currentItem.value = null
+      standardsConstruction.value = []
+      standardsSafety.value = []
       itemData.value = { phases: {} }
       return
     }
     currentItem.value = found
-    rebuildItemDataFromCurrent()
+    syncStandardsFromCurrentItem()
   } catch (e: unknown) {
     const err = e as { response?: { data?: { message?: string } }; message?: string }
     loadError.value = err?.response?.data?.message ?? err?.message ?? '載入失敗'
     currentItem.value = null
+    standardsConstruction.value = []
+    standardsSafety.value = []
     itemData.value = { phases: {} }
   } finally {
     if (!quiet) loading.value = false
@@ -493,8 +567,9 @@ async function onRemoveFlow(phaseKey: string, flowIdx: number) {
   const names = uniqueManageProjectNamesInFlow(flowBlock)
   const detailFilter = flowLabelToScopedDeleteDetail(flowLabel)
   if (names.length === 0) {
-    const placeholderId = (flowBlock as any)?._placeholderId as number | undefined
-    if (!placeholderId) {
+    const phC = (flowBlock as any)?._placeholderConstructionId as number | undefined
+    const phS = (flowBlock as any)?._placeholderSafetyId as number | undefined
+    if (phC == null && phS == null) {
       scrollPreservingAlert('此施工流程下尚無管理項目，無需刪除。')
       return
     }
@@ -502,11 +577,10 @@ async function onRemoveFlow(phaseKey: string, flowIdx: number) {
     const ctx = { constructionId: cid, designChangeId: designChangeId.value }
     const scrollSnap = readScrollSnapshot()
     try {
-      if (isSafetyMode.value) {
-        await deleteSubdivisionSafetyStandard(sid, placeholderId, ctx)
-      } else {
-        await deleteSubdivisionConstructionStandard(sid, placeholderId, ctx)
-      }
+      const tasks: Promise<unknown>[] = []
+      if (phC != null) tasks.push(deleteSubdivisionConstructionStandard(sid, phC, ctx))
+      if (phS != null) tasks.push(deleteSubdivisionSafetyStandard(sid, phS, ctx))
+      await Promise.all(tasks)
       await load({ quiet: true })
       await nextTick()
       await nextTick()
@@ -690,8 +764,6 @@ async function saveEdit() {
       scrollPreservingAlert('請輸入施工流程名稱')
       return
     }
-    const displayName = newLabelRaw
-
     const allSubs: { id?: number }[] = []
     for (const r of (flow as any).rows ?? []) {
       if (r?.id) allSubs.push(r)
@@ -714,18 +786,23 @@ async function saveEdit() {
               : Promise.resolve()
           )
         )
-      } else if ((flow as any)._placeholderId) {
-        const pid = (flow as any)._placeholderId as number
-        if (isSafetyMode.value) {
-          await updateSubdivisionSafetyStandard(subId, pid, payload, ctx)
-        } else {
-          await updateSubdivisionConstructionStandard(subId, pid, payload, ctx)
-        }
       } else {
-        scrollPreservingAlert('此流程下尚無明細，無法更新流程名稱')
-        return
+        const phC = (flow as any)._placeholderConstructionId as number | undefined
+        const phS = (flow as any)._placeholderSafetyId as number | undefined
+        const phTasks: Promise<unknown>[] = []
+        if (phC != null) {
+          phTasks.push(updateSubdivisionConstructionStandard(subId, phC, payload, ctx))
+        }
+        if (phS != null) {
+          phTasks.push(updateSubdivisionSafetyStandard(subId, phS, payload, ctx))
+        }
+        if (phTasks.length === 0) {
+          scrollPreservingAlert('此流程下尚無明細，無法更新流程名稱')
+          return
+        }
+        await Promise.all(phTasks)
       }
-      flow.flowLabel = displayName
+      await load({ quiet: true })
       showEditModal.value = false
       scrollPreservingAlert('施工流程名稱更新成功')
     } catch (e: unknown) {
@@ -791,13 +868,20 @@ async function saveEdit() {
 }
 
 watch(
+  () => route.query.tab,
+  () => {
+    syncTabFromRouteQuery()
+    applyMergedDisplay()
+  }
+)
+
+watch(
   () =>
     [
       isContractor.value,
       workspaceStore.currentProject?.id ?? '',
       route.params.itemId,
-      route.query.designChangeId,
-      route.path
+      route.query.designChangeId
     ] as const,
   () => {
     load()
@@ -887,5 +971,87 @@ watch(
   background: rgba(248, 113, 113, 0.12);
   border-color: rgba(248, 113, 113, 0.35);
   color: #fecaca;
+}
+
+.inspection-standards-shared-hint {
+  color: #93c5fd;
+  padding: 0.15rem 0;
+}
+
+.inspection-standards-shared-hint > i {
+  color: inherit;
+}
+
+.hint-strong {
+  font-weight: 900;
+  color: inherit;
+}
+
+.hint-sep {
+  display: inline-block;
+  margin: 0 0.5rem;
+  color: inherit;
+}
+
+.inspection-standards-toolbar-bulk .inspection-standards-kind-switch {
+  flex: 1 1 320px;
+  min-width: min(100%, 260px);
+  max-width: 720px;
+  width: auto;
+}
+
+.inspection-standards-kind-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  width: 100%;
+  max-width: 720px;
+  padding: 0.35rem;
+  border: 1px solid color-mix(in srgb, var(--a4-border) 80%, transparent);
+  border-radius: 0.75rem;
+  background: rgba(255, 255, 255, 0.035);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.kind-seg {
+  --kind-accent: var(--a4-accent);
+  flex: 1 1 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  border-radius: 0.6rem;
+  padding: 0.5rem 0.9rem;
+  font-weight: 800;
+  font-size: 0.92rem;
+  letter-spacing: 0.01em;
+  border: 1px solid transparent;
+  background: transparent;
+  color: color-mix(in srgb, var(--a4-text) 70%, var(--a4-muted));
+  position: relative;
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease, transform 120ms ease;
+  user-select: none;
+}
+
+.kind-seg:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--a4-text);
+}
+
+.kind-seg.is-active {
+  background: rgba(15, 23, 42, 0.65);
+  color: var(--a4-text);
+  border-color: color-mix(in srgb, var(--kind-accent) 65%, transparent);
+  box-shadow:
+    0 10px 26px rgba(0, 0, 0, 0.22),
+    inset 0 0 0 1px color-mix(in srgb, var(--kind-accent) 45%, transparent);
+}
+
+.kind-seg--construction {
+  --kind-accent: #60a5fa;
+}
+
+.kind-seg--safety {
+  --kind-accent: #f59e0b;
 }
 </style>

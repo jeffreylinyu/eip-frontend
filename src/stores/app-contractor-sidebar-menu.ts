@@ -152,6 +152,7 @@ export const useAppContractorSidebarMenuStore = defineStore("appContractorSideba
         icon: "bi bi-database",
         children: [
           { text: "基本資料維護", url: getViewUrl("/basic/basic-data") },
+          { text: "工程保險", url: getViewUrl("/basic/insurance") },
           { text: "參與單位", url: getViewUrl("/basic/participation-units") },
           { text: "工地相關人員", url: getViewUrl("/basic/site-personnel") },
           { text: "工程項目標單", url: getViewUrl("/basic/project-item-database") },
@@ -173,6 +174,7 @@ export const useAppContractorSidebarMenuStore = defineStore("appContractorSideba
         text: "表單生成與管理",
         icon: "bi bi-file-earmark-text",
         children: [
+              { text: "文件檔案分類表", url: "/forms/contractor-document-classification" },
               {
                 text: "O類表單",
                 children: [

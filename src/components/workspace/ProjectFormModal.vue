@@ -36,8 +36,6 @@ const formData = ref({
   design_company: '', // 設計公司（工程案層級的基本資料，可手動填寫或選擇監造公司）
   construction_period: '',
   duration_type: 'WORKING_DAYS', // 工期計算模式
-  project_amount: '',
-  original_contract_amount: '',
   current_contract_amount: '',
   // 工程類別/屬性
   project_category: '',
@@ -57,12 +55,6 @@ const formData = ref({
   segmented_acceptance: false,
   partial_acceptance: false,
   completion_acceptance: false,
-  // 保險相關資訊
-  insurance_policy_number: '',
-  insurance_company: '',
-  insurance_start_date: '',
-  insurance_end_date: '',
-  insurance_type: '',
   // 簽核層級
   signLevel: [],
   // 工作空間關聯
@@ -104,8 +96,6 @@ const testData = {
     design_company: "林同棪工程顧問股份有限公司",
     construction_period: "180天",
     duration_type: 'WORKING_DAYS',
-    project_amount: "7500000",
-    original_contract_amount: "7000000",
     current_contract_amount: "7500000",
     project_category: "土木工程",
     sign_date: "2024-05-01",
@@ -120,11 +110,6 @@ const testData = {
     segmented_acceptance: true,
     partial_acceptance: false,
     completion_acceptance: true,
-    insurance_policy_number: "INS-2024-001",
-    insurance_company: "華南產物保險",
-    insurance_start_date: "2024-06-01",
-    insurance_end_date: "2025-06-01",
-    insurance_type: "工程險",
     signLevel: [
       { level: 1, title: "總監" },
       { level: 2, title: "副總監" },
@@ -144,8 +129,6 @@ const testData = {
     design_company: "",
     construction_period: "120天",
     duration_type: 'WORKING_DAYS',
-    project_amount: "5000000",
-    original_contract_amount: "5000000",
     current_contract_amount: "5000000",
     project_category: "道路工程",
     sign_date: "2024-06-15",
@@ -160,11 +143,6 @@ const testData = {
     segmented_acceptance: false,
     partial_acceptance: false,
     completion_acceptance: true,
-    insurance_policy_number: "",
-    insurance_company: "富邦產物保險",
-    insurance_start_date: "2024-07-01",
-    insurance_end_date: "2025-07-01",
-    insurance_type: "雇主責任險",
     signLevel: [
       { level: 1, title: "部長" },
       { level: 2, title: "次長" }
@@ -183,9 +161,7 @@ const testData = {
     design_company: "",
     construction_period: "",
     duration_type: 'WORKING_DAYS',
-    project_amount: "",
     project_grade: "",
-    original_contract_amount: "",
     current_contract_amount: "",
     project_category: "",
     funding_source: "",
@@ -201,11 +177,6 @@ const testData = {
     segmented_acceptance: false,
     partial_acceptance: false,
     completion_acceptance: false,
-    insurance_policy_number: "",
-    insurance_company: "",
-    insurance_start_date: "",
-    insurance_end_date: "",
-    insurance_type: "",
     signLevel: []
   }
 }
@@ -245,8 +216,6 @@ const resetForm = () => {
     design_company: '', // 設計公司（工程案層級的基本資料，可手動填寫或選擇監造公司）
     construction_period: '',
     duration_type: 'WORKING_DAYS', // 工期計算模式
-    project_amount: '',
-    original_contract_amount: '',
     current_contract_amount: '',
     // 工程類別/屬性
     project_category: '',
@@ -266,12 +235,6 @@ const resetForm = () => {
     segmented_acceptance: false,
     partial_acceptance: false,
     completion_acceptance: false,
-    // 保險相關資訊
-    insurance_policy_number: '',
-    insurance_company: '',
-    insurance_start_date: '',
-    insurance_end_date: '',
-    insurance_type: '',
     // 簽核層級
     signLevel: [],
     // 工作空間關聯 - 使用當前工作空間
@@ -296,8 +259,6 @@ const mapProjectDataToForm = (project: any) => {
     formData.value.design_company = project.designCompany || ''
     formData.value.construction_period = project.constructionPeriod || project.workDay || ''
     formData.value.duration_type = project.durationType || 'WORKING_DAYS' // 工期計算模式
-    formData.value.project_amount = project.budget || ''
-    formData.value.original_contract_amount = project.originalContractAmount || ''
     formData.value.current_contract_amount = project.currentContractAmount || ''
     
     // 映射工程類別
@@ -322,13 +283,6 @@ const mapProjectDataToForm = (project: any) => {
     formData.value.segmented_acceptance = project.segmentedAcceptance || false
     formData.value.partial_acceptance = project.partialAcceptance || false
     formData.value.completion_acceptance = project.completionAcceptance || false
-    
-    // 映射保險資訊 - 轉換日期格式
-    formData.value.insurance_policy_number = project.insurancePolicyNumber || ''
-    formData.value.insurance_company = project.insuranceCompany || ''
-    formData.value.insurance_start_date = project.insuranceStartDate ? project.insuranceStartDate.split('T')[0] : ''
-    formData.value.insurance_end_date = project.insuranceEndDate ? project.insuranceEndDate.split('T')[0] : ''
-    formData.value.insurance_type = project.insuranceType || ''
     
     // 映射簽核層級
     formData.value.signLevel = project.signLevel || []
@@ -458,7 +412,7 @@ const handleSubmit = async (projectFormData: any) => {
           ...props.project,
           name: projectFormData.project_name,
           location: projectFormData.project_location,
-          budget: projectFormData.project_amount,
+          budget: projectFormData.current_contract_amount,
           startDate: projectFormData.start_date,
           endDate: projectFormData.completion_date,
           managerName: projectFormData.contractor_name,
@@ -474,11 +428,6 @@ const handleSubmit = async (projectFormData: any) => {
           advancePaymentRatio: projectFormData.advance_payment_ratio,
           retentionRatio: projectFormData.retention_ratio,
           inspectionMethods: projectFormData.inspection_methods,
-          insurancePolicyNumber: projectFormData.insurance_policy_number,
-          insuranceCompany: projectFormData.insurance_company,
-          insuranceStartDate: projectFormData.insurance_start_date,
-          insuranceEndDate: projectFormData.insurance_end_date,
-          insuranceType: projectFormData.insurance_type,
           signLevel: projectFormData.signLevel
         }
       }
@@ -492,7 +441,7 @@ const handleSubmit = async (projectFormData: any) => {
         name: projectFormData.project_name,
         workspaceId: currentWorkspaceId,
         location: projectFormData.project_location,
-        budget: projectFormData.project_amount,
+        budget: projectFormData.current_contract_amount,
         status: 'PLANNING' as const,
         startDate: projectFormData.start_date,
         endDate: projectFormData.completion_date,
@@ -510,11 +459,6 @@ const handleSubmit = async (projectFormData: any) => {
         advancePaymentRatio: projectFormData.advance_payment_ratio,
         retentionRatio: projectFormData.retention_ratio,
         inspectionMethods: projectFormData.inspection_methods,
-        insurancePolicyNumber: projectFormData.insurance_policy_number,
-        insuranceCompany: projectFormData.insurance_company,
-        insuranceStartDate: projectFormData.insurance_start_date,
-        insuranceEndDate: projectFormData.insurance_end_date,
-        insuranceType: projectFormData.insurance_type,
         signLevel: projectFormData.signLevel
       }
     }

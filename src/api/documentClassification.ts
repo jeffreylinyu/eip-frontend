@@ -4,12 +4,13 @@ import http from './http'
 export interface DocumentClassification {
   id: number
   constructionId: string
+  designChangeId: number | null
   category: string // 'A' | 'B' | 'C' | 'D' | 'H' | 'I' | 'L'
   categoryDisplayName: string
   itemNumber: string
   documentName: string
-  retentionYears: number
-  /** B 類：規定提送日程 */
+  retentionYears: number | null
+  /** B 類（監造）／P 類（營造複製後）：規定提送日程 */
   requiredSubmissionSchedule?: string | null
   isDefault: boolean
   isLocked: boolean
@@ -18,6 +19,14 @@ export interface DocumentClassification {
   updatedAt?: string
   createdBy?: string
   updatedBy?: string
+}
+
+function versionParams(designChangeId: number | null | undefined): Record<string, string> {
+  const p: Record<string, string> = {}
+  if (designChangeId != null && designChangeId !== undefined) {
+    p.designChangeId = String(designChangeId)
+  }
+  return p
 }
 
 export interface CreateDocumentClassificationRequest {
@@ -38,7 +47,7 @@ export interface BatchUpdateItem {
   id: number
   itemNumber?: string
   documentName?: string
-  retentionYears?: number
+  retentionYears?: number | null
   requiredSubmissionSchedule?: string
 }
 
@@ -47,69 +56,106 @@ export interface BatchUpdateDocumentClassificationRequest {
 }
 
 export const documentClassificationApi = {
-  /**
-   * 取得某工程案的所有文件分類項目
-   */
-  async getAll(constructionId: string, config?: { skipAuthRedirectOn401?: boolean }): Promise<DocumentClassification[]> {
+  async getAll(
+    constructionId: string,
+    designChangeId: number | null | undefined,
+    config?: { skipAuthRedirectOn401?: boolean }
+  ): Promise<DocumentClassification[]> {
+    const response: any = await http.get(`/management/constructions/${constructionId}/document-classification`, {
+      ...(config ?? {}) as AxiosRequestConfig,
+      params: { ...versionParams(designChangeId), ...((config as AxiosRequestConfig)?.params as object) }
+    })
+    return response.data || response
+  },
+
+  async getByCategory(
+    constructionId: string,
+    category: string,
+    designChangeId: number | null | undefined
+  ): Promise<DocumentClassification[]> {
     const response: any = await http.get(
-      `/management/constructions/${constructionId}/document-classification`,
-      (config ?? {}) as AxiosRequestConfig
+      `/management/constructions/${constructionId}/document-classification/${category}`,
+      { params: versionParams(designChangeId) }
     )
     return response.data || response
   },
 
-  /**
-   * 取得某工程案特定大項的所有分類項目
-   */
-  async getByCategory(constructionId: string, category: string): Promise<DocumentClassification[]> {
-    const response: any = await http.get(`/management/constructions/${constructionId}/document-classification/${category}`)
+  async create(
+    constructionId: string,
+    designChangeId: number | null | undefined,
+    data: CreateDocumentClassificationRequest
+  ): Promise<DocumentClassification> {
+    const response: any = await http.post(
+      `/management/constructions/${constructionId}/document-classification`,
+      data,
+      { params: versionParams(designChangeId) }
+    )
     return response.data || response
   },
 
-  /**
-   * 新增自訂項目
-   */
-  async create(constructionId: string, data: CreateDocumentClassificationRequest): Promise<DocumentClassification> {
-    const response: any = await http.post(`/management/constructions/${constructionId}/document-classification`, data)
+  async update(
+    constructionId: string,
+    id: number,
+    designChangeId: number | null | undefined,
+    data: UpdateDocumentClassificationRequest
+  ): Promise<DocumentClassification> {
+    const response: any = await http.put(
+      `/management/constructions/${constructionId}/document-classification/${id}`,
+      data,
+      { params: versionParams(designChangeId) }
+    )
     return response.data || response
   },
 
-  /**
-   * 更新項目
-   */
-  async update(constructionId: string, id: number, data: UpdateDocumentClassificationRequest): Promise<DocumentClassification> {
-    const response: any = await http.put(`/management/constructions/${constructionId}/document-classification/${id}`, data)
+  async batchUpdate(
+    constructionId: string,
+    designChangeId: number | null | undefined,
+    data: BatchUpdateDocumentClassificationRequest
+  ): Promise<DocumentClassification[]> {
+    const response: any = await http.put(
+      `/management/constructions/${constructionId}/document-classification/batch`,
+      data,
+      { params: versionParams(designChangeId) }
+    )
     return response.data || response
   },
 
-  /**
-   * 批次更新多個項目的順序/內容
-   */
-  async batchUpdate(constructionId: string, data: BatchUpdateDocumentClassificationRequest): Promise<DocumentClassification[]> {
-    const response: any = await http.put(`/management/constructions/${constructionId}/document-classification/batch`, data)
+  async delete(constructionId: string, id: number, designChangeId: number | null | undefined): Promise<void> {
+    await http.delete(`/management/constructions/${constructionId}/document-classification/${id}`, {
+      params: versionParams(designChangeId)
+    })
+  },
+
+  async syncCategoryD(
+    constructionId: string,
+    designChangeId: number | null | undefined
+  ): Promise<DocumentClassification[]> {
+    const response: any = await http.post(
+      `/management/constructions/${constructionId}/document-classification/sync-category-d`,
+      null,
+      { params: versionParams(designChangeId) }
+    )
     return response.data || response
   },
 
-  /**
-   * 刪除項目
-   */
-  async delete(constructionId: string, id: number): Promise<void> {
-    await http.delete(`/management/constructions/${constructionId}/document-classification/${id}`)
-  },
-
-  /**
-   * 同步 D 類別 (根據施工大項重新生成)
-   */
-  async syncCategoryD(constructionId: string): Promise<DocumentClassification[]> {
-    const response: any = await http.post(`/management/constructions/${constructionId}/document-classification/sync-category-d`)
+  async resetAll(
+    constructionId: string,
+    designChangeId: number | null | undefined
+  ): Promise<DocumentClassification[]> {
+    const response: any = await http.post(
+      `/management/constructions/${constructionId}/document-classification/reset`,
+      null,
+      { params: versionParams(designChangeId) }
+    )
     return response.data || response
   },
 
-  /**
-   * 恢復預設值 (全域)
-   */
-  async resetAll(constructionId: string): Promise<DocumentClassification[]> {
-    const response: any = await http.post(`/management/constructions/${constructionId}/document-classification/reset`)
+  async copyFromPrevious(constructionId: string, targetDesignChangeId: number): Promise<{ copied: boolean }> {
+    const response: any = await http.post(
+      `/management/constructions/${constructionId}/document-classification/copy-from-previous`,
+      null,
+      { params: { targetDesignChangeId: String(targetDesignChangeId) } }
+    )
     return response.data || response
   }
 }

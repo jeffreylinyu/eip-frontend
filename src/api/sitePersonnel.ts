@@ -121,10 +121,17 @@ export const STATUS_OPTIONS = [
 export const sitePersonnelApi = {
   // 取得公司工地人員列表
   // GET /management/constructionMember/companyList?companyId={companyId}
-  async getList(companyId: string, config?: { skipAuthRedirectOn401?: boolean }): Promise<SitePersonnel[]> {
+  async getList(
+    companyId: string,
+    config?: { skipAuthRedirectOn401?: boolean; effectiveViewType?: 'SUPERVISORY' | 'CONTRACTOR'; headers?: Record<string, string> }
+  ): Promise<SitePersonnel[]> {
+    const { effectiveViewType, headers: extraHeaders, ...restConfig } = config || {}
+    const mergedHeaders: Record<string, string> = { ...(extraHeaders || {}) }
+    if (effectiveViewType) mergedHeaders['X-Effective-View-Type'] = effectiveViewType
     const response: any = await http.get('/management/constructionMember/companyList', {
       params: { companyId },
-      ...config
+      ...(Object.keys(mergedHeaders).length ? { headers: mergedHeaders } : {}),
+      ...restConfig
     })
     
     // http 攔截器已解包 response.data.data (即陣列)，若直接回傳則為陣列

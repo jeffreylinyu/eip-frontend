@@ -40,6 +40,8 @@ export interface ImportPccesResponse {
   constructionId: string;
   designChangeId: number | null;
   totalCodes: number;
+  /** CostBreakdownList 匯入列數（與標單明細分開） */
+  totalCostBreakdown?: number;
 }
 
 /**
@@ -122,6 +124,33 @@ export interface ConstructionPccesCode {
   type: PccesItemType | null;   // 項目類型
   /** 是否為安全衛生設施（使用者勾選，非匯入檔；預設 false） */
   isSafetyHealthFacility?: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** PCCES 單價分析（CostBreakdownList）一列 */
+export interface ConstructionPccesCostBreakdown {
+  id: number;
+  logicalId: string;
+  parentId: number | null;
+  orderNumber: number | null;
+  refItemNo: string | null;
+  itemCode: string | null;
+  itemKind: string | null;
+  name: string;
+  unitType: string | null;
+  quantity: number;
+  price: string;
+  amount: string;
+  remark: string | null;
+  percent: string | null;
+  labourRatio: string | null;
+  equipmentRatio: string | null;
+  materialRatio: string | null;
+  miscellaneaRatio: string | null;
+  type: PccesItemType | null;
+  /** 是否為材料（僅葉節點可編輯；匯入時編碼 M 開頭之葉節點預設 true） */
+  isMaterial?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -256,6 +285,42 @@ export async function getConstructionPccesCodes(
     `/management/generate/pccesCodes?${params}`
   );
   return (response as unknown as ConstructionPccesCode[]) || [];
+}
+
+/**
+ * 取得單價分析列（CostBreakdownList），與標單明細分開儲存
+ */
+export async function getConstructionPccesCostBreakdown(
+  constructionId: string,
+  designChangeId?: number | null
+): Promise<ConstructionPccesCostBreakdown[]> {
+  const params = new URLSearchParams({ constructionId });
+  if (designChangeId !== undefined && designChangeId !== null) {
+    params.append('designChangeId', String(designChangeId));
+  }
+  const response = await http.get(
+    `/management/generate/pccesCostBreakdown?${params}`
+  );
+  return (response as unknown as ConstructionPccesCostBreakdown[]) || [];
+}
+
+/**
+ * 更新單價分析單列「是否為材料」（僅最底層列可更新）
+ */
+export async function updatePccesCostBreakdownMaterial(
+  constructionId: string,
+  id: number,
+  isMaterial: boolean,
+  designChangeId?: number | null
+): Promise<void> {
+  const params = new URLSearchParams({
+    constructionId,
+    isMaterial: String(isMaterial)
+  });
+  if (designChangeId !== undefined && designChangeId !== null) {
+    params.append('designChangeId', String(designChangeId));
+  }
+  await http.patch(`/management/generate/pccesCostBreakdown/${id}/material?${params}`);
 }
 
 /**

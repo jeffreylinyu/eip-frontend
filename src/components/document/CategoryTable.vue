@@ -1,32 +1,44 @@
 <template>
-  <div class="report-card mb-3">
+  <div class="report-card mb-3" :class="{ 'category-table--dark-inputs': darkInputs }">
     <div class="report-card__header cursor-pointer user-select-none" role="button" @click="toggleCollapse">
-      <div class="d-flex align-items-center">
-        <!-- 展開/收合圖示 -->
-        <i 
-          class="bi me-2 transition-transform text-primary" 
+      <div class="d-flex align-items-start flex-grow-1 min-w-0 me-2">
+        <i
+          class="bi me-2 mt-1 flex-shrink-0 transition-transform text-primary"
           :class="isCollapsed ? 'bi-chevron-right' : 'bi-chevron-down'"
         ></i>
-        
-        <h5 class="mb-0 fw-bold">{{ title }}</h5>
-        
-        <!-- D 類特殊標記 -->
-        <span v-if="localItems.length > 0" class="badge bg-secondary ms-3 rounded-pill">
-          {{ localItems.length }}
-        </span>
+        <div class="min-w-0 flex-grow-1">
+          <div class="d-flex align-items-center flex-wrap gap-2">
+            <h5 class="mb-0 fw-bold">{{ title }}</h5>
+            <span v-if="localItems.length > 0" class="badge bg-secondary rounded-pill">
+              {{ localItems.length }}
+            </span>
+          </div>
+          <p v-if="headerNote" class="mb-0 mt-1 small text-info">
+            <i class="bi bi-eye me-1"></i>{{ headerNote }}
+          </p>
+        </div>
       </div>
-      
+
       <!-- 標頭按鈕區 -->
-      <div class="d-flex gap-2" @click.stop>
-        <!-- D 類同步按鈕 -->
-        <button 
-          v-if="isDynamic" 
-          class="btn btn-sm btn-outline-warning" 
+      <div class="d-flex flex-wrap align-items-center justify-content-end gap-2 flex-shrink-0" @click.stop>
+        <button
+          v-if="isDynamic"
+          class="btn btn-sm btn-outline-warning"
           @click="emit('sync')"
           title="重新同步施工大項"
         >
           <i class="bi bi-arrow-repeat me-1"></i> 同步施工大項
         </button>
+        <button
+          v-if="importSubdivisions"
+          type="button"
+          class="btn btn-sm btn-outline-info"
+          title="依目前版本分項工程批次新增 E 類自主檢查表"
+          @click="emit('importSubdivisions')"
+        >
+          <i class="bi bi-box-arrow-in-down me-1"></i> 帶入分項
+        </button>
+        <slot name="headerActions" />
       </div>
     </div>
     
@@ -40,6 +52,11 @@
               <th>文件名稱</th>
               <th v-if="showScheduleColumn" style="min-width: 160px">規定提送日程</th>
               <th style="width: 100px">保存年限</th>
+              <template v-if="planScheduleExtras">
+                <th style="min-width: 160px">預定施工日期</th>
+                <th style="min-width: 160px">預定計畫書提送日期</th>
+                <th style="min-width: 140px">備註</th>
+              </template>
               <th style="width: 150px">操作</th>
             </tr>
           </thead>
@@ -64,26 +81,35 @@
                 <!-- 編號 -->
                 <td>{{ item.itemNumber }}</td>
                 
-                <!-- 文件名稱 (編輯模式/顯示模式) -->
-                <td>
+                <!-- 文件名稱 (編輯模式 / 非預設內聯 / 顯示) -->
+                <td @click.stop>
                   <div v-if="editingId === item.id">
-                    <input 
-                      type="text" 
-                      class="form-control form-control-sm" 
-                      v-model="editForm.documentName" 
+                    <input
+                      type="text"
+                      class="form-control form-control-sm"
+                      v-model="editForm.documentName"
                       placeholder="請輸入文件名稱"
                       ref="nameInput"
                       @keyup.enter="saveEdit(item)"
                       @keyup.esc="cancelEdit"
-                    >
+                    />
                   </div>
+                  <template v-else-if="inlineEditNonDefault && !item.isDefault">
+                    <input
+                      type="text"
+                      class="form-control form-control-sm"
+                      v-model="item.documentName"
+                      placeholder="文件名稱"
+                      @blur="scheduleFlushInlineRow(item)"
+                    />
+                  </template>
                   <div v-else @click="startEdit(item)" class="cursor-pointer">
                     {{ item.documentName }}
                   </div>
                 </td>
 
-                <!-- 規定提送日程（僅 B 類） -->
-                <td v-if="showScheduleColumn">
+                <!-- 規定提送日程 -->
+                <td v-if="showScheduleColumn" @click.stop>
                   <div v-if="editingId === item.id">
                     <input
                       type="text"
@@ -91,28 +117,81 @@
                       v-model="editForm.requiredSubmissionSchedule"
                       placeholder="例：訂約後30日內"
                       @keyup.enter="saveEdit(item)"
-                    >
+                    />
                   </div>
+                  <template v-else-if="inlineEditNonDefault && !item.isDefault">
+                    <input
+                      type="text"
+                      class="form-control form-control-sm"
+                      v-model="item.requiredSubmissionSchedule"
+                      placeholder="規定提送日程"
+                      @blur="scheduleFlushInlineRow(item)"
+                    />
+                  </template>
                   <div v-else @click="startEdit(item)" class="cursor-pointer small">
                     {{ item.requiredSubmissionSchedule || defaultScheduleText }}
                   </div>
                 </td>
-                
+
                 <!-- 保存年限 -->
-                <td>
+                <td @click.stop>
                   <div v-if="editingId === item.id">
-                    <input 
-                      type="number" 
-                      class="form-control form-control-sm" 
+                    <div v-if="allowNullRetention" class="d-flex flex-column gap-1">
+                      <label class="small mb-0 d-flex align-items-center gap-1">
+                        <input type="checkbox" v-model="editForm.retentionPermanent" />
+                        永久保存
+                      </label>
+                      <input
+                        v-if="!editForm.retentionPermanent"
+                        type="number"
+                        class="form-control form-control-sm"
+                        v-model.number="editForm.retentionYears"
+                        @keyup.enter="saveEdit(item)"
+                      />
+                    </div>
+                    <input
+                      v-else
+                      type="number"
+                      class="form-control form-control-sm"
                       v-model.number="editForm.retentionYears"
-                       @keyup.enter="saveEdit(item)"
-                    >
+                      @keyup.enter="saveEdit(item)"
+                    />
                   </div>
+                  <template v-else-if="inlineEditNonDefault && !item.isDefault">
+                    <div v-if="allowNullRetention" class="d-flex flex-column gap-1">
+                      <label class="small mb-0 d-flex align-items-center gap-1">
+                        <input
+                          type="checkbox"
+                          :checked="item.retentionYears == null"
+                          @change="onInlineRetentionPermanentChange(item, $event)"
+                        />
+                        永久保存
+                      </label>
+                      <input
+                        v-if="item.retentionYears != null"
+                        type="number"
+                        class="form-control form-control-sm"
+                        v-model.number="item.retentionYears"
+                        min="0"
+                        @blur="scheduleFlushInlineRow(item)"
+                      />
+                    </div>
+                    <input
+                      v-else
+                      type="number"
+                      class="form-control form-control-sm"
+                      v-model.number="item.retentionYears"
+                      min="0"
+                      @blur="scheduleFlushInlineRow(item)"
+                    />
+                  </template>
                   <div v-else @click="startEdit(item)" class="cursor-pointer">
-                    {{ item.retentionYears }} 年
+                    {{ displayRetention(item) }}
                   </div>
                 </td>
-                
+
+                <slot v-if="planScheduleExtras" name="planScheduleExtras" :item="item" />
+
                 <!-- 操作按鈕 -->
                 <td>
                   <div v-if="editingId === item.id" class="btn-group btn-group-sm">
@@ -124,13 +203,18 @@
                     </button>
                   </div>
                   <div v-else class="btn-group btn-group-sm">
-                    <button class="btn btn-outline-primary" @click="startEdit(item)" title="編輯">
+                    <button
+                      v-if="item.isDefault || !inlineEditNonDefault"
+                      class="btn btn-outline-primary"
+                      @click="startEdit(item)"
+                      title="編輯"
+                    >
                       <i class="bi bi-pencil"></i>
                     </button>
-                    <button 
-                      v-if="!item.isDefault" 
-                      class="btn btn-outline-danger" 
-                      @click="deleteItem(item)" 
+                    <button
+                      v-if="!item.isDefault"
+                      class="btn btn-outline-danger"
+                      @click="deleteItem(item)"
                       title="刪除"
                     >
                       <i class="bi bi-trash"></i>
@@ -176,14 +260,34 @@
                 >
               </td>
               <td>
-                <input 
-                  type="number" 
-                  class="form-control form-control-sm" 
-                  v-model.number="addForm.retentionYears" 
+                <div v-if="allowNullRetention" class="d-flex flex-column gap-1">
+                  <label class="small mb-0 d-flex align-items-center gap-1">
+                    <input type="checkbox" v-model="addForm.retentionPermanent" />
+                    永久保存
+                  </label>
+                  <input
+                    v-if="!addForm.retentionPermanent"
+                    type="number"
+                    class="form-control form-control-sm"
+                    v-model.number="addForm.retentionYears"
+                    placeholder="年限"
+                    @keyup.enter="confirmAdd"
+                  >
+                </div>
+                <input
+                  v-else
+                  type="number"
+                  class="form-control form-control-sm"
+                  v-model.number="addForm.retentionYears"
                   placeholder="年限"
                   @keyup.enter="confirmAdd"
                 >
               </td>
+              <template v-if="planScheduleExtras">
+                <td></td>
+                <td></td>
+                <td></td>
+              </template>
               <td>
                 <div class="btn-group btn-group-sm">
                   <button class="btn btn-success" @click="confirmAdd">儲存</button>
@@ -206,39 +310,160 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, computed } from 'vue'
+import { ref, watch, nextTick, computed, onUnmounted } from 'vue'
 import draggable from 'vuedraggable'
 import type { DocumentClassification } from '@/api/documentClassification'
 
 const defaultScheduleText = '訂約後30日內'
 
-const props = defineProps<{
-  category: string
-  title: string
-  items: DocumentClassification[]
-  isDynamic?: boolean // 是否為 D 類 (無法手動新增/刪除，只能同步)
-}>()
+const props = withDefaults(
+  defineProps<{
+    category: string
+    title: string
+    items: DocumentClassification[]
+    isDynamic?: boolean // 是否為 D 類 (無法手動新增/刪除，只能同步)
+    /** 保存年限可為 null（永久），用於營造端文件分類 */
+    allowNullRetention?: boolean
+    /** E 類：帶入分項工程 */
+    importSubdivisions?: boolean
+    /** 顯示「規定提送日程」欄的大項代碼，例如監造 ['B']、營造 P 類 ['P'] */
+    scheduleColumnCategories?: string[]
+    /** 標題下方提示（例如監造 B 類：營造端可預覽） */
+    headerNote?: string
+    /** P-1：在「保存年限」與「操作」之間插入預定施工／提送／備註（需父層提供 #planScheduleExtras） */
+    planScheduleExtras?: boolean
+    /** 非預設列：文件名稱／提送日程／年限改為欄內直接編輯（不需按編輯鈕） */
+    inlineEditNonDefault?: boolean
+    /** 表內輸入框深色樣式（與 P-1 頁一致） */
+    darkInputs?: boolean
+  }>(),
+  {
+    allowNullRetention: false,
+    importSubdivisions: false,
+    scheduleColumnCategories: () => ['B'],
+    planScheduleExtras: false,
+    inlineEditNonDefault: false,
+    darkInputs: false
+  }
+)
 
-const showScheduleColumn = computed(() => props.category === 'B')
-const tableColSpan = computed(() => (showScheduleColumn.value ? 6 : 5))
+const showScheduleColumn = computed(() => props.scheduleColumnCategories.includes(props.category))
+
+function displayRetention(item: DocumentClassification): string {
+  if (props.allowNullRetention && item.retentionYears == null) return '永久'
+  if (item.retentionYears == null) return '—'
+  return `${item.retentionYears} 年`
+}
+const tableColSpan = computed(() => {
+  let n = showScheduleColumn.value ? 6 : 5
+  if (props.planScheduleExtras) n += 3
+  return n
+})
 
 const emit = defineEmits<{
-  (e: 'add', data: { documentName: string, retentionYears: number, requiredSubmissionSchedule?: string }): void
-  (e: 'update', id: number, data: { documentName: string, retentionYears: number, requiredSubmissionSchedule?: string }): void
+  (e: 'add', data: { documentName: string, retentionYears: number | null, requiredSubmissionSchedule?: string }): void
+  (e: 'update', id: number, data: {
+    documentName: string
+    retentionYears?: number | null
+    retentionPermanent?: boolean
+    requiredSubmissionSchedule?: string
+  }): void
   (e: 'delete', id: number): void
   (e: 'sync'): void
   (e: 'reorder', items: DocumentClassification[]): void
+  (e: 'importSubdivisions'): void
 }>()
 
 // 本地項目列表 (用於顯示與拖拉)
 const localItems = ref<DocumentClassification[]>([])
 const isCollapsed = ref(false)
 
+const inlineRowFlushTimers = new Map<number, ReturnType<typeof setTimeout>>()
+
+function cancelInlineFlushTimer(id: number) {
+  const t = inlineRowFlushTimers.get(id)
+  if (t != null) {
+    clearTimeout(t)
+    inlineRowFlushTimers.delete(id)
+  }
+}
+
+function scheduleFlushInlineRow(item: DocumentClassification) {
+  if (!props.inlineEditNonDefault || item.isDefault) return
+  const id = item.id
+  cancelInlineFlushTimer(id)
+  inlineRowFlushTimers.set(
+    id,
+    window.setTimeout(() => {
+      inlineRowFlushTimers.delete(id)
+      flushInlineRow(item)
+    }, 350)
+  )
+}
+
+function flushInlineRow(item: DocumentClassification) {
+  if (!props.inlineEditNonDefault || item.isDefault || props.isDynamic) return
+  if (!item.documentName?.trim()) {
+    alert('請輸入文件名稱')
+    return
+  }
+  const base = {
+    documentName: item.documentName.trim(),
+    ...(showScheduleColumn.value
+      ? {
+          requiredSubmissionSchedule:
+            (typeof item.requiredSubmissionSchedule === 'string'
+              ? item.requiredSubmissionSchedule.trim()
+              : '') || defaultScheduleText
+        }
+      : {})
+  }
+  if (props.allowNullRetention) {
+    const perm = item.retentionYears == null
+    emit('update', item.id, {
+      ...base,
+      ...(perm ? { retentionPermanent: true as const } : { retentionYears: item.retentionYears })
+    })
+  } else {
+    emit('update', item.id, {
+      ...base,
+      retentionYears: item.retentionYears as number
+    })
+  }
+}
+
+function onInlineRetentionPermanentChange(item: DocumentClassification, e: Event) {
+  const checked = (e.target as HTMLInputElement).checked
+  if (checked) {
+    item.retentionYears = null
+  } else if (item.retentionYears == null) {
+    item.retentionYears = 15
+  }
+  cancelInlineFlushTimer(item.id)
+  flushInlineRow(item)
+}
 
 // 同步 props 到 localItems
-watch(() => props.items, (newItems) => {
-  localItems.value = [...newItems]
-}, { immediate: true })
+watch(
+  () => props.items,
+  (newItems) => {
+    inlineRowFlushTimers.forEach((t) => clearTimeout(t))
+    inlineRowFlushTimers.clear()
+    localItems.value = newItems.map((row) => ({
+      ...row,
+      requiredSubmissionSchedule:
+        row.requiredSubmissionSchedule === null || row.requiredSubmissionSchedule === undefined
+          ? ''
+          : row.requiredSubmissionSchedule
+    }))
+  },
+  { immediate: true }
+)
+
+onUnmounted(() => {
+  inlineRowFlushTimers.forEach((t) => clearTimeout(t))
+  inlineRowFlushTimers.clear()
+})
 
 // --- 展開/收合 ---
 const toggleCollapse = () => {
@@ -249,14 +474,20 @@ const toggleCollapse = () => {
 const isAdding = ref(false)
 const addForm = ref({
   documentName: '',
-  retentionYears: 15,
+  retentionYears: 15 as number | null,
+  retentionPermanent: false,
   requiredSubmissionSchedule: defaultScheduleText
 })
 const addInput = ref<HTMLInputElement | null>(null)
 
 const startAdd = async () => {
   isAdding.value = true
-  addForm.value = { documentName: '', retentionYears: 15, requiredSubmissionSchedule: defaultScheduleText }
+  addForm.value = {
+    documentName: '',
+    retentionYears: 15,
+    retentionPermanent: false,
+    requiredSubmissionSchedule: defaultScheduleText
+  }
   await nextTick()
   addInput.value?.focus()
 }
@@ -270,9 +501,11 @@ const confirmAdd = () => {
     alert('請輸入文件名稱')
     return
   }
+  const retentionYears =
+    props.allowNullRetention && addForm.value.retentionPermanent ? null : addForm.value.retentionYears
   emit('add', {
     documentName: addForm.value.documentName,
-    retentionYears: addForm.value.retentionYears,
+    retentionYears,
     ...(showScheduleColumn.value
       ? { requiredSubmissionSchedule: addForm.value.requiredSubmissionSchedule?.trim() || defaultScheduleText }
       : {})
@@ -284,18 +517,21 @@ const confirmAdd = () => {
 const editingId = ref<number | null>(null)
 const editForm = ref({
   documentName: '',
-  retentionYears: 15,
+  retentionYears: 15 as number | null,
+  retentionPermanent: false,
   requiredSubmissionSchedule: defaultScheduleText
 })
 const nameInput = ref<HTMLInputElement | null>(null)
 
 const startEdit = async (item: DocumentClassification) => {
-  // if (props.isDynamic) return // D 類暫時不允許編輯
-  
+  if (props.inlineEditNonDefault && !item.isDefault) return
+
   editingId.value = item.id
+  const isPerm = props.allowNullRetention && item.retentionYears == null
   editForm.value = {
     documentName: item.documentName,
-    retentionYears: item.retentionYears,
+    retentionYears: isPerm ? 15 : (item.retentionYears ?? 15),
+    retentionPermanent: isPerm,
     requiredSubmissionSchedule: item.requiredSubmissionSchedule?.trim() || defaultScheduleText
   }
   await nextTick()
@@ -312,13 +548,25 @@ const saveEdit = (item: DocumentClassification) => {
     alert('請輸入文件名稱')
     return
   }
-  emit('update', item.id, {
+  const base = {
     documentName: editForm.value.documentName,
-    retentionYears: editForm.value.retentionYears,
     ...(showScheduleColumn.value
       ? { requiredSubmissionSchedule: editForm.value.requiredSubmissionSchedule?.trim() ?? '' }
       : {})
-  })
+  }
+  if (props.allowNullRetention) {
+    emit('update', item.id, {
+      ...base,
+      ...(editForm.value.retentionPermanent
+        ? { retentionPermanent: true as const }
+        : { retentionYears: editForm.value.retentionYears })
+    })
+  } else {
+    emit('update', item.id, {
+      ...base,
+      retentionYears: editForm.value.retentionYears as number
+    })
+  }
   editingId.value = null
 }
 
@@ -390,5 +638,20 @@ const recalculateItemNumbers = () => {
 }
 .add-row:hover {
   background-color: rgba(255, 193, 7, 0.15) !important;
+}
+
+.category-table--dark-inputs :deep(.form-control) {
+  background: rgba(0, 0, 0, 0.18);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: rgba(255, 255, 255, 0.92);
+}
+.category-table--dark-inputs :deep(.form-control::placeholder) {
+  color: rgba(255, 255, 255, 0.45);
+}
+.category-table--dark-inputs :deep(label.small) {
+  color: rgba(226, 232, 240, 0.88);
+}
+.category-table--dark-inputs .draggable-row.table-active {
+  background-color: rgba(255, 255, 255, 0.06) !important;
 }
 </style>

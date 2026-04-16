@@ -49,8 +49,11 @@ const switchTab = (tab: string, companyId?: string) => {
 
 const switchToSitePersonnelTab = (companyId: string, companyName: string) => {
   // 跳轉到獨立的工地人員管理頁面
-  // 使用 router 跳轉，不依賴 URL 參數傳遞公司信息
-  router.push('/company/site-personnel')
+  // 以 URL 參數鎖定公司，避免使用者有多公司時誤切換
+  router.push({
+    path: '/company/site-personnel',
+    query: { companyId }
+  })
 }
 
 const backToCompanyList = () => {

@@ -33,13 +33,6 @@ export interface SupervisionCompanyProfileData {
   prePayRatio?: number | null
   retainedRatio?: number | null
 
-  // 保險
-  insuranceId?: string
-  insuranceCompanyName?: string
-  insuranceType?: string
-  insuranceStartDate?: string
-  insuranceEndDate?: string
-
   // 簽核
   signLevel?: any
 

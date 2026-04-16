@@ -51,11 +51,6 @@ export const projectFormValidationRules: FieldValidationRules = {
     max: 3650, // 最多10年
   },
   
-  project_amount: {
-    positiveNumber: true,
-    min: 1000, // 最少1千元
-  },
-  
   current_contract_amount: {
     positiveNumber: true,
     min: 1000, // 最少1千元
@@ -106,32 +101,7 @@ export const projectFormValidationRules: FieldValidationRules = {
     max: 100,
   },
   
-  // 保險相關資訊
-  insurance_policy_number: {
-    minLength: 5,
-    maxLength: 50,
-  },
-  
-  insurance_company: {
-    minLength: 2,
-    maxLength: 100,
-  },
-  
-  insurance_start_date: {
-    date: true,
-  },
-  
-  insurance_end_date: {
-    date: true,
-    dateRange: {
-      startField: 'insurance_start_date',
-      endField: 'insurance_end_date',
-    },
-  },
-  
-  insurance_type: {
-    // 選填
-  },
+  // 保險已拆分為獨立頁面（多筆 + 附件/檔案夾），此處不再驗證
 }
 
 /**

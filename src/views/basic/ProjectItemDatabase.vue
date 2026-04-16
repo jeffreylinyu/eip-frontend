@@ -21,12 +21,40 @@
 
     <div
       v-if="!isFullscreen"
-      class="mb-3"
+      class="pcces-toolbar-row d-flex flex-wrap align-items-center gap-2 gap-md-3"
+      :class="{ 'pcces-toolbar-row--standalone': isLoading }"
     >
-      <div class="d-flex flex-wrap align-items-center gap-2">
+      <div
+        class="pcces-segment-tabs pcces-segment-tabs--lg flex-shrink-0"
+        role="tablist"
+        aria-label="標單檢視"
+      >
+        <button
+          type="button"
+          role="tab"
+          class="pcces-segment-tab"
+          :class="{ 'pcces-segment-tab--active': pccesViewTab === 'detail' }"
+          :aria-selected="pccesViewTab === 'detail'"
+          @click="pccesViewTab = 'detail'"
+        >
+          標單明細
+        </button>
+        <button
+          type="button"
+          role="tab"
+          class="pcces-segment-tab"
+          :class="{ 'pcces-segment-tab--active': pccesViewTab === 'breakdown' }"
+          :aria-selected="pccesViewTab === 'breakdown'"
+          @click="pccesViewTab = 'breakdown'"
+        >
+          單價分析
+        </button>
+      </div>
+
+      <div class="d-flex flex-wrap align-items-center gap-2 ms-auto">
         <div
           v-if="selectedDesignChangeId != null"
-          class="form-check form-switch m-0 d-flex align-items-center gap-2"
+          class="form-check form-switch m-0 d-flex align-items-center gap-2 flex-shrink-0"
         >
           <input
             class="form-check-input"
@@ -35,19 +63,21 @@
             v-model="diffEnabled"
             :disabled="isLoading || isCopying"
           />
-          <label class="form-check-label user-select-none" for="pccesDiffToggle">
-            <span class="pcces-diff-redword">紅字</span>代表與前一個版本的差異
+          <label
+            class="form-check-label user-select-none mb-0 text-nowrap pcces-diff-toggle-label"
+            for="pccesDiffToggle"
+            title="開啟後，與上一版不同的欄位以紅色標示"
+          >
+            顯示與前版差異
           </label>
         </div>
-        <div class="d-flex flex-wrap justify-content-end align-items-center gap-2 ms-auto">
         <button
           class="btn btn-outline-secondary btn-sm"
           type="button"
           @click="toggleFullscreen"
-          :title="isFullscreen ? '退出全螢幕' : '全螢幕'"
+          title="全螢幕"
         >
-          <i :class="isFullscreen ? 'fa fa-compress me-1' : 'fa fa-expand me-1'"></i>
-          {{ isFullscreen ? '退出全螢幕' : '全螢幕' }}
+          <i class="fa fa-expand me-1"></i>全螢幕
         </button>
         <button
           v-if="selectedDesignChangeId != null"
@@ -59,15 +89,14 @@
         >
           <i class="fa fa-copy me-1"></i>複製前一個版本
         </button>
-        <button 
-          class="btn btn-success btn-sm" 
-          type="button" 
-          @click="openImportModal" 
+        <button
+          class="btn btn-success btn-sm"
+          type="button"
+          @click="openImportModal"
           :disabled="isLoading"
         >
           <i class="fa fa-file-import me-1"></i>匯入 PCCES
         </button>
-        </div>
       </div>
     </div>
 
@@ -83,20 +112,49 @@
     <div
       v-else
       class="treegrid-wrapper"
-      :class="{ 'treegrid-fullscreen': isFullscreen }"
+      :class="{
+        'treegrid-fullscreen': isFullscreen,
+        'pcces-treegrid-below-toolbar': !isFullscreen
+      }"
     >
       <!-- 全螢幕模式下的工具列固定在最上方 -->
       <div
         v-if="isFullscreen"
-        class="fullscreen-toolbar d-flex justify-content-between align-items-center px-3 py-2 border-bottom"
+        class="fullscreen-toolbar d-flex flex-wrap align-items-center gap-2 px-3 py-2 border-bottom"
       >
-        <div class="fw-semibold">
+        <div class="fw-semibold flex-shrink-0 me-1">
           <i class="fa fa-database me-2"></i>工程項目標單
         </div>
-        <div class="d-flex gap-2 align-items-center">
+        <div
+          class="pcces-segment-tabs pcces-segment-tabs--lg flex-shrink-0"
+          role="tablist"
+          aria-label="標單檢視"
+        >
+          <button
+            type="button"
+            role="tab"
+            class="pcces-segment-tab"
+            :class="{ 'pcces-segment-tab--active': pccesViewTab === 'detail' }"
+            :aria-selected="pccesViewTab === 'detail'"
+            @click="pccesViewTab = 'detail'"
+          >
+            標單明細
+          </button>
+          <button
+            type="button"
+            role="tab"
+            class="pcces-segment-tab"
+            :class="{ 'pcces-segment-tab--active': pccesViewTab === 'breakdown' }"
+            :aria-selected="pccesViewTab === 'breakdown'"
+            @click="pccesViewTab = 'breakdown'"
+          >
+            單價分析
+          </button>
+        </div>
+        <div class="d-flex flex-wrap align-items-center gap-2 flex-shrink-0">
           <div
             v-if="selectedDesignChangeId != null"
-            class="form-check form-switch m-0 d-flex align-items-center gap-2 me-2"
+            class="form-check form-switch m-0 d-flex align-items-center gap-2 flex-shrink-0"
           >
             <input
               class="form-check-input"
@@ -105,8 +163,12 @@
               v-model="diffEnabled"
               :disabled="isLoading || isCopying"
             />
-            <label class="form-check-label user-select-none" for="pccesDiffToggleFullscreen">
-              <span class="pcces-diff-redword">紅字</span>代表與上版本的差異
+            <label
+              class="form-check-label user-select-none mb-0 text-nowrap pcces-diff-toggle-label"
+              for="pccesDiffToggleFullscreen"
+              title="開啟後，與上一版不同的欄位以紅色標示"
+            >
+              顯示與前版差異
             </label>
           </div>
           <button
@@ -127,10 +189,10 @@
           >
             <i class="fa fa-copy me-1"></i>複製前一個版本
           </button>
-          <button 
-            class="btn btn-success btn-sm" 
-            type="button" 
-            @click="openImportModal" 
+          <button
+            class="btn btn-success btn-sm"
+            type="button"
+            @click="openImportModal"
             :disabled="isLoading"
           >
             <i class="fa fa-file-import me-1"></i>匯入 PCCES
@@ -140,6 +202,7 @@
 
       <div class="treegrid-body">
         <ejs-treegrid
+          v-show="pccesViewTab === 'detail'"
           ref="treegrid"
           :dataSource="treeGridData"
           :allowPaging="false"
@@ -278,6 +341,94 @@
             <span :class="getCellClass(data, 'amount')">{{ formatPrice(data.amount) }}</span>
           </template>
         </ejs-treegrid>
+
+        <ejs-treegrid
+          v-show="pccesViewTab === 'breakdown'"
+          ref="breakdownTreegrid"
+          :dataSource="breakdownTreeGridData"
+          :allowPaging="false"
+          :allowSorting="true"
+          :allowFiltering="true"
+          :allowResizing="true"
+          :allowReordering="false"
+          :allowSelection="false"
+          :treeColumnIndex="3"
+          :childMapping="'children'"
+          :height="'100%'"
+          locale="zh"
+          :enableHover="true"
+        >
+          <e-columns>
+            <e-column field="refItemNo" headerText="對應項次" width="120" textAlign="Left" />
+            <e-column
+              field="isMaterial"
+              headerText="材料"
+              width="72"
+              textAlign="Center"
+              :template="'bdMaterialTemplate'"
+            />
+            <e-column field="itemCode" headerText="編碼" width="140" textAlign="Left" />
+            <e-column
+              field="name"
+              headerText="名稱"
+              width="300"
+              textAlign="Left"
+              :template="'bdNameTemplate'"
+            />
+            <e-column field="unit" headerText="單位" width="80" textAlign="Center" />
+            <e-column
+              field="quantity"
+              headerText="數量"
+              width="100"
+              textAlign="Right"
+              :template="'bdQtyTemplate'"
+            />
+            <e-column
+              field="price"
+              headerText="單價"
+              width="110"
+              textAlign="Right"
+              :template="'bdPriceTemplate'"
+            />
+            <e-column
+              field="amount"
+              headerText="複價"
+              width="110"
+              textAlign="Right"
+              :template="'bdAmtTemplate'"
+            />
+          </e-columns>
+          <template v-slot:bdNameTemplate="{ data }">
+            <div class="d-flex align-items-center gap-2" style="line-height: 1.5;">
+              <i v-if="data.type" :class="getTypeIcon(data.type)" :title="getTypeLabel(data.type)"></i>
+              <span>{{ data.name }}</span>
+            </div>
+          </template>
+          <template v-slot:bdMaterialTemplate="{ data }">
+            <div class="d-flex align-items-center justify-content-center px-1" @click.stop>
+              <template v-if="isBreakdownLeafRow(data)">
+                <input
+                  type="checkbox"
+                  class="form-check-input m-0"
+                  :checked="data.isMaterial === true"
+                  :disabled="savingBreakdownMaterialId === String(data.id)"
+                  title="勾選表示此細項為材料（僅最底層可勾選）"
+                  @change="onBreakdownMaterialChange(data, $event)"
+                />
+              </template>
+              <span v-else class="text-muted user-select-none" title="非最底層，無法勾選">—</span>
+            </div>
+          </template>
+          <template v-slot:bdQtyTemplate="{ data }">
+            <span>{{ formatNumber(data.quantity) }}</span>
+          </template>
+          <template v-slot:bdPriceTemplate="{ data }">
+            <span>{{ formatPrice(data.price) }}</span>
+          </template>
+          <template v-slot:bdAmtTemplate="{ data }">
+            <span>{{ formatPrice(data.amount) }}</span>
+          </template>
+        </ejs-treegrid>
       </div>
     </div>
 
@@ -293,15 +444,48 @@
     >
       <template #body>
         <div class="mb-3">
-          <label class="form-label fw-semibold">選擇檔案</label>
+          <label class="form-label fw-semibold">選擇或拖放檔案</label>
           <input
             type="file"
-            class="form-control"
-            accept=".xml"
+            class="form-control d-none"
+            accept=".xml,text/xml,application/xml"
             @change="handleFileSelect"
             ref="fileInput"
           />
-          <small class="text-muted">請選擇符合 PCCES 標準格式的 XML 檔案</small>
+          <div
+            class="pcces-import-dropzone border rounded-3 p-4 text-center user-select-none"
+            :class="{
+              'pcces-import-dropzone--active': importDragDepth > 0,
+              'pcces-import-dropzone--has-file': !!selectedFile
+            }"
+            role="button"
+            tabindex="0"
+            @click="triggerFileInput"
+            @keydown.enter.prevent="triggerFileInput"
+            @keydown.space.prevent="triggerFileInput"
+            @dragenter.prevent="onImportDragEnter"
+            @dragleave.prevent="onImportDragLeave"
+            @dragover.prevent="onImportDragOver"
+            @drop.prevent="onImportDrop"
+          >
+            <template v-if="selectedFile">
+              <i class="fa fa-check-circle pcces-import-file-check d-block mb-2" aria-hidden="true"></i>
+              <span class="pcces-import-ready-badge">已選擇檔案</span>
+              <div class="pcces-import-filename text-break mt-2 mb-1">
+                <i class="fa fa-file-code me-2" aria-hidden="true"></i>{{ selectedFile.name }}
+              </div>
+              <div class="pcces-import-filemeta">{{ formatImportFileSize(selectedFile.size) }}</div>
+              <p class="pcces-import-replace-hint mb-0 mt-3 small">點此區域或拖放其他檔案可更換</p>
+            </template>
+            <template v-else>
+              <i class="fa fa-cloud-upload-alt fa-2x mb-2 d-block text-secondary"></i>
+              <p class="mb-1 fw-medium">
+                將 XML 檔拖放到此處，或按一下選擇檔案
+              </p>
+              <p class="mb-0 small text-muted">僅支援 .xml（PCCES 預算書／標單）</p>
+            </template>
+          </div>
+          <small class="text-muted d-block mt-2">請選擇符合 PCCES 標準格式的 XML 檔案</small>
         </div>
         <p class="text-muted small mb-2">
           匯入目標：<strong>{{ selectedDesignChangeId == null ? '原契約' : '變更設計' }}</strong>（與上方目前選中的版本一致）
@@ -315,7 +499,7 @@
               v-model="importOverwrite"
             />
             <label class="form-check-label" for="importOverwrite">
-              覆寫該版本既有工項（勾選時會先刪除該版本現有標單再匯入）
+              覆寫該版本既有標單明細與單價分析（勾選時會先刪除該版本現有資料再匯入）
             </label>
           </div>
         </div>
@@ -355,8 +539,11 @@ import { useWorkspaceStore } from '@/stores/workspace'
 import {
   importPccesFile,
   getConstructionPccesCodes,
+  getConstructionPccesCostBreakdown,
+  updatePccesCostBreakdownMaterial,
   copyPccesFromTo,
   type ConstructionPccesCode,
+  type ConstructionPccesCostBreakdown,
   type ImportPccesRequest,
   PccesItemType
 } from '@/api/pcces'
@@ -381,6 +568,29 @@ interface ProjectItem {
   isSafetyHealthFacility: boolean
 }
 
+/** 單價分析（CostBreakdownList）列，供 TreeGrid */
+interface BreakdownProjectItem {
+  id: string
+  parentId: number | null
+  orderNumber: number
+  refItemNo: string
+  itemCode: string
+  name: string
+  unit: string
+  quantity: number
+  price: string
+  amount: string
+  itemKind: string
+  percent: string
+  labourRatio: string
+  equipmentRatio: string
+  materialRatio: string
+  miscellaneaRatio: string
+  type: string | null
+  /** 是否為材料（僅葉節點可編輯） */
+  isMaterial: boolean
+}
+
 const workspaceStore = useWorkspaceStore()
 const { isContractor, isSupervisory } = useViewPerspective()
 
@@ -392,6 +602,9 @@ const designChangeSourceType = computed<'SUPERVISORY' | 'CONTRACTOR' | undefined
 const constructionId = computed(() => workspaceStore.currentProject?.id || '')
 
 const items = ref<ProjectItem[]>([])
+const breakdownItems = ref<BreakdownProjectItem[]>([])
+/** 標單明細 / 單價分析 分頁 */
+const pccesViewTab = ref<'detail' | 'breakdown'>('detail')
 /** 目前選中的變更設計版本：null = 原契約 */
 const selectedDesignChangeId = ref<number | null>(null)
 const isLoading = ref(false)
@@ -399,6 +612,8 @@ const isLoading = ref(false)
 const designChangeList = ref<{ id: number; effectiveDate: string }[]>([])
 const isCopying = ref(false)
 const diffEnabled = ref(false)
+/** 單價分析「材料」欄儲存中（列 id） */
+const savingBreakdownMaterialId = ref<string | null>(null)
 
 const headerActions = computed(() => [])
 
@@ -523,7 +738,16 @@ function getCellClass(row: any, field: string): string | undefined {
 
 // TreeGrid 相關
 const treegrid = ref<TreeGridComponent | null>(null)
+const breakdownTreegrid = ref<TreeGridComponent | null>(null)
 const treeGridData = ref<any[]>([])
+const breakdownTreeGridData = ref<any[]>([])
+
+function numToDisplay(v: unknown): string {
+  if (v === null || v === undefined) return ''
+  if (typeof v === 'number' && Number.isFinite(v)) return String(v)
+  const s = String(v).trim()
+  return s
+}
 
 // 全螢幕狀態
 const isFullscreen = ref(false)
@@ -552,9 +776,11 @@ const {
 const showImportModal = ref(false)
 const selectedFile = ref<File | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
-const importOverwrite = ref(false)
+const importOverwrite = ref(true)
 const isImporting = ref(false)
 const importError = ref('')
+/** 拖放進入巢狀計數，避免子元素造成 dragleave 閃爍 */
+const importDragDepth = ref(0)
 
 // 切換全螢幕
 const toggleFullscreen = () => {
@@ -760,6 +986,102 @@ const convertToProjectItem = (code: ConstructionPccesCode): ProjectItem => ({
   isSafetyHealthFacility: code.isSafetyHealthFacility === true
 })
 
+const convertToBreakdownProjectItem = (r: ConstructionPccesCostBreakdown): BreakdownProjectItem => ({
+  id: String(r.id),
+  parentId: r.parentId,
+  orderNumber: r.orderNumber ?? 0,
+  refItemNo: r.refItemNo ?? '',
+  itemCode: r.itemCode ?? '',
+  name: r.name,
+  unit: r.unitType ?? '',
+  quantity: r.quantity,
+  price: numToDisplay(r.price),
+  amount: numToDisplay(r.amount),
+  itemKind: r.itemKind ?? '',
+  percent: numToDisplay(r.percent),
+  labourRatio: numToDisplay(r.labourRatio),
+  equipmentRatio: numToDisplay(r.equipmentRatio),
+  materialRatio: numToDisplay(r.materialRatio),
+  miscellaneaRatio: numToDisplay(r.miscellaneaRatio),
+  type: r.type,
+  isMaterial: r.isMaterial === true
+})
+
+const buildBreakdownTreeData = (flat: BreakdownProjectItem[]): any[] => {
+  const childrenMap = new Map<string, BreakdownProjectItem[]>()
+  const rootItems: BreakdownProjectItem[] = []
+  for (const item of flat) {
+    if (item.parentId == null) rootItems.push(item)
+    else {
+      const pk = item.parentId.toString()
+      if (!childrenMap.has(pk)) childrenMap.set(pk, [])
+      childrenMap.get(pk)!.push(item)
+    }
+  }
+  const buildNode = (item: BreakdownProjectItem): any => {
+    const node: any = {
+      id: item.id,
+      refItemNo: item.refItemNo,
+      itemCode: item.itemCode,
+      name: item.name,
+      unit: item.unit,
+      quantity: item.quantity,
+      price: item.price,
+      amount: item.amount,
+      itemKind: item.itemKind,
+      percent: item.percent,
+      labourRatio: item.labourRatio,
+      equipmentRatio: item.equipmentRatio,
+      materialRatio: item.materialRatio,
+      miscellaneaRatio: item.miscellaneaRatio,
+      type: item.type,
+      isMaterial: item.isMaterial
+    }
+    const ch = childrenMap.get(item.id)
+    if (ch?.length) {
+      ch.sort((a, b) => a.orderNumber - b.orderNumber)
+      node.children = ch.map(buildNode)
+    }
+    return node
+  }
+  rootItems.sort((a, b) => a.orderNumber - b.orderNumber)
+  return rootItems.map(buildNode)
+}
+
+function isBreakdownLeafRow(data: any): boolean {
+  const ch = data?.children
+  return !Array.isArray(ch) || ch.length === 0
+}
+
+async function onBreakdownMaterialChange(data: any, e: Event) {
+  const target = e.target as HTMLInputElement
+  const checked = target.checked
+  const cid = constructionId.value
+  if (!cid || !isBreakdownLeafRow(data)) {
+    target.checked = !checked
+    return
+  }
+  const idNum = parseInt(String(data.id), 10)
+  if (Number.isNaN(idNum)) {
+    target.checked = !checked
+    return
+  }
+  const flat = breakdownItems.value.find((x) => x.id === String(data.id))
+  const prev = flat?.isMaterial === true
+  savingBreakdownMaterialId.value = String(data.id)
+  try {
+    await updatePccesCostBreakdownMaterial(cid, idNum, checked, selectedDesignChangeId.value)
+    if (flat) flat.isMaterial = checked
+    breakdownTreeGridData.value = buildBreakdownTreeData(breakdownItems.value)
+  } catch (err: any) {
+    target.checked = prev
+    const msg = err?.response?.data?.message ?? err?.message
+    alert(typeof msg === 'string' && msg ? msg : '更新材料標示失敗')
+  } finally {
+    savingBreakdownMaterialId.value = null
+  }
+}
+
 // 載入變更設計列表（依生效日升序）
 const fetchDesignChangeList = async () => {
   const cid = constructionId.value
@@ -783,13 +1105,20 @@ const loadItems = async () => {
   if (!constructionId.value) {
     items.value = []
     treeGridData.value = []
+    breakdownItems.value = []
+    breakdownTreeGridData.value = []
     return
   }
   isLoading.value = true
   try {
-    const data = await getConstructionPccesCodes(constructionId.value, selectedDesignChangeId.value)
+    const [data, bdRows] = await Promise.all([
+      getConstructionPccesCodes(constructionId.value, selectedDesignChangeId.value),
+      getConstructionPccesCostBreakdown(constructionId.value, selectedDesignChangeId.value)
+    ])
     items.value = data.map(convertToProjectItem)
+    breakdownItems.value = bdRows.map(convertToBreakdownProjectItem)
     updateTreeGridData()
+    breakdownTreeGridData.value = buildBreakdownTreeData(breakdownItems.value)
     await applyDiffFromPreviousVersion()
   } catch (error: any) {
     console.error('載入工項列表失敗:', error)
@@ -798,6 +1127,8 @@ const loadItems = async () => {
     }
     items.value = []
     treeGridData.value = []
+    breakdownItems.value = []
+    breakdownTreeGridData.value = []
   } finally {
     isLoading.value = false
   }
@@ -811,17 +1142,73 @@ const openImportModal = () => {
   }
   importError.value = ''
   selectedFile.value = null
-  importOverwrite.value = false
+  importOverwrite.value = true
+  importDragDepth.value = 0
   if (fileInput.value) fileInput.value.value = ''
   showImportModal.value = true
+}
+
+function isAcceptablePccesXmlFile(file: File): boolean {
+  const name = (file.name || '').toLowerCase()
+  if (name.endsWith('.xml')) return true
+  const t = (file.type || '').toLowerCase()
+  return t === 'text/xml' || t === 'application/xml' || t === 'application/xhtml+xml'
+}
+
+function assignImportFile(file: File | null) {
+  if (!file) {
+    selectedFile.value = null
+    return
+  }
+  if (!isAcceptablePccesXmlFile(file)) {
+    importError.value = '請選擇副檔名為 .xml 的檔案'
+    selectedFile.value = null
+    return
+  }
+  selectedFile.value = file
+  importError.value = ''
+}
+
+function triggerFileInput() {
+  if (isImporting.value) return
+  fileInput.value?.click()
+}
+
+function formatImportFileSize(bytes: number): string {
+  if (bytes == null || Number.isNaN(bytes) || bytes < 0) return ''
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function onImportDragEnter(e: DragEvent) {
+  if (e.dataTransfer?.types?.includes('Files')) {
+    importDragDepth.value += 1
+  }
+}
+
+function onImportDragLeave() {
+  importDragDepth.value = Math.max(0, importDragDepth.value - 1)
+}
+
+function onImportDragOver(e: DragEvent) {
+  if (e.dataTransfer) {
+    e.dataTransfer.dropEffect = 'copy'
+  }
+}
+
+function onImportDrop(e: DragEvent) {
+  importDragDepth.value = 0
+  const files = e.dataTransfer?.files
+  if (!files?.length) return
+  assignImportFile(files[0])
 }
 
 // 處理檔案選擇
 const handleFileSelect = (event: Event) => {
   const target = event.target as HTMLInputElement
   if (target.files && target.files.length > 0) {
-    selectedFile.value = target.files[0]
-    importError.value = ''
+    assignImportFile(target.files[0])
   }
 }
 
@@ -861,7 +1248,8 @@ const handleImport = async () => {
     }
     const result = await importPccesFile(request)
     const targetLabel = result.designChangeId == null ? '原契約' : '變更設計'
-    alert(`匯入成功！\n匯入目標：${targetLabel}\n工項總數：${result.totalCodes}`)
+    const bd = result.totalCostBreakdown ?? 0
+    alert(`匯入成功！\n匯入目標：${targetLabel}\n標單明細工項：${result.totalCodes}\n單價分析列：${bd}`)
     showImportModal.value = false
     await loadItems()
   } catch (error: any) {
@@ -943,6 +1331,8 @@ watch(constructionId, async (newId) => {
   } else {
     items.value = []
     treeGridData.value = []
+    breakdownItems.value = []
+    breakdownTreeGridData.value = []
     designChangeList.value = []
     selectedDesignChangeId.value = null
   }
@@ -962,6 +1352,10 @@ watch(diffEnabled, async () => {
 
 watch(designChangeSourceType, () => {
   if (constructionId.value) fetchDesignChangeList()
+})
+
+watch(showImportModal, (open) => {
+  if (!open) importDragDepth.value = 0
 })
 
 // 初始化（需先載入變更設計列表，複製前一版才能正確算出來源版本）
@@ -990,6 +1384,80 @@ onActivated(() => {
 <style scoped>
 .project-item-database-page {
   padding: 1rem;
+}
+
+/* 工具列：分頁與操作同一列，底邊與表格外框銜接 */
+.pcces-toolbar-row {
+  padding: 0.5rem 0.75rem;
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid #475569;
+  border-bottom: none;
+  border-radius: 0.375rem 0.375rem 0 0;
+  margin-bottom: 0;
+}
+.pcces-toolbar-row--standalone {
+  border-bottom: 1px solid #475569;
+  border-radius: 0.375rem;
+}
+.treegrid-wrapper.pcces-treegrid-below-toolbar:not(.treegrid-fullscreen) {
+  margin-top: 0;
+  border-top: none;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+/* 分頁略放大（固定寬度占比，不拉滿整列） */
+.pcces-segment-tabs--lg .pcces-segment-tab {
+  min-width: 7.25rem;
+  padding: 0.5rem 1.25rem;
+  font-size: 0.9rem;
+}
+
+/* 分段式分頁基底 */
+.pcces-segment-tabs {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid #64748b;
+  border-radius: 0.375rem;
+  overflow: hidden;
+  background: rgba(15, 23, 42, 0.65);
+}
+.pcces-segment-tab {
+  position: relative;
+  border: none;
+  margin: 0;
+  background: transparent;
+  color: #cbd5e1;
+  padding: 0.35rem 1rem;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  line-height: 1.35;
+  border-right: 1px solid #64748b;
+  transition: color 0.12s ease, background 0.12s ease;
+}
+.pcces-segment-tab:last-child {
+  border-right: none;
+}
+.pcces-segment-tab:hover {
+  color: #f8fafc;
+  background: rgba(51, 65, 85, 0.55);
+}
+.pcces-segment-tab:focus-visible {
+  outline: 2px solid #94a3b8;
+  outline-offset: 2px;
+  z-index: 1;
+}
+.pcces-segment-tab--active {
+  color: #f8fafc !important;
+  background: rgba(71, 85, 105, 0.75) !important;
+  box-shadow: inset 0 -2px 0 #94a3b8;
+}
+.pcces-diff-toggle-label {
+  color: #e2e8f0;
+  font-size: 0.8125rem;
+  font-weight: 500;
 }
 
 /* 紅字色：適合深色背景 (#0f172a) 顯示 */
@@ -1099,5 +1567,73 @@ onActivated(() => {
   .treegrid-wrapper {
     height: 400px;
   }
+}
+
+.pcces-import-dropzone {
+  cursor: pointer;
+  background-color: rgba(15, 23, 42, 0.35);
+  border-color: #64748b !important;
+  border-style: dashed !important;
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+}
+.pcces-import-dropzone:hover {
+  border-color: #94a3b8 !important;
+  background-color: rgba(30, 41, 59, 0.45);
+}
+.pcces-import-dropzone--active {
+  border-color: #38bdf8 !important;
+  background-color: rgba(14, 165, 233, 0.12);
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.35);
+}
+.pcces-import-dropzone--has-file:not(.pcces-import-dropzone--active) {
+  border-style: solid !important;
+  border-width: 2px !important;
+  border-color: #22c55e !important;
+  background: linear-gradient(
+    165deg,
+    rgba(34, 197, 94, 0.22) 0%,
+    rgba(15, 23, 42, 0.92) 55%
+  );
+  box-shadow:
+    0 0 0 1px rgba(34, 197, 94, 0.45),
+    0 8px 24px rgba(34, 197, 94, 0.12);
+}
+.pcces-import-dropzone--has-file:not(.pcces-import-dropzone--active):hover {
+  border-color: #4ade80 !important;
+  box-shadow:
+    0 0 0 1px rgba(74, 222, 128, 0.55),
+    0 10px 28px rgba(34, 197, 94, 0.18);
+}
+.pcces-import-file-check {
+  font-size: 2.75rem;
+  color: #4ade80;
+  line-height: 1;
+  filter: drop-shadow(0 0 10px rgba(74, 222, 128, 0.45));
+}
+.pcces-import-ready-badge {
+  display: inline-block;
+  padding: 0.35rem 0.85rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #052e16;
+  background: linear-gradient(180deg, #86efac 0%, #4ade80 100%);
+  border-radius: 999px;
+  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.35);
+}
+.pcces-import-filename {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #ecfdf5;
+  line-height: 1.35;
+  word-break: break-word;
+}
+.pcces-import-filemeta {
+  font-size: 0.9rem;
+  color: #a7f3d0;
+  font-weight: 600;
+}
+.pcces-import-replace-hint {
+  color: #94a3b8;
 }
 </style>

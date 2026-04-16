@@ -49,11 +49,6 @@ export interface WorkspaceProject {
   advancePaymentRatio?: string
   retentionRatio?: string
   inspectionMethods?: string[]
-  insurancePolicyNumber?: string
-  insuranceCompany?: string
-  insuranceStartDate?: string
-  insuranceEndDate?: string
-  insuranceType?: string
   // 新增欄位
   constructionConfirmDate?: string
   constructionProjectId?: string
@@ -303,11 +298,6 @@ export const useWorkspaceStore = defineStore('workspace', () => {
           construction.partialAcceptance ? '部分驗收' : '',
           construction.completionAcceptance ? '竣工驗收' : ''
         ].filter(Boolean),
-        insurancePolicyNumber: construction.insuranceId || '',
-        insuranceCompany: construction.insuranceCompanyName || '',
-        insuranceStartDate: construction.insuranceStartDate || '',
-        insuranceEndDate: construction.insuranceEndDate || '',
-        insuranceType: construction.insuranceType || '',
         // 新增欄位映射
         constructionConfirmDate: construction.constructionConfirmDate || '',
         constructionProjectId: construction.constructionProjectId || '',

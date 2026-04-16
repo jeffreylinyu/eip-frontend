@@ -219,19 +219,6 @@
           <B2EmergencyOrgChart ref="orgChartRef" v-model="b2EmergencyOrgChart" />
         </div>
 
-        <div class="hint-bar">
-          <div class="hint-bar__left">
-            <div class="hint-bar__title">圖片管理（多張）</div>
-            <div class="hint-bar__desc">支援 JPG/PNG。每個版本、每個類別最多 10 張，依上傳順序顯示與匯出。</div>
-          </div>
-          <div class="hint-bar__right">
-            <div class="hint-pill">
-              <i class="fa fa-image me-2"></i>
-              <span>縮圖可點擊開啟原圖</span>
-            </div>
-          </div>
-        </div>
-
         <div v-if="loadError" class="alert alert-danger py-2 mb-0">
           {{ loadError }}
         </div>
@@ -254,12 +241,11 @@
                 </div>
                 <div class="section-title-wrap">
                   <div class="section-title">{{ section.title }}</div>
-                  <div class="section-subtitle">每版本最多 {{ MAX_IMAGES }} 張，依上傳順序</div>
                 </div>
               </div>
               <div class="section-card__header-right">
                 <span class="count-badge" :class="section.countBadgeClass">
-                  {{ section.list.value.length }}/{{ MAX_IMAGES }}
+                  {{ section.list.value.length }}
                 </span>
                 <i class="fa chevron" :class="expandedByType[section.type] ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
               </div>
@@ -284,12 +270,12 @@
                         type="file"
                         accept="image/png,image/jpeg"
                         multiple
-                        :disabled="isUploading || section.list.value.length >= MAX_IMAGES"
+                        :disabled="isUploading"
                         @change="(e) => onPickFiles(e, section.type)"
                       />
                       <span
                         class="btn btn-sm btn-outline-light file-pick__btn"
-                        :class="{ disabled: isUploading || section.list.value.length >= MAX_IMAGES }"
+                        :class="{ disabled: isUploading }"
                       >
                         <i class="fa fa-folder-open me-1"></i>選取圖片
                       </span>
@@ -317,22 +303,16 @@
                 <div v-else class="row g-3 mt-2">
                   <div v-for="img in section.list.value" :key="img.id" class="col-12 col-sm-6 col-lg-4">
                     <div class="loc-card">
-                      <a
-                        v-if="img.signedUrl"
-                        class="loc-thumb"
-                        :href="img.signedUrl"
-                        target="_blank"
-                        rel="noopener"
-                        :title="img.fileName"
-                      >
-                        <img :src="img.signedUrl" :alt="img.fileName" />
-                        <div class="loc-thumb__overlay">
-                          <span class="loc-thumb__hint"><i class="fa fa-up-right-from-square me-1"></i>開啟</span>
-                        </div>
-                      </a>
-                      <div v-else class="loc-thumb loc-thumb--empty">
-                        <span class="text-muted small">無法預覽</span>
-                      </div>
+                      <ConstructionLocationMapThumb
+                        v-if="currentProject?.id"
+                        :img="img"
+                        :construction-id="currentProject.id"
+                        :design-change-id="selectedDesignChangeId"
+                        :type="section.type"
+                        link-class="loc-thumb"
+                        empty-class="loc-thumb loc-thumb--empty"
+                        show-b2-overlay
+                      />
 
                       <div class="loc-meta">
                         <div class="loc-name" :title="img.fileName">{{ img.fileName }}</div>
@@ -382,6 +362,7 @@ import Card from '@/components/bootstrap/Card.vue'
 import CardBody from '@/components/bootstrap/CardBody.vue'
 import RepublicDatePicker from '@/components/bootstrap/RepublicDatePicker.vue'
 import DesignChangeVersionSwitcher from '@/components/common/DesignChangeVersionSwitcher.vue'
+import ConstructionLocationMapThumb from '@/components/common/ConstructionLocationMapThumb.vue'
 import B2EmergencyOrgChart from '@/components/forms/B2EmergencyOrgChart.vue'
 import B2PccesSafetyFacilitySection from '@/components/forms/B2PccesSafetyFacilitySection.vue'
 import { useExportLoading } from '@/composables/useExportLoading'
@@ -417,8 +398,6 @@ const b2PageBreadcrumbs = [
 const hasCurrentProject = computed(() => !!workspaceStore.currentProject?.id)
 const currentProject = computed(() => workspaceStore.currentProject)
 
-const MAX_IMAGES = 10
-
 const selectedDesignChangeId = ref<number | null>(null)
 const dataReferenceDate = ref('')
 const designChangeList = ref<{ id: number; effectiveDate: string }[]>([])
@@ -444,8 +423,7 @@ const lastLoadedB2Texts = ref({
   b2GeoHumanEnvironmentOverview: '',
   b2LocationObjectiveEnvironment: '',
   b2ConstructionScaleOverview: '',
-  b2ConstructionBudgetText: ''
-  ,
+  b2ConstructionBudgetText: '',
   b2EmergencyOrgChartJson: ''
 })
 
@@ -861,12 +839,7 @@ function onPickFiles(evt: Event, type: ImageType) {
   const files = Array.from(input.files || [])
   if (files.length === 0) return
 
-  const currentCount = getListRef(type).value.length
-  const remaining = Math.max(0, MAX_IMAGES - currentCount)
-  pendingByType.value = { ...pendingByType.value, [type]: files.slice(0, remaining) }
-  if (files.length > remaining) {
-    window.alert(`每個版本最多 ${MAX_IMAGES} 張，目前可再上傳 ${remaining} 張。`)
-  }
+  pendingByType.value = { ...pendingByType.value, [type]: files }
 }
 
 async function uploadPending(type: ImageType) {
@@ -934,7 +907,6 @@ async function exportB2SafetyPlan() {
         } catch (e: any) {
           console.warn('upload org chart image before export failed', e)
         }
-
         const reportData: ExportConstructionReportRequest['valueMap']['reportData'] = {
           constructionId: cid,
           designChangeId: selectedDesignChangeId.value
@@ -1001,7 +973,7 @@ watch(
     b2LocationObjectiveEnvironment,
     b2ConstructionScaleOverview,
     b2ConstructionBudgetText,
-    b2EmergencyOrgChart,
+    b2EmergencyOrgChart
   ],
   () => {
     scheduleTextAutoSave()
@@ -1203,38 +1175,6 @@ watch(
   box-shadow: none;
 }
 
-.hint-bar {
-  display: flex;
-  gap: 1rem;
-  align-items: flex-start;
-  justify-content: space-between;
-  padding: 0.9rem 1rem;
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  border-radius: 0.75rem;
-  background: rgba(255, 255, 255, 0.03);
-}
-.hint-bar__title {
-  font-weight: 700;
-  letter-spacing: 0.2px;
-}
-.hint-bar__desc {
-  margin-top: 0.15rem;
-  color: rgba(255, 255, 255, 0.62);
-  font-size: 0.9rem;
-}
-.hint-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.5rem 0.75rem;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(0, 0, 0, 0.15);
-  color: rgba(255, 255, 255, 0.78);
-  font-size: 0.85rem;
-  white-space: nowrap;
-}
-
 .text-panels {
   display: grid;
   grid-template-columns: 1fr;
@@ -1401,10 +1341,6 @@ watch(
 .section-title {
   font-weight: 700;
 }
-.section-subtitle {
-  font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.58);
-}
 .section-card__header-right {
   display: flex;
   align-items: center;
@@ -1545,17 +1481,20 @@ watch(
   border-color: rgba(255, 255, 255, 0.18);
   box-shadow: 0 14px 30px rgba(0, 0, 0, 0.28);
 }
+/* 固定預覽區高度，圖片等比例縮放置中（不裁切） */
 .loc-thumb {
   display: block;
   width: 100%;
-  aspect-ratio: 16 / 10;
+  height: 200px;
   background: rgba(0, 0, 0, 0.12);
   position: relative;
+  overflow: hidden;
 }
 .loc-thumb img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  object-position: center;
   display: block;
 }
 .loc-thumb__overlay {
@@ -1584,6 +1523,7 @@ watch(
   display: flex;
   align-items: center;
   justify-content: center;
+  height: 200px;
 }
 .loc-meta {
   display: flex;

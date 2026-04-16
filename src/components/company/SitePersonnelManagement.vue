@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, getCurrentInstance } from 'vue'
+import { ref, computed, onMounted, getCurrentInstance, nextTick } from 'vue'
 import { sitePersonnelApi, type SitePersonnel, STATUS_OPTIONS, type CreateSitePersonnelRequest } from '@/api/sitePersonnel'
 import { getOccupationOptions, getOccupationDisplayLabel, LEGACY_OCCUPATION_MAP, sortPersonnelByOccupation, type OccupationOption } from '@/api/sitePersonnelOccupations'
 import { getConstructionsByCompany, type Construction } from '@/api/construction'
@@ -20,6 +20,43 @@ const props = withDefaults(
 
 const instance = getCurrentInstance()
 const proxy = instance?.proxy as any
+
+function dlog(...args: any[]) {
+  console.log('[CompanySitePersonnelDebug]', ...args)
+}
+
+const debugSnapshot = ref<string>('')
+
+async function copyToClipboard(text: string): Promise<void> {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text)
+    return
+  }
+  // fallback
+  const ta = document.createElement('textarea')
+  ta.value = text
+  ta.style.position = 'fixed'
+  ta.style.left = '-9999px'
+  ta.style.top = '0'
+  document.body.appendChild(ta)
+  ta.focus()
+  ta.select()
+  document.execCommand('copy')
+  document.body.removeChild(ta)
+}
+
+async function copyDebugSnapshot() {
+  try {
+    if (!debugSnapshot.value) return
+    await copyToClipboard(debugSnapshot.value)
+    if (proxy && proxy.$toast) proxy.$toast.success('已複製 Debug 資訊到剪貼簿')
+    else alert('已複製 Debug 資訊到剪貼簿')
+  } catch (e) {
+    console.error('複製失敗', e)
+    if (proxy && proxy.$toast) proxy.$toast.error('複製失敗，請看 Console')
+    else alert('複製失敗，請看 Console')
+  }
+}
 
 // 狀態
 const personnel = ref<SitePersonnel[]>([])
@@ -196,7 +233,47 @@ const canManageMember = (personCompanyId: string) => {
 const loadPersonnel = async () => {
   isLoading.value = true
   try {
-    personnel.value = await sitePersonnelApi.getList(props.companyId)
+    // /company/* 無視角前綴路由，需明確指定 X-Effective-View-Type，避免走到 localStorage 的上次視角
+    const effectiveViewType = props.companyType === 'SUPERVISION' ? 'SUPERVISORY' : 'CONTRACTOR'
+    personnel.value = await sitePersonnelApi.getList(props.companyId, { effectiveViewType })
+    const memberIdsAll = personnel.value.map(x => x.memberId).filter(Boolean)
+    const memberIdCounts = memberIdsAll.reduce((acc: Record<string, number>, id) => {
+      acc[id] = (acc[id] || 0) + 1
+      return acc
+    }, {})
+    const duplicateMemberIds = Object.entries(memberIdCounts)
+      .filter(([, c]) => c > 1)
+      .map(([id, c]) => ({ memberId: id, count: c }))
+
+    const companyListLoadedPayload = {
+      companyId: props.companyId,
+      companyName: props.companyName,
+      total: personnel.value.length,
+      withAssignments: personnel.value.filter(x => (x.assignments || []).length > 0).length,
+      memberIds: memberIdsAll.slice().sort(),
+      duplicateMemberIds,
+      distinctAssignmentConstructionIdsSample: Array.from(
+        new Set(
+          personnel.value
+            .flatMap(x => (x.assignments || []).map(a => a.constructionId))
+            .filter(Boolean)
+        )
+      ).slice(0, 50)
+    }
+    dlog('companyListLoaded', companyListLoadedPayload)
+
+    // DOM 層級確認：列表表格渲染列數
+    await nextTick()
+    const table = document.querySelector('table.a4-table')
+    const rows = table?.querySelectorAll('tbody tr')?.length ?? 0
+    dlog('domTable', { tableFound: !!table, tbodyRowCount: rows })
+
+    debugSnapshot.value = [
+      '=== Company SitePersonnel Debug Snapshot ===',
+      `time: ${new Date().toISOString()}`,
+      `href: ${window.location.href}`,
+      `companyListLoaded: ${JSON.stringify(companyListLoadedPayload, null, 2)}`
+    ].join('\n')
   } catch (error) {
     console.error('載入工地人員失敗:', error)
     if (proxy && proxy.$toast) {
@@ -213,6 +290,16 @@ const projects = ref<Construction[]>([])
 const loadProjects = async () => {
   try {
     projects.value = await getConstructionsByCompany(props.companyId)
+    dlog('projectsLoaded', {
+      count: projects.value.length,
+      nameToIds: projects.value.reduce((acc: Record<string, string[]>, p) => {
+        const key = p.constructionName || '(no-name)'
+        const id = (p.constructionId || '').trim()
+        if (!acc[key]) acc[key] = []
+        if (id && !acc[key].includes(id)) acc[key].push(id)
+        return acc
+      }, {})
+    })
   } catch (error) {
     console.error('載入公司工程案失敗:', error)
     projects.value = []
@@ -494,7 +581,18 @@ onMounted(async () => {
                 <span class="badge border border-success text-success">{{ personnelByStatus.Y || 0 }} 在職</span>
                 <span class="badge border border-danger text-danger">{{ personnelByStatus.N || 0 }} 離職</span>
               </div>
-              <small class="text-muted">顯示 {{ filteredPersonnel.length }} / {{ personnel.length }} 人</small>
+              <div class="d-flex align-items-center gap-2">
+                <small class="text-muted">顯示 {{ filteredPersonnel.length }} / {{ personnel.length }} 人</small>
+                <button
+                  type="button"
+                  class="btn btn-sm btn-outline-secondary"
+                  :disabled="!debugSnapshot"
+                  @click="copyDebugSnapshot"
+                  title="複製 Debug 資訊"
+                >
+                  <i class="fa fa-copy me-1"></i>複製 Debug
+                </button>
+              </div>
             </div>
           </div>
         </div>
