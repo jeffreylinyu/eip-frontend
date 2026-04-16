@@ -36,6 +36,7 @@ jobs:
 
       - name: Build frontend
         env:
+          NODE_OPTIONS: --max-old-space-size=4096
           VITE_API_URL: ${{ vars.VITE_API_URL }}
           VITE_SYNCFUSION_LICENSE_KEY: ${{ vars.VITE_SYNCFUSION_LICENSE_KEY }}
           VITE_CWA_API_TOKEN: ${{ vars.VITE_CWA_API_TOKEN }}
