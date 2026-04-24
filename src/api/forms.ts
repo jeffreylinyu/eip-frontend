@@ -225,6 +225,21 @@ export const formPApi = {
       signal: options?.signal
     })
     return response
+  },
+
+  /** P-2 整體品質計劃匯出（目前先支援基本資料欄位） */
+  exportP2QualityPlan: async (
+    request: ExportConstructionReportRequest,
+    options?: { signal?: AbortSignal }
+  ) => {
+    const response = await downloadBlob({
+      url: '/management/generate/export/report/PTwo',
+      method: 'POST',
+      data: request,
+      timeout: 300000,
+      signal: options?.signal
+    })
+    return response
   }
 }
 

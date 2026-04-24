@@ -55,6 +55,8 @@ export interface Construction {
   b2SafetyFacilityAcknowledged?: boolean;
   /** P-1 工程規模概述（營造端維護，依版本） */
   p1ConstructionScaleOverview?: string | null;
+  /** P-2 工程規模概述（整體品質計劃；營造端維護，依版本） */
+  p2QualityScaleOverview?: string | null;
   /** P-1 施工執行方向（營造端維護，依版本） */
   p1ConstructionExecutionDirection?: string | null;
   /** P-1 工地研判：地質概況 */
@@ -181,6 +183,8 @@ export interface CreateConstructionRequest {
   b2SafetyFacilityAcknowledged?: boolean;
   /** P-1 工程規模概述（營造端維護，依版本） */
   p1ConstructionScaleOverview?: string | null;
+  /** P-2 工程規模概述（整體品質計劃；營造端維護，依版本） */
+  p2QualityScaleOverview?: string | null;
   /** P-1 施工執行方向（營造端維護，依版本） */
   p1ConstructionExecutionDirection?: string | null;
   /** P-1 工地研判：地質概況 */

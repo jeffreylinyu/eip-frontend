@@ -124,6 +124,8 @@ export interface ConstructionPccesCode {
   type: PccesItemType | null;   // 項目類型
   /** 是否為安全衛生設施（使用者勾選，非匯入檔；預設 false） */
   isSafetyHealthFacility?: boolean;
+  /** 是否為試驗項（使用者勾選，非匯入檔；預設 false） */
+  isTestItem?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -151,6 +153,35 @@ export interface ConstructionPccesCostBreakdown {
   type: PccesItemType | null;
   /** 是否為材料（僅葉節點可編輯；匯入時編碼 M 開頭之葉節點預設 true） */
   isMaterial?: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** PCCES 資源統計（ResourceList）一列 */
+export interface ConstructionPccesResource {
+  id: number;
+  orderNumber: number | null;
+  itemCode: string | null;
+  itemKind: string | null;
+  name: string;
+  unitType: string | null;
+  quantity: number;
+  price: string;
+  amount: string;
+  remark: string | null;
+  percent: string | null;
+  labourRatio: string | null;
+  equipmentRatio: string | null;
+  materialRatio: string | null;
+  miscellaneaRatio: string | null;
+}
+
+export interface PccesMaterialTestItemLink {
+  id: number;
+  constructionId: string;
+  designChangeId: number | null;
+  itemCode: string;
+  pccesCodeId: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -304,23 +335,112 @@ export async function getConstructionPccesCostBreakdown(
   return (response as unknown as ConstructionPccesCostBreakdown[]) || [];
 }
 
-/**
- * 更新單價分析單列「是否為材料」（僅最底層列可更新）
- */
-export async function updatePccesCostBreakdownMaterial(
+export async function getConstructionPccesResources(
   constructionId: string,
-  id: number,
-  isMaterial: boolean,
   designChangeId?: number | null
-): Promise<void> {
-  const params = new URLSearchParams({
-    constructionId,
-    isMaterial: String(isMaterial)
-  });
+): Promise<ConstructionPccesResource[]> {
+  const params = new URLSearchParams({ constructionId });
   if (designChangeId !== undefined && designChangeId !== null) {
     params.append('designChangeId', String(designChangeId));
   }
-  await http.patch(`/management/generate/pccesCostBreakdown/${id}/material?${params}`);
+  const response = await http.get(`/management/generate/pccesResources?${params}`);
+  return (response as unknown as ConstructionPccesResource[]) || [];
+}
+
+export async function listPccesMaterialTestItemLinks(
+  constructionId: string,
+  designChangeId?: number | null
+): Promise<PccesMaterialTestItemLink[]> {
+  const params = new URLSearchParams({ constructionId });
+  if (designChangeId !== undefined && designChangeId !== null) {
+    params.append('designChangeId', String(designChangeId));
+  }
+  const res = await http.get(`/management/generate/pcces/material-test-item-links?${params}`);
+  return (res as unknown as PccesMaterialTestItemLink[]) || [];
+}
+
+export async function replacePccesMaterialTestItemLinksForMaterial(
+  constructionId: string,
+  itemCode: string,
+  testItemIds: number[],
+  designChangeId?: number | null
+): Promise<{ inserted: number }> {
+  const params = new URLSearchParams({ constructionId });
+  if (designChangeId !== undefined && designChangeId !== null) {
+    params.append('designChangeId', String(designChangeId));
+  }
+  const res = await http.put(
+    `/management/generate/pcces/material-test-item-links/material/${encodeURIComponent(itemCode)}?${params}`,
+    { testItemIds }
+  );
+  return (res as any) || { inserted: 0 };
+}
+
+export async function deletePccesMaterialTestItemLink(
+  constructionId: string,
+  linkId: number,
+  designChangeId?: number | null
+): Promise<{ deleted: number }> {
+  const params = new URLSearchParams({ constructionId });
+  if (designChangeId !== undefined && designChangeId !== null) {
+    params.append('designChangeId', String(designChangeId));
+  }
+  const res = await http.delete(`/management/generate/pcces/material-test-item-links/${linkId}?${params}`);
+  return (res as any) || { deleted: 0 };
+}
+
+// 單價分析 is_material 已廢止：材料維護統一在「材料與試驗」頁籤（/pcces/material-usage）
+
+export interface ConstructionPccesMaterialUsage {
+  id: number
+  constructionId: string
+  designChangeId: number | null
+  itemCode: string
+  used: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export async function getPccesMaterialUsage(
+  constructionId: string,
+  designChangeId?: number | null
+): Promise<ConstructionPccesMaterialUsage[]> {
+  const params = new URLSearchParams({ constructionId })
+  if (designChangeId !== undefined && designChangeId !== null) {
+    params.append('designChangeId', String(designChangeId))
+  }
+  const res = await http.get(`/management/generate/pcces/material-usage?${params}`)
+  return (res as unknown as ConstructionPccesMaterialUsage[]) || []
+}
+
+export async function setPccesMaterialUsage(
+  constructionId: string,
+  itemCode: string,
+  used: boolean,
+  designChangeId?: number | null
+): Promise<void> {
+  const params = new URLSearchParams({ constructionId, used: String(used) })
+  if (designChangeId !== undefined && designChangeId !== null) {
+    params.append('designChangeId', String(designChangeId))
+  }
+  await http.patch(`/management/generate/pcces/material-usage/${encodeURIComponent(itemCode)}?${params}`)
+}
+
+export async function batchSetPccesMaterialUsage(
+  constructionId: string,
+  itemCodes: string[],
+  used: boolean,
+  designChangeId?: number | null
+): Promise<{ updated: number }> {
+  const body: any = {
+    constructionId,
+    designChangeId: designChangeId ?? null,
+    itemCodes,
+    used
+  }
+  const res = await http.patch('/management/generate/pcces/material-usage/batch', body)
+  const data = res as any
+  return { updated: data?.updated ?? data?.data?.updated ?? 0 }
 }
 
 /**
@@ -379,6 +499,43 @@ export async function batchUpdatePccesCodeSafetyHealthFacility(
   body: PccesSafetyHealthBatchRequest
 ): Promise<{ updated: number }> {
   const res = await http.patch('/management/generate/pccesCodes/safety-health-facility/batch', body);
+  const data = res as { updated?: number };
+  return { updated: data.updated ?? 0 };
+}
+
+/**
+ * 更新單筆工項「是否為試驗項」（使用者勾選，非 PCCES 匯入欄位）
+ */
+export async function updatePccesCodeTestItem(
+  constructionId: string,
+  id: number,
+  isTestItem: boolean,
+  designChangeId?: number | null
+): Promise<void> {
+  const params = new URLSearchParams({
+    constructionId,
+    isTestItem: String(isTestItem)
+  });
+  if (designChangeId !== undefined && designChangeId !== null) {
+    params.append('designChangeId', String(designChangeId));
+  }
+  await http.patch(`/management/generate/pccesCodes/${id}/test-item?${params}`);
+}
+
+export interface PccesTestItemBatchRequest {
+  constructionId: string;
+  designChangeId?: number | null;
+  ids: number[];
+  isTestItem: boolean;
+}
+
+/**
+ * 批次更新多筆工項「是否為試驗項」（同一值，供樹狀父層一次勾選）
+ */
+export async function batchUpdatePccesCodeTestItem(
+  body: PccesTestItemBatchRequest
+): Promise<{ updated: number }> {
+  const res = await http.patch('/management/generate/pccesCodes/test-item/batch', body);
   const data = res as { updated?: number };
   return { updated: data.updated ?? 0 };
 }

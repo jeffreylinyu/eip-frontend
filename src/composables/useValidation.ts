@@ -4,7 +4,7 @@
  */
 
 import { ref, computed, watch, type Ref } from 'vue'
-import { 
+import {
   validateForm, 
   validateField, 
   isFormValid,
@@ -12,6 +12,7 @@ import {
   type ValidationErrors,
   type ValidationRule 
 } from '@/utils/validation'
+import { ValidationUtils } from '@/utils/validation'
 
 export interface UseValidationOptions {
   // 是否在輸入時即時驗證
@@ -117,6 +118,23 @@ export function useValidation(
         errors.value = {
           ...errors.value,
           [fieldName]: result.message || '驗證失敗'
+        }
+      }
+
+      // 日期區間驗證：validateField 不處理 dateRange，因此在此補上（只影響 endField）
+      if (rule.dateRange?.startField && rule.dateRange?.endField) {
+        const { startField, endField, message: customMessage } = rule.dateRange
+        const startDate = formData.value[startField]
+        const endDate = formData.value[endField]
+        const rangeResult = ValidationUtils.dateRange(startDate, endDate)
+        if (rangeResult.isValid) {
+          const { [endField]: removedEnd, ...restAfterRange } = errors.value
+          errors.value = restAfterRange
+        } else {
+          errors.value = {
+            ...errors.value,
+            [endField]: customMessage || rangeResult.message || '日期範圍無效'
+          }
         }
       }
       

@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { ref, reactive, computed, watch, watchEffect, onMounted, nextTick, getCurrentInstance } from 'vue'
+import { ref, reactive, computed, watch, watchEffect, onMounted, onUnmounted, nextTick, getCurrentInstance } from 'vue'
 import { useRoute } from 'vue-router'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { storage } from '@/utils/storage'
 import { updateConstruction, transformProjectFormToConstructionRequest } from '@/api/construction'
 import { useAuthStore } from '@/stores/auth'
 import { useViewPerspective } from '@/composables/useViewPerspective'
-import { throttle } from 'lodash'
+import { throttle, debounce } from 'lodash'
 import tagsInput from '@/components/plugins/TagsInput.vue'
 import quillEditor from '@/components/plugins/QuillEditor.vue'
 import ProjectForm from '@/components/project/ProjectForm.vue'
@@ -216,40 +216,60 @@ watch(() => workspaceStore.currentProject, async (newProject, oldProject) => {
 }, { immediate: false })
 
 
-// 監聯表單數據變化，即時自動儲存
+/** 自動儲存防抖：避免連續 PATCH 撞 master 樂觀鎖（409） */
+const AUTO_SAVE_DEBOUNCE_MS = 1000
+
+const debouncedAutoSave = debounce(async () => {
+  if (isUpdatingFormData.value) return
+  if (isVersionSwitching.value) return
+  if (!isInitialLoadSettled.value) return
+
+  const hasChange = JSON.stringify(formData.value) !== JSON.stringify(originalFormData.value)
+  if (!hasChange) {
+    hasUnsavedChanges.value = false
+    return
+  }
+
+  hasUnsavedChanges.value = true
+  if (isSavingInProgress.value) return
+
+  isSavingInProgress.value = true
+  isAutoSaving.value = true
+  try {
+    if (projectFormRef.value) {
+      const result = await (projectFormRef.value as any).handleSubmit(true)
+      if (result && !result.submitted) {
+        await (projectFormRef.value as any).handleSubmit(false)
+      }
+    }
+  } finally {
+    isAutoSaving.value = false
+    isSavingInProgress.value = false
+  }
+}, AUTO_SAVE_DEBOUNCE_MS)
+
+// 監聯表單數據變化，防抖後自動儲存
 watch(
   formData,
-  async (newVal) => {
+  () => {
     if (isUpdatingFormData.value) return
     if (isVersionSwitching.value) return
     if (!isInitialLoadSettled.value) return
-    
-    const hasChange = JSON.stringify(newVal) !== JSON.stringify(originalFormData.value)
-    
+
+    const hasChange = JSON.stringify(formData.value) !== JSON.stringify(originalFormData.value)
+    hasUnsavedChanges.value = hasChange
     if (hasChange) {
-      hasUnsavedChanges.value = true
-      if (!isSavingInProgress.value) {
-        isSavingInProgress.value = true
-        isAutoSaving.value = true
-        try {
-          if (projectFormRef.value) {
-            const result = await (projectFormRef.value as any).handleSubmit(true)
-            // 驗證未通過時與手動儲存相同：觸發表單驗證顯示欄位錯誤，不另顯示 toast
-            if (result && !result.submitted) {
-              await (projectFormRef.value as any).handleSubmit(false)
-            }
-          }
-        } finally {
-          isAutoSaving.value = false
-          isSavingInProgress.value = false
-        }
-      }
+      debouncedAutoSave()
     } else {
-      hasUnsavedChanges.value = false
+      debouncedAutoSave.cancel()
     }
   },
   { deep: true }
 )
+
+onUnmounted(() => {
+  debouncedAutoSave.cancel()
+})
 
 // 方法定義
 // 載入當前工程案資料（可指定變更設計版本；null = 預設版）
@@ -582,8 +602,24 @@ const submitFormData = async (data?: any, isAutoSave: boolean = false) => {
   else if (response && (response as any).construction) {
     updatedConstruction = (response as any).construction
   }
+
+  // 同步 master 樂觀鎖版本（自動／手動儲存皆需），避免連續 PATCH 仍帶舊版號觸發 409
+  const versionFromApi =
+    typeof (updatedConstruction as any)?.version === 'number'
+      ? (updatedConstruction as any).version
+      : typeof (response as any)?.version === 'number'
+        ? (response as any).version
+        : undefined
+  if (versionFromApi !== undefined) {
+    isUpdatingFormData.value = true
+    try {
+      formData.value.version = versionFromApi
+    } finally {
+      isUpdatingFormData.value = false
+    }
+  }
   
-  // 自動儲存時：完全不更新任何狀態，只調用 API 保存資料
+  // 自動儲存時：不整頁重載表單（避免焦點丟失），但已於上方同步樂觀鎖 version
   // 手動儲存時：更新 workspace store 和表單資料
   if (!isAutoSave) {
     // 如果 API 回傳了完整的工程案資料，直接使用回傳的資料
@@ -630,7 +666,11 @@ const submitFormData = async (data?: any, isAutoSave: boolean = false) => {
         durationType: updatedConstruction.durationType || 'WORKING_DAYS',
         totalExtensionDays: updatedConstruction.totalExtensionDays || 0, // 累計展延天數
         totalStopDays: updatedConstruction.totalStopDays || 0, // 累計停工天數
-        permission: updatedConstruction.permission || currentProject.permission // 保留權限資訊
+        permission: updatedConstruction.permission || currentProject.permission, // 保留權限資訊
+        version:
+          typeof updatedConstruction.version === 'number'
+            ? updatedConstruction.version
+            : currentProject.version
       }
       
       // 更新 workspace store 中的工程案

@@ -30,6 +30,32 @@ export interface SubdivisionWorkItem {
   updatedAt?: string | null
   constructionStandards?: SubdivisionWorkItemStandardLine[]
   safetyStandards?: SubdivisionWorkItemStandardLine[]
+  /** 施工要領步驟筆數（此版本；無資料則 0） */
+  guideStepCount?: number
+}
+
+export type SubdivisionWorkItemGuideStep = {
+  sortOrder: number
+  stepType?: 'PROCESS' | 'CHECKPOINT'
+  /** ＊/◎/＊◎ */
+  checkpointMark?: '＊' | '◎' | '＊◎' | null
+  title: string
+  materials?: string[]
+  equipment?: string[]
+  notes?: string[]
+}
+
+export type SubdivisionWorkItemGuide = {
+  constructionId: string
+  designChangeId: number | null
+  subdivisionWorkItemId: number
+  isFallback?: boolean
+  fallbackFromDesignChangeId?: number | null
+  flowGraphJson?: string | null
+  materials?: string[]
+  equipment?: string[]
+  notes?: string[]
+  steps?: SubdivisionWorkItemGuideStep[]
 }
 
 function unwrapList(data: unknown): SubdivisionWorkItem[] {
@@ -101,6 +127,68 @@ export async function reorderSubdivisionWorkItems(payload: {
   orderedIds: number[]
 }): Promise<void> {
   await http.put('/management/construction/subdivision-work-items/reorder', payload)
+}
+
+export async function getSubdivisionWorkItemGuide(
+  subdivisionWorkItemId: number,
+  ctx: { constructionId: string; designChangeId?: number | null }
+): Promise<SubdivisionWorkItemGuide> {
+  const params: Record<string, string | number> = { constructionId: ctx.constructionId }
+  if (ctx.designChangeId !== undefined && ctx.designChangeId !== null) {
+    params.designChangeId = ctx.designChangeId
+  }
+  const raw = await http.get<unknown>(`/management/construction/subdivision-work-items/${subdivisionWorkItemId}/guide`, {
+    params
+  })
+  // 後端多數回 BaseResponse；此處兩種都接
+  if (raw && typeof raw === 'object' && 'constructionId' in (raw as any)) return raw as unknown as SubdivisionWorkItemGuide
+  const wrapped = raw as { code?: number; message?: string; data?: SubdivisionWorkItemGuide }
+  if (wrapped?.code != null && wrapped.code !== 200) {
+    throw new Error(wrapped.message || '載入失敗')
+  }
+  return (wrapped?.data as SubdivisionWorkItemGuide) || ({} as SubdivisionWorkItemGuide)
+}
+
+export async function upsertSubdivisionWorkItemGuide(
+  subdivisionWorkItemId: number,
+  payload: {
+    constructionId: string
+    designChangeId?: number | null
+    flowGraphJson?: string | null
+    materials?: string[]
+    equipment?: string[]
+    notes?: string[]
+    steps: SubdivisionWorkItemGuideStep[]
+  }
+): Promise<SubdivisionWorkItemGuide> {
+  const raw = await http.put<unknown>(`/management/construction/subdivision-work-items/${subdivisionWorkItemId}/guide`, payload)
+  if (raw && typeof raw === 'object' && 'constructionId' in (raw as any)) return raw as unknown as SubdivisionWorkItemGuide
+  const wrapped = raw as { code?: number; message?: string; data?: SubdivisionWorkItemGuide }
+  if (wrapped?.code != null && wrapped.code !== 200) {
+    throw new Error(wrapped.message || '儲存失敗')
+  }
+  return (wrapped?.data as SubdivisionWorkItemGuide) || ({} as SubdivisionWorkItemGuide)
+}
+
+export async function aiGenerateSubdivisionWorkItemGuide(
+  subdivisionWorkItemId: number,
+  ctx: { constructionId: string; designChangeId?: number | null }
+): Promise<SubdivisionWorkItemGuide> {
+  const params: Record<string, string | number> = { constructionId: ctx.constructionId }
+  if (ctx.designChangeId !== undefined && ctx.designChangeId !== null) {
+    params.designChangeId = ctx.designChangeId
+  }
+  const raw = await http.post<unknown>(
+    `/management/construction/subdivision-work-items/${subdivisionWorkItemId}/guide/ai-generate`,
+    {},
+    { params }
+  )
+  if (raw && typeof raw === 'object' && 'constructionId' in (raw as any)) return raw as unknown as SubdivisionWorkItemGuide
+  const wrapped = raw as { code?: number; message?: string; data?: SubdivisionWorkItemGuide; error?: string }
+  if (wrapped?.code != null && wrapped.code !== 200) {
+    throw new Error(wrapped.message || wrapped.error || 'AI 生成失敗')
+  }
+  return (wrapped?.data as SubdivisionWorkItemGuide) || ({} as SubdivisionWorkItemGuide)
 }
 
 /** 與監造施工大項明細 PATCH 可更新欄位一致（更新時 workProcess 後端會忽略；**建立**明細時可帶以區分施工階段） */

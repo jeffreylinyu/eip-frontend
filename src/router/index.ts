@@ -160,8 +160,18 @@ const router = createRouter({
       meta: { requiresAuth: true }
     },
     {
+      path: '/forms/subdivision-work-items/:itemId/guide',
+      component: () => import('../views/forms/type-b/FormSubdivisionWorkItemGuideView.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
       path: '/forms/p1-overall-construction-plan',
       component: () => import('../views/forms/type-b/FormP1OverallConstructionPlan.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/forms/p2-quality-plan',
+      component: () => import('../views/forms/type-b/FormP2QualityPlan.vue'),
       meta: { requiresAuth: true }
     },
     {

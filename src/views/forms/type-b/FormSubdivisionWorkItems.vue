@@ -172,9 +172,27 @@
                               ((item.constructionStandards?.length ?? 0) + (item.safetyStandards?.length ?? 0)) > 0
                             "
                           >
-                            施工 {{ item.constructionStandards?.length ?? 0 }} · 安衛
-                            {{ item.safetyStandards?.length ?? 0 }}
+                            施工 {{ item.constructionStandards?.length ?? 0 }} 筆 · 安衛
+                            {{ item.safetyStandards?.length ?? 0 }} 筆
                           </template>
+                          <template v-else>無資料</template>
+                        </span>
+                      </button>
+                      <button
+                        v-if="isContractor"
+                        type="button"
+                        class="standards-status-hit"
+                        title="開啟施工要領維護"
+                        @click="goToSubdivisionGuide(item)"
+                      >
+                        <span class="text-muted">施工要領</span>
+                        <span
+                          :class="[
+                            'standards-pill',
+                            (item.guideStepCount ?? 0) > 0 ? 'standards-pill--filled' : 'standards-pill--empty'
+                          ]"
+                        >
+                          <template v-if="(item.guideStepCount ?? 0) > 0">{{ item.guideStepCount ?? 0 }} 筆</template>
                           <template v-else>無資料</template>
                         </span>
                       </button>
@@ -188,6 +206,14 @@
                       @click="goToSubdivisionStandards(item)"
                     >
                       <i class="fa fa-clipboard-list me-1"></i>抽查標準表
+                    </button>
+                    <button
+                      v-if="isContractor"
+                      type="button"
+                      class="btn btn-sm btn-outline-primary me-2"
+                      @click="goToSubdivisionGuide(item)"
+                    >
+                      <i class="fa fa-list-check me-1"></i>施工要領
                     </button>
                     <button type="button" class="btn btn-sm btn-outline-secondary me-2" @click="editItem(item)">
                       <i class="fa fa-pen me-1"></i>編輯
@@ -301,6 +327,17 @@ function goToSubdivisionStandards(item: SubdivisionWorkItem, tab?: 'construction
         ? { designChangeId: String(selectedDesignChangeId.value) }
         : {}),
       ...(tab === 'safety' ? { tab: 'safety' } : {})
+    }
+  })
+}
+
+function goToSubdivisionGuide(item: SubdivisionWorkItem) {
+  router.push({
+    path: `/forms/subdivision-work-items/${item.id}/guide`,
+    query: {
+      ...(selectedDesignChangeId.value != null
+        ? { designChangeId: String(selectedDesignChangeId.value) }
+        : {}),
     }
   })
 }

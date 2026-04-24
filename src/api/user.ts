@@ -153,6 +153,13 @@ export const userApi = {
   /** 停用使用者（軟刪除，SUPER_ADMIN / ADMIN） */
   delete: async (userId: string): Promise<void> => {
     await http.delete(`/management/admin/user/${encodeURIComponent(userId)}`)
+  },
+
+  /** 變更他人系統角色（SUPER_ADMIN / ADMIN，規則見後端）；變更後對方須重新登入 */
+  updateSystemRole: async (userId: string, systemRole: string): Promise<void> => {
+    await http.patch(`/management/admin/user/${encodeURIComponent(userId)}/system-role`, {
+      systemRole
+    })
   }
 }
 

@@ -25,7 +25,9 @@ function ensureMermaid() {
       htmlLabels: true,
       useMaxWidth: true,
       nodeSpacing: 52,
-      rankSpacing: 56
+      rankSpacing: 56,
+      // 全域縮小節點內距，讓菱形/矩形更緊湊（避免用 transform 造成連線錨點跑位）
+      padding: 6
     }
   })
   mermaidReady = true
@@ -118,7 +120,12 @@ function resolveEndpoint(ref: string, idMap: Map<string, string>): string | null
 function flowToMermaid(flow: P1FlowGraph): string | null {
   if (!flow.nodes?.length) return null
   const idMap = buildMermaidIdMap(flow.nodes)
-  const lines: string[] = ['flowchart TD']
+  // 用 per-diagram init 讓 Mermaid 在「計算節點尺寸」階段就變緊湊
+  // （避免只用 CSS 改 SVG 外觀，導致看起來沒變或文字不置中）
+  const lines: string[] = [
+    `%%{init: {"theme":"neutral","themeVariables":{"fontSize":"13px","nodePadding":4},"flowchart":{"padding":4,"nodeSpacing":46,"rankSpacing":50}} }%%`,
+    'flowchart TD'
+  ]
 
   for (let i = 0; i < flow.nodes.length; i++) {
     const n = flow.nodes[i]
@@ -127,7 +134,7 @@ function flowToMermaid(flow: P1FlowGraph): string | null {
     const label = escLabel(String(n.label ?? ''))
     const kind = String(n.kind || 'process').toLowerCase()
     if (kind === 'decision') {
-      lines.push(`  ${id}{${label}}`)
+      lines.push(`  ${id}{${label}}:::checkpoint`)
     } else if (kind === 'start' || kind === 'end') {
       lines.push(`  ${id}([${label}])`)
     } else {
@@ -208,5 +215,43 @@ onMounted(() => {
 .p1-mermaid-host :deep(svg) {
   max-width: 100%;
   height: auto;
+}
+
+/* 檢查點（decision / 菱形）扁一點：不要用 transform 改 polygon（會讓連線錨點看起來跑掉）。
+   改用縮小 label padding/字級，讓 Mermaid 重新用較小 bbox 產生菱形。 */
+.p1-mermaid-host :deep(g.node.checkpoint) {
+  /* 不要改 fill（避免變成藍色）；僅調整文字/內距 */
+}
+
+.p1-mermaid-host :deep(g.node.checkpoint text),
+.p1-mermaid-host :deep(g.node.checkpoint .label),
+.p1-mermaid-host :deep(g.node.checkpoint .nodeLabel) {
+  fill: #111 !important;
+  color: #111 !important;
+  font-size: 14px;
+}
+
+.p1-mermaid-host :deep(g.node.checkpoint foreignObject),
+.p1-mermaid-host :deep(g.node.checkpoint foreignObject > div),
+.p1-mermaid-host :deep(g.node.checkpoint foreignObject .label),
+.p1-mermaid-host :deep(g.node.checkpoint foreignObject .nodeLabel) {
+  line-height: 1.05;
+  padding: 0px 4px !important;
+  margin: 0 !important;
+  overflow: visible !important;
+  white-space: nowrap;
+}
+
+/* checkpoint 文字強制置中（Mermaid 版本差異：可能是 foreignObject 或純 text） */
+.p1-mermaid-host :deep(g.node.checkpoint foreignObject > div) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+.p1-mermaid-host :deep(g.node.checkpoint text) {
+  text-anchor: middle;
+  dominant-baseline: middle;
 }
 </style>

@@ -64,6 +64,8 @@ export interface WorkspaceProject {
   totalExtensionDays?: number // 累計展延天數（已棄用，始終為 0）
   totalStopDays?: number // 累計停工天數（SPECIFIC_DATES）
   permission?: 'ADMIN' | 'MEMBER' | 'VIEWER' // 新增：工程案權限
+  /** master_construction 樂觀鎖版本（基本資料 PATCH 需帶回） */
+  version?: number
 }
 
 export const useWorkspaceStore = defineStore('workspace', () => {
@@ -312,7 +314,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         durationType: construction.durationType || 'WORKING_DAYS', // 工期計算模式
         totalExtensionDays: construction.totalExtensionDays || 0, // 累計展延天數
         totalStopDays: construction.totalStopDays || 0, // 累計停工天數
-        permission: construction.permission
+        permission: construction.permission,
+        version: typeof construction.version === 'number' ? construction.version : undefined
     }
   }
 
@@ -418,25 +421,31 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       }
     }
     
-    // 切換工作空間時清除當前項目（除非 preserveProject 為 true 且工作空間相同）
-    if (!preserveProject || !isSameWorkspace) {
-      // 如果當前工程案不屬於新工作空間，清除它
-      if (currentProject.value && currentProject.value.workspaceId !== workspace?.id) {
-        currentProject.value = null
-        
-        // 清除工程案選擇（因為工作空間變了）
-        try {
-          storage.remove(StorageKeys.SELECTED_PROJECT)
-        } catch (error) {
-          // 靜默處理
-        }
-      } else if (!preserveProject) {
-        // 如果明確要求不保留，清除工程案
-        currentProject.value = null
-        try {
-          storage.remove(StorageKeys.SELECTED_PROJECT)
-        } catch (error) {
-          // 靜默處理
+    // 切換工作空間時是否清除工程案：
+    // - 若目前工程案已屬於該 workspace，永遠不清除（避免「切換後又跳回去」）
+    // - 若 localStorage 有此 workspace 的最近選擇，也不要清除（讓 loadSavedSelections 接手恢復）
+    const savedProject = storage.get<{ projectId: string; workspaceId: string; timestamp?: number }>(StorageKeys.SELECTED_PROJECT)
+    const hasSavedForWorkspace = !!savedProject?.projectId && savedProject?.workspaceId === workspace?.id
+    const currentBelongsToWorkspace = !!currentProject.value && currentProject.value.workspaceId === workspace?.id
+
+    if (!currentBelongsToWorkspace && !hasSavedForWorkspace) {
+      if (!preserveProject || !isSameWorkspace) {
+        // 如果當前工程案不屬於新工作空間，清除它
+        if (currentProject.value && currentProject.value.workspaceId !== workspace?.id) {
+          currentProject.value = null
+          try {
+            storage.remove(StorageKeys.SELECTED_PROJECT)
+          } catch {
+            // ignore
+          }
+        } else if (!preserveProject) {
+          // preserveProject=false 且沒有可恢復的選擇時才清除
+          currentProject.value = null
+          try {
+            storage.remove(StorageKeys.SELECTED_PROJECT)
+          } catch {
+            // ignore
+          }
         }
       }
     }
@@ -516,6 +525,17 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       // 重新設置
       currentProject.value = project
     }
+
+    // 無論後端是否更新成功，都先保存到 localStorage，避免重新整理回到第一個工程案
+    try {
+      storage.set(StorageKeys.SELECTED_PROJECT, {
+        projectId: project.id,
+        workspaceId: project.workspaceId,
+        timestamp: Date.now()
+      })
+    } catch {
+      // ignore
+    }
     
     // 保存到後端
     try {
@@ -526,16 +546,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         await authApi.updateCurrentConstruction(project.id, project.workspaceId)
       }
     } catch (error) {
-      // 如果後端更新失敗，仍然保存到 localStorage 作為備份
-      try {
-        storage.set(StorageKeys.SELECTED_PROJECT, {
-          projectId: project.id,
-          workspaceId: project.workspaceId,
-          timestamp: Date.now()
-        })
-      } catch (storageError) {
-        // 靜默處理
-      }
+      // 後端更新失敗：localStorage 已先保存，這裡僅靜默處理
     }
     
     // 只有在需要時才觸發重新載入（避免無限循環）
@@ -550,9 +561,18 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       const authStore = useAuthStore()
       let projectId: string | null = null
       let workspaceId: string | null = null
+
+      // 若使用者剛剛在本機切換工程案，優先用 localStorage（避免後端 currentConstructionId 延遲寫入造成「切過去又跳回來」）
+      const savedProject = storage.get<{ projectId: string; workspaceId: string; timestamp?: number }>(StorageKeys.SELECTED_PROJECT)
+      const savedTs = savedProject?.timestamp ?? 0
+      const isFreshLocalSelection = !!savedProject?.projectId && Date.now() - savedTs < 5 * 60 * 1000 // 5 分鐘
+      if (isFreshLocalSelection) {
+        projectId = savedProject!.projectId
+        workspaceId = savedProject!.workspaceId
+      }
       
       // 優先從後端獲取當前工程案和工作空間
-      if (authStore.user?.userId) {
+      if (!projectId && authStore.user?.userId) {
         try {
           // 獲取最新用戶信息（包含 currentConstructionId 和 currentWorkspaceId）
           await authStore.fetchCurrentUser()
@@ -571,7 +591,6 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       
       // 如果後端沒有，嘗試從 localStorage 獲取
       if (!projectId) {
-        const savedProject = storage.get<{ projectId: string, workspaceId: string, timestamp?: number }>(StorageKeys.SELECTED_PROJECT)
         if (savedProject && savedProject.projectId) {
           projectId = savedProject.projectId
           workspaceId = savedProject.workspaceId

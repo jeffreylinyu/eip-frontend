@@ -322,6 +322,13 @@ watch(() => props.modelValue, (newValue) => {
   max-width: 240px; /* 設定最大寬度 */
 }
 
+/* icon 與文字距離：依 input 寬度比例縮放（並限制最小/最大避免太擠或太遠） */
+.republic-date-picker {
+  --rdp-icon-left: clamp(0.5rem, 6%, 0.9rem);
+  --rdp-icon-gap: clamp(1.1rem, 8.5%, 1.45rem);
+  --rdp-input-left-pad: calc(var(--rdp-icon-left) + var(--rdp-icon-gap));
+}
+
 /* 手機版樣式 */
 @media (max-width: 767.98px) {
   .republic-date-picker {
@@ -337,8 +344,8 @@ watch(() => props.modelValue, (newValue) => {
   
   .republic-date-picker :deep(.dp__input) {
     text-align: left !important;
-    padding-left: 0 !important;
-    padding-right: 40px !important;
+    padding-left: var(--rdp-input-left-pad) !important;
+    padding-right: 12px !important;
   }
   
   .republic-date-picker :deep(.hide-icon .dp__input) {
@@ -346,8 +353,8 @@ watch(() => props.modelValue, (newValue) => {
   }
 
   .republic-date-picker :deep(.dp__input_icon) {
-    right: 12px !important;
-    left: auto !important;
+    left: var(--rdp-icon-left) !important;
+    right: auto !important;
   }
 }
 
@@ -405,8 +412,8 @@ watch(() => props.modelValue, (newValue) => {
   text-align: center !important;
   flex: 1 !important;
   min-width: 0 !important;
-  padding-right: 40px !important; /* 為圖示預留空間 */
-  padding-left: 0 !important;
+  padding-left: var(--rdp-input-left-pad) !important; /* 為圖示預留空間（左側 icon；依寬度比例縮放） */
+  padding-right: 12px !important;
 }
 
 /* 無 icon 時：與 form-select / form-control 一致 padding（4px 36px 4px 8px），日期靠左 */
@@ -448,8 +455,8 @@ watch(() => props.modelValue, (newValue) => {
 .republic-date-picker :deep(.dp__input_icon) {
   color: var(--bs-secondary) !important;
   position: absolute !important;
-  right: 12px !important;
-  left: auto !important; /* 防止第三方樣式殘留 left 導致 icon 貼邊或錯位 */
+  left: var(--rdp-icon-left) !important;
+  right: auto !important; /* 固定 icon 在左側 */
   top: 50% !important;
   transform: translateY(-50%) !important;
   pointer-events: none !important;

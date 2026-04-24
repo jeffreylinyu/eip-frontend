@@ -467,6 +467,13 @@ const getFieldClass = (fieldName: string): string => {
 // 輔助函數：處理欄位輸入事件
 const handleFieldInput = (fieldName: string) => {
   validation.clearFieldError(fieldName)
+  // dateRange 相依欄位：訂約日期變更時，需即時重新驗證開工日期（否則錯誤會殘留到下一次 blur/submit）
+  if (fieldName === 'sign_date') {
+    validation.validateSingleField('start_date')
+  }
+  if (fieldName === 'start_date') {
+    validation.validateSingleField('start_date')
+  }
 }
 
 // 輔助函數：處理欄位失焦事件

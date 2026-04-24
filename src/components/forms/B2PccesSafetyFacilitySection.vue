@@ -204,6 +204,7 @@ interface ProjectItem {
   parentId: number | null
   type: string | null
   isSafetyHealthFacility: boolean
+  isTestItem: boolean
 }
 
 const router = useRouter()
@@ -342,6 +343,7 @@ function buildTreeData(flat: ProjectItem[]): any[] {
       unit: item.unit || '',
       quantity: item.quantity,
       isSafetyHealthFacility: item.isSafetyHealthFacility === true,
+      isTestItem: item.isTestItem === true,
       type: item.type
     }
     if (childrenMap.has(item.id)) {
@@ -376,7 +378,8 @@ const convertToProjectItem = (code: ConstructionPccesCode): ProjectItem => ({
   itemNo: code.itemNo,
   parentId: code.parentId,
   type: code.type,
-  isSafetyHealthFacility: code.isSafetyHealthFacility === true
+  isSafetyHealthFacility: code.isSafetyHealthFacility === true,
+  isTestItem: code.isTestItem === true
 })
 
 function formatNumber(value: number | string): string {

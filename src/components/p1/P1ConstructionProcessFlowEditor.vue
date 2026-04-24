@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
 import html2canvas from 'html2canvas'
-import P1ConstructionProcessFlowView from '@/components/p1/P1ConstructionProcessFlowView.vue'
+import P1ConstructionProcessFlowSyncfusionView from '@/components/p1/P1ConstructionProcessFlowSyncfusionView.vue'
 
 export type P1FlowNodeRow = { id: string; label: string; kind: string }
 export type P1FlowEdgeRow = { from: string; to: string; label: string }
@@ -135,10 +135,14 @@ function removeEdge(idx: number) {
 }
 
 const flowPreviewCaptureRef = ref<HTMLElement | null>(null)
+const flowPreviewDiagramRef = ref<{ exportPngBlob?: () => Promise<Blob | null> } | null>(null)
 
 /** 匯出與畫面預覽一致之 PNG（供 P-1 儲存後上傳）；無節點時回傳 null */
 async function exportFlowPreviewPngBlob(): Promise<Blob | null> {
   if (!graph.value.nodes.length) return null
+  // 優先走 Syncfusion 內容匯出：不受畫面縮放/viewport 影響
+  const b = await flowPreviewDiagramRef.value?.exportPngBlob?.()
+  if (b) return b
   const el = flowPreviewCaptureRef.value
   if (!el) return null
   await nextTick()
@@ -164,7 +168,7 @@ defineExpose({
     <div class="p1-flow-editor__grid">
       <div ref="flowPreviewCaptureRef" class="p1-flow-editor__preview">
         <div class="p1-flow-editor__preview-inner">
-          <P1ConstructionProcessFlowView :flow-json="previewJson" />
+          <P1ConstructionProcessFlowSyncfusionView ref="flowPreviewDiagramRef" :flow-json="previewJson" />
         </div>
       </div>
       <div class="p1-flow-editor__side">
@@ -316,6 +320,15 @@ defineExpose({
   display: flex;
   flex-direction: column;
   align-items: center;
+}
+.p1-flow-editor__preview :deep(.p1-syncfusion-flow-view) {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.p1-flow-editor__preview :deep(.p1-syncfusion-host) {
+  width: 100%;
 }
 .p1-flow-editor__preview :deep(.p1-mermaid-host) {
   display: flex;

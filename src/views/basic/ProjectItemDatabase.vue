@@ -49,6 +49,26 @@
         >
           單價分析
         </button>
+        <button
+          type="button"
+          role="tab"
+          class="pcces-segment-tab"
+          :class="{ 'pcces-segment-tab--active': pccesViewTab === 'resource' }"
+          :aria-selected="pccesViewTab === 'resource'"
+          @click="pccesViewTab = 'resource'"
+        >
+          資源統計
+        </button>
+        <button
+          type="button"
+          role="tab"
+          class="pcces-segment-tab"
+          :class="{ 'pcces-segment-tab--active': pccesViewTab === 'materialInspection' }"
+          :aria-selected="pccesViewTab === 'materialInspection'"
+          @click="pccesViewTab = 'materialInspection'"
+        >
+          材料與試驗
+        </button>
       </div>
 
       <div class="d-flex flex-wrap align-items-center gap-2 ms-auto">
@@ -78,6 +98,15 @@
           title="全螢幕"
         >
           <i class="fa fa-expand me-1"></i>全螢幕
+        </button>
+        <button
+          class="btn btn-outline-warning btn-sm"
+          type="button"
+          @click="copyDebugInfo"
+          :disabled="isLoading"
+          title="複製目前頁面的標單/組樹摘要，貼給 AI 排查"
+        >
+          <i class="fa fa-clipboard me-1"></i>複製除錯資訊
         </button>
         <button
           v-if="selectedDesignChangeId != null"
@@ -150,6 +179,26 @@
           >
             單價分析
           </button>
+          <button
+            type="button"
+            role="tab"
+            class="pcces-segment-tab"
+            :class="{ 'pcces-segment-tab--active': pccesViewTab === 'resource' }"
+            :aria-selected="pccesViewTab === 'resource'"
+            @click="pccesViewTab = 'resource'"
+          >
+            資源統計
+          </button>
+          <button
+            type="button"
+            role="tab"
+            class="pcces-segment-tab"
+            :class="{ 'pcces-segment-tab--active': pccesViewTab === 'materialInspection' }"
+            :aria-selected="pccesViewTab === 'materialInspection'"
+            @click="pccesViewTab = 'materialInspection'"
+          >
+            材料與試驗
+          </button>
         </div>
         <div class="d-flex flex-wrap align-items-center gap-2 flex-shrink-0">
           <div
@@ -180,6 +229,15 @@
             <i class="fa fa-compress me-1"></i>退出全螢幕
           </button>
           <button
+            class="btn btn-outline-warning btn-sm"
+            type="button"
+            @click="copyDebugInfo"
+            :disabled="isLoading"
+            title="複製目前頁面的標單/組樹摘要，貼給 AI 排查"
+          >
+            <i class="fa fa-clipboard me-1"></i>複製除錯資訊
+          </button>
+          <button
             v-if="selectedDesignChangeId != null"
             class="btn btn-outline-info btn-sm"
             type="button"
@@ -201,13 +259,26 @@
       </div>
 
       <div class="treegrid-body">
+        <div v-if="pccesViewTab === 'materialInspection'" class="material-inspection-container">
+          <MaterialInspectionPanel
+            v-if="constructionId"
+            :construction-id="constructionId"
+            :design-change-id="selectedDesignChangeId"
+            :materials="modalMaterials"
+            :test-items="modalTestItems"
+            :active="pccesViewTab === 'materialInspection'"
+          />
+        </div>
+
         <ejs-treegrid
-          v-show="pccesViewTab === 'detail'"
+          v-else-if="pccesViewTab === 'detail'"
           ref="treegrid"
           :dataSource="treeGridData"
           :allowPaging="false"
-          :allowSorting="true"
+          :allowSorting="false"
           :allowFiltering="true"
+          :filterSettings="treeGridFilterSettings"
+          :actionBegin="onTreeGridActionBegin"
           :allowResizing="true"
           :allowReordering="false"
           :allowSelection="false"
@@ -223,8 +294,8 @@
               headerText="項次"
               width="120"
               textAlign="Left"
-              :sortComparer="itemNoSortComparer"
               :template="'itemNoTemplate'"
+              :filter="containsFilter"
             ></e-column>
             <e-column
               field="code"
@@ -232,6 +303,7 @@
               width="150"
               textAlign="Left"
               :template="'codeTemplate'"
+              :filter="containsFilter"
             ></e-column>
             <e-column
               field="name"
@@ -239,6 +311,7 @@
               width="300"
               textAlign="Left"
               :template="'nameTemplate'"
+              :filter="containsFilter"
             ></e-column>
             <e-column
               field="unit"
@@ -253,6 +326,13 @@
               width="120"
               textAlign="Center"
               :template="'safetyHealthTemplate'"
+            ></e-column>
+            <e-column
+              field="isTestItem"
+              headerText="試驗項"
+              width="100"
+              textAlign="Center"
+              :template="'testItemTemplate'"
             ></e-column>
             <e-column
               field="quantity"
@@ -326,6 +406,35 @@
             </div>
           </template>
 
+          <template v-slot:testItemTemplate="{ data }">
+            <div class="d-flex align-items-center justify-content-center px-1" @click.stop>
+              <template v-if="isTestItemTreeParentNode(data)">
+                <input
+                  :key="`pcces-test-parent-${testItemUiVersion}-${data.id}`"
+                  type="checkbox"
+                  class="form-check-input m-0"
+                  :checked="getParentTestItemGroupState(data) === 'all'"
+                  :indeterminate="getParentTestItemGroupState(data) === 'some'"
+                  :disabled="savingTestItemBatch"
+                  :class="{ 'opacity-50': savingTestItemBatch }"
+                  title="群組：點擊將底下所有工項一併勾選或取消（僅葉節點會寫入資料庫）"
+                  @click.stop.prevent="onParentTestItemChange(data, $event)"
+                />
+              </template>
+              <template v-else>
+                <input
+                  :key="`pcces-test-leaf-${testItemUiVersion}-${data.id}`"
+                  type="checkbox"
+                  class="form-check-input m-0"
+                  :checked="isTestItemChecked(data)"
+                  :disabled="savingTestItemId === data.id || savingTestItemBatch"
+                  title="勾選表示此工項為試驗項（非匯入檔欄位）"
+                  @change="onTestItemChange(data, $event)"
+                />
+              </template>
+            </div>
+          </template>
+
           <!-- 總量模板 -->
           <template v-slot:quantityTemplate="{ data }">
             <span :class="getCellClass(data, 'quantity')">{{ formatNumber(data.quantity) }}</span>
@@ -343,12 +452,14 @@
         </ejs-treegrid>
 
         <ejs-treegrid
-          v-show="pccesViewTab === 'breakdown'"
+          v-else-if="pccesViewTab === 'breakdown'"
           ref="breakdownTreegrid"
           :dataSource="breakdownTreeGridData"
           :allowPaging="false"
-          :allowSorting="true"
+          :allowSorting="false"
           :allowFiltering="true"
+          :filterSettings="treeGridFilterSettings"
+          :actionBegin="onTreeGridActionBegin"
           :allowResizing="true"
           :allowReordering="false"
           :allowSelection="false"
@@ -360,13 +471,6 @@
         >
           <e-columns>
             <e-column field="refItemNo" headerText="對應項次" width="120" textAlign="Left" />
-            <e-column
-              field="isMaterial"
-              headerText="材料"
-              width="72"
-              textAlign="Center"
-              :template="'bdMaterialTemplate'"
-            />
             <e-column field="itemCode" headerText="編碼" width="140" textAlign="Left" />
             <e-column
               field="name"
@@ -404,21 +508,6 @@
               <span>{{ data.name }}</span>
             </div>
           </template>
-          <template v-slot:bdMaterialTemplate="{ data }">
-            <div class="d-flex align-items-center justify-content-center px-1" @click.stop>
-              <template v-if="isBreakdownLeafRow(data)">
-                <input
-                  type="checkbox"
-                  class="form-check-input m-0"
-                  :checked="data.isMaterial === true"
-                  :disabled="savingBreakdownMaterialId === String(data.id)"
-                  title="勾選表示此細項為材料（僅最底層可勾選）"
-                  @change="onBreakdownMaterialChange(data, $event)"
-                />
-              </template>
-              <span v-else class="text-muted user-select-none" title="非最底層，無法勾選">—</span>
-            </div>
-          </template>
           <template v-slot:bdQtyTemplate="{ data }">
             <span>{{ formatNumber(data.quantity) }}</span>
           </template>
@@ -427,6 +516,52 @@
           </template>
           <template v-slot:bdAmtTemplate="{ data }">
             <span>{{ formatPrice(data.amount) }}</span>
+          </template>
+        </ejs-treegrid>
+
+        <ejs-treegrid
+          v-else-if="pccesViewTab === 'resource'"
+          ref="resourceTreegrid"
+          :dataSource="resourceRows"
+          :allowPaging="false"
+          :allowSorting="false"
+          :allowFiltering="true"
+          :filterSettings="treeGridFilterSettings"
+          :actionBegin="onTreeGridActionBegin"
+          :allowResizing="true"
+          :allowReordering="false"
+          :allowSelection="false"
+          :treeColumnIndex="2"
+          :childMapping="'children'"
+          :height="'100%'"
+          locale="zh"
+          :enableHover="true"
+        >
+          <e-columns>
+            <e-column field="orderNumber" headerText="#" width="72" textAlign="Right" />
+            <e-column field="itemCode" headerText="編碼" width="160" textAlign="Left" :filter="containsFilter" />
+            <e-column
+              field="name"
+              headerText="名稱"
+              width="420"
+              textAlign="Left"
+              :filter="containsFilter"
+              :template="'resourceNameTemplate'"
+            />
+            <e-column field="unitType" headerText="單位" width="80" textAlign="Center" />
+            <e-column field="quantity" headerText="數量" width="120" textAlign="Right" />
+            <e-column field="price" headerText="單價" width="120" textAlign="Right" />
+            <e-column field="amount" headerText="金額" width="130" textAlign="Right" />
+          </e-columns>
+          <template v-slot:resourceNameTemplate="{ data }">
+            <div class="d-flex align-items-center gap-2" style="line-height: 1.5;">
+              <i
+                v-if="getResourceType(data)"
+                :class="getTypeIcon(getResourceType(data))"
+                :title="getTypeLabel(getResourceType(data))"
+              ></i>
+              <span>{{ data.name }}</span>
+            </div>
           </template>
         </ejs-treegrid>
       </div>
@@ -534,24 +669,58 @@
 import PageHeader from '@/components/bootstrap/PageHeader.vue'
 import Modal from '@/components/bootstrap/Modal.vue'
 import DesignChangeVersionSwitcher from '@/components/common/DesignChangeVersionSwitcher.vue'
+import MaterialInspectionPanel from '@/components/project/MaterialInspectionPanel.vue'
 import { ref, computed, watch, onMounted, onActivated, nextTick, provide } from 'vue'
 import { useWorkspaceStore } from '@/stores/workspace'
 import {
   importPccesFile,
   getConstructionPccesCodes,
   getConstructionPccesCostBreakdown,
-  updatePccesCostBreakdownMaterial,
+  getConstructionPccesResources,
   copyPccesFromTo,
   type ConstructionPccesCode,
   type ConstructionPccesCostBreakdown,
+  type ConstructionPccesResource,
   type ImportPccesRequest,
   PccesItemType
 } from '@/api/pcces'
 import { usePccesSafetyHealthTreeGrid } from '@/composables/usePccesSafetyHealthTreeGrid'
+import { usePccesTestItemTreeGrid } from '@/composables/usePccesTestItemTreeGrid'
 import { getDesignChangeList } from '@/api/designChange'
 import { useViewPerspective } from '@/composables/useViewPerspective'
 import { Sort, Resize, Filter } from '@syncfusion/ej2-vue-treegrid'
 import type { TreeGridComponent } from '@syncfusion/ej2-vue-treegrid'
+
+const treeGridFilterSettings = { type: 'FilterBar', mode: 'Immediate', immediateModeDelay: 200 }
+const containsFilter = { operator: 'contains' }
+
+function onTreeGridActionBegin(e: any) {
+  // Syncfusion FilterBar 預設常以 startsWith 過濾；
+  // 但不是所有欄位都適合字串 contains（例如布林/數值欄位）
+  if (e?.requestType === 'filtering' && Array.isArray(e.columns)) {
+    for (const col of e.columns) {
+      if (!col) continue
+      const field = String(col.field ?? '')
+
+      // 布林欄位：不要用 contains
+      if (field === 'isSafetyHealthFacility' || field === 'isTestItem') {
+        col.operator = 'equal'
+        continue
+      }
+
+      // 數值/金額欄位：不要強制 contains（避免把數字當字串）
+      if (field === 'quantity' || field === 'price' || field === 'amount' || field === 'orderNumber') {
+        col.operator = col.operator || 'equal'
+        continue
+      }
+
+      // 其他文字欄位：用 contains 取代預設 startsWith
+      col.operator = 'contains'
+    }
+  }
+}
+
+// 單價分析 TreeGrid 的「材料」欄位已移除，材料維護改由「材料與試驗」面板統一處理
 
 interface ProjectItem {
   id: string
@@ -562,10 +731,14 @@ interface ProjectItem {
   price: string
   amount: string
   itemNo: string | null
+  /** 後端原始匯入順序（同層 itemNo 重複時以此排序） */
+  orderNumber: number
   parentId: number | null
   type: string | null
   /** 是否為安全衛生設施（使用者勾選，預設否） */
   isSafetyHealthFacility: boolean
+  /** 是否為試驗項（使用者勾選，預設否） */
+  isTestItem: boolean
 }
 
 /** 單價分析（CostBreakdownList）列，供 TreeGrid */
@@ -587,7 +760,7 @@ interface BreakdownProjectItem {
   materialRatio: string
   miscellaneaRatio: string
   type: string | null
-  /** 是否為材料（僅葉節點可編輯） */
+  /** 是否為材料（由「材料與試驗」面板統一維護，單價分析頁籤不再顯示/編輯） */
   isMaterial: boolean
 }
 
@@ -603,8 +776,126 @@ const constructionId = computed(() => workspaceStore.currentProject?.id || '')
 
 const items = ref<ProjectItem[]>([])
 const breakdownItems = ref<BreakdownProjectItem[]>([])
+const pccesParentIdSet = computed(() => {
+  const set = new Set<string>()
+  for (const it of items.value) {
+    if (it.parentId != null) set.add(String(it.parentId))
+  }
+  return set
+})
+
+function isPccesLeafItem(it: ProjectItem): boolean {
+  return !pccesParentIdSet.value.has(String(it.id))
+}
+
+type MaterialSource = 'RESOURCE' | 'BREAKDOWN' | 'DETAIL'
+
+const modalMaterials = computed(() => {
+  // 依你討論的新材料提取方式：
+  // 1) ResourceList（資源統計）M%
+  // 2) CostBreakdownList（單價分析）M%
+  // 3) DetailList（詳細價目表/標單明細）M%
+  // 去重：同編碼只保留一筆，優先序 Resource > Breakdown > Detail
+  const out = new Map<
+    string,
+    {
+      code: string
+      name: string
+      unit?: string | null
+      refItemNo?: string | null
+      source: MaterialSource
+    }
+  >()
+
+  // helper：寫入 map（遵守優先序）
+  function upsert(code: string, row: { name: string; unit?: string | null; refItemNo?: string | null }, source: MaterialSource) {
+    const key = code.trim()
+    if (!key || !key.toUpperCase().startsWith('M')) return
+    const rank = source === 'RESOURCE' ? 3 : source === 'BREAKDOWN' ? 2 : 1
+    const prev = out.get(key)
+    const prevRank = prev ? (prev.source === 'RESOURCE' ? 3 : prev.source === 'BREAKDOWN' ? 2 : 1) : 0
+    if (!prev || rank > prevRank) {
+      out.set(key, {
+        code: key,
+        name: row.name,
+        unit: row.unit ?? null,
+        refItemNo: row.refItemNo ?? null,
+        source
+      })
+      return
+    }
+    // 同 rank：保留原本（先到先得）
+  }
+
+  // 3) DetailList：從標單明細（後端已回傳）提 M%
+  for (const it of items.value) {
+    const code = String(it.code ?? '').trim()
+    if (!code.toUpperCase().startsWith('M')) continue
+    upsert(
+      code,
+      {
+        name: String(it.name ?? '').trim() || code,
+        unit: it.unit ?? null
+      },
+      'DETAIL'
+    )
+  }
+
+  // 2) Breakdown：從單價分析提 M%（顯示用；關聯 id 盡量對應到葉節點）
+  for (const b of breakdownItems.value) {
+    const code = String(b.itemCode ?? '').trim()
+    if (!code.toUpperCase().startsWith('M')) continue
+    upsert(
+      code,
+      {
+        name: String(b.name ?? '').trim() || code,
+        unit: b.unit ?? null,
+        refItemNo: b.refItemNo ?? null
+      },
+      'BREAKDOWN'
+    )
+  }
+
+  // 1) Resource：從資源統計提 M%
+  for (const r of resourceRows.value) {
+    const code = String((r as any).itemCode ?? '').trim()
+    if (!code.toUpperCase().startsWith('M')) continue
+    upsert(
+      code,
+      {
+        name: String((r as any).name ?? '').trim() || code,
+        unit: (r as any).unitType ?? null
+      },
+      'RESOURCE'
+    )
+  }
+
+  // 產出給 MaterialInspectionPanel：以 itemCode 當 key
+  return Array.from(out.values())
+    .map((x) => ({
+      id: 0,
+      refItemNo: x.refItemNo ?? null,
+      itemCode: x.code,
+      name: x.name,
+      unit: x.unit ?? null,
+      source: x.source
+    }))
+    .sort((a, b) => String(a.itemCode || '').localeCompare(String(b.itemCode || '')))
+})
+
+const modalTestItems = computed(() => {
+  return items.value
+    .filter((i) => i.isTestItem === true && isPccesLeafItem(i))
+    .map((i) => ({
+      id: parseInt(String(i.id), 10),
+      itemNo: i.itemNo ?? null,
+      pccesCode: i.code ?? null,
+      name: i.name
+    }))
+    .filter((t) => Number.isFinite(t.id))
+})
 /** 標單明細 / 單價分析 分頁 */
-const pccesViewTab = ref<'detail' | 'breakdown'>('detail')
+const pccesViewTab = ref<'detail' | 'breakdown' | 'resource' | 'materialInspection'>('detail')
 /** 目前選中的變更設計版本：null = 原契約 */
 const selectedDesignChangeId = ref<number | null>(null)
 const isLoading = ref(false)
@@ -612,8 +903,6 @@ const isLoading = ref(false)
 const designChangeList = ref<{ id: number; effectiveDate: string }[]>([])
 const isCopying = ref(false)
 const diffEnabled = ref(false)
-/** 單價分析「材料」欄儲存中（列 id） */
-const savingBreakdownMaterialId = ref<string | null>(null)
 
 const headerActions = computed(() => [])
 
@@ -709,6 +998,7 @@ async function applyDiffFromPreviousVersion() {
         name: true,
         unit: true,
         safetyHealth: true,
+        testItem: true,
         quantity: true,
         price: true,
         amount: true
@@ -722,6 +1012,7 @@ async function applyDiffFromPreviousVersion() {
     if (!sameNumber(it.price, prev.price)) diff.price = true
     if (!sameNumber(it.amount, prev.amount)) diff.amount = true
     if (!!it.isSafetyHealthFacility !== !!prev.isSafetyHealthFacility) diff.safetyHealth = true
+    if (!!it.isTestItem !== !!prev.isTestItem) diff.testItem = true
     ;(it as any).diffAll = false
     ;(it as any).diff = diff
   }
@@ -739,14 +1030,51 @@ function getCellClass(row: any, field: string): string | undefined {
 // TreeGrid 相關
 const treegrid = ref<TreeGridComponent | null>(null)
 const breakdownTreegrid = ref<TreeGridComponent | null>(null)
+const resourceTreegrid = ref<TreeGridComponent | null>(null)
 const treeGridData = ref<any[]>([])
 const breakdownTreeGridData = ref<any[]>([])
+const resourceRows = ref<ConstructionPccesResource[]>([])
+
+function refreshVisibleGrid() {
+  const tab = pccesViewTab.value
+  const pick = tab === 'detail' ? treegrid.value : tab === 'breakdown' ? breakdownTreegrid.value : resourceTreegrid.value
+  const ej = (pick as any)?.ej2Instances as any
+  if (!ej) return
+  try {
+    // v-show 切換時 TreeGrid 常不會重算高度/捲動區，強制刷新
+    ej.refresh?.()
+    ej.refreshColumns?.()
+    ej.dataBind?.()
+  } catch {
+    // ignore
+  }
+}
+
+watch(
+  () => pccesViewTab.value,
+  async () => {
+    await nextTick()
+    // 再等一個 frame，確保容器尺寸已穩定
+    requestAnimationFrame(() => refreshVisibleGrid())
+  }
+)
 
 function numToDisplay(v: unknown): string {
   if (v === null || v === undefined) return ''
   if (typeof v === 'number' && Number.isFinite(v)) return String(v)
   const s = String(v).trim()
   return s
+}
+
+function getResourceType(row: any): PccesItemType | null {
+  const code = String(row?.itemCode ?? '').trim()
+  if (!code) return null
+  const c0 = code[0]?.toUpperCase()
+  if (c0 === 'M') return PccesItemType.MATERIAL
+  if (c0 === 'L') return PccesItemType.LABOUR
+  if (c0 === 'E') return PccesItemType.EQUIPMENT
+  if (c0 === 'W') return PccesItemType.MISC
+  return PccesItemType.WORK_ITEM
 }
 
 // 全螢幕狀態
@@ -772,6 +1100,23 @@ const {
   alert: (msg) => alert(msg)
 })
 
+const {
+  savingTestItemId,
+  savingTestItemBatch,
+  testItemUiVersion,
+  getParentTestItemGroupState,
+  onParentTestItemChange,
+  onTestItemChange,
+  isTestItemTreeParentNode,
+  isTestItemChecked
+} = usePccesTestItemTreeGrid({
+  items,
+  treeGridData,
+  getConstructionId: () => constructionId.value,
+  getDesignChangeId: () => selectedDesignChangeId.value,
+  alert: (msg) => alert(msg)
+})
+
 // 匯入相關
 const showImportModal = ref(false)
 const selectedFile = ref<File | null>(null)
@@ -785,6 +1130,130 @@ const importDragDepth = ref(0)
 // 切換全螢幕
 const toggleFullscreen = () => {
   isFullscreen.value = !isFullscreen.value
+}
+
+function safeJson(obj: any): string {
+  try {
+    return JSON.stringify(obj)
+  } catch {
+    return '[unserializable]'
+  }
+}
+
+function maxDepth(nodes: any[] | undefined): number {
+  if (!Array.isArray(nodes) || nodes.length === 0) return 0
+  const walk = (n: any, d: number): number => {
+    const ch = Array.isArray(n?.children) ? n.children : []
+    if (!ch.length) return d
+    return Math.max(...ch.map((c: any) => walk(c, d + 1)))
+  }
+  return Math.max(...nodes.map((n) => walk(n, 1)))
+}
+
+async function copyTextToClipboard(text: string): Promise<boolean> {
+  try {
+    if (navigator?.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text)
+      return true
+    }
+  } catch {
+    // ignore
+  }
+  try {
+    const ta = document.createElement('textarea')
+    ta.value = text
+    ta.style.position = 'fixed'
+    ta.style.left = '-9999px'
+    ta.style.top = '0'
+    document.body.appendChild(ta)
+    ta.focus()
+    ta.select()
+    const ok = document.execCommand('copy')
+    document.body.removeChild(ta)
+    return ok
+  } catch {
+    return false
+  }
+}
+
+async function copyDebugInfo() {
+  const cid = constructionId.value || '(no constructionId)'
+  const ver = selectedDesignChangeId.value == null ? '原契約' : `變更設計(${selectedDesignChangeId.value})`
+  const tab = pccesViewTab.value
+
+  const flat = items.value || []
+  const flatIds = new Set(flat.map((x) => String(x.id)))
+  const orphan = flat
+    .filter((x) => x.parentId != null && !flatIds.has(String(x.parentId)))
+    .slice(0, 50)
+    .map((x) => ({
+      id: x.id,
+      parentId: x.parentId,
+      itemNo: x.itemNo,
+      name: x.name,
+      code: x.code,
+      type: x.type
+    }))
+
+  const tree = treeGridData.value || []
+  const bdFlat = (breakdownItems.value || []) as any[]
+  const bdTree = breakdownTreeGridData.value || []
+  const bdIds = new Set(bdFlat.map((x) => String(x.id)))
+  const bdOrphan = bdFlat
+    .filter((x) => x.parentId != null && !bdIds.has(String(x.parentId)))
+    .slice(0, 50)
+    .map((x) => ({
+      id: x.id,
+      parentId: x.parentId,
+      refItemNo: x.refItemNo,
+      itemCode: x.itemCode,
+      name: x.name,
+      itemKind: x.itemKind
+    }))
+
+  const sampleFlat = flat.slice(0, 30).map((x) => ({
+    id: x.id,
+    parentId: x.parentId,
+    itemNo: x.itemNo,
+    name: x.name,
+    code: x.code,
+    type: x.type
+  }))
+
+  const sampleRoots = (tree || []).slice(0, 15).map((x: any) => ({
+    id: x.id,
+    itemNo: x.itemNo,
+    name: x.name,
+    childrenCount: Array.isArray(x.children) ? x.children.length : 0
+  }))
+
+  const payload = {
+    page: '/basic/project-item-database',
+    at: new Date().toISOString(),
+    constructionId: cid,
+    version: ver,
+    viewTab: tab,
+    detail: {
+      flatCount: flat.length,
+      rootCount: Array.isArray(tree) ? tree.length : 0,
+      maxDepth: maxDepth(tree as any),
+      orphanCount: flat.filter((x) => x.parentId != null && !flatIds.has(String(x.parentId))).length,
+      orphanPreview: orphan,
+      sampleFlat,
+      sampleRoots
+    },
+    breakdown: {
+      flatCount: bdFlat.length,
+      rootCount: Array.isArray(bdTree) ? bdTree.length : 0,
+      maxDepth: maxDepth(bdTree as any),
+      orphanCount: bdFlat.filter((x) => x.parentId != null && !bdIds.has(String(x.parentId))).length,
+      orphanPreview: bdOrphan
+    }
+  }
+
+  const text = safeJson(payload)
+  const ok = await copyTextToClipboard(text)
+  alert(ok ? '已複製除錯資訊到剪貼簿，請直接貼到對話中。' : '複製失敗，請開啟 Console 取得資料。')
 }
 
 // 中文數字對照表
@@ -844,16 +1313,24 @@ const parseItemNo = (itemNo: string | null): number[] => {
   
   const parts = itemNo.split('.')
   return parts.map(part => {
+    const raw = (part || '').trim()
+    // 常見格式："(一)"、"（一）"、"[一]" 之類，把外層括號去掉再解析
+    const normalized = raw
+      .replace(/^[\(\（\[\{【「『]+/, '')
+      .replace(/[\)\）\]\}】」』]+$/, '')
+      .trim()
+    const token = normalized || raw
+
     // 先嘗試解析為阿拉伯數字
-    const num = parseInt(part, 10)
+    const num = parseInt(token, 10)
     if (!isNaN(num)) return num
     
     // 嘗試解析中文數字
-    const chineseNum = chineseToNumber(part)
+    const chineseNum = chineseToNumber(token)
     if (chineseNum !== null) return chineseNum
     
     // 如果都無法解析，使用字串的 Unicode 編碼作為後備
-    return part.charCodeAt(0)
+    return token.charCodeAt(0)
   })
 }
 
@@ -930,7 +1407,9 @@ const buildTreeData = (items: ProjectItem[]): any[] => {
       code: item.code || '',
       name: item.name || '',
       unit: item.unit || '',
+      orderNumber: item.orderNumber ?? 0,
       isSafetyHealthFacility: item.isSafetyHealthFacility === true,
+      isTestItem: item.isTestItem === true,
       quantity: item.quantity,
       price: item.price,
       amount: item.amount,
@@ -945,11 +1424,10 @@ const buildTreeData = (items: ProjectItem[]): any[] => {
       const children = childrenMap.get(itemId)!
       // 按照 orderNumber 或 itemNo 排序
       children.sort((a, b) => {
-        // 如果有 itemNo，使用自訂排序
-        if (a.itemNo && b.itemNo) {
-          return itemNoSortComparer(a, b)
-        }
-        // 否則按照 id 排序
+        const ao = a.orderNumber ?? 0
+        const bo = b.orderNumber ?? 0
+        if (ao > 0 || bo > 0) return ao - bo
+        if (a.itemNo && b.itemNo) return itemNoSortComparer(a, b)
         return a.id.localeCompare(b.id)
       })
       node.children = children.map(child => buildNode(child))
@@ -960,11 +1438,10 @@ const buildTreeData = (items: ProjectItem[]): any[] => {
 
   // 對根項目使用自訂排序
   rootItems.sort((a, b) => {
-    // 如果有 itemNo，使用自訂排序
-    if (a.itemNo && b.itemNo) {
-      return itemNoSortComparer(a, b)
-    }
-    // 否則按照 id 排序
+    const ao = a.orderNumber ?? 0
+    const bo = b.orderNumber ?? 0
+    if (ao > 0 || bo > 0) return ao - bo
+    if (a.itemNo && b.itemNo) return itemNoSortComparer(a, b)
     return a.id.localeCompare(b.id)
   })
 
@@ -981,9 +1458,11 @@ const convertToProjectItem = (code: ConstructionPccesCode): ProjectItem => ({
   price: code.price,
   amount: code.amount,
   itemNo: code.itemNo,
+  orderNumber: typeof (code as any).orderNumber === 'number' ? ((code as any).orderNumber as number) : parseInt((code as any).orderNumber) || 0,
   parentId: code.parentId,
   type: code.type,
-  isSafetyHealthFacility: code.isSafetyHealthFacility === true
+  isSafetyHealthFacility: code.isSafetyHealthFacility === true,
+  isTestItem: code.isTestItem === true
 })
 
 const convertToBreakdownProjectItem = (r: ConstructionPccesCostBreakdown): BreakdownProjectItem => ({
@@ -1053,34 +1532,7 @@ function isBreakdownLeafRow(data: any): boolean {
   return !Array.isArray(ch) || ch.length === 0
 }
 
-async function onBreakdownMaterialChange(data: any, e: Event) {
-  const target = e.target as HTMLInputElement
-  const checked = target.checked
-  const cid = constructionId.value
-  if (!cid || !isBreakdownLeafRow(data)) {
-    target.checked = !checked
-    return
-  }
-  const idNum = parseInt(String(data.id), 10)
-  if (Number.isNaN(idNum)) {
-    target.checked = !checked
-    return
-  }
-  const flat = breakdownItems.value.find((x) => x.id === String(data.id))
-  const prev = flat?.isMaterial === true
-  savingBreakdownMaterialId.value = String(data.id)
-  try {
-    await updatePccesCostBreakdownMaterial(cid, idNum, checked, selectedDesignChangeId.value)
-    if (flat) flat.isMaterial = checked
-    breakdownTreeGridData.value = buildBreakdownTreeData(breakdownItems.value)
-  } catch (err: any) {
-    target.checked = prev
-    const msg = err?.response?.data?.message ?? err?.message
-    alert(typeof msg === 'string' && msg ? msg : '更新材料標示失敗')
-  } finally {
-    savingBreakdownMaterialId.value = null
-  }
-}
+// 單價分析頁籤不再顯示/編輯「材料」欄位；材料標示由「材料與試驗」面板統一維護
 
 // 載入變更設計列表（依生效日升序）
 const fetchDesignChangeList = async () => {
@@ -1107,16 +1559,19 @@ const loadItems = async () => {
     treeGridData.value = []
     breakdownItems.value = []
     breakdownTreeGridData.value = []
+    resourceRows.value = []
     return
   }
   isLoading.value = true
   try {
-    const [data, bdRows] = await Promise.all([
+    const [data, bdRows, resRows] = await Promise.all([
       getConstructionPccesCodes(constructionId.value, selectedDesignChangeId.value),
-      getConstructionPccesCostBreakdown(constructionId.value, selectedDesignChangeId.value)
+      getConstructionPccesCostBreakdown(constructionId.value, selectedDesignChangeId.value),
+      getConstructionPccesResources(constructionId.value, selectedDesignChangeId.value)
     ])
     items.value = data.map(convertToProjectItem)
     breakdownItems.value = bdRows.map(convertToBreakdownProjectItem)
+    resourceRows.value = resRows
     updateTreeGridData()
     breakdownTreeGridData.value = buildBreakdownTreeData(breakdownItems.value)
     await applyDiffFromPreviousVersion()
@@ -1129,6 +1584,7 @@ const loadItems = async () => {
     treeGridData.value = []
     breakdownItems.value = []
     breakdownTreeGridData.value = []
+    resourceRows.value = []
   } finally {
     isLoading.value = false
   }
@@ -1482,8 +1938,10 @@ onActivated(() => {
   flex-direction: column;
   border: 1px solid #475569;
   border-radius: 0.375rem;
-  overflow: hidden;
-  height: 600px;
+  /* 避免 TreeGrid 捲動到底部時內容被外層裁切 */
+  overflow: visible;
+  height: calc(100vh - 180px);
+  min-height: 520px;
   background-color: #0f172a; /* 使用深色背景，與專案主題一致 */
 }
 
@@ -1499,12 +1957,29 @@ onActivated(() => {
 .treegrid-body {
   flex: 1;
   min-height: 0;
+  overflow: hidden;
   background-color: #0f172a; /* 確保內容區域也是深色背景 */
+}
+
+.material-inspection-container {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 1rem;
+  box-sizing: border-box;
+}
+
+.material-inspection-container > * {
+  flex: 1;
+  min-height: 0;
 }
 
 /* 確保 TreeGrid 本身使用深色背景 */
 :deep(.e-treegrid) {
   background-color: #0f172a !important;
+  height: 100% !important;
 }
 
 :deep(.e-treegrid .e-gridcontent),
@@ -1512,6 +1987,11 @@ onActivated(() => {
 :deep(.e-treegrid .e-content),
 :deep(.e-treegrid .e-headercontent) {
   background-color: #0f172a !important;
+}
+
+/* 讓列內容區固定在容器內捲動，避免到底部被裁切/閃爍 */
+:deep(.e-treegrid .e-gridcontent) {
+  overflow-y: auto !important;
 }
 
 :deep(.e-treegrid .e-row),
@@ -1558,6 +2038,7 @@ onActivated(() => {
   background-color: #0f172a;
   color: #fff;
 }
+
 
 @media (max-width: 575.98px) {
   .project-item-database-page {

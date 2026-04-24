@@ -8,9 +8,15 @@
 }
 .card {
 	--#{$prefix}border-color-rgb: var(--#{$prefix}body-color-rgb);
+	/* Construction Manager: 統一卡片視覺（參考監造端報表卡片） */
+	--cm-card-bg: linear-gradient(135deg, rgba(15, 23, 42, 0.92), rgba(30, 41, 59, 0.85));
 	
 	position: relative;
-	border: none;
+	background: var(--cm-card-bg);
+	border: 1px solid var(--#{$prefix}border-color-translucent);
+	border-radius: var(--#{$prefix}border-radius, 0.375rem);
+	box-shadow: 0 18px 44px rgba(0, 0, 0, 0.22);
+	overflow: hidden;
 	
 	&.border-theme {
 		--#{$prefix}border-color-rgb: var(--#{$prefix}theme-rgb);
@@ -122,14 +128,14 @@
 			position: absolute;
 			width: 2px;
 			height: 8px;
-			background: rgba(var(--#{$prefix}border-color-rgb), .75);
+			background: rgba(var(--#{$prefix}border-color-rgb), .45);
 		}
 		&:after {
 			content: '';
 			position: absolute;
 			width: 10px;
 			height: 2px;
-			background: rgba(var(--#{$prefix}border-color-rgb), .75);
+			background: rgba(var(--#{$prefix}border-color-rgb), .45);
 		}
 	}
 	& .card-arrow-top-left,

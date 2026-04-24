@@ -189,6 +189,7 @@ export const useAppContractorSidebarMenuStore = defineStore("appContractorSideba
                 children: [
                   { text: "分項工程維護", url: "/forms/subdivision-work-items" },
                   { text: "P-1 整體施工計畫", url: "/forms/p1-overall-construction-plan" },
+                  { text: "P-2 整體品質計劃", url: "/forms/p2-quality-plan" },
                 ],
               },
         ],

@@ -83,6 +83,38 @@ const canDeleteRow = (row: User) => {
   return true
 }
 
+/** 是否可變更該列使用者的系統角色（不可改自己；ADMIN 僅能改目前為 USER 的帳號） */
+const canEditSystemRole = (row: User) => {
+  const selfId = authStore.user?.userId
+  if (!selfId || row.userId === selfId) return false
+  const targetRole = row.systemRole || row.role || 'USER'
+  if (currentRole.value === 'SUPER_ADMIN') return true
+  if (currentRole.value === 'ADMIN') return targetRole === 'USER'
+  return false
+}
+
+const roleOptionsForEditor = (_row: User): string[] => {
+  if (currentRole.value === 'SUPER_ADMIN') return ['USER', 'ADMIN', 'SUPER_ADMIN']
+  if (currentRole.value === 'ADMIN') return ['USER', 'ADMIN']
+  return []
+}
+
+const onSystemRoleChange = async (row: User, event: Event) => {
+  const select = event.target as HTMLSelectElement
+  const newRole = select.value
+  const oldRole = row.systemRole || row.role || 'USER'
+  if (newRole === oldRole) return
+  try {
+    await userApi.updateSystemRole(row.userId, newRole)
+    row.systemRole = newRole
+    row.role = newRole
+  } catch (e) {
+    console.error('更新系統角色失敗:', e)
+    select.value = oldRole
+    alert('更新系統角色失敗，請確認權限或稍後再試')
+  }
+}
+
 const deleteUser = async (row: User) => {
   if (!canDeleteRow(row)) return
   const ok = window.confirm(
@@ -161,7 +193,7 @@ onMounted(() => {
           <e-column field="userId" headerText="用戶ID" width="150" textAlign="Left"></e-column>
           <e-column field="username" headerText="用戶名稱" width="180" textAlign="Left"></e-column>
           <e-column field="email" headerText="電子郵件" width="220" textAlign="Left"></e-column>
-          <e-column field="role" headerText="系統角色" width="120" textAlign="Center" :template="'roleTemplate'"></e-column>
+          <e-column field="role" headerText="系統角色" width="200" textAlign="Center" :template="'roleTemplate'"></e-column>
           <e-column field="companyIds" headerText="所屬公司" width="150" textAlign="Left" :template="'companyTemplate'"></e-column>
           <e-column field="verify" headerText="驗證狀態" width="100" textAlign="Center" :template="'verifyTemplate'"></e-column>
           <e-column field="isPaidUser" headerText="付費用戶" width="100" textAlign="Center" :template="'paidUserTemplate'"></e-column>
@@ -171,7 +203,17 @@ onMounted(() => {
         </e-columns>
 
         <template v-slot:roleTemplate="{ data }">
-          <span>{{ formatRole(data.systemRole || data.role) }}</span>
+          <select
+            v-if="canEditSystemRole(data)"
+            class="form-select form-select-sm"
+            :value="data.systemRole || data.role || 'USER'"
+            @change="onSystemRoleChange(data, $event)"
+          >
+            <option v-for="opt in roleOptionsForEditor(data)" :key="opt" :value="opt">
+              {{ formatRole(opt) }}
+            </option>
+          </select>
+          <span v-else>{{ formatRole(data.systemRole || data.role) }}</span>
         </template>
 
         <template v-slot:companyTemplate="{ data }">
