@@ -25,8 +25,10 @@ const props = withDefaults(
     flowJson: string
     /** 畫面高度（純顯示用，不影響 Content 匯出） */
     height?: string
+    /** 顯示語意：流程圖或組織圖 */
+    displayMode?: 'flow' | 'organization'
   }>(),
-  { height: '520px' }
+  { height: '520px', displayMode: 'flow' }
 )
 
 type FlowNode = { id: string; label: string; kind: string }
@@ -38,6 +40,11 @@ const hostEl = ref<HTMLElement | null>(null)
 const nodes = ref<NodeModel[]>([])
 const connectors = ref<ConnectorModel[]>([])
 const isCreated = ref(false)
+
+let readyResolve: (() => void) | null = null
+const readyPromise = new Promise<void>((resolve) => {
+  readyResolve = resolve
+})
 
 const layout = computed<DiagramModel['layout']>(() => ({
   type: 'HierarchicalTree',
@@ -59,7 +66,18 @@ function estimateDisplayUnits(s: string): number {
   return Math.max(0, u)
 }
 
-function computeNodeSize(kind: string, label: string): { width: number; height: number; fontSize: number } {
+function computeNodeSize(kind: string, label: string, displayMode: 'flow' | 'organization'): { width: number; height: number; fontSize: number } {
+  if (displayMode === 'organization') {
+    const fontSize = 14
+    const lineHeight = 18
+    const paddingY = 12
+    const width = 178
+    const maxUnitsPerLine = 10
+    const units = estimateDisplayUnits(label)
+    const lines = Math.max(1, Math.ceil(units / maxUnitsPerLine))
+    const height = Math.max(54, paddingY * 2 + lines * lineHeight)
+    return { width, height, fontSize }
+  }
   const k = kind.toLowerCase()
   const fontSize = 14
   const lineHeight = 18
@@ -91,7 +109,7 @@ function safeParse(raw: string): FlowGraph | null {
 function makeNode(n: FlowNode): NodeModel {
   const kind = String(n.kind ?? 'process').toLowerCase()
   const label = String(n.label ?? '').trim()
-  const size = computeNodeSize(kind, label)
+  const size = computeNodeSize(kind, label, props.displayMode)
   const base: NodeModel = {
     id: String(n.id ?? '').trim(),
     annotations: [
@@ -113,6 +131,10 @@ function makeNode(n: FlowNode): NodeModel {
       ~NodeConstraints.Rotate
   }
 
+  if (props.displayMode === 'organization') {
+    return { ...base, width: size.width, height: size.height, shape: { type: 'Basic', shape: 'Rectangle' } }
+  }
+
   if (kind === 'start' || kind === 'end') {
     return { ...base, width: size.width, height: size.height, shape: { type: 'Basic', shape: 'Ellipse' } }
   }
@@ -123,13 +145,14 @@ function makeNode(n: FlowNode): NodeModel {
 }
 
 function makeConnector(e: FlowEdge): ConnectorModel {
+  const isOrganization = props.displayMode === 'organization'
   return {
     id: `c-${String(e.from)}-${String(e.to)}`,
     sourceID: String(e.from),
     targetID: String(e.to),
     type: 'Orthogonal',
     style: { strokeColor: '#666', strokeWidth: 1 },
-    targetDecorator: { shape: 'Arrow', style: { fill: '#666', strokeColor: '#666' } },
+    targetDecorator: isOrganization ? { shape: 'None' } : { shape: 'Arrow', style: { fill: '#666', strokeColor: '#666' } },
     constraints:
       (ConnectorConstraints.Default | ConnectorConstraints.InheritLineRouting | ConnectorConstraints.InheritBridging) &
       ~ConnectorConstraints.Select &
@@ -138,6 +161,9 @@ function makeConnector(e: FlowEdge): ConnectorModel {
       ~ConnectorConstraints.DragTargetEnd &
       ~ConnectorConstraints.DragSegmentThumb,
     annotations:
+      isOrganization
+        ? []
+        :
       e.label && String(e.label).trim()
         ? [
             {
@@ -151,6 +177,43 @@ function makeConnector(e: FlowEdge): ConnectorModel {
           ]
         : []
   }
+}
+
+function wouldCreateCycle(adjacency: Map<string, string[]>, from: string, to: string): boolean {
+  if (!from || !to) return false
+  if (from === to) return true
+  const stack = [to]
+  const visited = new Set<string>()
+  while (stack.length) {
+    const current = stack.pop()!
+    if (current === from) return true
+    if (visited.has(current)) continue
+    visited.add(current)
+    const nextList = adjacency.get(current) ?? []
+    for (const next of nextList) stack.push(next)
+  }
+  return false
+}
+
+function makeAcyclicEdges(edges: FlowEdge[], idSet: Set<string>): FlowEdge[] {
+  const adjacency = new Map<string, string[]>()
+  const accepted: FlowEdge[] = []
+  const seen = new Set<string>()
+  for (const edge of edges || []) {
+    const from = String(edge.from ?? '').trim()
+    const to = String(edge.to ?? '').trim()
+    if (!idSet.has(from) || !idSet.has(to)) continue
+    if (!from || !to || from === to) continue
+    const key = `${from}__${to}__${String(edge.label ?? '').trim()}`
+    if (seen.has(key)) continue
+    if (wouldCreateCycle(adjacency, from, to)) continue
+    seen.add(key)
+    accepted.push({ ...edge, from, to, label: String(edge.label ?? '').trim() })
+    const list = adjacency.get(from) ?? []
+    list.push(to)
+    adjacency.set(from, list)
+  }
+  return accepted
 }
 
 async function applyLayoutAndFit() {
@@ -192,9 +255,7 @@ async function rebuild() {
 
   const idSet = new Set(g.nodes.map(n => String(n.id ?? '').trim()).filter(Boolean))
   nodes.value = g.nodes.map(makeNode).filter(x => !!x.id)
-  connectors.value = (g.edges || [])
-    .filter(e => idSet.has(String(e.from)) && idSet.has(String(e.to)) && String(e.from) !== String(e.to))
-    .map(makeConnector)
+  connectors.value = makeAcyclicEdges(g.edges || [], idSet).map(makeConnector)
 
   if (isCreated.value) await applyLayoutAndFit()
 }
@@ -209,6 +270,8 @@ onMounted(() => void rebuild())
 
 function onCreated() {
   isCreated.value = true
+  readyResolve?.()
+  readyResolve = null
   setTimeout(() => void applyLayoutAndFit(), 0)
 }
 
@@ -225,6 +288,10 @@ function dataUrlToBlob(dataUrl: string): Blob | null {
 }
 
 async function exportPngBlob(): Promise<Blob | null> {
+  // 確保 Syncfusion 已完成 created，避免偶發拿不到 ej2Instances
+  if (!isCreated.value) {
+    await Promise.race([readyPromise, new Promise((r) => setTimeout(r, 2500))])
+  }
   const ej = (diagramRef.value as any)?.ej2Instances as Diagram | undefined
   if (!ej) return null
   try {
@@ -244,7 +311,17 @@ async function exportPngBlob(): Promise<Blob | null> {
   }
 }
 
-defineExpose({ exportPngBlob })
+async function waitUntilReady(timeoutMs: number = 2500): Promise<boolean> {
+  if (isCreated.value) return true
+  try {
+    await Promise.race([readyPromise, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), timeoutMs))])
+    return true
+  } catch {
+    return false
+  }
+}
+
+defineExpose({ exportPngBlob, waitUntilReady })
 </script>
 
 <template>

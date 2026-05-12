@@ -10,10 +10,10 @@
         v-if="showBulkToolbar"
         class="hierarchy-bulk-toolbar d-flex flex-nowrap align-items-center w-100"
         role="region"
-        aria-label="搜尋與階層展開收合"
+        :aria-label="bulkToolbarAriaLabel"
       >
         <slot name="bulk-left">
-          <div class="hierarchy-bulk-toolbar__search flex-grow-1 min-w-0">
+          <div v-if="showHierarchySearch" class="hierarchy-bulk-toolbar__search flex-grow-1 min-w-0">
             <label class="visually-hidden" for="hierarchy-search-input">搜尋抽查標準階層</label>
             <div class="hierarchy-search-merge d-flex align-items-center gap-2 min-w-0">
               <i class="fa fa-search hierarchy-search-merge__icon flex-shrink-0" aria-hidden="true"></i>
@@ -38,14 +38,14 @@
             class="btn-ai-generate btn-ai-generate--toolbar"
             :disabled="aiGenerating"
             @click="emit('aiGenerateFromDb')"
-            title="依資料庫內容由 AI 產出抽查標準並覆寫"
+            :title="aiGenerateButtonTitle"
           >
             <i
               class="fa fa-wand-magic-sparkles me-1 me-sm-2 d-none d-sm-inline"
               aria-hidden="true"
             ></i>
             <span v-if="aiGenerating" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true" />
-            依資料庫AI生成
+            {{ aiGenerateButtonLabel }}
           </button>
           <button
             type="button"
@@ -105,7 +105,11 @@
             <span class="hierarchy-label">施工階段</span>
             <span class="hierarchy-value text-truncate">{{ pRow.phaseKey }}</span>
           </div>
-          <div v-if="interactive" class="hierarchy-actions hierarchy-actions--inline flex-shrink-0" @click.stop>
+          <div
+            v-if="interactive && !lockFlowStructure"
+            class="hierarchy-actions hierarchy-actions--inline flex-shrink-0"
+            @click.stop
+          >
             <button
               type="button"
               class="btn btn-sm btn-outline-primary"
@@ -127,7 +131,7 @@
               class="hierarchy-flow"
             >
               <div class="hierarchy-panel hierarchy-panel--flow">
-              <!-- 施工流程 -->
+              <!-- 第二層：預設「施工流程」，P 類動態頁可改為「主要工序」 -->
               <div
                 class="hierarchy-header hierarchy-header--flow"
                 :class="{ 'is-collapsed': !isFlowOpen(String(pRow.phaseKey), fr.flowIdx) }"
@@ -155,12 +159,12 @@
                   @keydown.enter.prevent="toggleFlow(String(pRow.phaseKey), fr.flowIdx)"
                   @keydown.space.prevent="toggleFlow(String(pRow.phaseKey), fr.flowIdx)"
                 >
-                  <span class="hierarchy-label">施工流程</span>
+                  <span class="hierarchy-label">{{ secondLevelHeaderLabel }}</span>
                   <span
                     class="hierarchy-value text-truncate"
-                    :class="{ 'is-clickable': interactive }"
-                    :title="interactive ? '點擊編輯流程名稱' : undefined"
-                    :tabindex="interactive ? 0 : -1"
+                    :class="{ 'is-clickable': interactive && !lockFlowStructure }"
+                    :title="interactive && !lockFlowStructure ? '點擊編輯流程名稱' : undefined"
+                    :tabindex="interactive && !lockFlowStructure ? 0 : -1"
                     @click.stop="
                       onFlowNameActivate(String(pRow.phaseKey), fr.flowIdx, $event)
                     "
@@ -174,6 +178,7 @@
                 </div>
                 <div v-if="interactive" class="hierarchy-actions hierarchy-actions--inline flex-shrink-0" @click.stop>
                   <button
+                    v-if="!hideAddMgmtItem"
                     type="button"
                     class="btn btn-sm btn-outline-primary"
                     @click="emit('addMgmtItem', String(pRow.phaseKey), fr.flowIdx)"
@@ -181,6 +186,7 @@
                     <i class="fa fa-plus me-1" aria-hidden="true"></i>新增管理項目
                   </button>
                   <button
+                    v-if="!lockFlowStructure"
                     type="button"
                     class="btn btn-sm btn-outline-danger"
                     @click="emit('removeFlow', String(pRow.phaseKey), fr.flowIdx)"
@@ -205,7 +211,13 @@
                         <th style="width: 150px">抽查頻率</th>
                         <th style="width: 200px">抽查方法</th>
                         <th>不合格之處理</th>
-                        <th v-if="interactive" style="width: 72px" class="text-center">操作</th>
+                        <th
+                          v-if="interactive && !hideRemoveRowButton"
+                          style="width: 72px"
+                          class="text-center"
+                        >
+                          操作
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -331,7 +343,10 @@
                           >
                             {{ row.sub.failureHandle || '—' }}
                           </td>
-                          <td v-if="interactive" class="text-center align-middle text-nowrap">
+                          <td
+                            v-if="interactive && !hideRemoveRowButton"
+                            class="text-center align-middle text-nowrap"
+                          >
                             <div class="d-flex flex-column gap-1">
                               <button
                                 v-if="row.sub.id != null && row.sub.id !== undefined"
@@ -346,8 +361,13 @@
                         </tr>
                       </template>
                       <tr v-else>
-                        <td :colspan="interactive ? 8 : 7" class="text-center text-muted py-3">
-                          此施工流程下暫無明細列，請使用右上方「新增管理項目」。
+                        <td :colspan="innerTableColspan" class="text-center text-muted py-3">
+                          <template v-if="hideAddMgmtItem">
+                            此{{ secondLevelHeaderLabel }}下暫無明細列。
+                          </template>
+                          <template v-else>
+                            此{{ secondLevelHeaderLabel }}下暫無明細列，請使用右上方「新增管理項目」。
+                          </template>
                         </td>
                       </tr>
                     </tbody>
@@ -358,7 +378,7 @@
             </div>
           </template>
           <div v-else class="hierarchy-panel-empty hierarchy-panel-empty--muted">
-            此施工階段尚無施工流程資料
+            此施工階段尚無{{ secondLevelHeaderLabel }}資料
           </div>
         </div>
         </div>
@@ -389,17 +409,44 @@ const props = withDefaults(
     emptyText?: string
     /** 不為空時將收合狀態寫入 localStorage */
     persistenceKey?: string
+    /** 為 true 時隱藏「新增／刪除施工流程」且不可點擊編輯流程名稱（P 類動態頁：流程由施工方法與步驟帶入） */
+    lockFlowStructure?: boolean
+    /** 為 false 時隱藏工具列搜尋框且不篩選階層（P 類動態頁） */
+    showHierarchySearch?: boolean
+    /** 第二層標題文字（預設「施工流程」；P 類可改為「主要工序」） */
+    secondLevelHeaderLabel?: string
+    /** 為 true 時隱藏「新增管理項目」按鈕（P 類動態頁：明細由 reconcile 產生，不手動新增群組） */
+    hideAddMgmtItem?: boolean
+    /** 為 true 時隱藏明細列「刪除」按鈕與操作欄（P 類動態頁） */
+    hideRemoveRowButton?: boolean
+    /** AI 生成按鈕顯示文字（預設「依資料庫AI生成」） */
+    aiGenerateButtonLabel?: string
+    /** AI 生成按鈕 title 提示 */
+    aiGenerateButtonTitle?: string
   }>(),
   {
     interactive: false,
     showAiGenerateButton: true,
     aiGenerating: false,
     emptyText: '目前尚無資料',
-    persistenceKey: ''
+    persistenceKey: '',
+    lockFlowStructure: false,
+    showHierarchySearch: true,
+    secondLevelHeaderLabel: '施工流程',
+    hideAddMgmtItem: false,
+    hideRemoveRowButton: false,
+    aiGenerateButtonLabel: '依資料庫AI生成',
+    aiGenerateButtonTitle: '依資料庫內容由 AI 產出抽查標準並覆寫'
   }
 )
 
 const displayPhases = computed(() => withFixedWorkProcessGroups(props.phases ?? {}))
+
+const innerTableColspan = computed(() => {
+  if (!props.interactive) return 7
+  if (props.hideRemoveRowButton) return 7
+  return 8
+})
 
 const hasAnyStdContent = computed(() =>
   Object.values(displayPhases.value).some((b) => (b.flows ?? []).some((f) => (f.rows?.length ?? 0) > 0))
@@ -407,9 +454,15 @@ const hasAnyStdContent = computed(() =>
 
 const showBulkToolbar = computed(() => Object.keys(displayPhases.value).length > 0)
 
+const bulkToolbarAriaLabel = computed(() =>
+  props.showHierarchySearch ? '搜尋與階層展開收合' : '階層展開收合'
+)
+
 const hierarchySearch = ref('')
 
-const searchQueryActive = computed(() => hierarchySearch.value.trim().length > 0)
+const searchQueryActive = computed(
+  () => props.showHierarchySearch && hierarchySearch.value.trim().length > 0
+)
 
 function subItemMatches(sub: InspectionRow, q: string): boolean {
   const parts = [
@@ -482,7 +535,7 @@ function flattenMgmtRows(fr: HierarchyFlowRow): { mgmtIdx: number; subIdx: numbe
 
 const hierarchyViewRows = computed((): HierarchyPhaseRow[] => {
   const raw = displayPhases.value
-  const q = hierarchySearch.value.trim().toLowerCase()
+  const q = (props.showHierarchySearch ? hierarchySearch.value : '').trim().toLowerCase()
   const out: HierarchyPhaseRow[] = []
 
   for (const [phaseKey, block] of Object.entries(raw)) {
@@ -700,12 +753,23 @@ function onFlowNameActivate(phaseKey: string, flowIdx: number, e: MouseEvent) {
     toggleFlow(phaseKey, flowIdx)
     return
   }
+  if (props.lockFlowStructure) {
+    toggleFlow(phaseKey, flowIdx)
+    return
+  }
   emit('editFlow', phaseKey, flowIdx)
 }
 
 function onFlowNameKeydown(phaseKey: string, flowIdx: number, e: KeyboardEvent) {
   e.stopPropagation()
   if (!props.interactive) return
+  if (props.lockFlowStructure) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      toggleFlow(phaseKey, flowIdx)
+    }
+    return
+  }
   if (e.key === 'Enter' || e.key === ' ') {
     e.preventDefault()
     emit('editFlow', phaseKey, flowIdx)

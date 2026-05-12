@@ -65,6 +65,16 @@
                 </li>
               </ul>
             </div>
+            <button
+              type="button"
+              class="btn-ai-generate p1-batch-ai-btn"
+              :disabled="isAiGenerating || isExporting || !currentProject?.id"
+              title="依目前版本標單／分項／工程地點，由 AI 一次生成本頁所有可生成的文字與表格欄位"
+              @click="generateAllByAi"
+            >
+              <i class="fa me-2" :class="isAiGenerating ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
+              <span>{{ isAiGenerating ? '生成中…' : '一鍵 AI 生成' }}</span>
+            </button>
             <button type="button" class="btn b2-export-btn" :disabled="isExporting" @click="exportWord">
               <i class="fa fa-file-word"></i>
               {{ isExporting ? '匯出中…' : '匯出 Word' }}
@@ -1067,6 +1077,7 @@ import {
   type ContractorDocumentClassification,
   type SupervisoryBNonDefaultRow
 } from '@/api/contractorDocumentClassification'
+import { requestContractorPMenuSidebarRefresh } from '@/utils/contractorPMenuSidebar'
 import {
   getConstructionDetail,
   getP1TextAiGenerate,
@@ -1379,6 +1390,7 @@ async function copyP1SupervisoryBToP() {
       contractorDesignChangeId: selectedDesignChangeId.value
     })
     await rebuildP1CustomPPlanRows(currentP1CustomPPlanScheduleJson())
+    requestContractorPMenuSidebarRefresh()
     window.alert('已複製到營造 P 類')
     showP1SupervisoryModal.value = false
   } catch (e: any) {
@@ -1405,6 +1417,7 @@ async function handlePClassificationAdd(data: {
       requiredSubmissionSchedule: data.requiredSubmissionSchedule ?? ''
     })
     await rebuildP1CustomPPlanRows(currentP1CustomPPlanScheduleJson())
+    requestContractorPMenuSidebarRefresh()
   } catch (error) {
     console.error(error)
     window.alert('新增失敗')
@@ -1432,6 +1445,7 @@ async function handlePClassificationUpdate(
         : {})
     })
     await rebuildP1CustomPPlanRows(currentP1CustomPPlanScheduleJson())
+    requestContractorPMenuSidebarRefresh()
   } catch (error) {
     console.error(error)
     window.alert('更新失敗')
@@ -1444,6 +1458,7 @@ async function handlePClassificationDelete(id: number) {
   try {
     await contractorDocumentClassificationApi.delete(cid, id, selectedDesignChangeId.value)
     await rebuildP1CustomPPlanRows(currentP1CustomPPlanScheduleJson())
+    requestContractorPMenuSidebarRefresh()
   } catch (error) {
     console.error(error)
     window.alert('刪除失敗')
@@ -1463,6 +1478,7 @@ async function handlePClassificationReorder(items: DocumentClassification[]) {
     }))
     await contractorDocumentClassificationApi.batchUpdate(cid, selectedDesignChangeId.value, batchItems)
     await rebuildP1CustomPPlanRows(currentP1CustomPPlanScheduleJson())
+    requestContractorPMenuSidebarRefresh()
   } catch (error) {
     console.error(error)
     window.alert('排序儲存失敗')
@@ -2358,6 +2374,258 @@ async function generateMaterialMarketSurveyByAi() {
   }
 }
 
+/**
+ * 一鍵 AI 生成（P-1）
+ *
+ * 設計目標
+ * - 並行呼叫頁面上所有可由 AI 生成的欄位 / 表格，最後一次性 saveP1Texts，
+ *   避免 11 個個別函式各自 PUT 造成的 race condition 與多餘的網路往返。
+ * - 整段流程由 isAiGenerating 維持 true，使用者看到一個完整的 AI 生成中遮罩；
+ *   個別欄位的 aiLoading.* 也同步點亮，讓視覺進度與既有按鈕一致。
+ * - 任一項目失敗只影響該項目，其餘成功項目仍會被套用並儲存；
+ *   失敗清單於結束時以單一 alert 呈現，避免反覆彈窗打斷使用者。
+ *
+ * 涵蓋項目（與既有單欄按鈕一一對應）
+ * 1. 工程規模概述 / 2. 施工執行方向 / 3. 施工流程概述 / 4. 施工流程圖
+ * 5. 地質概述 / 6. 氣候水文概述
+ * 7. 周邊排水系統 / 8. 工區排水措施
+ * 9. 人力資源預定進場時間表（依分項補列，已存在的不重複）
+ * 10. 施工機械設備資源（依標單覆蓋整張表）
+ * 11. 物料市場調查
+ */
+async function generateAllByAi() {
+  const cid = currentProject.value?.id
+  if (!cid) return
+  if (isAiGenerating.value) return
+  const dcid = selectedDesignChangeId.value
+
+  if (autosaveTimer != null) {
+    window.clearTimeout(autosaveTimer)
+    autosaveTimer = null
+  }
+
+  isAiGenerating.value = true
+  aiLoading.value.scaleOverview = true
+  aiLoading.value.executionDirection = true
+  aiLoading.value.processOverview = true
+  aiLoading.value.processFlow = true
+  aiLoading.value.geology = true
+  aiLoading.value.meteo = true
+  aiLoading.value.drainageSurrounding = true
+  aiLoading.value.drainageDewatering = true
+
+  type AiLoadingKey = keyof typeof aiLoading.value
+  type BatchResult = { ok: boolean; reason?: string }
+  type BatchSpec = {
+    label: string
+    loadingKey?: AiLoadingKey
+    run: () => Promise<BatchResult>
+  }
+
+  const specs: BatchSpec[] = [
+    {
+      label: '工程規模概述',
+      loadingKey: 'scaleOverview',
+      run: async () => {
+        const res = await getP1TextAiGenerate(cid, dcid)
+        const t = res?.text?.trim() ?? ''
+        if (!t) return { ok: false, reason: '無內容（請先匯入標單或手動填寫）' }
+        p1ConstructionScaleOverview.value = t
+        return { ok: true }
+      },
+    },
+    {
+      label: '施工執行方向',
+      loadingKey: 'executionDirection',
+      run: async () => {
+        const res = await getP1ConstructionExecutionDirectionAiGenerate(cid, dcid)
+        const t = res?.text?.trim() ?? ''
+        if (!t) return { ok: false, reason: '無內容（請先匯入標單或手動填寫）' }
+        p1ConstructionExecutionDirection.value = t
+        return { ok: true }
+      },
+    },
+    {
+      label: '施工流程概述',
+      loadingKey: 'processOverview',
+      run: async () => {
+        const res = await getP1ConstructionProcessOverviewAiGenerate(cid, dcid)
+        const t = res?.text?.trim() ?? ''
+        if (!t) return { ok: false, reason: '無內容（請先維護標單／分項工程）' }
+        p1ConstructionProcessOverview.value = t
+        return { ok: true }
+      },
+    },
+    {
+      label: '施工流程圖',
+      loadingKey: 'processFlow',
+      run: async () => {
+        const res = await getP1ConstructionProcessFlowAiGenerate(cid, dcid)
+        const flow = res?.flowJson?.trim() ?? ''
+        if (!flow) return { ok: false, reason: '無內容（請先維護標單／分項工程）' }
+        p1ConstructionProcessFlowJson.value = flow
+        return { ok: true }
+      },
+    },
+    {
+      label: '地質概述',
+      loadingKey: 'geology',
+      run: async () => {
+        const res = await getP1SiteJudgementAiGenerate(cid, 'GEOLOGY_OVERVIEW', dcid)
+        const t = res?.text?.trim() ?? ''
+        if (!t) return { ok: false, reason: '工程地址為空或 AI 未產出內容' }
+        p1GeologyOverview.value = t
+        return { ok: true }
+      },
+    },
+    {
+      label: '氣候水文概述',
+      loadingKey: 'meteo',
+      run: async () => {
+        const res = await getP1SiteJudgementAiGenerate(cid, 'METEOROLOGY_HYDROLOGY', dcid)
+        const t = res?.text?.trim() ?? ''
+        if (!t) return { ok: false, reason: '工程地址為空或 AI 未產出內容' }
+        p1MeteorologyHydrology.value = t
+        return { ok: true }
+      },
+    },
+    {
+      label: '周邊排水系統',
+      loadingKey: 'drainageSurrounding',
+      run: async () => {
+        const res = await getP1DrainageAreaAiGenerate(cid, 'SURROUNDING_SYSTEM', dcid)
+        const t = res?.text?.trim() ?? ''
+        if (!t) return { ok: false, reason: '請確認工程地點與標單／分項資料' }
+        p1SurroundingDrainageSystem.value = t
+        return { ok: true }
+      },
+    },
+    {
+      label: '工區排水措施',
+      loadingKey: 'drainageDewatering',
+      run: async () => {
+        const res = await getP1DrainageAreaAiGenerate(cid, 'DEWATERING_MEASURES', dcid)
+        const t = res?.text?.trim() ?? ''
+        if (!t) return { ok: false, reason: '請確認工程地點與標單／分項資料' }
+        p1ConstructionDewateringMeasures.value = t
+        return { ok: true }
+      },
+    },
+    {
+      label: '人力資源預定進場時間表',
+      run: async () => {
+        const res = await getP1ManpowerFromSubdivisionsAiGenerate(cid, dcid)
+        const rows = res?.rows ?? []
+        if (rows.length === 0) return { ok: false, reason: '尚無分項工程資料' }
+        const existingNames = new Set(
+          p1ManpowerEntrySchedule.value
+            .map((r) => r.resourceName.trim())
+            .filter((n) => n.length > 0),
+        )
+        const toAdd: ManpowerScheduleRow[] = []
+        for (const r of rows) {
+          const name = (r.resourceName ?? '').toString().trim()
+          if (!name || existingNames.has(name)) continue
+          existingNames.add(name)
+          toAdd.push({
+            resourceName: name,
+            groupName: (r.groupName ?? '').toString(),
+            maxAvailable: '',
+            startDate: '',
+            endDate: '',
+            isPreset: false,
+          })
+        }
+        if (toAdd.length === 0) {
+          return { ok: false, reason: '既有資料已包含全部分項，未新增列' }
+        }
+        p1ManpowerEntrySchedule.value.push(...toAdd)
+        return { ok: true }
+      },
+    },
+    {
+      label: '施工機械設備資源',
+      run: async () => {
+        const res = await getP1MechanicalResourcesAiGenerate(cid, dcid)
+        const names = (res?.names || [])
+          .map((v) => (v ?? '').toString().trim())
+          .filter((v) => v.length > 0)
+        if (names.length === 0) return { ok: false, reason: '無內容（請先匯入標單）' }
+        p1MechanicalResources.value = names.map((name) => ({
+          resourceName: name,
+          maxAvailable: '',
+          startDate: '',
+          endDate: '',
+        }))
+        return { ok: true }
+      },
+    },
+    {
+      label: '物料市場調查',
+      run: async () => {
+        const res = await getP1MaterialMarketSurveyAiGenerate(cid, dcid)
+        const t = res?.text?.trim() ?? ''
+        if (!t) return { ok: false, reason: '無內容（請先匯入標單）' }
+        p1MaterialMarketSurvey.value = t
+        return { ok: true }
+      },
+    },
+  ]
+
+  const failed: string[] = []
+  let hadAny = false
+
+  try {
+    const results = await Promise.allSettled(specs.map((s) => s.run()))
+    results.forEach((r, idx) => {
+      const spec = specs[idx]
+      if (spec.loadingKey) aiLoading.value[spec.loadingKey] = false
+      if (r.status === 'fulfilled') {
+        const value: BatchResult = r.value
+        if (value.ok) {
+          hadAny = true
+        } else {
+          failed.push(`${spec.label}（${value.reason ?? '未產出內容'}）`)
+        }
+      } else {
+        const e: any = r.reason
+        const msg =
+          e?.response?.data?.error || e?.response?.data?.detail || e?.message || '生成失敗'
+        failed.push(`${spec.label}（${msg}）`)
+      }
+    })
+
+    if (hadAny) {
+      await saveP1Texts()
+    }
+
+    if (failed.length > 0 && typeof window.alert === 'function') {
+      window.alert(
+        '部分項目未生成（其餘已成功生成並儲存）：\n- '
+          + failed.join('\n- ')
+          + '\n\n可單獨重試失敗項目，或先補齊標單／分項工程／工程地點等資料後再執行一鍵 AI 生成。',
+      )
+    }
+  } catch (e: any) {
+    const msg =
+      e?.response?.data?.error
+      || e?.response?.data?.detail
+      || e?.message
+      || '一鍵 AI 生成過程發生錯誤'
+    if (typeof window.alert === 'function') window.alert(msg)
+  } finally {
+    aiLoading.value.scaleOverview = false
+    aiLoading.value.executionDirection = false
+    aiLoading.value.processOverview = false
+    aiLoading.value.processFlow = false
+    aiLoading.value.geology = false
+    aiLoading.value.meteo = false
+    aiLoading.value.drainageSurrounding = false
+    aiLoading.value.drainageDewatering = false
+    isAiGenerating.value = false
+  }
+}
+
 watch(
   [() => currentProject.value?.id, () => currentProject.value?.workspaceId, selectedDesignChangeId],
   () => {
@@ -2579,6 +2847,12 @@ watch(
 .p1-info-icon:focus-visible::after,
 .p1-info-icon:focus-visible::before {
   opacity: 1;
+}
+/** 一鍵 AI 生成（toolbar 內）：尺寸與字級對齊「匯出 Word」按鈕 */
+.p1-batch-ai-btn {
+  padding: 0.5rem 1.2rem;
+  font-size: 0.9375rem;
+  white-space: nowrap;
 }
 .b2-export-btn {
   display: inline-flex;

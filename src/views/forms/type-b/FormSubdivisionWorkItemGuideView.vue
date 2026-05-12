@@ -213,10 +213,15 @@
       </div>
     </template>
   </Modal>
+
+  <!-- 隱藏匯出用：保持與前端預覽一致的 Syncfusion 渲染，供 exportPngBlob 上傳 -->
+  <div class="guide-flow-export-host" aria-hidden="true">
+    <FlowGraphSyncfusionView ref="flowExportRef" :flow-json="flowGraphJson" :height="'520px'" />
+  </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { debounce } from 'lodash'
 import Card from '@/components/bootstrap/Card.vue'
@@ -230,6 +235,7 @@ import {
   getSubdivisionWorkItemGuide,
   listSubdivisionWorkItems,
   upsertSubdivisionWorkItemGuide,
+  uploadSubdivisionWorkItemGuideFlowImage,
   type SubdivisionWorkItem,
   type SubdivisionWorkItemGuideStep
 } from '@/api/subdivisionWorkItems'
@@ -266,6 +272,21 @@ const steps = ref<StepDraft[]>([])
 const flowGraphJson = ref<string>('')
 const showFlowChartModal = ref(false)
 // 表格呈現：不需要收合/展開狀態
+
+const flowExportRef = ref<InstanceType<typeof FlowGraphSyncfusionView> | null>(null)
+const lastUploadedFlowJson = ref<string>('')
+const flowGraphImageObjectName = ref<string>('')
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function tryExportFlowPngBlobWithRetry(): Promise<Blob | null> {
+  const ok = await flowExportRef.value?.waitUntilReady?.(4000)
+  if (!ok) return null
+  const blob = await flowExportRef.value?.exportPngBlob?.()
+  return blob && blob.size > 0 ? blob : null
+}
 
 const flowChartHeightPx = ref('520px')
 
@@ -316,6 +337,7 @@ async function loadAll() {
       designChangeId: designChangeId.value
     })
     flowGraphJson.value = guide.flowGraphJson ?? ''
+    flowGraphImageObjectName.value = String(guide.flowGraphImageObjectName || '')
     steps.value =
       (guide.steps || [])
         .slice()
@@ -339,6 +361,27 @@ async function loadAll() {
   }
 }
 
+async function ensureFlowImageUploaded() {
+  const cid = currentProject.value?.id
+  if (!cid || !Number.isFinite(itemId.value)) return
+  const curFlow = String(flowGraphJson.value || '')
+  if (!curFlow.trim()) return
+  if (flowGraphImageObjectName.value.trim()) return
+
+  await nextTick()
+  const blob = await tryExportFlowPngBlobWithRetry()
+  if (!blob) return
+
+  const file = new File([blob], `subdivision-guide-flow-${itemId.value}.png`, { type: 'image/png' })
+  const res = await uploadSubdivisionWorkItemGuideFlowImage(itemId.value, {
+    constructionId: cid,
+    designChangeId: designChangeId.value,
+    file
+  })
+  flowGraphImageObjectName.value = res?.objectName || ''
+  lastUploadedFlowJson.value = curFlow
+}
+
 async function saveNow() {
   const cid = currentProject.value?.id
   if (!cid || !Number.isFinite(itemId.value)) return
@@ -350,6 +393,24 @@ async function saveNow() {
       flowGraphJson: flowGraphJson.value,
       steps: toPayloadSteps()
     })
+
+    // 以「前端 Syncfusion 匯出」為準，上傳 PNG 供匯出使用（避免留白/樣式不一致）
+    const curFlow = String(flowGraphJson.value || '')
+    if (curFlow.trim() && (curFlow !== lastUploadedFlowJson.value || !flowGraphImageObjectName.value.trim())) {
+      // 等待隱藏 diagram 完成 layout 後再匯出
+      await nextTick()
+      const blob = await tryExportFlowPngBlobWithRetry()
+      if (blob) {
+        const file = new File([blob], `subdivision-guide-flow-${itemId.value}.png`, { type: 'image/png' })
+        const res = await uploadSubdivisionWorkItemGuideFlowImage(itemId.value, {
+          constructionId: cid,
+          designChangeId: designChangeId.value,
+          file
+        })
+        flowGraphImageObjectName.value = res?.objectName || flowGraphImageObjectName.value
+        lastUploadedFlowJson.value = curFlow
+      }
+    }
   } catch (e: any) {
     window.alert(e?.message || '儲存失敗')
   } finally {
@@ -474,6 +535,7 @@ async function generateByAi() {
           equipmentText: toLines(s.equipment),
           notesText: toLines(s.notes)
         }))
+    scheduleAutoSave()
   } catch (e: any) {
     const msg = e?.response?.data?.message ?? e?.message ?? 'AI 生成失敗'
     window.alert(msg)
@@ -492,7 +554,10 @@ function goBack() {
 onMounted(() => {
   recomputeFlowChartHeight()
   window.addEventListener('resize', recomputeFlowChartHeight)
-  void loadAll()
+  void loadAll().then(() => {
+    // 若既有資料沒有上傳過流程圖 PNG，進頁面後自動補上，避免匯出仍落回後端 renderer
+    void ensureFlowImageUploaded()
+  })
 })
 onUnmounted(() => {
   debouncedAutoSave.cancel()
@@ -908,6 +973,18 @@ onUnmounted(() => {
   gap: 0;
   background: transparent;
   color: var(--a4-text);
+}
+
+/* 隱藏匯出用流程圖：放到畫面外，但保留尺寸以便 Syncfusion 正常算 layout */
+.guide-flow-export-host {
+  position: fixed;
+  left: -10000px;
+  top: 0;
+  width: 1200px;
+  height: 520px;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0;
 }
 </style>
 

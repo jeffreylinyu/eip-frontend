@@ -5,6 +5,7 @@ import FlowGraphSyncfusionView from '@/components/diagram/FlowGraphSyncfusionVie
 defineProps<{
   /** P-1 施工流程圖 JSON（type=graph, nodes, edges） */
   flowJson: string
+  displayMode?: 'flow' | 'organization'
 }>()
 
 const innerRef = ref<{ exportPngBlob?: () => Promise<Blob | null> } | null>(null)
@@ -15,6 +16,6 @@ defineExpose({
 </script>
 
 <template>
-  <FlowGraphSyncfusionView ref="innerRef" :flow-json="flowJson" />
+  <FlowGraphSyncfusionView ref="innerRef" :flow-json="flowJson" :display-mode="displayMode" />
 </template>
 

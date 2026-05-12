@@ -52,6 +52,7 @@ export type SubdivisionWorkItemGuide = {
   isFallback?: boolean
   fallbackFromDesignChangeId?: number | null
   flowGraphJson?: string | null
+  flowGraphImageObjectName?: string | null
   materials?: string[]
   equipment?: string[]
   notes?: string[]
@@ -189,6 +190,26 @@ export async function aiGenerateSubdivisionWorkItemGuide(
     throw new Error(wrapped.message || wrapped.error || 'AI 生成失敗')
   }
   return (wrapped?.data as SubdivisionWorkItemGuide) || ({} as SubdivisionWorkItemGuide)
+}
+
+export async function uploadSubdivisionWorkItemGuideFlowImage(
+  subdivisionWorkItemId: number,
+  ctx: { constructionId: string; designChangeId?: number | null; file: File }
+): Promise<{ objectName: string; signedUrl?: string }> {
+  const form = new FormData()
+  form.append('constructionId', ctx.constructionId)
+  if (ctx.designChangeId !== undefined && ctx.designChangeId !== null) {
+    form.append('designChangeId', String(ctx.designChangeId))
+  }
+  form.append('file', ctx.file)
+  const raw = await http.post<unknown>(
+    `/management/construction/subdivision-work-items/${subdivisionWorkItemId}/guide/flow-image/upload`,
+    form,
+    { headers: { 'Content-Type': 'multipart/form-data' } }
+  )
+  if (raw && typeof raw === 'object' && 'objectName' in (raw as any)) return raw as any
+  const wrapped = raw as { data?: any }
+  return wrapped?.data ?? { objectName: '' }
 }
 
 /** 與監造施工大項明細 PATCH 可更新欄位一致（更新時 workProcess 後端會忽略；**建立**明細時可帶以區分施工階段） */

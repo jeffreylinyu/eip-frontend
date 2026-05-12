@@ -1,6 +1,6 @@
 <script lang="ts">
-import { defineComponent, onMounted, ref, watch, computed } from 'vue';
-import { useRouter } from 'vue-router';
+import { defineComponent, onActivated, onMounted, ref, watch, computed } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 // import { useProjectStore } from '@/stores/project'; // 假設有 project store 可以取得當前專案資訊
 import { tenderMaterialApi, type MaterialItem, type UpdateMaterialDetailRequest, type MaterialDetail } from '@/api/tenderMaterial';
 import toastService from '@/components/bootstrap/ToastService.js';
@@ -8,14 +8,17 @@ import { debounce, throttle } from 'lodash';
 import { useWorkspaceStore } from '@/stores/workspace';
 import RepublicDatePicker from '@/components/bootstrap/RepublicDatePicker.vue';
 import DesignChangeVersionSwitcher from '@/components/common/DesignChangeVersionSwitcher.vue';
+import CommonTable from '@/components/common/CommonTable.vue'
 
 export default defineComponent({
   name: 'TenderMaterialSettings',
   components: {
     RepublicDatePicker,
-    DesignChangeVersionSwitcher
+    DesignChangeVersionSwitcher,
+    CommonTable
   },
   setup() {
+    const route = useRoute();
     const router = useRouter();
     const workspaceStore = useWorkspaceStore();
     
@@ -231,6 +234,13 @@ export default defineComponent({
       }
     });
 
+    // 若此頁被 keep-alive 快取，從「品質抽驗管控表」返回時要重新載入筆數狀態
+    onActivated(() => {
+      if (constructionId.value) {
+        loadMaterials();
+      }
+    });
+
     return {
       constructionId,
       selectedDesignChangeId,
@@ -321,39 +331,44 @@ export default defineComponent({
              </div>
           </div>
         
-          <div v-if="isLoading" class="p-5 text-center">
-            <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
-            <p class="mt-2 text-muted">載入中...</p>
-          </div>
-          
-          <div v-else class="card h-100 border-0 rounded-0">
+          <div class="card h-100 border-0 rounded-0">
             <!-- ... options ... -->
             <div class="card-body p-0">
-              <div class="table-responsive h-100">
-                <table class="table table-hover align-middle mb-0" style="min-width: 1000px;">
-                  <thead class="sticky-top bg-body border-bottom">
-                    <tr>
-                      <th style="width: 90px;">項次</th>
-                      <th style="width: 120px;">工項編碼</th>
-                      <th style="min-width: 200px;">材料名稱／數量</th>
-                      <th style="width: 200px;">預定進場日期</th>
-                      <th class="text-center" style="width: 100px;">取樣試驗</th>
-                      <th style="width: 150px;">預定送審日期</th>
-                      <th class="text-center" style="width: 100px;">驗廠</th>
-                      <th style="min-width: 300px;">送審資料</th>
-                      <th class="text-center" style="min-width: 180px;">操作</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-if="groupedMaterials.length === 0">
-                      <td colspan="9" class="text-center py-4 text-muted">
-                        <div>{{ materials.length === 0 ? '目前尚無資料' : '查無符合條件的資料' }}</div>
-                        <div v-if="materials.length === 0" class="small mt-1">
-                          請至工程項目標單 &gt; 單價分析 勾選材料
-                        </div>
-                      </td>
-                    </tr>
-                    <tr v-for="group in groupedMaterials" :key="group.pccesCode">
+              <CommonTable
+                wrapper-class="h-100"
+                table-class="table-hover"
+                :sticky-header="true"
+                :loading="isLoading"
+                :empty="groupedMaterials.length === 0"
+                :colspan="9"
+              >
+                <template #head>
+                  <tr>
+                    <th style="width: 90px;">項次</th>
+                    <th style="width: 120px;">工項編碼</th>
+                    <th style="min-width: 200px;">材料名稱／數量</th>
+                    <th style="width: 200px;">預定進場日期</th>
+                    <th class="text-center" style="width: 100px;">取樣試驗</th>
+                    <th style="width: 150px;">預定送審日期</th>
+                    <th class="text-center" style="width: 100px;">驗廠</th>
+                    <th style="min-width: 300px;">送審資料</th>
+                    <th class="text-center" style="min-width: 180px;">操作</th>
+                  </tr>
+                </template>
+
+                <template #empty>
+                  <tr>
+                    <td colspan="9" class="text-center py-4 text-muted">
+                      <div>{{ materials.length === 0 ? '目前尚無資料' : '查無符合條件的資料' }}</div>
+                      <div v-if="materials.length === 0" class="small mt-1">
+                        請至工程項目標單 &gt; 單價分析 勾選材料
+                      </div>
+                    </td>
+                  </tr>
+                </template>
+
+                <template #body>
+                  <tr v-for="group in groupedMaterials" :key="group.pccesCode">
                       <!-- 項次 -->
                       <td>
                         <input
@@ -487,9 +502,8 @@ export default defineComponent({
                         </div>
                       </td>
                     </tr>
-                  </tbody>
-                </table>
-              </div>
+                </template>
+              </CommonTable>
             </div>
           </div>
         </div>

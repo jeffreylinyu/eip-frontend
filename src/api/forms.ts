@@ -240,6 +240,36 @@ export const formPApi = {
       signal: options?.signal
     })
     return response
+  },
+
+  /** P-3 職業安全衛生管理計畫匯出（目前先支援基本資料 + 工程規模概述） */
+  exportP3OccupationalSafetyHealthPlan: async (
+    request: ExportConstructionReportRequest,
+    options?: { signal?: AbortSignal }
+  ) => {
+    const response = await downloadBlob({
+      url: '/management/generate/export/report/PThree',
+      method: 'POST',
+      data: request,
+      timeout: 300000,
+      signal: options?.signal
+    })
+    return response
+  },
+
+  /** 營造自訂 P 類動態計畫頁（依文件分類表列；與 P-1 前八項＋工程規模概述） */
+  exportPDynamicCustomPlan: async (
+    request: ExportConstructionReportRequest,
+    options?: { signal?: AbortSignal }
+  ) => {
+    const response = await downloadBlob({
+      url: '/management/generate/export/report/PDynamicCustom',
+      method: 'POST',
+      data: request,
+      timeout: 300000,
+      signal: options?.signal
+    })
+    return response
   }
 }
 

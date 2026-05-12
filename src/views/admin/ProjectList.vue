@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, provide, computed, getCurrentInstance } from 'vue'
+import { ref, onMounted, computed, getCurrentInstance, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useWorkspaceStore } from '@/stores/workspace'
@@ -7,7 +7,7 @@ import { getAllConstructions, deleteConstruction, getConstructionDetail, type Co
 import PageHeader from '@/components/bootstrap/PageHeader.vue'
 import Modal from '@/components/bootstrap/Modal.vue'
 import { adminConstructionApi, type AdminConstructionSpecialSettings } from '@/api/adminConstruction'
-import { Sort, Resize, Filter, Page, GridComponent, ColumnsDirective, ColumnDirective, Toolbar } from '@syncfusion/ej2-vue-grids'
+import CommonTable from '@/components/common/CommonTable.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -22,19 +22,37 @@ const hasAdminPermission = computed(() => {
   return systemRole === 'SUPER_ADMIN'
 })
 
-// Grid 相關
-const grid = ref<GridComponent | null>(null)
 const gridData = ref<Construction[]>([])
 const isLoading = ref(false)
 
-// 提供 Grid 服務
-provide('grid', [Sort, Resize, Filter, Page, Toolbar])
+// 一般 table 的搜尋與分頁
+const searchQuery = ref('')
 
-// 分頁設定
-const pageSettings = ref({
-  pageSize: 20,
-  pageSizes: [10, 20, 50, 100],
-  pageCount: 5
+const normalizedQuery = computed(() => searchQuery.value.trim().toLowerCase())
+const filteredData = computed(() => {
+  const q = normalizedQuery.value
+  if (!q) return gridData.value
+
+  return gridData.value.filter((r) => {
+    const haystack = [
+      r.contractId,
+      r.constructionName,
+      r.constructionLocation,
+      r.constructionType,
+      r.leadOrganization,
+      r.contractorCompanyName,
+      r.supervisoryCompanyName
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+
+    return haystack.includes(q)
+  })
+})
+
+watch([normalizedQuery], () => {
+  // 預留：若未來要加回分頁/定位，這裡可以統一重置狀態
 })
 
 // =============================
@@ -216,6 +234,13 @@ onMounted(() => {
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('zh-TW', { style: 'currency', currency: 'TWD', minimumFractionDigits: 0 }).format(value);
 }
+
+const formatDate = (value: any) => {
+  if (!value) return '-'
+  const d = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(d.getTime())) return '-'
+  return new Intl.DateTimeFormat('zh-TW').format(d)
+}
 </script>
 
 <template>
@@ -229,63 +254,91 @@ const formatCurrency = (value: number) => {
       ]"
     />
 
-        <div class="mb-3 d-flex justify-content-between align-items-center">
-            <h5 class="m-0">工程案清單</h5>
-            <button class="btn btn-theme" @click="navigateToCreate">
-                <i class="fa fa-plus-circle me-1"></i> 建立新工程案
-            </button>
-        </div>
-
         <div class="grid-wrapper">
-            <div v-if="isLoading" class="text-center py-5">
-                <div class="spinner-border text-primary" role="status">
-                    <span class="visually-hidden">Loading...</span>
-                </div>
-            </div>
-            
-            <ejs-grid
-                v-else
-                ref="grid"
-                :dataSource="gridData"
-                :allowPaging="true"
-                :pageSettings="pageSettings"
-                :allowSorting="true"
-                :allowFiltering="true"
-                :allowResizing="true"
-                :height="'100%'"
-                locale="zh-TW"
-            >
-                <e-columns>
-                    <e-column headerText="操作" width="240" textAlign="Center" :template="'actionTemplate'"></e-column>
-                    <e-column field="contractId" headerText="工程編號" width="150" textAlign="Left"></e-column>
-                    <e-column field="constructionName" headerText="工程名稱" width="250" textAlign="Left"></e-column>
-                    <e-column field="constructionLocation" headerText="工程地點" width="200" textAlign="Left"></e-column>
-                    <e-column field="constructionType" headerText="工程類型" width="120" textAlign="Center"></e-column>
-                    <e-column field="constructionBudget" headerText="預算金額" width="150" textAlign="Right" :format="'C0'"></e-column> 
-                    <e-column field="leadOrganization" headerText="主辦機關" width="150" textAlign="Left"></e-column>
-                    <e-column field="contractorCompanyName" headerText="營造公司" width="180" textAlign="Left"></e-column>
-                    <e-column field="supervisoryCompanyName" headerText="監造公司" width="180" textAlign="Left"></e-column>
-                    <e-column field="constructionStartDate" headerText="開工日期" width="120" textAlign="Center" type="date" format="yMd"></e-column>
-                    <e-column field="constructionEndDate" headerText="預計完工" width="120" textAlign="Center" type="date" format="yMd"></e-column>
-                </e-columns>
-
-                <template v-slot:actionTemplate="{ data }">
-                    <div class="d-flex justify-content-center gap-2">
-                        <button class="btn btn-sm btn-outline-primary" @click="handleEnter(data)" title="進入工程案">
-                            <i class="fa fa-sign-in me-1"></i>進入
-                        </button>
-                        <button class="btn btn-sm btn-outline-secondary" @click="openSpecialSettings(data)" title="特殊設定">
-                            <i class="fa fa-sliders-h me-1"></i>特殊設定
-                        </button>
-                        <button class="btn btn-sm btn-outline-info" @click="handleManageCompanies(data)" title="設定相關單位公司">
-                            <i class="fa fa-building me-1"></i>設定單位
-                        </button>
-                        <button class="btn btn-sm btn-outline-danger" @click="handleDelete(data)" title="刪除工程案">
-                            <i class="fa fa-trash me-1"></i>刪除
+            <div class="d-flex flex-column h-100">
+                <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mb-2">
+                    <div class="input-group input-group-sm" style="max-width: 420px;">
+                        <span class="input-group-text"><i class="fa fa-search"></i></span>
+                        <input
+                            v-model="searchQuery"
+                            type="text"
+                            class="form-control"
+                            placeholder="搜尋工程編號 / 名稱 / 地點 / 公司..."
+                        />
+                        <button class="btn btn-outline-secondary" type="button" @click="searchQuery = ''" :disabled="!searchQuery">
+                            清除
                         </button>
                     </div>
-                </template>
-            </ejs-grid>
+
+                    <div class="d-flex align-items-center gap-2">
+                        <button class="btn btn-theme btn-sm" @click="navigateToCreate">
+                            <i class="fa fa-plus-circle me-1"></i> 建立新工程案
+                        </button>
+                    </div>
+                </div>
+
+                <CommonTable
+                    wrapperClass="border rounded flex-fill"
+                    :loading="isLoading"
+                    :empty="!isLoading && filteredData.length === 0"
+                    :colspan="11"
+                >
+                    <template #head>
+                        <tr>
+                            <th class="ps-4 text-center actions-col">操作</th>
+                            <th>工程編號</th>
+                            <th>工程名稱</th>
+                            <th>工程地點</th>
+                            <th class="text-center">工程類型</th>
+                            <th class="text-end">預算金額</th>
+                            <th>主辦機關</th>
+                            <th>營造公司</th>
+                            <th>監造公司</th>
+                            <th class="text-center">開工日期</th>
+                            <th class="text-center pe-4">預計完工</th>
+                        </tr>
+                    </template>
+
+                    <template #empty>
+                        <tr>
+                            <td colspan="11" class="text-center text-muted py-4">沒有資料</td>
+                        </tr>
+                    </template>
+
+                    <template #body>
+                        <tr v-for="row in filteredData" :key="row.constructionId || row.contractId || row.constructionName">
+                            <td class="ps-4 text-center actions-col">
+                                <div class="admin-project-actions d-inline-flex justify-content-center gap-2">
+                                    <button class="btn btn-sm btn-outline-primary" @click="handleEnter(row)" title="進入工程案">
+                                        <i class="fa fa-sign-in me-1"></i>進入
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-secondary" @click="openSpecialSettings(row)" title="特殊設定">
+                                        <i class="fa fa-sliders-h me-1"></i>特殊設定
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-info" @click="handleManageCompanies(row)" title="設定相關單位公司">
+                                        <i class="fa fa-building me-1"></i>設定單位
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger" @click="handleDelete(row)" title="刪除工程案">
+                                        <i class="fa fa-trash me-1"></i>刪除
+                                    </button>
+                                </div>
+                            </td>
+                            <td>{{ row.contractId || '-' }}</td>
+                            <td>{{ row.constructionName || '-' }}</td>
+                            <td>{{ row.constructionLocation || '-' }}</td>
+                            <td class="text-center">{{ row.constructionType || '-' }}</td>
+                            <td class="text-end">
+                                {{ typeof row.constructionBudget === 'number' ? formatCurrency(row.constructionBudget) : '-' }}
+                            </td>
+                            <td>{{ row.leadOrganization || '-' }}</td>
+                            <td>{{ row.contractorCompanyName || '-' }}</td>
+                            <td>{{ row.supervisoryCompanyName || '-' }}</td>
+                            <td class="text-center">{{ formatDate(row.constructionStartDate) }}</td>
+                            <td class="text-center pe-4">{{ formatDate(row.constructionEndDate) }}</td>
+                        </tr>
+                    </template>
+                </CommonTable>
+            </div>
         </div>
 
         <!-- 特殊設定 Modal -->
@@ -357,5 +410,15 @@ const formatCurrency = (value: number) => {
 <style scoped>
 .grid-wrapper {
     height: 600px;
+}
+
+.admin-project-actions {
+    flex-wrap: nowrap;
+    white-space: nowrap;
+}
+
+.actions-col {
+    width: 1%;
+    white-space: nowrap;
 }
 </style>

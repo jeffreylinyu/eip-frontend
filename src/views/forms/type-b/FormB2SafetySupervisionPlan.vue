@@ -67,6 +67,16 @@
           </div>
           <button
             type="button"
+            class="btn-ai-generate b2-batch-ai-btn"
+            :disabled="isB2AiGenerating || !currentProject?.id"
+            title="依目前版本標單由 AI 一次生成上方所有文字欄位（地理人文、工程地點、規模概述、預算）"
+            @click="generateAllB2TextByAi"
+          >
+            <i class="fa me-2" :class="isB2AiGenerating ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
+            <span>{{ isB2AiGenerating ? '生成中…' : '一鍵 AI 生成' }}</span>
+          </button>
+          <button
+            type="button"
             class="btn b2-export-btn"
             :disabled="isExporting || !currentProject?.id || isExportBlockedBySafetyAck"
             :title="isExportBlockedBySafetyAck ? '請先完成下方「安全衛生設施標示」確認，再進行匯出' : '匯出安全衛生監督查核計畫（Word）'"
@@ -813,6 +823,95 @@ async function generateB2TextByAi(field: B2TextAiField) {
   }
 }
 
+/**
+ * 一鍵 AI 生成：**並行**對頁面上 4 個 AI 欄位呼叫生成 API。
+ *
+ * 為何用並行 (Promise.allSettled)：
+ * - 4 個欄位互不相依，不需要互等。
+ * - 比起 sequential 4 次來回（4 × RTT + 4 × LLM latency），改成 max(4 × LLM latency)
+ *   實際大幅縮短整體等待時間。
+ *
+ * 為何用 allSettled 而不是 all：
+ * - 任何一個欄位失敗都不應該打斷其他欄位的成功結果。
+ * - 已成功生成的欄位仍然會寫入 ref 並一次性儲存；失敗的欄位列在最後彈窗給使用者，
+ *   可以單獨重新生成。
+ *
+ * 為何只 saveB2Texts 一次：
+ * - sequential 版本每欄都呼叫一次 saveB2Texts → 4 次寫入後端。
+ * - 並行版本所有 ref 都寫好後統一儲存一次，網路成本降低且避免並發寫入競態。
+ */
+async function generateAllB2TextByAi() {
+  if (!currentProject.value?.id) return
+  if (isB2AiGenerating.value) return
+  const cid = currentProject.value.id
+
+  // 中斷自動儲存，避免邊生成邊存
+  cancelTextAutoSave()
+  isB2AiGenerating.value = true
+  aiLoading.geo = true
+  aiLoading.env = true
+  aiLoading.scale = true
+  aiLoading.budget = true
+
+  type FieldSpec = {
+    field: B2TextAiField
+    apply: (text: string) => void
+    loadingKey: 'geo' | 'env' | 'scale' | 'budget'
+    label: string
+  }
+  const fields: FieldSpec[] = [
+    { field: 'GEO_HUMAN_ENVIRONMENT_OVERVIEW', apply: t => (b2GeoHumanEnvironmentOverview.value = t), loadingKey: 'geo', label: '地理人文環境概述' },
+    { field: 'LOCATION_OBJECTIVE_ENVIRONMENT', apply: t => (b2LocationObjectiveEnvironment.value = t), loadingKey: 'env', label: '工程地點及客觀環境' },
+    { field: 'CONSTRUCTION_SCALE_OVERVIEW', apply: t => (b2ConstructionScaleOverview.value = t), loadingKey: 'scale', label: '工程規模概述' },
+    { field: 'CONSTRUCTION_BUDGET_TEXT', apply: t => (b2ConstructionBudgetText.value = t), loadingKey: 'budget', label: '工程預算' },
+  ]
+  const failed: string[] = []
+  let hadAny = false
+
+  try {
+    const results = await Promise.allSettled(
+      fields.map(f => getB2TextsAiGenerate(cid, f.field, selectedDesignChangeId.value)),
+    )
+    results.forEach((r, idx) => {
+      const spec = fields[idx]
+      // 每欄位結束就把個別 loading 關掉，讓使用者可以看到漸進進度
+      aiLoading[spec.loadingKey] = false
+      if (r.status === 'fulfilled') {
+        const text = r.value?.text?.trim() ?? ''
+        if (text) {
+          spec.apply(text)
+          hadAny = true
+        } else {
+          failed.push(`${spec.label}（無內容；可能是版本沒標單）`)
+        }
+      } else {
+        const e: any = r.reason
+        const msg = e?.response?.data?.error || e?.response?.data?.detail || e?.message || '生成失敗'
+        failed.push(`${spec.label}（${msg}）`)
+      }
+    })
+    if (hadAny) {
+      await saveB2Texts()
+    }
+    if (failed.length > 0 && typeof (window as any).alert === 'function') {
+      ;(window as any).alert(
+        '部分欄位未生成（其餘已成功生成並儲存）：\n- '
+        + failed.join('\n- ')
+        + '\n\n可單獨重試失敗欄位，或檢查版本標單後再執行一鍵 AI 生成。',
+      )
+    }
+  } catch (e: any) {
+    const msg = e?.response?.data?.error || e?.response?.data?.detail || e?.message || '一鍵生成過程發生錯誤'
+    if (typeof (window as any).alert === 'function') (window as any).alert(msg)
+  } finally {
+    aiLoading.geo = false
+    aiLoading.env = false
+    aiLoading.scale = false
+    aiLoading.budget = false
+    isB2AiGenerating.value = false
+  }
+}
+
 async function loadImages(type: ImageType) {
   const cid = currentProject.value?.id
   if (!cid) {
@@ -1125,6 +1224,13 @@ watch(
 .b2-refdate-picker :deep(.dp__input) {
   height: 34px;
   border-radius: 0.5rem;
+}
+
+/** 一鍵 AI 生成（toolbar 內）：尺寸與字級對齊「匯出 Word」按鈕 */
+.b2-batch-ai-btn {
+  padding: 0.5rem 1.2rem;
+  font-size: 0.9375rem;
+  white-space: nowrap;
 }
 
 .b2-export-btn {

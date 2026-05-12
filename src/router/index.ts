@@ -50,7 +50,7 @@ const router = createRouter({
     },
     {
       path: '/forms/export-center',
-      redirect: '/',
+      component: () => import('../views/forms/ExportCenter.vue'),
       meta: { requiresAuth: true }
     },
     {
@@ -175,6 +175,16 @@ const router = createRouter({
       meta: { requiresAuth: true }
     },
     {
+      path: '/forms/p3-occupational-safety-health-plan',
+      component: () => import('../views/forms/type-b/FormP3OccupationalSafetyHealthPlan.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/forms/p-plan-dynamic',
+      component: () => import('../views/forms/type-b/FormPDynamicPlan.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
       path: '/forms/subdivision-work-items/:itemId/construction-standards',
       redirect: (to) => ({
         path: `/forms/subdivision-work-items/${String(to.params.itemId)}/standards`,
@@ -202,6 +212,23 @@ const router = createRouter({
       path: '/forms/contractor-document-classification',
       component: () => import('../views/forms/ContractorDocumentClassification.vue'),
       meta: { requiresAuth: true }
+    },
+    {
+      // 監造端「文件分類動態書架」共用頁殼（B/C/D/H/I/L 類，依文件檔案分類表項目 id 顯示）。
+      path: '/supervisory/forms/doc-class/:category/:itemId',
+      component: () => import('../views/forms/type-b/SupervisoryDocClassShelf.vue'),
+      meta: { requiresAuth: true, requiresSupervisory: true }
+    },
+    {
+      // 營造端「文件分類動態書架」共用頁殼（B/E/G/R/T/Q 類，依文件檔案分類表項目 id 顯示）。
+      path: '/contractor/forms/doc-class/:category/:itemId',
+      component: () => import('../views/forms/type-b/ContractorDocClassShelf.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      // 舊 B 類書架 path 保留向後相容：自動轉為新的共用 path（B 視為新 :category）。
+      path: '/supervisory/forms/b-plan/:itemId',
+      redirect: (to) => `/supervisory/forms/doc-class/B/${to.params.itemId}`
     },
     {
       path: '/basic/site-personnel',

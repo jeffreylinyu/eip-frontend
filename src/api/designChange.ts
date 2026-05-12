@@ -43,12 +43,14 @@ export type DesignChangeRequestConfig = { skipAuthRedirectOn401?: boolean }
 export async function getDesignChangeList(
   constructionId: string,
   sourceType?: string,
-  config?: DesignChangeRequestConfig
+  config?: DesignChangeRequestConfig,
+  includeDocumentIds: boolean = true
 ): Promise<DesignChangeItem[]> {
   const cid = constructionId?.trim()
   if (!cid) return []
   const params: Record<string, string> = {}
   if (sourceType === 'CONTRACTOR' || sourceType === 'SUPERVISORY') params.sourceType = sourceType
+  if (!includeDocumentIds) params.includeDocumentIds = 'false'
   const data = await http.get<DesignChangeItem[] | { code: number; data?: DesignChangeItem[] }>(
     `/management/constructions/${encodeURIComponent(cid)}/design-changes`,
     { params, ...config }

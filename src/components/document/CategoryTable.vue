@@ -57,6 +57,7 @@
                 <th style="min-width: 160px">預定計畫書提送日期</th>
                 <th style="min-width: 140px">備註</th>
               </template>
+              <th v-if="showApplySidebarColumn" style="width: 130px">側邊欄套用</th>
               <th style="width: 150px">操作</th>
             </tr>
           </thead>
@@ -84,7 +85,13 @@
                 <!-- 文件名稱 (編輯模式 / 非預設內聯 / 顯示) -->
                 <td @click.stop>
                   <div v-if="editingId === item.id">
+                    <template v-if="isDocumentNameLocked(item)">
+                      <div class="small text-muted py-1 px-1">
+                        {{ item.documentName }}
+                      </div>
+                    </template>
                     <input
+                      v-else
                       type="text"
                       class="form-control form-control-sm"
                       v-model="editForm.documentName"
@@ -103,7 +110,12 @@
                       @blur="scheduleFlushInlineRow(item)"
                     />
                   </template>
-                  <div v-else @click="startEdit(item)" class="cursor-pointer">
+                  <div
+                    v-else
+                    @click="!isDocumentNameLocked(item) && startEdit(item)"
+                    class="cursor-pointer"
+                    :class="{ 'text-muted': isDocumentNameLocked(item) }"
+                  >
                     {{ item.documentName }}
                   </div>
                 </td>
@@ -191,6 +203,14 @@
                 </td>
 
                 <slot v-if="planScheduleExtras" name="planScheduleExtras" :item="item" />
+                <td v-if="showApplySidebarColumn" class="text-center" @click.stop>
+                  <input
+                    type="checkbox"
+                    class="form-check-input"
+                    :checked="item.applyToSidebar !== false"
+                    @change="onApplyToSidebarChange(item, $event)"
+                  />
+                </td>
 
                 <!-- 操作按鈕 -->
                 <td>
@@ -288,6 +308,7 @@
                 <td></td>
                 <td></td>
               </template>
+              <td v-if="showApplySidebarColumn"></td>
               <td>
                 <div class="btn-group btn-group-sm">
                   <button class="btn btn-success" @click="confirmAdd">儲存</button>
@@ -336,6 +357,10 @@ const props = withDefaults(
     inlineEditNonDefault?: boolean
     /** 表內輸入框深色樣式（與 P-1 頁一致） */
     darkInputs?: boolean
+    /** 鎖定預設列「文件名稱」不可編輯 */
+    lockDefaultDocumentName?: boolean
+    /** 顯示「套用到側邊欄」欄位（營造端 P 類） */
+    showApplySidebarColumn?: boolean
   }>(),
   {
     allowNullRetention: false,
@@ -343,11 +368,16 @@ const props = withDefaults(
     scheduleColumnCategories: () => ['B'],
     planScheduleExtras: false,
     inlineEditNonDefault: false,
-    darkInputs: false
+    darkInputs: false,
+    lockDefaultDocumentName: false,
+    showApplySidebarColumn: false
   }
 )
 
 const showScheduleColumn = computed(() => props.scheduleColumnCategories.includes(props.category))
+const showApplySidebarColumn = computed(() => props.showApplySidebarColumn)
+const isDocumentNameLocked = (item: DocumentClassification) =>
+  props.lockDefaultDocumentName && item.isDefault
 
 function displayRetention(item: DocumentClassification): string {
   if (props.allowNullRetention && item.retentionYears == null) return '永久'
@@ -357,6 +387,7 @@ function displayRetention(item: DocumentClassification): string {
 const tableColSpan = computed(() => {
   let n = showScheduleColumn.value ? 6 : 5
   if (props.planScheduleExtras) n += 3
+  if (showApplySidebarColumn.value) n += 1
   return n
 })
 
@@ -372,6 +403,7 @@ const emit = defineEmits<{
   (e: 'sync'): void
   (e: 'reorder', items: DocumentClassification[]): void
   (e: 'importSubdivisions'): void
+  (e: 'toggleApplySidebar', id: number, applyToSidebar: boolean): void
 }>()
 
 // 本地項目列表 (用於顯示與拖拉)
@@ -441,6 +473,12 @@ function onInlineRetentionPermanentChange(item: DocumentClassification, e: Event
   }
   cancelInlineFlushTimer(item.id)
   flushInlineRow(item)
+}
+
+function onApplyToSidebarChange(item: DocumentClassification, e: Event) {
+  const checked = (e.target as HTMLInputElement).checked
+  item.applyToSidebar = checked
+  emit('toggleApplySidebar', item.id, checked)
 }
 
 // 同步 props 到 localItems
@@ -544,12 +582,12 @@ const cancelEdit = () => {
 }
 
 const saveEdit = (item: DocumentClassification) => {
-  if (!editForm.value.documentName.trim()) {
+  if (!isDocumentNameLocked(item) && !editForm.value.documentName.trim()) {
     alert('請輸入文件名稱')
     return
   }
   const base = {
-    documentName: editForm.value.documentName,
+    documentName: isDocumentNameLocked(item) ? item.documentName : editForm.value.documentName,
     ...(showScheduleColumn.value
       ? { requiredSubmissionSchedule: editForm.value.requiredSubmissionSchedule?.trim() ?? '' }
       : {})

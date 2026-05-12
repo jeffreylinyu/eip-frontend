@@ -40,3 +40,21 @@
 		}
 	}
 }
+
+@if $enable-dark-mode {
+	@include color-mode(dark, true) {
+		.table {
+			// 讓所有共用 table 在暗黑主題下維持深色背景與清楚的 row hover/stripe
+			--#{$prefix}table-color: var(--#{$prefix}body-color);
+			// 使用 component-bg（實心）避免看起來透明
+			--#{$prefix}table-bg: var(--#{$prefix}component-bg);
+			--#{$prefix}table-border-color: rgba(255, 255, 255, 0.12);
+			--#{$prefix}table-striped-color: var(--#{$prefix}body-color);
+			--#{$prefix}table-striped-bg: rgba(255, 255, 255, 0.04);
+			--#{$prefix}table-active-color: var(--#{$prefix}body-color);
+			--#{$prefix}table-active-bg: rgba(255, 255, 255, 0.06);
+			--#{$prefix}table-hover-color: var(--#{$prefix}body-color);
+			--#{$prefix}table-hover-bg: rgba(255, 255, 255, 0.06);
+		}
+	}
+}

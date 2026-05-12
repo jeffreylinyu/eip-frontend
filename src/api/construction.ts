@@ -57,6 +57,26 @@ export interface Construction {
   p1ConstructionScaleOverview?: string | null;
   /** P-2 工程規模概述（整體品質計劃；營造端維護，依版本） */
   p2QualityScaleOverview?: string | null;
+  /** P-2 稽核計畫執行表（JSON；營造端維護，依版本） */
+  p2AuditPlanJson?: string | null;
+  /** P-2 工程相關人員附件（JSON；證書／勞保證明；營造端維護，依版本） */
+  p2PersonnelAttachmentsJson?: string | null;
+  /** P-3 工程規模概述（職業安全衛生管理計畫；營造端維護，依版本） */
+  p3SafetyHealthScaleOverview?: string | null;
+  /** P-3 施工平面圖（多張；JSON 陣列；營造端維護，依版本） */
+  p3ConstructionLayoutImagesJson?: string | null;
+  /** P-3 安全衛生組織架構圖結構化欄位（JSON；營造端維護，依版本） */
+  p3SafetyHealthOrgChartJson?: string | null;
+  /** P-3 安全衛生組織架構圖 PNG MinIO objectName（前端 SVG 轉 PNG 後上傳；單張覆蓋） */
+  p3SafetyHealthOrgChartImageObjectName?: string | null;
+  /** P-3 職業安全衛生管理人員與證照（JSON object；學歷／相關證照／證書字號／主要經歷） */
+  p3SafetyHealthPersonnelCredentialJson?: string | null;
+  /** P-3 職業安全衛生管理人員證照圖片（多張；JSON 陣列；營造端維護，依版本） */
+  p3SafetyHealthPersonnelCredentialImagesJson?: string | null;
+  /** P-3 協力廠商組織關係圖結構化欄位（JSON；營造端維護，依版本） */
+  p3SubcontractorOrgChartJson?: string | null;
+  /** P-3 協力廠商組織關係圖 PNG MinIO objectName（前端 SVG 轉 PNG 後上傳；單張覆蓋） */
+  p3SubcontractorOrgChartImageObjectName?: string | null;
   /** P-1 施工執行方向（營造端維護，依版本） */
   p1ConstructionExecutionDirection?: string | null;
   /** P-1 工地研判：地質概況 */
@@ -185,6 +205,26 @@ export interface CreateConstructionRequest {
   p1ConstructionScaleOverview?: string | null;
   /** P-2 工程規模概述（整體品質計劃；營造端維護，依版本） */
   p2QualityScaleOverview?: string | null;
+  /** P-2 稽核計畫執行表（JSON；營造端維護，依版本） */
+  p2AuditPlanJson?: string | null;
+  /** P-2 工程相關人員附件（JSON；證書／勞保證明；營造端維護，依版本） */
+  p2PersonnelAttachmentsJson?: string | null;
+  /** P-3 工程規模概述（職業安全衛生管理計畫；營造端維護，依版本） */
+  p3SafetyHealthScaleOverview?: string | null;
+  /** P-3 施工平面圖（多張；JSON 陣列；營造端維護，依版本） */
+  p3ConstructionLayoutImagesJson?: string | null;
+  /** P-3 安全衛生組織架構圖結構化欄位（JSON；營造端維護，依版本） */
+  p3SafetyHealthOrgChartJson?: string | null;
+  /** P-3 安全衛生組織架構圖 PNG MinIO objectName（前端 SVG 轉 PNG 後上傳；單張覆蓋） */
+  p3SafetyHealthOrgChartImageObjectName?: string | null;
+  /** P-3 職業安全衛生管理人員與證照（JSON object；學歷／相關證照／證書字號／主要經歷） */
+  p3SafetyHealthPersonnelCredentialJson?: string | null;
+  /** P-3 職業安全衛生管理人員證照圖片（多張；JSON 陣列；營造端維護，依版本） */
+  p3SafetyHealthPersonnelCredentialImagesJson?: string | null;
+  /** P-3 協力廠商組織關係圖結構化欄位（JSON；營造端維護，依版本） */
+  p3SubcontractorOrgChartJson?: string | null;
+  /** P-3 協力廠商組織關係圖 PNG MinIO objectName（前端 SVG 轉 PNG 後上傳；單張覆蓋） */
+  p3SubcontractorOrgChartImageObjectName?: string | null;
   /** P-1 施工執行方向（營造端維護，依版本） */
   p1ConstructionExecutionDirection?: string | null;
   /** P-1 工地研判：地質概況 */
@@ -552,6 +592,370 @@ export const uploadP1ConstructionProcessFlowImage = async (
   return data as unknown as { objectName: string; signedUrl?: string | null }
 }
 
+export type P2PersonnelAttachmentMainTopic = 'CERTIFICATE' | 'LABOR_INSURANCE'
+
+export interface P2PersonnelAttachmentImageInfo {
+  objectName: string
+  signedUrl?: string | null
+  fileName?: string | null
+  contentType?: string | null
+  fileSize?: number | null
+}
+
+export const uploadP2PersonnelAttachmentImage = async (
+  constructionId: string,
+  designChangeId: number | null | undefined,
+  mainTopic: P2PersonnelAttachmentMainTopic,
+  subTopicId: string,
+  file: File
+): Promise<P2PersonnelAttachmentImageInfo> => {
+  const form = new FormData()
+  form.append('constructionId', constructionId)
+  if (designChangeId != null) form.append('designChangeId', String(designChangeId))
+  form.append('mainTopic', mainTopic)
+  form.append('subTopicId', subTopicId)
+  form.append('file', file)
+
+  const res = await http.post('/management/construction/p2/personnel-attachments/upload', form, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  })
+  return res as unknown as P2PersonnelAttachmentImageInfo
+}
+
+export const deleteP2PersonnelAttachmentImage = async (
+  constructionId: string,
+  objectName: string
+): Promise<void> => {
+  await http.delete('/management/construction/p2/personnel-attachments/image', {
+    params: { constructionId, objectName }
+  })
+}
+
+export const getP2PersonnelAttachmentSignedUrl = async (
+  constructionId: string,
+  objectName: string
+): Promise<{ signedUrl: string }> => {
+  const res = await http.get('/management/construction/p2/personnel-attachments/signed-url', {
+    params: { constructionId, objectName }
+  })
+  // 後端回傳 { signedUrl }
+  const raw = (res as any)?.signedUrl
+  if (typeof raw === 'string') return { signedUrl: raw }
+  return ((res as any)?.data ?? res) as { signedUrl: string }
+}
+
+export const downloadP2PersonnelAttachmentBlob = async (
+  constructionId: string,
+  objectName: string
+): Promise<Blob> => {
+  const raw = await http.get('/management/construction/p2/personnel-attachments/download', {
+    params: { constructionId, objectName },
+    responseType: 'blob',
+  })
+  return raw as unknown as Blob
+}
+
+/**
+ * P-3 施工平面圖（職業安全衛生管理計畫）：圖片資訊（與 P-2 personnel attachment image 相同 shape）。
+ * 整個列表 JSON 由前端組合後存到 `p3ConstructionLayoutImagesJson`；本介面僅描述「單張」。
+ */
+export interface P3ConstructionLayoutImageInfo {
+  objectName: string
+  signedUrl?: string | null
+  fileName?: string | null
+  contentType?: string | null
+  fileSize?: number | null
+}
+
+/** 上傳一張 P-3 施工平面圖；回傳該張的 metadata（含可預覽的 signedUrl） */
+export const uploadP3ConstructionLayoutImage = async (
+  constructionId: string,
+  designChangeId: number | null | undefined,
+  file: File
+): Promise<P3ConstructionLayoutImageInfo> => {
+  const form = new FormData()
+  form.append('constructionId', constructionId)
+  if (designChangeId != null) form.append('designChangeId', String(designChangeId))
+  form.append('file', file)
+
+  const res = await http.post('/management/construction/p3/construction-layout-images/upload', form, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  })
+  return res as unknown as P3ConstructionLayoutImageInfo
+}
+
+/** 刪除單張 P-3 施工平面圖（僅刪檔；JSON 由前端另行儲存） */
+export const deleteP3ConstructionLayoutImage = async (
+  constructionId: string,
+  objectName: string
+): Promise<void> => {
+  await http.delete('/management/construction/p3/construction-layout-images/image', {
+    params: { constructionId, objectName }
+  })
+}
+
+/** 取得 P-3 施工平面圖預覽用 signedUrl（短效；不寫入 DB） */
+export const getP3ConstructionLayoutImageSignedUrl = async (
+  constructionId: string,
+  objectName: string
+): Promise<{ signedUrl: string }> => {
+  const res = await http.get('/management/construction/p3/construction-layout-images/signed-url', {
+    params: { constructionId, objectName }
+  })
+  const raw = (res as any)?.signedUrl
+  if (typeof raw === 'string') return { signedUrl: raw }
+  return ((res as any)?.data ?? res) as { signedUrl: string }
+}
+
+/** 帶 JWT 的下載端點，signedUrl 無法產生時前端可改走此端點取 blob */
+export const downloadP3ConstructionLayoutImageBlob = async (
+  constructionId: string,
+  objectName: string
+): Promise<Blob> => {
+  const raw = await http.get('/management/construction/p3/construction-layout-images/download', {
+    params: { constructionId, objectName },
+    responseType: 'blob',
+  })
+  return raw as unknown as Blob
+}
+
+/**
+ * P-3 安全衛生組織架構圖：圖片資訊（單張覆蓋型）。
+ * objectName 直接寫到 `p3SafetyHealthOrgChartImageObjectName` 欄位。
+ */
+export interface P3SafetyHealthOrgChartImageInfo {
+  objectName: string
+  signedUrl?: string | null
+  fileName?: string | null
+  contentType?: string | null
+  fileSize?: number | null
+}
+
+/**
+ * 上傳 P-3 安全衛生組織架構圖 PNG。
+ * - 後端會自動把舊圖刪除（單張覆蓋）
+ * - 並把新 objectName 直接寫到 `p3SafetyHealthOrgChartImageObjectName`
+ *   （所以呼叫成功後不需要再額外 PUT 整個 construction）
+ */
+export const uploadP3SafetyHealthOrgChartImage = async (
+  constructionId: string,
+  designChangeId: number | null | undefined,
+  file: File
+): Promise<P3SafetyHealthOrgChartImageInfo> => {
+  const form = new FormData()
+  form.append('constructionId', constructionId)
+  if (designChangeId != null) form.append('designChangeId', String(designChangeId))
+  form.append('file', file)
+
+  const res = await http.post('/management/construction/p3/safety-health-org-chart/upload', form, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  })
+  return res as unknown as P3SafetyHealthOrgChartImageInfo
+}
+
+/** 刪除目前儲存的 P-3 安全衛生組織架構圖（同時清掉 image_object_name 欄位） */
+export const deleteP3SafetyHealthOrgChartImage = async (
+  constructionId: string,
+  designChangeId: number | null | undefined
+): Promise<void> => {
+  await http.delete('/management/construction/p3/safety-health-org-chart/image', {
+    params: {
+      constructionId,
+      ...(designChangeId != null ? { designChangeId } : {})
+    }
+  })
+}
+
+/** 取得 P-3 安全衛生組織架構圖預覽用 signedUrl（短效；不寫入 DB） */
+export const getP3SafetyHealthOrgChartImageSignedUrl = async (
+  constructionId: string,
+  objectName: string
+): Promise<{ signedUrl: string }> => {
+  const res = await http.get('/management/construction/p3/safety-health-org-chart/signed-url', {
+    params: { constructionId, objectName }
+  })
+  const raw = (res as any)?.signedUrl
+  if (typeof raw === 'string') return { signedUrl: raw }
+  return ((res as any)?.data ?? res) as { signedUrl: string }
+}
+
+/** 帶 JWT 的下載端點（signedUrl 無法產生時 fallback） */
+export const downloadP3SafetyHealthOrgChartImageBlob = async (
+  constructionId: string,
+  objectName: string
+): Promise<Blob> => {
+  const raw = await http.get('/management/construction/p3/safety-health-org-chart/download', {
+    params: { constructionId, objectName },
+    responseType: 'blob',
+  })
+  return raw as unknown as Blob
+}
+
+/**
+ * P-3 協力廠商組織關係圖：圖片資訊（單張覆蓋型）。
+ * objectName 直接寫到 `p3SubcontractorOrgChartImageObjectName` 欄位。
+ */
+export interface P3SubcontractorOrgChartImageInfo {
+  objectName: string
+  signedUrl?: string | null
+  fileName?: string | null
+  contentType?: string | null
+  fileSize?: number | null
+}
+
+/**
+ * 上傳 P-3 協力廠商組織關係圖 PNG。
+ * - 後端會自動把舊圖刪除（單張覆蓋）
+ * - 並把新 objectName 直接寫到 `p3SubcontractorOrgChartImageObjectName`
+ *   （所以呼叫成功後不需要再額外 PUT 整個 construction）
+ */
+export const uploadP3SubcontractorOrgChartImage = async (
+  constructionId: string,
+  designChangeId: number | null | undefined,
+  file: File
+): Promise<P3SubcontractorOrgChartImageInfo> => {
+  const form = new FormData()
+  form.append('constructionId', constructionId)
+  if (designChangeId != null) form.append('designChangeId', String(designChangeId))
+  form.append('file', file)
+
+  const res = await http.post('/management/construction/p3/subcontractor-org-chart/upload', form, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  })
+  return res as unknown as P3SubcontractorOrgChartImageInfo
+}
+
+/** 刪除目前儲存的 P-3 協力廠商組織關係圖（同時清掉 image_object_name 欄位） */
+export const deleteP3SubcontractorOrgChartImage = async (
+  constructionId: string,
+  designChangeId: number | null | undefined
+): Promise<void> => {
+  await http.delete('/management/construction/p3/subcontractor-org-chart/image', {
+    params: {
+      constructionId,
+      ...(designChangeId != null ? { designChangeId } : {})
+    }
+  })
+}
+
+/** 取得 P-3 協力廠商組織關係圖預覽用 signedUrl（短效；不寫入 DB） */
+export const getP3SubcontractorOrgChartImageSignedUrl = async (
+  constructionId: string,
+  objectName: string
+): Promise<{ signedUrl: string }> => {
+  const res = await http.get('/management/construction/p3/subcontractor-org-chart/signed-url', {
+    params: { constructionId, objectName }
+  })
+  const raw = (res as any)?.signedUrl
+  if (typeof raw === 'string') return { signedUrl: raw }
+  return ((res as any)?.data ?? res) as { signedUrl: string }
+}
+
+/** 帶 JWT 的下載端點（signedUrl 無法產生時 fallback） */
+export const downloadP3SubcontractorOrgChartImageBlob = async (
+  constructionId: string,
+  objectName: string
+): Promise<Blob> => {
+  const raw = await http.get('/management/construction/p3/subcontractor-org-chart/download', {
+    params: { constructionId, objectName },
+    responseType: 'blob',
+  })
+  return raw as unknown as Blob
+}
+
+/**
+ * P-3 協力廠商組織關係圖：依工程主要施工項目（標單明細）AI 產生「材料供應商分類」清單。
+ *
+ * - 不寫入 DB；前端拿到 categories 後覆蓋 `subOrgChartData.materialSuppliers`，
+ *   再由共用 debounce 自動儲存到 `p3SubcontractorOrgChartJson`。
+ */
+export const generateP3SubcontractorCategoriesByAi = async (
+  constructionId: string,
+  designChangeId: number | null
+): Promise<{ categories: string[] }> => {
+  const res = await http.get('/management/construction/p3/subcontractor-org-chart/ai-categories', {
+    params: {
+      constructionId,
+      ...(designChangeId != null ? { designChangeId } : {}),
+    },
+  })
+  const r = (res as any)
+  if (Array.isArray(r?.categories)) return { categories: r.categories.filter((s: any) => typeof s === 'string') }
+  const inner = (r?.data ?? r) as { categories?: any }
+  return {
+    categories: Array.isArray(inner?.categories)
+      ? inner.categories.filter((s: any) => typeof s === 'string')
+      : [],
+  }
+}
+
+/**
+ * P-3 職業安全衛生管理人員證照圖片：與 P-3 施工平面圖完全同 shape（單張 metadata）。
+ * 整個列表 JSON 由前端組合後存到 `p3SafetyHealthPersonnelCredentialImagesJson` 欄位。
+ */
+export interface P3SafetyHealthPersonnelCredentialImageInfo {
+  objectName: string
+  signedUrl?: string | null
+  fileName?: string | null
+  contentType?: string | null
+  fileSize?: number | null
+}
+
+/** 上傳一張 P-3 職業安全衛生管理人員證照圖片；回傳該張的 metadata（含可預覽的 signedUrl） */
+export const uploadP3SafetyHealthPersonnelCredentialImage = async (
+  constructionId: string,
+  designChangeId: number | null | undefined,
+  file: File
+): Promise<P3SafetyHealthPersonnelCredentialImageInfo> => {
+  const form = new FormData()
+  form.append('constructionId', constructionId)
+  if (designChangeId != null) form.append('designChangeId', String(designChangeId))
+  form.append('file', file)
+
+  const res = await http.post(
+    '/management/construction/p3/safety-health-personnel-credential-images/upload',
+    form,
+    { headers: { 'Content-Type': 'multipart/form-data' } }
+  )
+  return res as unknown as P3SafetyHealthPersonnelCredentialImageInfo
+}
+
+/** 刪除單張 P-3 職業安全衛生管理人員證照圖片（僅刪檔；JSON 由前端另行儲存） */
+export const deleteP3SafetyHealthPersonnelCredentialImage = async (
+  constructionId: string,
+  objectName: string
+): Promise<void> => {
+  await http.delete('/management/construction/p3/safety-health-personnel-credential-images/image', {
+    params: { constructionId, objectName }
+  })
+}
+
+/** 取得 P-3 職業安全衛生管理人員證照圖片預覽用 signedUrl（短效；不寫入 DB） */
+export const getP3SafetyHealthPersonnelCredentialImageSignedUrl = async (
+  constructionId: string,
+  objectName: string
+): Promise<{ signedUrl: string }> => {
+  const res = await http.get(
+    '/management/construction/p3/safety-health-personnel-credential-images/signed-url',
+    { params: { constructionId, objectName } }
+  )
+  const raw = (res as any)?.signedUrl
+  if (typeof raw === 'string') return { signedUrl: raw }
+  return ((res as any)?.data ?? res) as { signedUrl: string }
+}
+
+/** 帶 JWT 的下載端點（signedUrl 無法產生時 fallback） */
+export const downloadP3SafetyHealthPersonnelCredentialImageBlob = async (
+  constructionId: string,
+  objectName: string
+): Promise<Blob> => {
+  const raw = await http.get(
+    '/management/construction/p3/safety-health-personnel-credential-images/download',
+    { params: { constructionId, objectName }, responseType: 'blob' }
+  )
+  return raw as unknown as Blob
+}
+
 /**
  * 依目前版本標單由 AI 產出工程規模概述（供 B-1 監造計劃書使用），不寫入 DB。
  * 標單無資料時回傳空字串；失敗時後端回傳 503 與 error 訊息。
@@ -719,7 +1123,7 @@ export const getP1DrainageAreaAiGenerate = async (
 export const getP1ManpowerFromSubdivisionsAiGenerate = async (
   constructionId: string,
   designChangeId?: number | null
-): Promise<{ rows: { resourceName: string; groupName: string }[] }> => {
+): Promise<{ rows: { resourceName: string; groupName: string; workContent?: string; isSResident?: string; remark?: string }[] }> => {
   const params: Record<string, string> = { constructionId }
   if (designChangeId !== undefined && designChangeId !== null) {
     params.designChangeId = String(designChangeId)
@@ -727,7 +1131,135 @@ export const getP1ManpowerFromSubdivisionsAiGenerate = async (
   const data = await http.get('/management/construction/p1-manpower-entry-schedule/from-subdivisions-ai', {
     params
   })
-  return data as unknown as { rows: { resourceName: string; groupName: string }[] }
+  return data as unknown as { rows: { resourceName: string; groupName: string; workContent?: string; isSResident?: string; remark?: string }[] }
+}
+
+/** 依分項工程由 AI 產出 P 類動態頁「施工方法與步驟」結構 JSON。 */
+export const getPDynamicConstructionStagePlanAiGenerate = async (
+  constructionId: string,
+  documentClassificationId: number,
+  designChangeId?: number | null
+): Promise<{ planJson: string }> => {
+  const params: Record<string, string> = {
+    constructionId,
+    documentClassificationId: String(documentClassificationId)
+  }
+  if (designChangeId !== undefined && designChangeId !== null) {
+    params.designChangeId = String(designChangeId)
+  }
+  const data = await http.get('/management/construction/p-dynamic/construction-stage-plan/ai-generate', { params })
+  return data as unknown as { planJson: string }
+}
+
+/** 依目前「施工方法與步驟」由 AI 產出各主要工序之施工要領（可傳 planJson 以含未存檔編輯）。 */
+export const postPDynamicConstructionStagePlanEssentialsAiGenerate = async (
+  constructionId: string,
+  documentClassificationId: number,
+  designChangeId: number | null | undefined,
+  planJson?: string | null
+): Promise<{
+  updates: { stageId: string; processId: string; constructionEssentials: string }[]
+}> => {
+  const params: Record<string, string> = {
+    constructionId,
+    documentClassificationId: String(documentClassificationId)
+  }
+  if (designChangeId !== undefined && designChangeId !== null) {
+    params.designChangeId = String(designChangeId)
+  }
+  const body = planJson != null && String(planJson).trim() !== '' ? { planJson } : {}
+  const data = await http.post('/management/construction/p-dynamic/construction-stage-plan-essentials/ai-generate', body, {
+    params
+  })
+  return data as unknown as {
+    updates: { stageId: string; processId: string; constructionEssentials: string }[]
+  }
+}
+
+/** 依本 P 類計畫書與「施工方法與步驟」由 AI 產出施工抽查標準明細（可傳 planJson 以含未存檔編輯）。 */
+export const postPDynamicConstructionInspectionStandardsAiGenerate = async (
+  constructionId: string,
+  documentClassificationId: number,
+  designChangeId: number | null | undefined,
+  planJson?: string | null
+): Promise<{
+  lines: Record<string, unknown>[]
+}> => {
+  const params: Record<string, string> = {
+    constructionId,
+    documentClassificationId: String(documentClassificationId)
+  }
+  if (designChangeId !== undefined && designChangeId !== null) {
+    params.designChangeId = String(designChangeId)
+  }
+  const body = planJson != null && String(planJson).trim() !== '' ? { planJson } : {}
+  const data = await http.post(
+    '/management/construction/p-dynamic/construction-inspection-standards/ai-generate',
+    body,
+    { params }
+  )
+  return data as unknown as { lines: Record<string, unknown>[] }
+}
+
+/** 依本頁計畫書名稱由 AI 產出 P 類動態頁第四章機具與材料兩表 JSON（材料數量為空，由使用者填寫）。 */
+export const getPDynamicChapter4EquipmentMaterialsAiGenerate = async (
+  constructionId: string,
+  documentClassificationId: number,
+  designChangeId?: number | null
+): Promise<{ chapter4Json: string }> => {
+  const params: Record<string, string> = {
+    constructionId,
+    documentClassificationId: String(documentClassificationId)
+  }
+  if (designChangeId !== undefined && designChangeId !== null) {
+    params.designChangeId = String(designChangeId)
+  }
+  const data = await http.get('/management/construction/p-dynamic/chapter4-equipment-materials/ai-generate', {
+    params
+  })
+  return data as unknown as { chapter4Json: string }
+}
+
+/** 依計畫書與施工方法與步驟由 AI 產出「安全衛生執行要點」長文（可傳 planJson 以含未存檔編輯）。 */
+export const postPDynamicSafetyHealthExecutionPointsAiGenerate = async (
+  constructionId: string,
+  documentClassificationId: number,
+  designChangeId: number | null | undefined,
+  planJson?: string | null
+): Promise<{ text: string }> => {
+  const params: Record<string, string> = {
+    constructionId,
+    documentClassificationId: String(documentClassificationId)
+  }
+  if (designChangeId !== undefined && designChangeId !== null) {
+    params.designChangeId = String(designChangeId)
+  }
+  const body = planJson != null && String(planJson).trim() !== '' ? { planJson } : {}
+  const data = await http.post('/management/construction/p-dynamic/safety-health-execution-points/ai-generate', body, {
+    params
+  })
+  return data as unknown as { text: string }
+}
+
+/** 依計畫書與施工方法與步驟由 AI 產出「環境保護注意事項」長文（可傳 planJson 以含未存檔編輯）。 */
+export const postPDynamicEnvironmentProtectionNotesAiGenerate = async (
+  constructionId: string,
+  documentClassificationId: number,
+  designChangeId: number | null | undefined,
+  planJson?: string | null
+): Promise<{ text: string }> => {
+  const params: Record<string, string> = {
+    constructionId,
+    documentClassificationId: String(documentClassificationId)
+  }
+  if (designChangeId !== undefined && designChangeId !== null) {
+    params.designChangeId = String(designChangeId)
+  }
+  const body = planJson != null && String(planJson).trim() !== '' ? { planJson } : {}
+  const data = await http.post('/management/construction/p-dynamic/environment-protection-notes/ai-generate', body, {
+    params
+  })
+  return data as unknown as { text: string }
 }
 
 /** 依資料依據日取得 P-1 人力資源預設最大可用量 */

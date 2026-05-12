@@ -161,9 +161,12 @@
         :plan-schedule-extras="cat.code === 'P'"
         :inline-edit-non-default="cat.code === 'P'"
         :dark-inputs="cat.code === 'P'"
+        :lock-default-document-name="cat.code === 'P'"
+        :show-apply-sidebar-column="cat.code === 'P'"
         :import-subdivisions="cat.code === 'E'"
         @add="(data) => handleAdd(cat.code, data)"
         @update="(id, data) => handleUpdate(cat.code, id, data)"
+        @toggle-apply-sidebar="(id, value) => handleToggleApplySidebar(cat.code, id, value)"
         @delete="(id) => handleDelete(id)"
         @reorder="handleReorder"
         @import-subdivisions="handleImportSubdivisions"
@@ -241,6 +244,20 @@ import CategoryTable from '@/components/document/CategoryTable.vue'
 import DesignChangeVersionSwitcher from '@/components/common/DesignChangeVersionSwitcher.vue'
 import RepublicDatePicker from '@/components/bootstrap/RepublicDatePicker.vue'
 import { getConstructionDetail, updateConstruction } from '@/api/construction'
+import { requestContractorPMenuSidebarRefresh } from '@/utils/contractorPMenuSidebar'
+import { requestContractorDocClassSidebarRefresh } from '@/utils/contractorDocClassSidebar'
+
+/**
+ * 編輯分類表後，無條件雙 dispatch：
+ *  - `contractor-sidebar-p-menu-refresh`：既有 P 類動態項目（沿用 `app-contractor-sidebar-menu` 內 P-menu loader）
+ *  - `contractor-sidebar-doc-class-refresh`：新增 6 類動態書架（B/E/G/R/T/Q）
+ *
+ * 與監造端對稱：handler 不依分類條件挑選，因為「重複請求成本低，且分類錯置時更安全」。
+ */
+const refreshContractorSidebar = (): void => {
+  requestContractorPMenuSidebarRefresh()
+  requestContractorDocClassSidebarRefresh()
+}
 
 const categories = [
   { code: 'P', name: 'P類-計畫書' },
@@ -399,6 +416,7 @@ function toTableRow(row: ContractorDocumentClassification): DocumentClassificati
     documentName: row.documentName,
     retentionYears: row.retentionYears,
     requiredSubmissionSchedule: row.requiredSubmissionSchedule ?? undefined,
+    applyToSidebar: row.category === 'P' ? row.applyToSidebar !== false : row.applyToSidebar,
     isDefault: row.isDefault,
     isLocked: row.isLocked,
     constructionMajorItemId: undefined,
@@ -503,6 +521,7 @@ async function copySupervisoryBToP() {
       supervisoryDesignChangeId: modalSupervisoryDesignChangeId.value,
       contractorDesignChangeId: selectedDesignChangeId.value
     })
+    refreshContractorSidebar()
     if (proxy?.$toast) proxy.$toast.success('已複製到營造 P 類')
     showSupervisoryModal.value = false
   } catch (e: any) {
@@ -522,6 +541,7 @@ async function copyFromPrevious() {
   isCopying.value = true
   try {
     await contractorDocumentClassificationApi.copyFromPrevious(cid, tid)
+    refreshContractorSidebar()
     if (proxy?.$toast) proxy.$toast.success('已複製並覆寫')
     await loadData()
   } catch (e) {
@@ -546,6 +566,8 @@ async function handleAdd(
       ...(category === 'P' ? { requiredSubmissionSchedule: data.requiredSubmissionSchedule ?? '' } : {})
     })
     allItems.value = [...allItems.value, created]
+    // 不再依分類條件挑選；任何分類新增都同時刷新 P 類與 6 類動態書架。
+    refreshContractorSidebar()
     if (proxy?.$toast) proxy.$toast.success('新增成功')
   } catch (error) {
     console.error(error)
@@ -561,6 +583,7 @@ async function handleUpdate(
     retentionYears?: number | null
     retentionPermanent?: boolean
     requiredSubmissionSchedule?: string
+    applyToSidebar?: boolean
   }
 ) {
   const cid = constructionId.value
@@ -570,11 +593,13 @@ async function handleUpdate(
       documentName: data.documentName,
       retentionYears: data.retentionPermanent ? undefined : data.retentionYears,
       retentionPermanent: data.retentionPermanent === true ? true : undefined,
+      applyToSidebar: data.applyToSidebar,
       ...(_category === 'P' && data.requiredSubmissionSchedule !== undefined
         ? { requiredSubmissionSchedule: data.requiredSubmissionSchedule ?? '' }
         : {})
     })
     allItems.value = allItems.value.map((item) => (item.id === id ? updated : item))
+    refreshContractorSidebar()
     if (proxy?.$toast) proxy.$toast.success('更新成功')
   } catch (error) {
     console.error(error)
@@ -586,8 +611,10 @@ async function handleDelete(id: number) {
   const cid = constructionId.value
   if (!cid) return
   try {
+    const deleted = allItems.value.find((item) => item.id === id)
     await contractorDocumentClassificationApi.delete(cid, id, selectedDesignChangeId.value)
     allItems.value = allItems.value.filter((item) => item.id !== id)
+    refreshContractorSidebar()
     if (proxy?.$toast) proxy.$toast.success('刪除成功')
   } catch (error) {
     console.error(error)
@@ -604,14 +631,41 @@ async function handleReorder(items: DocumentClassification[]) {
       itemNumber: item.itemNumber,
       documentName: item.documentName,
       retentionYears: item.retentionYears,
+      applyToSidebar: item.applyToSidebar,
       ...(item.category === 'P' ? { requiredSubmissionSchedule: item.requiredSubmissionSchedule ?? '' } : {})
     }))
     await contractorDocumentClassificationApi.batchUpdate(cid, selectedDesignChangeId.value, batchItems)
     await loadData()
+    refreshContractorSidebar()
     if (proxy?.$toast) proxy.$toast.success('順序已儲存')
   } catch (error) {
     console.error(error)
     if (proxy?.$toast) proxy.$toast.error('排序儲存失敗')
+    await loadData()
+  }
+}
+
+async function handleToggleApplySidebar(category: string, id: number, applyToSidebar: boolean) {
+  if (category !== 'P') return
+  const cid = constructionId.value
+  if (!cid) return
+  const target = allItems.value.find((item) => item.id === id)
+  if (!target) return
+  try {
+    const updated = await contractorDocumentClassificationApi.update(cid, id, selectedDesignChangeId.value, {
+      applyToSidebar,
+      documentName: target.documentName,
+      retentionYears: target.retentionYears ?? undefined,
+      ...(typeof target.requiredSubmissionSchedule === 'string'
+        ? { requiredSubmissionSchedule: target.requiredSubmissionSchedule }
+        : {})
+    })
+    allItems.value = allItems.value.map((item) => (item.id === id ? updated : item))
+    refreshContractorSidebar()
+    if (proxy?.$toast) proxy.$toast.success('已更新側邊欄套用設定')
+  } catch (error) {
+    console.error(error)
+    if (proxy?.$toast) proxy.$toast.error('更新側邊欄套用設定失敗')
     await loadData()
   }
 }
@@ -639,6 +693,7 @@ async function confirmResetVersion() {
   if (!confirm(`警告：確定將「${ver}」的文件分類表恢復為預設值？自訂項目將一併刪除。`)) return
   try {
     allItems.value = await contractorDocumentClassificationApi.resetAll(cid, selectedDesignChangeId.value)
+    refreshContractorSidebar()
     if (proxy?.$toast) proxy.$toast.success('已恢復預設值')
   } catch (error) {
     console.error(error)

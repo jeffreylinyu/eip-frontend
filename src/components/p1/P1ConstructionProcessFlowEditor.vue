@@ -12,20 +12,19 @@ type P1FlowGraph = {
   edges: P1FlowEdgeRow[]
 }
 
-const props = defineProps<{
-  modelValue: string
-}>()
+const props = withDefaults(
+  defineProps<{
+    modelValue: string
+    displayMode?: 'flow' | 'organization'
+  }>(),
+  {
+    displayMode: 'flow'
+  }
+)
 
 const emit = defineEmits<{
   (e: 'update:modelValue', v: string): void
 }>()
-
-const KIND_OPTIONS = [
-  { value: 'process', label: '作業' },
-  { value: 'start', label: '開始' },
-  { value: 'end', label: '結束' },
-  { value: 'decision', label: '決策' }
-]
 
 function emptyGraph(): P1FlowGraph {
   return { type: 'graph', nodes: [], edges: [] }
@@ -99,13 +98,6 @@ watch(
 
 const previewJson = computed(() => serializeForEmit(graph.value))
 
-const nodeIdOptions = computed(() =>
-  graph.value.nodes.map((n) => ({
-    value: n.id,
-    label: n.id + (n.label ? ` — ${n.label.slice(0, 24)}${n.label.length > 24 ? '…' : ''}` : '')
-  }))
-)
-
 function addNode() {
   let k = graph.value.nodes.length + 1
   let id = `n${k}`
@@ -121,17 +113,6 @@ function removeNode(idx: number) {
   if (!removed) return
   graph.value.nodes.splice(idx, 1)
   graph.value.edges = graph.value.edges.filter((e) => e.from !== removed.id && e.to !== removed.id)
-}
-
-function addEdge() {
-  const ids = graph.value.nodes.map((n) => n.id).filter(Boolean)
-  const from = ids[0] ?? ''
-  const to = ids[1] ?? ids[0] ?? ''
-  graph.value.edges.push({ from, to, label: '' })
-}
-
-function removeEdge(idx: number) {
-  graph.value.edges.splice(idx, 1)
 }
 
 const flowPreviewCaptureRef = ref<HTMLElement | null>(null)
@@ -168,13 +149,17 @@ defineExpose({
     <div class="p1-flow-editor__grid">
       <div ref="flowPreviewCaptureRef" class="p1-flow-editor__preview">
         <div class="p1-flow-editor__preview-inner">
-          <P1ConstructionProcessFlowSyncfusionView ref="flowPreviewDiagramRef" :flow-json="previewJson" />
+          <P1ConstructionProcessFlowSyncfusionView
+            ref="flowPreviewDiagramRef"
+            :flow-json="previewJson"
+            :display-mode="props.displayMode"
+          />
         </div>
       </div>
       <div class="p1-flow-editor__side">
         <div class="p1-flow-editor__block">
           <div class="p1-flow-editor__block-head">
-            <span class="p1-flow-editor__block-title">節點</span>
+            <span class="p1-flow-editor__block-title">內容</span>
             <button type="button" class="btn btn-sm btn-outline-primary" @click="addNode">
               <i class="fa fa-plus me-1"></i>新增節點
             </button>
@@ -184,76 +169,17 @@ defineExpose({
             <table class="table align-middle p1-flow-editor-table mb-0">
               <thead>
                 <tr>
-                  <th style="width: 22%">代號 id</th>
-                  <th>顯示文字</th>
-                  <th style="width: 26%">類型</th>
+                  <th>內容</th>
                   <th style="width: 4.5rem"></th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-for="(node, idx) in graph.nodes" :key="'fn-' + idx + '-' + node.id">
                   <td>
-                    <input v-model="node.id" type="text" class="form-control form-control-sm" autocomplete="off" />
-                  </td>
-                  <td>
                     <input v-model="node.label" type="text" class="form-control form-control-sm" />
                   </td>
                   <td>
-                    <select v-model="node.kind" class="form-select form-select-sm">
-                      <option v-for="opt in KIND_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-                    </select>
-                  </td>
-                  <td>
                     <button type="button" class="btn btn-sm btn-outline-danger" @click="removeNode(idx)">刪</button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div class="p1-flow-editor__block mt-3">
-          <div class="p1-flow-editor__block-head">
-            <span class="p1-flow-editor__block-title">連線</span>
-            <button type="button" class="btn btn-sm btn-outline-primary" :disabled="!graph.nodes.length" @click="addEdge">
-              <i class="fa fa-plus me-1"></i>新增連線
-            </button>
-          </div>
-          <div v-if="!graph.edges.length && graph.nodes.length" class="text-muted small py-2">可新增節點之間的箭線（可選標籤）。</div>
-          <div v-else-if="!graph.nodes.length" class="text-muted small py-2">請先新增節點。</div>
-          <div v-else class="table-scroll-wrap p1-flow-editor__table-wrap">
-            <table class="table align-middle p1-flow-editor-table mb-0">
-              <thead>
-                <tr>
-                  <th style="width: 28%">從</th>
-                  <th style="width: 28%">到</th>
-                  <th>線上標籤（選填）</th>
-                  <th style="width: 4.5rem"></th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(edge, eidx) in graph.edges" :key="'fe-' + eidx">
-                  <td>
-                    <select v-model="edge.from" class="form-select form-select-sm">
-                      <option value="" disabled>選擇</option>
-                      <option v-for="opt in nodeIdOptions" :key="'ff-' + opt.value" :value="opt.value">
-                        {{ opt.label }}
-                      </option>
-                    </select>
-                  </td>
-                  <td>
-                    <select v-model="edge.to" class="form-select form-select-sm">
-                      <option value="" disabled>選擇</option>
-                      <option v-for="opt in nodeIdOptions" :key="'tt-' + opt.value" :value="opt.value">
-                        {{ opt.label }}
-                      </option>
-                    </select>
-                  </td>
-                  <td>
-                    <input v-model="edge.label" type="text" class="form-control form-control-sm" placeholder="選填" />
-                  </td>
-                  <td>
-                    <button type="button" class="btn btn-sm btn-outline-danger" @click="removeEdge(eidx)">刪</button>
                   </td>
                 </tr>
               </tbody>
@@ -275,15 +201,22 @@ defineExpose({
 }
 @media (min-width: 992px) {
   .p1-flow-editor__grid {
-    /* 左側預覽較窄，右側編輯區佔剩餘寬度 */
-    grid-template-columns: minmax(260px, 420px) minmax(280px, 1fr);
+    /* 左側預覽圖放寬，右側內容控制約 30% */
+    grid-template-columns: minmax(520px, 1fr) minmax(280px, 30%);
   }
 }
 .p1-flow-editor__side {
   display: flex;
   flex-direction: column;
   min-height: 100%;
+  height: 100%;
   min-width: 0;
+}
+.p1-flow-editor__block {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 .p1-flow-editor__preview {
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -295,17 +228,17 @@ defineExpose({
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   justify-content: center;
 }
 .p1-flow-editor__preview-inner {
   padding: 0.75rem 1rem;
   width: 100%;
-  max-width: 400px;
+  max-width: none;
   flex: 0 1 auto;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   overflow-x: auto;
   box-sizing: border-box;
 }
@@ -319,13 +252,13 @@ defineExpose({
   width: 100%;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
 }
 .p1-flow-editor__preview :deep(.p1-syncfusion-flow-view) {
   width: 100%;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
 }
 .p1-flow-editor__preview :deep(.p1-syncfusion-host) {
   width: 100%;
@@ -352,7 +285,8 @@ defineExpose({
   color: rgba(226, 232, 240, 0.92);
 }
 .p1-flow-editor__table-wrap {
-  max-height: 280px;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: auto;
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 0.65rem;

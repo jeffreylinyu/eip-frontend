@@ -12,6 +12,8 @@ export interface DocumentClassification {
   retentionYears: number | null
   /** B 類（監造）／P 類（營造複製後）：規定提送日程 */
   requiredSubmissionSchedule?: string | null
+  /** 僅營造端 P 類使用：是否套用到側邊欄 */
+  applyToSidebar?: boolean
   isDefault: boolean
   isLocked: boolean
   constructionMajorItemId?: string | null

@@ -79,6 +79,20 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const joinedProjectsCount = ref(0) // 新增：已參與的工程案數量 (跨工作空間)
   const initPromise = ref<Promise<void> | null>(null) // 新增
   
+  const emitContractorSidebarPMenuRefresh = () => {
+    if (typeof window === 'undefined') return
+    window.dispatchEvent(new Event('contractor-sidebar-p-menu-refresh'))
+  }
+
+  // 工程案在登入初始化後才會補齊，這裡主動通知側邊欄重載動態 P 類，避免必須手動重整
+  watch(
+    () => currentProject.value?.id || '',
+    (next, prev) => {
+      if (!next || next === prev) return
+      emitContractorSidebarPMenuRefresh()
+    }
+  )
+  
   
   // 工作空間公司管理相關狀態
   const workspaceCompanies = ref<WorkspaceCompany[]>([])

@@ -101,6 +101,7 @@ import { documentClassificationApi, type DocumentClassification } from '@/api/do
 import PageHeader from '@/components/bootstrap/PageHeader.vue'
 import CategoryTable from '@/components/document/CategoryTable.vue'
 import DesignChangeVersionSwitcher from '@/components/common/DesignChangeVersionSwitcher.vue'
+import { requestSupervisoryDocClassSidebarRefresh } from '@/utils/supervisoryBPlanSidebar'
 
 const categories = [
   { code: 'A', name: 'A類' },
@@ -171,6 +172,8 @@ async function copyFromPrevious() {
     await documentClassificationApi.copyFromPrevious(cid, tid)
     if (proxy?.$toast) proxy.$toast.success('已複製並覆寫')
     await loadData()
+    // 整版覆寫會影響全部類別；通知 sidebar 重整
+    requestSupervisoryDocClassSidebarRefresh()
   } catch (e) {
     console.error(e)
     if (proxy?.$toast) proxy.$toast.error('複製失敗')
@@ -195,6 +198,7 @@ async function handleAdd(
         : {})
     })
     allItems.value = [...allItems.value, created]
+    requestSupervisoryDocClassSidebarRefresh()
     if (proxy?.$toast) proxy.$toast.success('新增成功')
   } catch (error) {
     console.error('新增失敗:', error)
@@ -221,6 +225,7 @@ async function handleUpdate(
       ...(category === 'B' ? { requiredSubmissionSchedule: data.requiredSubmissionSchedule ?? '' } : {})
     })
     allItems.value = allItems.value.map((item) => (item.id === id ? updated : item))
+    requestSupervisoryDocClassSidebarRefresh()
     if (proxy?.$toast) proxy.$toast.success('更新成功')
   } catch (error) {
     console.error('更新失敗:', error)
@@ -234,6 +239,7 @@ async function handleDelete(id: number) {
   try {
     await documentClassificationApi.delete(cid, id, selectedDesignChangeId.value)
     allItems.value = allItems.value.filter((item) => item.id !== id)
+    requestSupervisoryDocClassSidebarRefresh()
     if (proxy?.$toast) proxy.$toast.success('刪除成功')
   } catch (error) {
     console.error('刪除失敗:', error)
@@ -249,6 +255,8 @@ async function handleSyncD() {
     await documentClassificationApi.syncCategoryD(cid, selectedDesignChangeId.value)
     if (proxy?.$toast) proxy.$toast.success('D 類別同步完成')
     await loadData()
+    // D 類項目大幅變動，通知 sidebar 重整
+    requestSupervisoryDocClassSidebarRefresh()
   } catch (error) {
     console.error('同步失敗:', error)
     if (proxy?.$toast) proxy.$toast.error('同步失敗')
@@ -263,6 +271,8 @@ async function confirmResetVersion() {
   if (!confirm(`警告：確定將「${ver}」的文件分類表恢復為預設值？自訂項目將一併刪除。`)) return
   try {
     allItems.value = await documentClassificationApi.resetAll(cid, selectedDesignChangeId.value)
+    // 預設值還原會大幅改動全部類別分類表（自訂列被清除），一律通知 sidebar 重整
+    requestSupervisoryDocClassSidebarRefresh()
     if (proxy?.$toast) proxy.$toast.success('已恢復預設值')
   } catch (error) {
     console.error('恢復失敗:', error)
@@ -283,6 +293,8 @@ async function handleReorder(items: DocumentClassification[]) {
     }))
     await documentClassificationApi.batchUpdate(cid, selectedDesignChangeId.value, { items: batchItems })
     await loadData()
+    // batch 可能改動任何分類的 itemNumber 排序，一律通知 sidebar 重整
+    requestSupervisoryDocClassSidebarRefresh()
     if (proxy?.$toast) proxy.$toast.success('順序已儲存')
   } catch (error) {
     console.error('排序儲存失敗:', error)

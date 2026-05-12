@@ -463,7 +463,7 @@
           :allowResizing="true"
           :allowReordering="false"
           :allowSelection="false"
-          :treeColumnIndex="3"
+          :treeColumnIndex="2"
           :childMapping="'children'"
           :height="'100%'"
           locale="zh"

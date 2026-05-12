@@ -12,6 +12,8 @@ const props = withDefaults(
     img: ConstructionLocationMapImageInfo
     constructionId: string
     designChangeId?: number | null
+    /** P 類動態「預定作業進度圖」等需帶文件分類列 id */
+    documentClassificationId?: number | null
     type: string
     linkClass?: string
     emptyClass?: string
@@ -23,6 +25,7 @@ const props = withDefaults(
     emptyClass: '',
     showB2Overlay: false,
     designChangeId: undefined,
+    documentClassificationId: undefined,
     thumbHeight: '200px',
   }
 )
@@ -56,6 +59,9 @@ async function ensurePreviewUrl() {
     if (props.designChangeId != null && props.designChangeId !== undefined) {
       params.designChangeId = props.designChangeId
     }
+    if (props.documentClassificationId != null && props.documentClassificationId !== undefined) {
+      params.documentClassificationId = props.documentClassificationId
+    }
     const raw = await http.get(`/management/construction/location-maps/download/${props.img.id}`, {
       params,
       responseType: 'blob',
@@ -77,7 +83,14 @@ async function ensurePreviewUrl() {
 
 watch(
   () =>
-    [props.img.id, props.img.signedUrl, props.constructionId, props.designChangeId, props.type] as const,
+    [
+      props.img.id,
+      props.img.signedUrl,
+      props.constructionId,
+      props.designChangeId,
+      props.documentClassificationId,
+      props.type
+    ] as const,
   () => {
     void ensurePreviewUrl()
   },

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, watch, nextTick } from 'vue';
+import { computed, watch, nextTick, onMounted } from 'vue';
+import { storeToRefs } from 'pinia';
 import { useRoute } from 'vue-router';
 import { useAppSidebarMenuStore } from '@/stores/app-sidebar-menu';
 import { useAppAdminSidebarMenuStore } from '@/stores/app-admin-sidebar-menu';
@@ -13,9 +14,17 @@ const route = useRoute();
 const appSidebarMenu = useAppSidebarMenuStore();
 const appAdminSidebarMenu = useAppAdminSidebarMenuStore();
 const appContractorSidebarMenu = useAppContractorSidebarMenuStore();
+const {
+  dynamicPMenuDebugText: contractorPMenuDebugText,
+  menuItems: contractorMenuItemsRef,
+  dynamicPMenuItems: contractorDynamicPMenuItems,
+  contractorDocClassRows: contractorDocClassRowsRef,
+} = storeToRefs(appContractorSidebarMenu as any);
 const appOption = useAppOptionStore();
 const authStore = useAuthStore();
 const { viewType } = useViewPerspective();
+const showPMenuDebug = computed(() => route.query.pMenuDebug === '1');
+const pMenuDebugText = computed(() => contractorPMenuDebugText.value || '無除錯資訊');
 
 // 判斷是否為系統管理頁面
 const isAdminPage = computed(() => {
@@ -46,12 +55,12 @@ const currentSidebarMenu = computed(() => {
   // 優先使用路由判斷的視角，如果沒有則使用 viewType computed
   const effectiveViewType = routeViewType.value ?? viewType.value;
   
-  // 營造視角使用營造側邊欄
+  // 營造視角使用營造側邊欄（須訂閱 dynamicPMenuItems / contractorDocClassRows，
+  // 否則 P 類或 B/E/G/R/T/Q 類動態載入後畫面不會即時重繪）
   if (effectiveViewType === ViewType.CONTRACTOR) {
-    // 營造 store 返回的是包含 menuItems getter 的對象
-    const contractorStore = appContractorSidebarMenu as any;
-    const menuItems = contractorStore.menuItems || contractorStore;
-    return menuItems;
+    void contractorDynamicPMenuItems.value;
+    void contractorDocClassRowsRef.value;
+    return contractorMenuItemsRef.value;
   }
   
   // 預設使用監造側邊欄（SUPERVISORY 或其他視角）
@@ -75,6 +84,22 @@ const sidebarRenderKey = computed(() => {
 function appSidebarMobileToggled() {
 	appOption.appSidebarMobileToggled = !appOption.appSidebarMobileToggled;
 }
+
+async function copyPMenuDebugText() {
+  try {
+    await navigator.clipboard.writeText(String(pMenuDebugText.value || ''));
+    console.info('[P-MENU-DEBUG] 已複製到剪貼簿');
+  } catch (e) {
+    console.warn('[P-MENU-DEBUG] 複製失敗', e);
+  }
+}
+
+onMounted(() => {
+  const contractorStore = appContractorSidebarMenu as any;
+  if (typeof contractorStore?.refreshDynamicPMenuItems === 'function') {
+    contractorStore.refreshDynamicPMenuItems();
+  }
+});
 
 const expandActiveMenus = () => {
     // 找到所有包含 active 子項目的父菜單項，並自動展開
@@ -128,6 +153,18 @@ watch(() => route.path, () => {
 						<sidebar-nav v-if="menu.text" v-bind:menu="menu"></sidebar-nav>
 					</template>
 				</template>
+				<div v-if="showPMenuDebug" class="px-3 pb-3">
+					<div class="small text-warning mb-1">P 類側邊欄 Debug（?pMenuDebug=1）</div>
+					<textarea
+						class="form-control form-control-sm mb-2"
+						rows="8"
+						readonly
+						:value="pMenuDebugText"
+					></textarea>
+					<button class="btn btn-sm btn-outline-warning w-100" @click="copyPMenuDebugText">
+						一鍵複製 Debug Log
+					</button>
+				</div>
 			</div>
 		</perfect-scrollbar>
 	</div>
