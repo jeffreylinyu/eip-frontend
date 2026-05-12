@@ -14,12 +14,14 @@ const route = useRoute();
 const appSidebarMenu = useAppSidebarMenuStore();
 const appAdminSidebarMenu = useAppAdminSidebarMenuStore();
 const appContractorSidebarMenu = useAppContractorSidebarMenuStore();
+// storeToRefs 對 `as any` store 推導出的 union 型別會掉屬性，
+// 因此把回傳整個 cast 成 any，沿用 store 端 export 的同名 ref / computed。
 const {
   dynamicPMenuDebugText: contractorPMenuDebugText,
   menuItems: contractorMenuItemsRef,
   dynamicPMenuItems: contractorDynamicPMenuItems,
   contractorDocClassRows: contractorDocClassRowsRef,
-} = storeToRefs(appContractorSidebarMenu as any);
+} = storeToRefs(appContractorSidebarMenu as any) as any;
 const appOption = useAppOptionStore();
 const authStore = useAuthStore();
 const { viewType } = useViewPerspective();
