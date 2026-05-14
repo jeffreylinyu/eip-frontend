@@ -1459,11 +1459,11 @@ const modalMaterials = computed(() => {
 
     if (isMCode) {
       // 料碼以 M 開頭：走 upsert 優先序去重
-      upsert(
+        upsert(
         code,
         {
           name: String(b.name ?? '').trim() || code,
-          unit: b.unitType ?? null,
+          unit: b.unit ?? null,
           refItemNo: b.refItemNo ?? null
         },
         'BREAKDOWN'
@@ -1475,7 +1475,7 @@ const modalMaterials = computed(() => {
         out.set(key, {
           code: key,
           name: String(b.name ?? '').trim() || key,
-          unit: b.unitType ?? null,
+          unit: b.unit ?? null,
           refItemNo: b.refItemNo ?? null,
           source: 'BREAKDOWN'
         })

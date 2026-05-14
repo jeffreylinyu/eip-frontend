@@ -207,7 +207,6 @@ import {
   setPccesMaterialUsage,
   PccesItemType,
   type ConstructionPccesCode,
-  type ConstructionPccesCostBreakdown,
   type PccesMaterialTestItemLink
 } from '@/api/pcces'
 
@@ -234,12 +233,22 @@ type TestItemView = {
   source: 'DETAIL' | 'BREAKDOWN'
 }
 
+/** 與「試驗項」合併顯示所需之單價分析列（可為 API 列或 ProjectItemDatabase 的 BreakdownProjectItem） */
+type MaterialPanelBreakdownRow = {
+  id: number | string
+  /** BreakdownProjectItem 為 string；API 為 PccesItemType */
+  type: PccesItemType | string | null
+  name: string
+  itemCode?: string | null
+  refItemNo?: string | null
+}
+
 const props = defineProps<{
   constructionId: string
   designChangeId: number | null
   materials: PanelMaterial[]
   /** 單價分析列表（父層傳入，用於即時顯示 type=TEST_ITEM 的試驗項） */
-  breakdownItems?: ConstructionPccesCostBreakdown[]
+  breakdownItems?: MaterialPanelBreakdownRow[]
   /** 面板是否可見；可見時自動 refresh */
   active?: boolean
 }>()
@@ -284,7 +293,7 @@ const allTestItems = computed((): TestItemView[] => {
     result.push({
       id: c.id,
       itemNo: c.itemNo ?? null,
-      pccesCode: c.code ?? null,
+      pccesCode: c.pccesCode ?? null,
       name,
       source: 'DETAIL'
     })
@@ -295,8 +304,10 @@ const allTestItems = computed((): TestItemView[] => {
     if (b.type !== PccesItemType.TEST_ITEM) continue
     const name = String(b.name ?? '').trim()
     if (!name || detailNames.has(name)) continue  // 同名 DETAIL 已存在，略過
+    const bid = typeof b.id === 'number' ? b.id : parseInt(String(b.id), 10)
+    if (!Number.isFinite(bid)) continue
     result.push({
-      id: -(b.id as unknown as number),  // 負數標識：尚無 pcces_codes 記錄
+      id: -bid, // 負數標識：尚無 pcces_codes 記錄
       itemNo: b.refItemNo ?? null,
       pccesCode: b.itemCode ?? null,
       name,
