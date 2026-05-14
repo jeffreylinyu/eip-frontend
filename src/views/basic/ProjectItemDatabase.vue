@@ -100,15 +100,6 @@
           <i class="fa fa-expand me-1"></i>全螢幕
         </button>
         <button
-          class="btn btn-outline-warning btn-sm"
-          type="button"
-          @click="copyDebugInfo"
-          :disabled="isLoading"
-          title="複製目前頁面的標單/組樹摘要，貼給 AI 排查"
-        >
-          <i class="fa fa-clipboard me-1"></i>複製除錯資訊
-        </button>
-        <button
           v-if="selectedDesignChangeId != null"
           class="btn btn-outline-info btn-sm"
           type="button"
@@ -119,13 +110,62 @@
           <i class="fa fa-copy me-1"></i>複製前一個版本
         </button>
         <button
-          class="btn btn-success btn-sm"
+          v-if="pccesViewTab === 'detail'"
+          class="btn btn-outline-success btn-sm"
           type="button"
-          @click="openImportModal"
-          :disabled="isLoading"
+          @click="startAddDetailRoot"
+          :disabled="isLoading || editingRowId != null || isAddingDetail"
+          title="在根層級新增工項"
         >
-          <i class="fa fa-file-import me-1"></i>匯入 PCCES
+          <i class="fa fa-plus me-1"></i>新增工項
         </button>
+        <button
+          v-else-if="pccesViewTab === 'breakdown'"
+          class="btn btn-outline-success btn-sm"
+          type="button"
+          @click="startAddBdRoot"
+          :disabled="isLoading || bdEditingRowId != null || isAddingBd"
+          title="在根層級新增單價分析列"
+        >
+          <i class="fa fa-plus me-1"></i>新增列
+        </button>
+        <button
+          v-else-if="pccesViewTab === 'resource'"
+          class="btn btn-outline-success btn-sm"
+          type="button"
+          @click="startAddResRow(null)"
+          :disabled="isLoading || resEditingRowId != null || isAddingRes"
+          title="新增資源統計列"
+        >
+          <i class="fa fa-plus me-1"></i>新增列
+        </button>
+        <div class="btn-group btn-group-sm">
+          <button
+            class="btn btn-success"
+            type="button"
+            @click="openImportModal"
+            :disabled="isLoading"
+          >
+            <i class="fa fa-file-import me-1"></i>匯入 PCCES
+          </button>
+          <button
+            class="btn btn-success dropdown-toggle dropdown-toggle-split"
+            type="button"
+            data-bs-toggle="dropdown"
+            aria-expanded="false"
+            :disabled="isLoading"
+          >
+            <span class="visually-hidden">更多匯入選項</span>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li>
+              <a class="dropdown-item small text-muted" style="cursor:pointer" @click="openExcelImportModal">
+                <i class="fa fa-file-excel me-2"></i>Excel 匯入（AI 解析）
+                <div class="text-muted" style="font-size:0.75rem">無 PCCES XML 時的替代方案</div>
+              </a>
+            </li>
+          </ul>
+        </div>
       </div>
     </div>
 
@@ -229,15 +269,6 @@
             <i class="fa fa-compress me-1"></i>退出全螢幕
           </button>
           <button
-            class="btn btn-outline-warning btn-sm"
-            type="button"
-            @click="copyDebugInfo"
-            :disabled="isLoading"
-            title="複製目前頁面的標單/組樹摘要，貼給 AI 排查"
-          >
-            <i class="fa fa-clipboard me-1"></i>複製除錯資訊
-          </button>
-          <button
             v-if="selectedDesignChangeId != null"
             class="btn btn-outline-info btn-sm"
             type="button"
@@ -247,14 +278,33 @@
           >
             <i class="fa fa-copy me-1"></i>複製前一個版本
           </button>
-          <button
-            class="btn btn-success btn-sm"
-            type="button"
-            @click="openImportModal"
-            :disabled="isLoading"
-          >
-            <i class="fa fa-file-import me-1"></i>匯入 PCCES
-          </button>
+          <div class="btn-group btn-group-sm">
+            <button
+              class="btn btn-success"
+              type="button"
+              @click="openImportModal"
+              :disabled="isLoading"
+            >
+              <i class="fa fa-file-import me-1"></i>匯入 PCCES
+            </button>
+            <button
+              class="btn btn-success dropdown-toggle dropdown-toggle-split"
+              type="button"
+              data-bs-toggle="dropdown"
+              aria-expanded="false"
+              :disabled="isLoading"
+            >
+              <span class="visually-hidden">更多匯入選項</span>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+              <li>
+                <a class="dropdown-item small text-muted" style="cursor:pointer" @click="openExcelImportModal">
+                  <i class="fa fa-file-excel me-2"></i>Excel 匯入（AI 解析）
+                  <div class="text-muted" style="font-size:0.75rem">無 PCCES XML 時的替代方案</div>
+                </a>
+              </li>
+            </ul>
+          </div>
         </div>
       </div>
 
@@ -262,10 +312,11 @@
         <div v-if="pccesViewTab === 'materialInspection'" class="material-inspection-container">
           <MaterialInspectionPanel
             v-if="constructionId"
+            ref="materialPanelRef"
             :construction-id="constructionId"
             :design-change-id="selectedDesignChangeId"
             :materials="modalMaterials"
-            :test-items="modalTestItems"
+            :breakdown-items="breakdownItems"
             :active="pccesViewTab === 'materialInspection'"
           />
         </div>
@@ -274,6 +325,7 @@
           v-else-if="pccesViewTab === 'detail'"
           ref="treegrid"
           :dataSource="treeGridData"
+          :dataBound="onDetailGridDataBound"
           :allowPaging="false"
           :allowSorting="false"
           :allowFiltering="true"
@@ -328,13 +380,6 @@
               :template="'safetyHealthTemplate'"
             ></e-column>
             <e-column
-              field="isTestItem"
-              headerText="試驗項"
-              width="100"
-              textAlign="Center"
-              :template="'testItemTemplate'"
-            ></e-column>
-            <e-column
               field="quantity"
               headerText="總量"
               width="120"
@@ -355,6 +400,23 @@
               textAlign="Right"
               :template="'amountTemplate'"
             ></e-column>
+            <e-column
+              field="type"
+              headerText="類型"
+              width="110"
+              textAlign="Left"
+              :template="'typeTemplate'"
+              :allowFiltering="false"
+            ></e-column>
+            <e-column
+              field="__actions"
+              headerText="操作"
+              width="250"
+              textAlign="Center"
+              :template="'actionsTemplate'"
+              :allowFiltering="false"
+              :allowSorting="false"
+            ></e-column>
           </e-columns>
 
           <template v-slot:itemNoTemplate="{ data }">
@@ -362,19 +424,45 @@
           </template>
 
           <template v-slot:codeTemplate="{ data }">
-            <span :class="getCellClass(data, 'code')">{{ data.code }}</span>
+            <template v-if="data.isNew && addDetailBuffer">
+              <input type="text" class="form-control form-control-sm" v-model="addDetailBuffer.pccesCode"
+                placeholder="PCCES 料碼" style="min-width:110px" @click.stop />
+            </template>
+            <template v-else-if="editingRowId === String(data.id) && editBuffer">
+              <input type="text" class="form-control form-control-sm" v-model="editBuffer.pccesCode"
+                placeholder="PCCES 料碼" style="min-width:110px" @click.stop />
+            </template>
+            <span v-else :class="getCellClass(data, 'code')">{{ data.code }}</span>
           </template>
 
-          <!-- 工項名稱模板（包含類型圖示） -->
+          <!-- 工項名稱模板（包含類型圖示 / 編輯輸入框） -->
           <template v-slot:nameTemplate="{ data }">
-            <div class="d-flex align-items-center gap-2" style="line-height: 1.5;">
+            <template v-if="data.isNew && addDetailBuffer">
+              <input type="text" class="form-control form-control-sm" v-model="addDetailBuffer.name"
+                placeholder="工項名稱*" style="min-width:200px" @click.stop />
+            </template>
+            <template v-else-if="editingRowId === String(data.id) && editBuffer">
+              <input type="text" class="form-control form-control-sm" v-model="editBuffer.name"
+                placeholder="工項名稱" style="min-width:200px" @click.stop />
+            </template>
+            <div v-else class="d-flex align-items-center gap-2" style="line-height: 1.5;">
               <i v-if="data.type" :class="getTypeIcon(data.type)" :title="getTypeLabel(data.type)"></i>
               <span :class="getCellClass(data, 'name')">{{ data.name }}</span>
             </div>
           </template>
 
           <template v-slot:unitTemplate="{ data }">
-            <span :class="getCellClass(data, 'unit')">{{ data.unit }}</span>
+            <template v-if="editingRowId === String(data.id) && editBuffer">
+              <input
+                type="text"
+                class="form-control form-control-sm text-center"
+                v-model="editBuffer.unitType"
+                placeholder="單位"
+                style="min-width:60px;max-width:80px"
+                @click.stop
+              />
+            </template>
+            <span v-else :class="getCellClass(data, 'unit')">{{ data.unit }}</span>
           </template>
 
           <template v-slot:safetyHealthTemplate="{ data }">
@@ -406,48 +494,128 @@
             </div>
           </template>
 
-          <template v-slot:testItemTemplate="{ data }">
-            <div class="d-flex align-items-center justify-content-center px-1" @click.stop>
-              <template v-if="isTestItemTreeParentNode(data)">
-                <input
-                  :key="`pcces-test-parent-${testItemUiVersion}-${data.id}`"
-                  type="checkbox"
-                  class="form-check-input m-0"
-                  :checked="getParentTestItemGroupState(data) === 'all'"
-                  :indeterminate="getParentTestItemGroupState(data) === 'some'"
-                  :disabled="savingTestItemBatch"
-                  :class="{ 'opacity-50': savingTestItemBatch }"
-                  title="群組：點擊將底下所有工項一併勾選或取消（僅葉節點會寫入資料庫）"
-                  @click.stop.prevent="onParentTestItemChange(data, $event)"
-                />
-              </template>
-              <template v-else>
-                <input
-                  :key="`pcces-test-leaf-${testItemUiVersion}-${data.id}`"
-                  type="checkbox"
-                  class="form-check-input m-0"
-                  :checked="isTestItemChecked(data)"
-                  :disabled="savingTestItemId === data.id || savingTestItemBatch"
-                  title="勾選表示此工項為試驗項（非匯入檔欄位）"
-                  @change="onTestItemChange(data, $event)"
-                />
-              </template>
-            </div>
-          </template>
-
           <!-- 總量模板 -->
           <template v-slot:quantityTemplate="{ data }">
-            <span :class="getCellClass(data, 'quantity')">{{ formatNumber(data.quantity) }}</span>
+            <template v-if="data.isNew && addDetailBuffer">
+              <input type="number" class="form-control form-control-sm text-end" v-model="addDetailBuffer.quantity"
+                step="any" style="min-width:80px" @click.stop />
+            </template>
+            <template v-else-if="editingRowId === String(data.id) && editBuffer">
+              <input type="number" class="form-control form-control-sm text-end" v-model="editBuffer.quantity"
+                step="any" style="min-width:80px" @click.stop />
+            </template>
+            <span v-else :class="getCellClass(data, 'quantity')">{{ formatNumber(data.quantity) }}</span>
           </template>
 
           <!-- 單價模板 -->
           <template v-slot:priceTemplate="{ data }">
-            <span :class="getCellClass(data, 'price')">{{ formatPrice(data.price) }}</span>
+            <template v-if="data.isNew && addDetailBuffer">
+              <input type="number" class="form-control form-control-sm text-end" v-model="addDetailBuffer.price"
+                step="any" style="min-width:100px" @click.stop />
+            </template>
+            <template v-else-if="editingRowId === String(data.id) && editBuffer">
+              <input type="number" class="form-control form-control-sm text-end" v-model="editBuffer.price"
+                step="any" style="min-width:100px" @click.stop />
+            </template>
+            <span v-else :class="getCellClass(data, 'price')">{{ formatPrice(data.price) }}</span>
           </template>
 
-          <!-- 金額模板 -->
+          <!-- 金額模板（編輯模式下顯示即時計算值，不可輸入） -->
           <template v-slot:amountTemplate="{ data }">
-            <span :class="getCellClass(data, 'amount')">{{ formatPrice(data.amount) }}</span>
+            <template v-if="data.isNew && addDetailBuffer">
+              <span class="text-muted fst-italic" style="font-size:0.85rem">
+                {{ formatPrice(String((Number(addDetailBuffer.quantity) || 0) * (parseFloat(String(addDetailBuffer.price)) || 0))) }}
+              </span>
+            </template>
+            <template v-else-if="editingRowId === String(data.id) && editBuffer">
+              <span class="text-muted fst-italic" style="font-size:0.85rem">
+                {{ formatPrice(String((Number(editBuffer.quantity) || 0) * (parseFloat(String(editBuffer.price)) || 0))) }}
+              </span>
+            </template>
+            <span v-else :class="getCellClass(data, 'amount')">{{ formatPrice(data.amount) }}</span>
+          </template>
+
+          <!-- 類型模板 -->
+          <template v-slot:typeTemplate="{ data }">
+            <template v-if="data.isNew && addDetailBuffer">
+              <select class="form-select form-select-sm" v-model="addDetailBuffer.type"
+                style="min-width:90px" @click.stop>
+                <option v-for="opt in typeOptions" :key="String(opt.value)" :value="opt.value">
+                  {{ opt.emoji }} {{ opt.label }}
+                </option>
+              </select>
+            </template>
+            <template v-else-if="editingRowId === String(data.id) && editBuffer">
+              <select class="form-select form-select-sm" v-model="editBuffer.type"
+                style="min-width:90px" @click.stop>
+                <option v-for="opt in typeOptions" :key="String(opt.value)" :value="opt.value">
+                  {{ opt.emoji }} {{ opt.label }}
+                </option>
+              </select>
+            </template>
+            <span v-else class="d-flex align-items-center gap-1" style="white-space:nowrap">
+              <i v-if="data.type" :class="getTypeIcon(data.type)"></i>
+              <span>{{ data.type ? getTypeLabel(data.type) : '' }}</span>
+            </span>
+          </template>
+
+          <!-- 操作模板 -->
+          <template v-slot:actionsTemplate="{ data }">
+            <div class="act-row" @click.stop>
+              <!-- 新增列：儲存 / 取消 -->
+              <template v-if="data.isNew">
+                <button class="act-btn act-btn--save" :disabled="isSavingAddDetail"
+                  @click.stop="saveAddDetail()" title="儲存新增">
+                  <span v-if="isSavingAddDetail" class="spinner-border spinner-border-sm me-1"></span>
+                  <i v-else class="fa fa-check me-1"></i>儲存
+                </button>
+                <button class="act-btn act-btn--cancel" :disabled="isSavingAddDetail"
+                  @click.stop="cancelAddDetail()">取消</button>
+              </template>
+              <!-- 編輯列：儲存 / 取消 -->
+              <template v-else-if="editingRowId === String(data.id)">
+                <button class="act-btn act-btn--save" :disabled="isSavingEdit"
+                  @click.stop="saveEdit(data)" title="儲存">
+                  <span v-if="isSavingEdit" class="spinner-border spinner-border-sm me-1"></span>
+                  <i v-else class="fa fa-check me-1"></i>儲存
+                </button>
+                <button class="act-btn act-btn--cancel" :disabled="isSavingEdit"
+                  @click.stop="cancelEdit()">取消</button>
+              </template>
+              <!-- 一般列：hover 才顯示 -->
+              <template v-else>
+                <span class="row-hover-btns act-group">
+                  <button class="act-btn act-btn--edit"
+                    :disabled="editingRowId != null || isSavingEdit"
+                    @click.stop="startEdit(data)" title="編輯">
+                    <i class="fa fa-pencil-alt"></i>
+                  </button>
+                  <button class="act-btn act-btn--del"
+                    :disabled="editingRowId != null || isSavingEdit"
+                    @click.stop="deleteItem(data)" title="刪除">
+                    <i class="fa fa-trash"></i>
+                  </button>
+                  <span class="act-divider"></span>
+                  <button class="act-btn act-btn--move"
+                    :disabled="editingRowId != null || isAddingDetail"
+                    @click.stop="moveDetailRow(data, 'up')" title="上移">
+                    <i class="fa fa-arrow-up"></i>
+                  </button>
+                  <button class="act-btn act-btn--move"
+                    :disabled="editingRowId != null || isAddingDetail"
+                    @click.stop="moveDetailRow(data, 'down')" title="下移">
+                    <i class="fa fa-arrow-down"></i>
+                  </button>
+                  <span class="act-divider"></span>
+                  <button class="act-btn act-btn--add"
+                    :disabled="editingRowId != null || isAddingDetail"
+                    @click.stop="startAddDetailSibling(data)" title="新增同層工項">＋同層</button>
+                  <button class="act-btn act-btn--add"
+                    :disabled="editingRowId != null || isAddingDetail"
+                    @click.stop="startAddDetailChild(data)" title="新增子工項">⤷子項</button>
+                </span>
+              </template>
+            </div>
           </template>
         </ejs-treegrid>
 
@@ -455,6 +623,7 @@
           v-else-if="pccesViewTab === 'breakdown'"
           ref="breakdownTreegrid"
           :dataSource="breakdownTreeGridData"
+          :dataBound="onBreakdownGridDataBound"
           :allowPaging="false"
           :allowSorting="false"
           :allowFiltering="true"
@@ -471,15 +640,27 @@
         >
           <e-columns>
             <e-column field="refItemNo" headerText="對應項次" width="120" textAlign="Left" />
-            <e-column field="itemCode" headerText="編碼" width="140" textAlign="Left" />
+            <e-column
+              field="itemCode"
+              headerText="料碼"
+              width="140"
+              textAlign="Left"
+              :template="'bdItemCodeTemplate'"
+            />
             <e-column
               field="name"
               headerText="名稱"
-              width="300"
+              width="260"
               textAlign="Left"
               :template="'bdNameTemplate'"
             />
-            <e-column field="unit" headerText="單位" width="80" textAlign="Center" />
+            <e-column
+              field="unit"
+              headerText="單位"
+              width="80"
+              textAlign="Center"
+              :template="'bdUnitTemplate'"
+            />
             <e-column
               field="quantity"
               headerText="數量"
@@ -501,21 +682,187 @@
               textAlign="Right"
               :template="'bdAmtTemplate'"
             />
+            <e-column
+              field="type"
+              headerText="類型"
+              width="110"
+              textAlign="Left"
+              :template="'bdTypeTemplate'"
+              :allowFiltering="false"
+            />
+            <e-column
+              field="__bd_actions"
+              headerText="操作"
+              width="210"
+              textAlign="Center"
+              :template="'bdActionsTemplate'"
+              :allowFiltering="false"
+              :allowSorting="false"
+            />
           </e-columns>
+
+          <template v-slot:bdItemCodeTemplate="{ data }">
+            <template v-if="data.isNew && addBdBuffer">
+              <input type="text" class="form-control form-control-sm" v-model="addBdBuffer.itemCode"
+                placeholder="料碼" style="min-width:100px" @click.stop />
+            </template>
+            <template v-else-if="bdEditingRowId === String(data.id) && bdEditBuffer">
+              <input
+                type="text"
+                class="form-control form-control-sm"
+                v-model="bdEditBuffer.itemCode"
+                placeholder="料碼"
+                style="min-width:100px"
+                @click.stop
+              />
+            </template>
+            <span v-else>{{ data.itemCode }}</span>
+          </template>
+
           <template v-slot:bdNameTemplate="{ data }">
-            <div class="d-flex align-items-center gap-2" style="line-height: 1.5;">
+            <template v-if="data.isNew && addBdBuffer">
+              <input type="text" class="form-control form-control-sm" v-model="addBdBuffer.name"
+                placeholder="名稱*" style="min-width:180px" @click.stop />
+            </template>
+            <template v-else-if="bdEditingRowId === String(data.id) && bdEditBuffer">
+              <input type="text" class="form-control form-control-sm" v-model="bdEditBuffer.name"
+                placeholder="名稱" style="min-width:180px" @click.stop />
+            </template>
+            <div v-else class="d-flex align-items-center gap-2" style="line-height: 1.5;">
               <i v-if="data.type" :class="getTypeIcon(data.type)" :title="getTypeLabel(data.type)"></i>
               <span>{{ data.name }}</span>
             </div>
           </template>
+
+          <template v-slot:bdUnitTemplate="{ data }">
+            <template v-if="data.isNew && addBdBuffer">
+              <input type="text" class="form-control form-control-sm text-center" v-model="addBdBuffer.unitType"
+                placeholder="單位" style="min-width:50px;max-width:70px" @click.stop />
+            </template>
+            <template v-else-if="bdEditingRowId === String(data.id) && bdEditBuffer">
+              <input type="text" class="form-control form-control-sm text-center" v-model="bdEditBuffer.unitType"
+                placeholder="單位" style="min-width:50px;max-width:70px" @click.stop />
+            </template>
+            <span v-else>{{ data.unit }}</span>
+          </template>
+
           <template v-slot:bdQtyTemplate="{ data }">
-            <span>{{ formatNumber(data.quantity) }}</span>
+            <template v-if="data.isNew && addBdBuffer">
+              <input type="number" class="form-control form-control-sm text-end" v-model="addBdBuffer.quantity"
+                step="any" style="min-width:70px" @click.stop />
+            </template>
+            <template v-else-if="bdEditingRowId === String(data.id) && bdEditBuffer">
+              <input type="number" class="form-control form-control-sm text-end" v-model="bdEditBuffer.quantity"
+                step="any" style="min-width:70px" @click.stop />
+            </template>
+            <span v-else>{{ formatNumber(data.quantity) }}</span>
           </template>
+
           <template v-slot:bdPriceTemplate="{ data }">
-            <span>{{ formatPrice(data.price) }}</span>
+            <template v-if="data.isNew && addBdBuffer">
+              <input type="number" class="form-control form-control-sm text-end" v-model="addBdBuffer.price"
+                step="any" style="min-width:80px" @click.stop />
+            </template>
+            <template v-else-if="bdEditingRowId === String(data.id) && bdEditBuffer">
+              <input type="number" class="form-control form-control-sm text-end" v-model="bdEditBuffer.price"
+                step="any" style="min-width:80px" @click.stop />
+            </template>
+            <span v-else>{{ formatPrice(data.price) }}</span>
           </template>
+
           <template v-slot:bdAmtTemplate="{ data }">
-            <span>{{ formatPrice(data.amount) }}</span>
+            <template v-if="data.isNew && addBdBuffer">
+              <span class="text-muted fst-italic" style="font-size:0.85rem">
+                {{ formatPrice(String((Number(addBdBuffer.quantity) || 0) * (parseFloat(String(addBdBuffer.price)) || 0))) }}
+              </span>
+            </template>
+            <template v-else-if="bdEditingRowId === String(data.id) && bdEditBuffer">
+              <span class="text-muted fst-italic" style="font-size:0.85rem">
+                {{ formatPrice(String((Number(bdEditBuffer.quantity) || 0) * (parseFloat(String(bdEditBuffer.price)) || 0))) }}
+              </span>
+            </template>
+            <span v-else>{{ formatPrice(data.amount) }}</span>
+          </template>
+
+          <template v-slot:bdTypeTemplate="{ data }">
+            <template v-if="data.isNew && addBdBuffer">
+              <select class="form-select form-select-sm" v-model="addBdBuffer.type"
+                style="min-width:90px" @click.stop>
+                <option v-for="opt in typeOptions" :key="String(opt.value)" :value="opt.value">
+                  {{ opt.emoji }} {{ opt.label }}
+                </option>
+              </select>
+            </template>
+            <template v-else-if="bdEditingRowId === String(data.id) && bdEditBuffer">
+              <select class="form-select form-select-sm" v-model="bdEditBuffer.type"
+                style="min-width:90px" @click.stop>
+                <option v-for="opt in typeOptions" :key="String(opt.value)" :value="opt.value">
+                  {{ opt.emoji }} {{ opt.label }}
+                </option>
+              </select>
+            </template>
+            <span v-else class="d-flex align-items-center gap-1" style="white-space:nowrap">
+              <i v-if="data.type" :class="getTypeIcon(data.type)"></i>
+              <span>{{ data.type ? getTypeLabel(data.type) : '' }}</span>
+            </span>
+          </template>
+
+          <template v-slot:bdActionsTemplate="{ data }">
+            <div class="act-row" @click.stop>
+              <!-- 新增列 -->
+              <template v-if="data.isNew">
+                <button class="act-btn act-btn--save" :disabled="isSavingAddBd"
+                  @click.stop="saveAddBd()" title="儲存新增">
+                  <span v-if="isSavingAddBd" class="spinner-border spinner-border-sm me-1"></span>
+                  <i v-else class="fa fa-check me-1"></i>儲存
+                </button>
+                <button class="act-btn act-btn--cancel" :disabled="isSavingAddBd"
+                  @click.stop="cancelAddBd()">取消</button>
+              </template>
+              <!-- 編輯列 -->
+              <template v-else-if="bdEditingRowId === String(data.id)">
+                <button class="act-btn act-btn--save" :disabled="bdIsSavingEdit"
+                  @click.stop="saveBdEdit(data)" title="儲存">
+                  <span v-if="bdIsSavingEdit" class="spinner-border spinner-border-sm me-1"></span>
+                  <i v-else class="fa fa-check me-1"></i>儲存
+                </button>
+                <button class="act-btn act-btn--cancel" :disabled="bdIsSavingEdit"
+                  @click.stop="cancelBdEdit()">取消</button>
+              </template>
+              <!-- 一般列 -->
+              <template v-else>
+                <span class="row-hover-btns act-group">
+                  <button class="act-btn act-btn--edit"
+                    :disabled="bdEditingRowId != null || bdIsSavingEdit || isAddingBd"
+                    @click.stop="startBdEdit(data)" title="編輯">
+                    <i class="fa fa-pencil-alt"></i>
+                  </button>
+                  <button class="act-btn act-btn--del"
+                    :disabled="bdEditingRowId != null || bdIsSavingEdit || isAddingBd"
+                    @click.stop="deleteBdRow(data)" title="刪除">
+                    <i class="fa fa-trash"></i>
+                  </button>
+                  <span class="act-divider"></span>
+                  <button class="act-btn act-btn--move"
+                    :disabled="bdEditingRowId != null || isAddingBd"
+                    @click.stop="moveBdRow(data, 'up')" title="上移">
+                    <i class="fa fa-arrow-up"></i>
+                  </button>
+                  <button class="act-btn act-btn--move"
+                    :disabled="bdEditingRowId != null || isAddingBd"
+                    @click.stop="moveBdRow(data, 'down')" title="下移">
+                    <i class="fa fa-arrow-down"></i>
+                  </button>
+                  <span class="act-divider"></span>
+                  <button class="act-btn act-btn--add"
+                    :disabled="bdEditingRowId != null || isAddingBd"
+                    @click.stop="startAddBdSibling(data)" title="新增同層">＋同層</button>
+                  <button class="act-btn act-btn--add"
+                    :disabled="bdEditingRowId != null || isAddingBd"
+                    @click.stop="startAddBdChild(data)" title="新增子列">⤷子列</button>
+                </span>
+              </template>
+            </div>
           </template>
         </ejs-treegrid>
 
@@ -539,33 +886,263 @@
         >
           <e-columns>
             <e-column field="orderNumber" headerText="#" width="72" textAlign="Right" />
-            <e-column field="itemCode" headerText="編碼" width="160" textAlign="Left" :filter="containsFilter" />
-            <e-column
-              field="name"
-              headerText="名稱"
-              width="420"
-              textAlign="Left"
-              :filter="containsFilter"
-              :template="'resourceNameTemplate'"
-            />
-            <e-column field="unitType" headerText="單位" width="80" textAlign="Center" />
-            <e-column field="quantity" headerText="數量" width="120" textAlign="Right" />
-            <e-column field="price" headerText="單價" width="120" textAlign="Right" />
-            <e-column field="amount" headerText="金額" width="130" textAlign="Right" />
+            <e-column field="itemCode" headerText="編碼" width="160" textAlign="Left"
+              :filter="containsFilter" :template="'resItemCodeTemplate'" />
+            <e-column field="name" headerText="名稱" width="380" textAlign="Left"
+              :filter="containsFilter" :template="'resourceNameTemplate'" />
+            <e-column field="unitType" headerText="單位" width="80" textAlign="Center"
+              :template="'resUnitTemplate'" />
+            <e-column field="quantity" headerText="數量" width="120" textAlign="Right"
+              :template="'resQtyTemplate'" />
+            <e-column field="price" headerText="單價" width="120" textAlign="Right"
+              :template="'resPriceTemplate'" />
+            <e-column field="amount" headerText="金額" width="130" textAlign="Right"
+              :template="'resAmtTemplate'" />
+            <e-column field="__res_actions" headerText="操作" width="200" textAlign="Center"
+              :template="'resActionsTemplate'" :allowFiltering="false" :allowSorting="false" />
           </e-columns>
+
+          <template v-slot:resItemCodeTemplate="{ data }">
+            <template v-if="data.isNew && addResBuffer">
+              <input type="text" class="form-control form-control-sm"
+                v-model="addResBuffer.itemCode"
+                placeholder="編碼" style="min-width:120px" @click.stop />
+            </template>
+            <template v-else-if="resEditingRowId === String(data.id) && resEditBuffer">
+              <input type="text" class="form-control form-control-sm"
+                v-model="resEditBuffer.itemCode"
+                placeholder="編碼" style="min-width:120px" @click.stop />
+            </template>
+            <span v-else>{{ data.itemCode }}</span>
+          </template>
+
           <template v-slot:resourceNameTemplate="{ data }">
-            <div class="d-flex align-items-center gap-2" style="line-height: 1.5;">
-              <i
-                v-if="getResourceType(data)"
-                :class="getTypeIcon(getResourceType(data))"
-                :title="getTypeLabel(getResourceType(data))"
-              ></i>
+            <template v-if="data.isNew && addResBuffer">
+              <input type="text" class="form-control form-control-sm"
+                v-model="addResBuffer.name"
+                placeholder="名稱*" style="min-width:200px" @click.stop />
+            </template>
+            <template v-else-if="resEditingRowId === String(data.id) && resEditBuffer">
+              <input type="text" class="form-control form-control-sm"
+                v-model="resEditBuffer.name"
+                placeholder="名稱*" style="min-width:200px" @click.stop />
+            </template>
+            <div v-else class="d-flex align-items-center gap-2" style="line-height: 1.5;">
+              <i v-if="getResourceType(data)" :class="getTypeIcon(getResourceType(data))"
+                :title="getTypeLabel(getResourceType(data))"></i>
               <span>{{ data.name }}</span>
+            </div>
+          </template>
+
+          <template v-slot:resUnitTemplate="{ data }">
+            <template v-if="data.isNew && addResBuffer">
+              <input type="text" class="form-control form-control-sm text-center"
+                v-model="addResBuffer.unitType"
+                placeholder="單位" style="min-width:50px;max-width:70px" @click.stop />
+            </template>
+            <template v-else-if="resEditingRowId === String(data.id) && resEditBuffer">
+              <input type="text" class="form-control form-control-sm text-center"
+                v-model="resEditBuffer.unitType"
+                placeholder="單位" style="min-width:50px;max-width:70px" @click.stop />
+            </template>
+            <span v-else>{{ data.unitType }}</span>
+          </template>
+
+          <template v-slot:resQtyTemplate="{ data }">
+            <template v-if="data.isNew && addResBuffer">
+              <input type="number" class="form-control form-control-sm text-end"
+                v-model="addResBuffer.quantity"
+                step="any" style="min-width:80px" @click.stop />
+            </template>
+            <template v-else-if="resEditingRowId === String(data.id) && resEditBuffer">
+              <input type="number" class="form-control form-control-sm text-end"
+                v-model="resEditBuffer.quantity"
+                step="any" style="min-width:80px" @click.stop />
+            </template>
+            <span v-else>{{ formatNumber(data.quantity) }}</span>
+          </template>
+
+          <template v-slot:resPriceTemplate="{ data }">
+            <template v-if="data.isNew && addResBuffer">
+              <input type="number" class="form-control form-control-sm text-end"
+                v-model="addResBuffer.price"
+                step="any" style="min-width:90px" @click.stop />
+            </template>
+            <template v-else-if="resEditingRowId === String(data.id) && resEditBuffer">
+              <input type="number" class="form-control form-control-sm text-end"
+                v-model="resEditBuffer.price"
+                step="any" style="min-width:90px" @click.stop />
+            </template>
+            <span v-else>{{ formatPrice(data.price) }}</span>
+          </template>
+
+          <template v-slot:resAmtTemplate="{ data }">
+            <template v-if="data.isNew && addResBuffer">
+              <span class="text-muted fst-italic" style="font-size:0.85rem">
+                {{ formatPrice(String((Number(addResBuffer.quantity) || 0) * (parseFloat(String(addResBuffer.price)) || 0))) }}
+              </span>
+            </template>
+            <template v-else-if="resEditingRowId === String(data.id) && resEditBuffer">
+              <span class="text-muted fst-italic" style="font-size:0.85rem">
+                {{ formatPrice(String((Number(resEditBuffer.quantity) || 0) * (parseFloat(String(resEditBuffer.price)) || 0))) }}
+              </span>
+            </template>
+            <span v-else>{{ formatPrice(data.amount) }}</span>
+          </template>
+
+          <template v-slot:resActionsTemplate="{ data }">
+            <div class="act-row" @click.stop>
+              <template v-if="data.isNew">
+                <button class="act-btn act-btn--save" :disabled="isSavingAddRes"
+                  @click.stop="saveAddRes()" title="儲存">
+                  <span v-if="isSavingAddRes" class="spinner-border spinner-border-sm me-1"></span>
+                  <i v-else class="fa fa-check me-1"></i>儲存
+                </button>
+                <button class="act-btn act-btn--cancel" :disabled="isSavingAddRes"
+                  @click.stop="cancelAddRes()">取消</button>
+              </template>
+              <template v-else-if="resEditingRowId === String(data.id)">
+                <button class="act-btn act-btn--save" :disabled="resIsSavingEdit"
+                  @click.stop="saveResEdit(data)" title="儲存">
+                  <span v-if="resIsSavingEdit" class="spinner-border spinner-border-sm me-1"></span>
+                  <i v-else class="fa fa-check me-1"></i>儲存
+                </button>
+                <button class="act-btn act-btn--cancel" :disabled="resIsSavingEdit"
+                  @click.stop="cancelResEdit()">取消</button>
+              </template>
+              <template v-else>
+                <span class="row-hover-btns act-group">
+                  <button class="act-btn act-btn--edit"
+                    :disabled="resEditingRowId != null || resIsSavingEdit || isAddingRes"
+                    @click.stop="startResEdit(data)" title="編輯">
+                    <i class="fa fa-pencil-alt"></i>
+                  </button>
+                  <button class="act-btn act-btn--del"
+                    :disabled="resEditingRowId != null || resIsSavingEdit || isAddingRes"
+                    @click.stop="deleteResRow(data)" title="刪除">
+                    <i class="fa fa-trash"></i>
+                  </button>
+                  <span class="act-divider"></span>
+                  <button class="act-btn act-btn--move"
+                    :disabled="resEditingRowId != null || isAddingRes"
+                    @click.stop="moveResRow(data, 'up')" title="上移">
+                    <i class="fa fa-arrow-up"></i>
+                  </button>
+                  <button class="act-btn act-btn--move"
+                    :disabled="resEditingRowId != null || isAddingRes"
+                    @click.stop="moveResRow(data, 'down')" title="下移">
+                    <i class="fa fa-arrow-down"></i>
+                  </button>
+                  <span class="act-divider"></span>
+                  <button class="act-btn act-btn--add"
+                    :disabled="resEditingRowId != null || isAddingRes"
+                    @click.stop="startAddResRow(data)" title="插入此列之後">＋插入</button>
+                </span>
+              </template>
             </div>
           </template>
         </ejs-treegrid>
       </div>
     </div>
+
+    <!-- Excel 匯入 Modal（AI 解析，無 PCCES XML 時的替代方案） -->
+    <Modal
+      :show="showExcelImportModal"
+      title="匯入 Excel 標單（AI 解析）"
+      icon="fa fa-file-excel"
+      size="lg"
+      @update:show="showExcelImportModal = $event"
+      :hideConfirmButton="true"
+      cancelText="取消"
+    >
+      <template #body>
+        <div class="alert alert-info d-flex gap-2 py-2 mb-3">
+          <i class="fa fa-info-circle mt-1 flex-shrink-0"></i>
+          <div class="small">
+            此功能適用於<strong>沒有 PCCES XML 格式</strong>的標單，由 AI 自動識別欄位與層級結構後存入。
+            匯入後請確認工項資料是否正確，並視需要補填 PCCES 料碼。
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">選擇 Excel 檔案（.xlsx / .xls）</label>
+          <input
+            type="file"
+            class="form-control d-none"
+            accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+            @change="handleExcelFileSelect"
+            ref="excelFileInput"
+          />
+          <div
+            class="pcces-import-dropzone border rounded-3 p-4 text-center user-select-none"
+            :class="{
+              'pcces-import-dropzone--active': excelImportDragDepth > 0,
+              'pcces-import-dropzone--has-file': !!selectedExcelFile
+            }"
+            role="button"
+            tabindex="0"
+            @click="triggerExcelFileInput"
+            @keydown.enter.prevent="triggerExcelFileInput"
+            @keydown.space.prevent="triggerExcelFileInput"
+            @dragenter.prevent="excelImportDragDepth++"
+            @dragleave.prevent="excelImportDragDepth--"
+            @dragover.prevent
+            @drop.prevent="onExcelImportDrop"
+          >
+            <template v-if="selectedExcelFile">
+              <i class="fa fa-check-circle pcces-import-file-check d-block mb-2" aria-hidden="true"></i>
+              <span class="pcces-import-ready-badge">已選擇檔案</span>
+              <div class="pcces-import-filename text-break mt-2 mb-1">
+                <i class="fa fa-file-excel me-2" aria-hidden="true"></i>{{ selectedExcelFile.name }}
+              </div>
+              <div class="pcces-import-filemeta">{{ formatImportFileSize(selectedExcelFile.size) }}</div>
+              <p class="pcces-import-replace-hint mb-0 mt-3 small">點此區域或拖放其他檔案可更換</p>
+            </template>
+            <template v-else>
+              <i class="fa fa-file-excel fa-2x mb-2 d-block text-secondary"></i>
+              <p class="mb-1 fw-medium">將 Excel 檔拖放到此處，或按一下選擇檔案</p>
+              <p class="mb-0 small text-muted">支援 .xlsx / .xls 格式</p>
+            </template>
+          </div>
+        </div>
+        <p class="text-muted small mb-2">
+          匯入目標：<strong>{{ selectedDesignChangeId == null ? '原契約' : '變更設計' }}</strong>（與上方目前選中的版本一致）
+        </p>
+        <div class="mb-3">
+          <div class="form-check">
+            <input
+              class="form-check-input"
+              type="checkbox"
+              id="excelImportOverwrite"
+              v-model="excelImportOverwrite"
+            />
+            <label class="form-check-label" for="excelImportOverwrite">
+              覆寫該版本既有標單明細（勾選時會先刪除該版本現有資料再匯入）
+            </label>
+          </div>
+        </div>
+        <div v-if="excelImportError" class="alert alert-danger">
+          <i class="fa fa-exclamation-circle me-2"></i>{{ excelImportError }}
+        </div>
+      </template>
+      <template #footer>
+        <button
+          class="btn btn-outline-secondary"
+          @click="showExcelImportModal = false"
+          :disabled="isExcelImporting"
+        >
+          取消
+        </button>
+        <button
+          class="btn btn-success"
+          @click="handleExcelImport"
+          :disabled="!selectedExcelFile || isExcelImporting"
+        >
+          <span v-if="isExcelImporting" class="spinner-border spinner-border-sm me-2"></span>
+          <i v-else class="fa fa-robot me-2"></i>
+          {{ isExcelImporting ? 'AI 解析中，請稍候...' : 'AI 解析並匯入' }}
+        </button>
+      </template>
+    </Modal>
 
     <!-- 匯入 Modal -->
     <Modal
@@ -670,22 +1247,40 @@ import PageHeader from '@/components/bootstrap/PageHeader.vue'
 import Modal from '@/components/bootstrap/Modal.vue'
 import DesignChangeVersionSwitcher from '@/components/common/DesignChangeVersionSwitcher.vue'
 import MaterialInspectionPanel from '@/components/project/MaterialInspectionPanel.vue'
-import { ref, computed, watch, onMounted, onActivated, nextTick, provide } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, onActivated, nextTick, provide } from 'vue'
 import { useWorkspaceStore } from '@/stores/workspace'
 import {
   importPccesFile,
+  importPccesExcelFile,
   getConstructionPccesCodes,
   getConstructionPccesCostBreakdown,
   getConstructionPccesResources,
   copyPccesFromTo,
+  updatePccesCodeRow,
+  deletePccesCodeRow,
+  updatePccesCostBreakdownRow,
+  type UpdatePccesCodeRowRequest,
+  type UpdatePccesCostBreakdownRequest,
   type ConstructionPccesCode,
   type ConstructionPccesCostBreakdown,
   type ConstructionPccesResource,
   type ImportPccesRequest,
-  PccesItemType
+  type CreatePccesCodeRequest,
+  type CreatePccesCostBreakdownRequest,
+  type CreatePccesResourceRequest,
+  type UpdatePccesResourceRequest,
+  PccesItemType,
+  createPccesCodeRow,
+  movePccesCodeRow,
+  createPccesCostBreakdownRow,
+  movePccesCostBreakdownRow,
+  deletePccesCostBreakdownRow,
+  createPccesResourceRow,
+  updatePccesResourceRow,
+  deletePccesResourceRow,
+  movePccesResourceRow
 } from '@/api/pcces'
 import { usePccesSafetyHealthTreeGrid } from '@/composables/usePccesSafetyHealthTreeGrid'
-import { usePccesTestItemTreeGrid } from '@/composables/usePccesTestItemTreeGrid'
 import { getDesignChangeList } from '@/api/designChange'
 import { useViewPerspective } from '@/composables/useViewPerspective'
 import { Sort, Resize, Filter } from '@syncfusion/ej2-vue-treegrid'
@@ -703,7 +1298,7 @@ function onTreeGridActionBegin(e: any) {
       const field = String(col.field ?? '')
 
       // 布林欄位：不要用 contains
-      if (field === 'isSafetyHealthFacility' || field === 'isTestItem') {
+      if (field === 'isSafetyHealthFacility') {
         col.operator = 'equal'
         continue
       }
@@ -737,8 +1332,6 @@ interface ProjectItem {
   type: string | null
   /** 是否為安全衛生設施（使用者勾選，預設否） */
   isSafetyHealthFacility: boolean
-  /** 是否為試驗項（使用者勾選，預設否） */
-  isTestItem: boolean
 }
 
 /** 單價分析（CostBreakdownList）列，供 TreeGrid */
@@ -827,33 +1420,67 @@ const modalMaterials = computed(() => {
     // 同 rank：保留原本（先到先得）
   }
 
-  // 3) DetailList：從標單明細（後端已回傳）提 M%
+  // 3) DetailList：從標單明細（後端已回傳）提 M% 或 type=MATERIAL 的項目
   for (const it of items.value) {
     const code = String(it.code ?? '').trim()
-    if (!code.toUpperCase().startsWith('M')) continue
-    upsert(
-      code,
-      {
-        name: String(it.name ?? '').trim() || code,
-        unit: it.unit ?? null
-      },
-      'DETAIL'
-    )
+    const isMCode = code.toUpperCase().startsWith('M')
+    const isTypeMaterial = it.type === PccesItemType.MATERIAL
+
+    if (isMCode) {
+      // code 以 M 開頭：走 upsert（支援優先序去重）
+      upsert(
+        code,
+        {
+          name: String(it.name ?? '').trim() || code,
+          unit: it.unit ?? null
+        },
+        'DETAIL'
+      )
+    } else if (isTypeMaterial) {
+      // 類型設定為「材料」但 code 非 M 開頭（或無 code）：以 code 或 id 作 key，直接納入
+      const key = code || `ITEM_${it.id}`
+      if (!out.has(key)) {
+        out.set(key, {
+          code: key,
+          name: String(it.name ?? '').trim() || key,
+          unit: it.unit ?? null,
+          refItemNo: null,
+          source: 'DETAIL'
+        })
+      }
+    }
   }
 
-  // 2) Breakdown：從單價分析提 M%（顯示用；關聯 id 盡量對應到葉節點）
+  // 2) Breakdown：從單價分析提 M% 或 type=MATERIAL 的項目
   for (const b of breakdownItems.value) {
     const code = String(b.itemCode ?? '').trim()
-    if (!code.toUpperCase().startsWith('M')) continue
-    upsert(
-      code,
-      {
-        name: String(b.name ?? '').trim() || code,
-        unit: b.unit ?? null,
-        refItemNo: b.refItemNo ?? null
-      },
-      'BREAKDOWN'
-    )
+    const isMCode = code.toUpperCase().startsWith('M')
+    const isTypeMaterial = b.type === PccesItemType.MATERIAL
+
+    if (isMCode) {
+      // 料碼以 M 開頭：走 upsert 優先序去重
+      upsert(
+        code,
+        {
+          name: String(b.name ?? '').trim() || code,
+          unit: b.unitType ?? null,
+          refItemNo: b.refItemNo ?? null
+        },
+        'BREAKDOWN'
+      )
+    } else if (isTypeMaterial) {
+      // 類型設為「材料」但料碼非 M 開頭（或無料碼）：以 BD_{id} 作 key，直接納入
+      const key = code || `BD_${b.id}`
+      if (!out.has(key)) {
+        out.set(key, {
+          code: key,
+          name: String(b.name ?? '').trim() || key,
+          unit: b.unitType ?? null,
+          refItemNo: b.refItemNo ?? null,
+          source: 'BREAKDOWN'
+        })
+      }
+    }
   }
 
   // 1) Resource：從資源統計提 M%
@@ -883,17 +1510,9 @@ const modalMaterials = computed(() => {
     .sort((a, b) => String(a.itemCode || '').localeCompare(String(b.itemCode || '')))
 })
 
-const modalTestItems = computed(() => {
-  return items.value
-    .filter((i) => i.isTestItem === true && isPccesLeafItem(i))
-    .map((i) => ({
-      id: parseInt(String(i.id), 10),
-      itemNo: i.itemNo ?? null,
-      pccesCode: i.code ?? null,
-      name: i.name
-    }))
-    .filter((t) => Number.isFinite(t.id))
-})
+/** MaterialInspectionPanel 的 ref，用於外部呼叫 refresh() */
+const materialPanelRef = ref<InstanceType<typeof MaterialInspectionPanel> | null>(null)
+
 /** 標單明細 / 單價分析 分頁 */
 const pccesViewTab = ref<'detail' | 'breakdown' | 'resource' | 'materialInspection'>('detail')
 /** 目前選中的變更設計版本：null = 原契約 */
@@ -998,7 +1617,6 @@ async function applyDiffFromPreviousVersion() {
         name: true,
         unit: true,
         safetyHealth: true,
-        testItem: true,
         quantity: true,
         price: true,
         amount: true
@@ -1012,7 +1630,6 @@ async function applyDiffFromPreviousVersion() {
     if (!sameNumber(it.price, prev.price)) diff.price = true
     if (!sameNumber(it.amount, prev.amount)) diff.amount = true
     if (!!it.isSafetyHealthFacility !== !!prev.isSafetyHealthFacility) diff.safetyHealth = true
-    if (!!it.isTestItem !== !!prev.isTestItem) diff.testItem = true
     ;(it as any).diffAll = false
     ;(it as any).diff = diff
   }
@@ -1033,7 +1650,7 @@ const breakdownTreegrid = ref<TreeGridComponent | null>(null)
 const resourceTreegrid = ref<TreeGridComponent | null>(null)
 const treeGridData = ref<any[]>([])
 const breakdownTreeGridData = ref<any[]>([])
-const resourceRows = ref<ConstructionPccesResource[]>([])
+const resourceRows = ref<any[]>([])
 
 function refreshVisibleGrid() {
   const tab = pccesViewTab.value
@@ -1100,24 +1717,7 @@ const {
   alert: (msg) => alert(msg)
 })
 
-const {
-  savingTestItemId,
-  savingTestItemBatch,
-  testItemUiVersion,
-  getParentTestItemGroupState,
-  onParentTestItemChange,
-  onTestItemChange,
-  isTestItemTreeParentNode,
-  isTestItemChecked
-} = usePccesTestItemTreeGrid({
-  items,
-  treeGridData,
-  getConstructionId: () => constructionId.value,
-  getDesignChangeId: () => selectedDesignChangeId.value,
-  alert: (msg) => alert(msg)
-})
-
-// 匯入相關
+// 匯入相關（XML）
 const showImportModal = ref(false)
 const selectedFile = ref<File | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
@@ -1127,133 +1727,18 @@ const importError = ref('')
 /** 拖放進入巢狀計數，避免子元素造成 dragleave 閃爍 */
 const importDragDepth = ref(0)
 
+// Excel 匯入相關（AI 解析）
+const showExcelImportModal = ref(false)
+const selectedExcelFile = ref<File | null>(null)
+const excelFileInput = ref<HTMLInputElement | null>(null)
+const excelImportOverwrite = ref(true)
+const isExcelImporting = ref(false)
+const excelImportError = ref('')
+const excelImportDragDepth = ref(0)
+
 // 切換全螢幕
 const toggleFullscreen = () => {
   isFullscreen.value = !isFullscreen.value
-}
-
-function safeJson(obj: any): string {
-  try {
-    return JSON.stringify(obj)
-  } catch {
-    return '[unserializable]'
-  }
-}
-
-function maxDepth(nodes: any[] | undefined): number {
-  if (!Array.isArray(nodes) || nodes.length === 0) return 0
-  const walk = (n: any, d: number): number => {
-    const ch = Array.isArray(n?.children) ? n.children : []
-    if (!ch.length) return d
-    return Math.max(...ch.map((c: any) => walk(c, d + 1)))
-  }
-  return Math.max(...nodes.map((n) => walk(n, 1)))
-}
-
-async function copyTextToClipboard(text: string): Promise<boolean> {
-  try {
-    if (navigator?.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text)
-      return true
-    }
-  } catch {
-    // ignore
-  }
-  try {
-    const ta = document.createElement('textarea')
-    ta.value = text
-    ta.style.position = 'fixed'
-    ta.style.left = '-9999px'
-    ta.style.top = '0'
-    document.body.appendChild(ta)
-    ta.focus()
-    ta.select()
-    const ok = document.execCommand('copy')
-    document.body.removeChild(ta)
-    return ok
-  } catch {
-    return false
-  }
-}
-
-async function copyDebugInfo() {
-  const cid = constructionId.value || '(no constructionId)'
-  const ver = selectedDesignChangeId.value == null ? '原契約' : `變更設計(${selectedDesignChangeId.value})`
-  const tab = pccesViewTab.value
-
-  const flat = items.value || []
-  const flatIds = new Set(flat.map((x) => String(x.id)))
-  const orphan = flat
-    .filter((x) => x.parentId != null && !flatIds.has(String(x.parentId)))
-    .slice(0, 50)
-    .map((x) => ({
-      id: x.id,
-      parentId: x.parentId,
-      itemNo: x.itemNo,
-      name: x.name,
-      code: x.code,
-      type: x.type
-    }))
-
-  const tree = treeGridData.value || []
-  const bdFlat = (breakdownItems.value || []) as any[]
-  const bdTree = breakdownTreeGridData.value || []
-  const bdIds = new Set(bdFlat.map((x) => String(x.id)))
-  const bdOrphan = bdFlat
-    .filter((x) => x.parentId != null && !bdIds.has(String(x.parentId)))
-    .slice(0, 50)
-    .map((x) => ({
-      id: x.id,
-      parentId: x.parentId,
-      refItemNo: x.refItemNo,
-      itemCode: x.itemCode,
-      name: x.name,
-      itemKind: x.itemKind
-    }))
-
-  const sampleFlat = flat.slice(0, 30).map((x) => ({
-    id: x.id,
-    parentId: x.parentId,
-    itemNo: x.itemNo,
-    name: x.name,
-    code: x.code,
-    type: x.type
-  }))
-
-  const sampleRoots = (tree || []).slice(0, 15).map((x: any) => ({
-    id: x.id,
-    itemNo: x.itemNo,
-    name: x.name,
-    childrenCount: Array.isArray(x.children) ? x.children.length : 0
-  }))
-
-  const payload = {
-    page: '/basic/project-item-database',
-    at: new Date().toISOString(),
-    constructionId: cid,
-    version: ver,
-    viewTab: tab,
-    detail: {
-      flatCount: flat.length,
-      rootCount: Array.isArray(tree) ? tree.length : 0,
-      maxDepth: maxDepth(tree as any),
-      orphanCount: flat.filter((x) => x.parentId != null && !flatIds.has(String(x.parentId))).length,
-      orphanPreview: orphan,
-      sampleFlat,
-      sampleRoots
-    },
-    breakdown: {
-      flatCount: bdFlat.length,
-      rootCount: Array.isArray(bdTree) ? bdTree.length : 0,
-      maxDepth: maxDepth(bdTree as any),
-      orphanCount: bdFlat.filter((x) => x.parentId != null && !bdIds.has(String(x.parentId))).length,
-      orphanPreview: bdOrphan
-    }
-  }
-
-  const text = safeJson(payload)
-  const ok = await copyTextToClipboard(text)
-  alert(ok ? '已複製除錯資訊到剪貼簿，請直接貼到對話中。' : '複製失敗，請開啟 Console 取得資料。')
 }
 
 // 中文數字對照表
@@ -1409,7 +1894,6 @@ const buildTreeData = (items: ProjectItem[]): any[] => {
       unit: item.unit || '',
       orderNumber: item.orderNumber ?? 0,
       isSafetyHealthFacility: item.isSafetyHealthFacility === true,
-      isTestItem: item.isTestItem === true,
       quantity: item.quantity,
       price: item.price,
       amount: item.amount,
@@ -1461,8 +1945,7 @@ const convertToProjectItem = (code: ConstructionPccesCode): ProjectItem => ({
   orderNumber: typeof (code as any).orderNumber === 'number' ? ((code as any).orderNumber as number) : parseInt((code as any).orderNumber) || 0,
   parentId: code.parentId,
   type: code.type,
-  isSafetyHealthFacility: code.isSafetyHealthFacility === true,
-  isTestItem: code.isTestItem === true
+  isSafetyHealthFacility: code.isSafetyHealthFacility === true
 })
 
 const convertToBreakdownProjectItem = (r: ConstructionPccesCostBreakdown): BreakdownProjectItem => ({
@@ -1716,6 +2199,245 @@ const handleImport = async () => {
   }
 }
 
+// ===== Excel 匯入（AI 解析）=====
+
+const openExcelImportModal = () => {
+  if (!constructionId.value) {
+    alert('請先選擇工程項目')
+    return
+  }
+  excelImportError.value = ''
+  selectedExcelFile.value = null
+  excelImportOverwrite.value = true
+  excelImportDragDepth.value = 0
+  if (excelFileInput.value) excelFileInput.value.value = ''
+  showExcelImportModal.value = true
+}
+
+function isAcceptableExcelFile(file: File): boolean {
+  const name = (file.name || '').toLowerCase()
+  if (name.endsWith('.xlsx') || name.endsWith('.xls')) return true
+  const t = (file.type || '').toLowerCase()
+  return (
+    t === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+    t === 'application/vnd.ms-excel'
+  )
+}
+
+function assignExcelFile(file: File | null) {
+  if (!file) { selectedExcelFile.value = null; return }
+  if (!isAcceptableExcelFile(file)) {
+    excelImportError.value = '請選擇副檔名為 .xlsx 或 .xls 的 Excel 檔案'
+    selectedExcelFile.value = null
+    return
+  }
+  selectedExcelFile.value = file
+  excelImportError.value = ''
+}
+
+function triggerExcelFileInput() {
+  if (isExcelImporting.value) return
+  excelFileInput.value?.click()
+}
+
+function handleExcelFileSelect(event: Event) {
+  const target = event.target as HTMLInputElement
+  if (target.files?.length) assignExcelFile(target.files[0])
+}
+
+function onExcelImportDrop(e: DragEvent) {
+  excelImportDragDepth.value = 0
+  const files = e.dataTransfer?.files
+  if (!files?.length) return
+  assignExcelFile(files[0])
+}
+
+const handleExcelImport = async () => {
+  if (!selectedExcelFile.value || !constructionId.value) {
+    excelImportError.value = '請選擇檔案'
+    return
+  }
+  isExcelImporting.value = true
+  excelImportError.value = ''
+  try {
+    const result = await importPccesExcelFile({
+      excelFile: selectedExcelFile.value,
+      constructionId: constructionId.value,
+      designChangeId: selectedDesignChangeId.value,
+      overwrite: excelImportOverwrite.value
+    })
+    const targetLabel = result.designChangeId == null ? '原契約' : '變更設計'
+    const bdMsg = result.totalCostBreakdown > 0 ? `\n單價分析：${result.totalCostBreakdown} 列` : ''
+    const testMsg = (result.totalTestItems ?? 0) > 0 ? `\n試驗項（已同步至材料與試驗）：${result.totalTestItems} 筆` : ''
+    const resMsg = result.totalResources > 0 ? `\n資源統計：${result.totalResources} 列` : ''
+    alert(`Excel 標單匯入成功！\n匯入目標：${targetLabel}\n匯入工項：${result.totalCodes} 筆${bdMsg}${testMsg}${resMsg}\n\nPCCES 料碼欄位為空，請視需要手動補填。`)
+    showExcelImportModal.value = false
+    await loadItems()
+  } catch (error: any) {
+    console.error('[ExcelImport] 失敗:', error)
+    excelImportError.value = error.message || 'AI 解析或匯入失敗，請確認 Excel 內容為工程標單格式後再試'
+  } finally {
+    isExcelImporting.value = false
+  }
+}
+
+// ===== 逐行編輯（Row-level Edit）=====
+
+interface RowEditBuffer {
+  pccesCode: string
+  name: string
+  unitType: string
+  quantity: number | string
+  price: string
+  type: string | null
+}
+
+/** 目前正在編輯的 row id（string，與 data.id 比對） */
+const editingRowId = ref<string | null>(null)
+const editBuffer = ref<RowEditBuffer | null>(null)
+const isSavingEdit = ref(false)
+
+/** 類型選項（供下拉選單用） */
+const typeOptions: { value: string | null; emoji: string; label: string }[] = [
+  { value: null,                      emoji: '—',  label: '不分類' },
+  { value: PccesItemType.MAIN_ITEM,   emoji: '📁', label: '大項' },
+  { value: PccesItemType.WORK_ITEM,   emoji: '🔨', label: '工項' },
+  { value: PccesItemType.LABOUR,      emoji: '👷', label: '人工' },
+  { value: PccesItemType.EQUIPMENT,   emoji: '⚙️', label: '機具' },
+  { value: PccesItemType.MATERIAL,    emoji: '🧱', label: '材料' },
+  { value: PccesItemType.MISC,        emoji: '🗂️', label: '雜項' },
+  { value: PccesItemType.TEST_ITEM,   emoji: '🔬', label: '試驗項' }
+]
+
+function startEdit(data: any) {
+  if (editingRowId.value != null) return // 另一列正在編輯中
+  editingRowId.value = String(data.id)
+  editBuffer.value = {
+    pccesCode: data.code ?? '',
+    name: data.name ?? '',
+    unitType: data.unit ?? '',
+    quantity: data.quantity ?? 0,
+    price: data.price ?? '0',
+    type: data.type ?? null
+  }
+}
+
+function cancelEdit() {
+  editingRowId.value = null
+  editBuffer.value = null
+}
+
+async function saveEdit(data: any) {
+  if (!editBuffer.value || editingRowId.value !== String(data.id)) return
+  isSavingEdit.value = true
+  try {
+    const quantity = Number(editBuffer.value.quantity) || 0
+    const price = parseFloat(String(editBuffer.value.price)) || 0
+    const amount = (quantity * price).toFixed(2)
+    const body: UpdatePccesCodeRowRequest = {
+      pccesCode: editBuffer.value.pccesCode.trim() || null,
+      name: editBuffer.value.name.trim(),
+      unitType: editBuffer.value.unitType.trim(),
+      quantity,
+      price,
+      amount,
+      type: editBuffer.value.type || null
+    }
+    await updatePccesCodeRow(constructionId.value, parseInt(String(data.id), 10), body)
+    editingRowId.value = null
+    editBuffer.value = null
+    withScrollPreserved('detail')
+    await loadItems()
+  } catch (e: any) {
+    alert('儲存失敗：' + (e.message || '未知錯誤'))
+  } finally {
+    isSavingEdit.value = false
+  }
+}
+
+async function deleteItem(data: any) {
+  const hasChildren = Array.isArray(data.children) && data.children.length > 0
+  const confirmMsg = hasChildren
+    ? `此操作將刪除「${data.name}」及其底下所有子工項，確定繼續？`
+    : `確定刪除工項「${data.name}」？`
+  if (!confirm(confirmMsg)) return
+  isSavingEdit.value = true
+  try {
+    await deletePccesCodeRow(constructionId.value, parseInt(String(data.id), 10))
+    if (editingRowId.value === String(data.id)) {
+      editingRowId.value = null
+      editBuffer.value = null
+    }
+    withScrollPreserved('detail')
+    await loadItems()
+  } catch (e: any) {
+    alert('刪除失敗：' + (e.message || '未知錯誤'))
+  } finally {
+    isSavingEdit.value = false
+  }
+}
+
+// ===== 單價分析逐行編輯（Breakdown Row-level Edit）=====
+
+interface BdRowEditBuffer {
+  itemCode: string
+  name: string
+  unitType: string
+  quantity: number | string
+  price: string
+  type: string | null
+}
+
+const bdEditingRowId = ref<string | null>(null)
+const bdEditBuffer = ref<BdRowEditBuffer | null>(null)
+const bdIsSavingEdit = ref(false)
+
+function startBdEdit(data: any) {
+  if (bdEditingRowId.value != null) return
+  bdEditingRowId.value = String(data.id)
+  bdEditBuffer.value = {
+    itemCode: data.itemCode ?? '',
+    name: data.name ?? '',
+    unitType: data.unit ?? '',
+    quantity: data.quantity ?? 0,
+    price: data.price ?? '0',
+    type: data.type ?? null
+  }
+}
+
+function cancelBdEdit() {
+  bdEditingRowId.value = null
+  bdEditBuffer.value = null
+}
+
+async function saveBdEdit(data: any) {
+  if (!bdEditBuffer.value || bdEditingRowId.value !== String(data.id)) return
+  bdIsSavingEdit.value = true
+  try {
+    const quantity = Number(bdEditBuffer.value.quantity) || 0
+    const price = parseFloat(String(bdEditBuffer.value.price)) || 0
+    const amount = (quantity * price).toFixed(2)
+    const body: UpdatePccesCostBreakdownRequest = {
+      name: bdEditBuffer.value.name.trim(),
+      itemCode: bdEditBuffer.value.itemCode.trim() || null,
+      unitType: bdEditBuffer.value.unitType.trim(),
+      quantity,
+      price,
+      amount,
+      type: bdEditBuffer.value.type || null
+    }
+    await updatePccesCostBreakdownRow(constructionId.value, parseInt(String(data.id), 10), body)
+    bdEditingRowId.value = null
+    bdEditBuffer.value = null
+    withScrollPreserved('breakdown')
+    await loadItems()
+  } catch (e: any) {
+    alert('儲存失敗：' + (e.message || '未知錯誤'))
+  } finally {
+    bdIsSavingEdit.value = false
+  }
+}
+
 // 格式化數字
 const formatNumber = (value: number | string): string => {
   if (typeof value === 'string') {
@@ -1752,7 +2474,8 @@ const getTypeIcon = (type: string | null): string => {
     [PccesItemType.EQUIPMENT]: 'fa fa-cog text-warning',
     [PccesItemType.MATERIAL]: 'fa fa-cube text-success',
     [PccesItemType.MISC]: 'fa fa-archive text-secondary',
-    [PccesItemType.WORK_ITEM]: 'fa fa-hammer text-danger'
+    [PccesItemType.WORK_ITEM]: 'fa fa-hammer text-danger',
+    [PccesItemType.TEST_ITEM]: 'fa fa-flask text-purple'
   }
   
   return iconMap[type] || ''
@@ -1768,7 +2491,8 @@ const getTypeLabel = (type: string | null): string => {
     [PccesItemType.EQUIPMENT]: '機具',
     [PccesItemType.MATERIAL]: '材料',
     [PccesItemType.MISC]: '雜項',
-    [PccesItemType.WORK_ITEM]: '工項'
+    [PccesItemType.WORK_ITEM]: '工項',
+    [PccesItemType.TEST_ITEM]: '試驗項'
   }
   
   return labelMap[type] || ''
@@ -1777,6 +2501,399 @@ const getTypeLabel = (type: string | null): string => {
 // 更新 TreeGrid 資料（不再額外過濾，僅依照原始 items，搜尋改由 TreeGrid 內建篩選處理）
 const updateTreeGridData = () => {
   treeGridData.value = buildTreeData(items.value)
+}
+
+// ── 新增 / 排序 邏輯 ──────────────────────────────────────────────────────────
+
+const NEW_ROW_ID = '__NEW__'
+
+/** 插入臨時節點到樹中（after=false 則作為 asChild），觸發 Syncfusion 重繪 */
+function insertTempNode(
+  dataRef: typeof treeGridData | typeof breakdownTreeGridData,
+  afterId: string | null,
+  asChild: boolean,
+  tempNode: any
+) {
+  const arr = dataRef.value
+
+  const insertInto = (nodes: any[]): boolean => {
+    for (let i = 0; i < nodes.length; i++) {
+      if (String(nodes[i].id) === afterId) {
+        if (asChild) {
+          if (!nodes[i].children) nodes[i].children = []
+          nodes[i].children.unshift(tempNode)
+        } else {
+          nodes.splice(i + 1, 0, tempNode)
+        }
+        return true
+      }
+      if (nodes[i].children?.length && insertInto(nodes[i].children)) return true
+    }
+    return false
+  }
+
+  if (afterId === null) {
+    // 根層級末尾
+    arr.push(tempNode)
+  } else {
+    insertInto(arr)
+  }
+  // 建立新陣列參考以觸發 Syncfusion rebind
+  dataRef.value = [...arr]
+}
+
+/** 從樹中移除臨時節點 */
+function removeTempNode(dataRef: typeof treeGridData | typeof breakdownTreeGridData) {
+  const remove = (nodes: any[]): boolean => {
+    const idx = nodes.findIndex(n => n.id === NEW_ROW_ID)
+    if (idx !== -1) { nodes.splice(idx, 1); return true }
+    for (const n of nodes) {
+      if (n.children?.length && remove(n.children)) return true
+    }
+    return false
+  }
+  remove(dataRef.value)
+  dataRef.value = [...dataRef.value]
+}
+
+// ── 標單明細：新增列 ────────────────────────────────────────────────────────
+
+interface AddDetailBuffer { pccesCode: string; name: string; unitType: string; quantity: number; price: number; type: string | null }
+const isAddingDetail = ref(false)
+const addDetailBuffer = ref<AddDetailBuffer | null>(null)
+const isSavingAddDetail = ref(false)
+let _addDetailParentId: number | null = null
+let _addDetailAfterId: number | null = null
+
+function _startAddDetail(afterData: any | null, asChild: boolean) {
+  if (isAddingDetail.value || editingRowId.value) return
+  _addDetailParentId = asChild
+    ? (afterData ? parseInt(String(afterData.id)) : null)
+    : (afterData ? (afterData.parentId ?? null) : null)
+  _addDetailAfterId = (afterData && !asChild) ? parseInt(String(afterData.id)) : null
+  addDetailBuffer.value = { pccesCode: '', name: '', unitType: '', quantity: 0, price: 0, type: null }
+  isAddingDetail.value = true
+  const tempNode = {
+    id: NEW_ROW_ID, isNew: true,
+    itemNo: '', code: '', name: '（新增中）', unit: '', quantity: 0, price: '0', amount: '0',
+    type: null, orderNumber: 0, isSafetyHealthFacility: false, diffAll: false, diff: {}
+  }
+  insertTempNode(treeGridData, afterData ? String(afterData.id) : null, asChild, tempNode)
+}
+
+function startAddDetailRoot() { _startAddDetail(null, false) }
+function startAddDetailSibling(data: any) { _startAddDetail(data, false) }
+function startAddDetailChild(data: any) { _startAddDetail(data, true) }
+
+function cancelAddDetail() {
+  removeTempNode(treeGridData)
+  isAddingDetail.value = false
+  addDetailBuffer.value = null
+}
+
+async function saveAddDetail() {
+  if (!addDetailBuffer.value || !constructionId.value) return
+  isSavingAddDetail.value = true
+  try {
+    const qty = Number(addDetailBuffer.value.quantity) || 0
+    const price = parseFloat(String(addDetailBuffer.value.price)) || 0
+    const body: CreatePccesCodeRequest = {
+      pccesCode: addDetailBuffer.value.pccesCode.trim() || null,
+      name: addDetailBuffer.value.name.trim() || '(未命名)',
+      unitType: addDetailBuffer.value.unitType.trim(),
+      quantity: qty,
+      price,
+      amount: qty * price,
+      type: addDetailBuffer.value.type || null,
+      parentId: _addDetailParentId,
+      insertAfterId: _addDetailAfterId
+    }
+    await createPccesCodeRow(constructionId.value, selectedDesignChangeId.value, body)
+    removeTempNode(treeGridData)
+    isAddingDetail.value = false
+    addDetailBuffer.value = null
+    await loadItems()
+  } catch (e: any) {
+    alert('新增失敗：' + (e.message || '未知錯誤'))
+  } finally {
+    isSavingAddDetail.value = false
+  }
+}
+
+async function moveDetailRow(data: any, direction: 'up' | 'down') {
+  if (!constructionId.value || data.id === NEW_ROW_ID) return
+  try {
+    await movePccesCodeRow(constructionId.value, parseInt(String(data.id)), direction)
+    await loadItems()
+  } catch (e: any) {
+    alert('排序失敗：' + (e.message || '未知錯誤'))
+  }
+}
+
+// ── 單價分析：新增列 ────────────────────────────────────────────────────────
+
+interface AddBdBuffer { itemCode: string; name: string; unitType: string; quantity: number; price: number; type: string | null }
+const isAddingBd = ref(false)
+const addBdBuffer = ref<AddBdBuffer | null>(null)
+const isSavingAddBd = ref(false)
+let _addBdParentId: number | null = null
+let _addBdAfterId: number | null = null
+
+function _startAddBd(afterData: any | null, asChild: boolean) {
+  if (isAddingBd.value || bdEditingRowId.value) return
+  _addBdParentId = asChild
+    ? (afterData ? parseInt(String(afterData.id)) : null)
+    : (afterData ? (afterData.parentId ?? null) : null)
+  _addBdAfterId = (afterData && !asChild) ? parseInt(String(afterData.id)) : null
+  addBdBuffer.value = { itemCode: '', name: '', unitType: '', quantity: 0, price: 0, type: null }
+  isAddingBd.value = true
+  const tempNode = {
+    id: NEW_ROW_ID, isNew: true,
+    refItemNo: '', itemCode: '', name: '（新增中）', unit: '', quantity: 0, price: '0', amount: '0',
+    type: null, itemKind: '', percent: '', labourRatio: '', equipmentRatio: '', materialRatio: '', miscellaneaRatio: '', isMaterial: false
+  }
+  insertTempNode(breakdownTreeGridData, afterData ? String(afterData.id) : null, asChild, tempNode)
+}
+
+function startAddBdRoot() { _startAddBd(null, false) }
+function startAddBdSibling(data: any) { _startAddBd(data, false) }
+function startAddBdChild(data: any) { _startAddBd(data, true) }
+
+function cancelAddBd() {
+  removeTempNode(breakdownTreeGridData)
+  isAddingBd.value = false
+  addBdBuffer.value = null
+}
+
+async function saveAddBd() {
+  if (!addBdBuffer.value || !constructionId.value) return
+  isSavingAddBd.value = true
+  try {
+    const qty = Number(addBdBuffer.value.quantity) || 0
+    const price = parseFloat(String(addBdBuffer.value.price)) || 0
+    const body: CreatePccesCostBreakdownRequest = {
+      name: addBdBuffer.value.name.trim() || '(未命名)',
+      itemCode: addBdBuffer.value.itemCode.trim() || null,
+      unitType: addBdBuffer.value.unitType.trim(),
+      quantity: qty,
+      price,
+      amount: qty * price,
+      type: addBdBuffer.value.type || null,
+      refItemNo: null,
+      parentId: _addBdParentId,
+      insertAfterId: _addBdAfterId
+    }
+    await createPccesCostBreakdownRow(constructionId.value, selectedDesignChangeId.value, body)
+    removeTempNode(breakdownTreeGridData)
+    isAddingBd.value = false
+    addBdBuffer.value = null
+    await loadItems()
+  } catch (e: any) {
+    alert('新增失敗：' + (e.message || '未知錯誤'))
+  } finally {
+    isSavingAddBd.value = false
+  }
+}
+
+async function moveBdRow(data: any, direction: 'up' | 'down') {
+  if (!constructionId.value || data.id === NEW_ROW_ID) return
+  try {
+    await movePccesCostBreakdownRow(constructionId.value, parseInt(String(data.id)), direction)
+    await loadItems()
+  } catch (e: any) {
+    alert('排序失敗：' + (e.message || '未知錯誤'))
+  }
+}
+
+async function deleteBdRow(data: any) {
+  if (!constructionId.value || data.id === NEW_ROW_ID) return
+  if (!confirm(`確定刪除「${data.name || data.itemCode || '此列'}」？\n（含其所有子項）`)) return
+  try {
+    await deletePccesCostBreakdownRow(constructionId.value, parseInt(String(data.id)))
+    await loadItems()
+  } catch (e: any) {
+    alert('刪除失敗：' + (e.message || '未知錯誤'))
+  }
+}
+
+// ── 資源統計：新增 / 編輯 / 刪除 / 排序 ────────────────────────────────────
+
+interface ResEditBuffer { itemCode: string; name: string; unitType: string; quantity: number; price: number }
+const resEditingRowId = ref<string | null>(null)
+const resEditBuffer = ref<ResEditBuffer | null>(null)
+const resIsSavingEdit = ref(false)
+const isAddingRes = ref(false)
+const addResBuffer = ref<ResEditBuffer | null>(null)
+const isSavingAddRes = ref(false)
+let _addResAfterId: number | null = null
+
+function startResEdit(data: any) {
+  if (resEditingRowId.value != null) return
+  resEditingRowId.value = String(data.id)
+  resEditBuffer.value = {
+    itemCode: data.itemCode ?? '',
+    name: data.name ?? '',
+    unitType: data.unitType ?? '',
+    quantity: data.quantity ?? 0,
+    price: parseFloat(String(data.price)) || 0
+  }
+}
+function cancelResEdit() { resEditingRowId.value = null; resEditBuffer.value = null }
+
+async function saveResEdit(data: any) {
+  if (!resEditBuffer.value || !constructionId.value) return
+  resIsSavingEdit.value = true
+  try {
+    const qty = Number(resEditBuffer.value.quantity) || 0
+    const price = parseFloat(String(resEditBuffer.value.price)) || 0
+    const body: UpdatePccesResourceRequest = {
+      itemCode: resEditBuffer.value.itemCode.trim() || null,
+      name: resEditBuffer.value.name.trim() || '(未命名)',
+      unitType: resEditBuffer.value.unitType.trim(),
+      quantity: qty, price, amount: qty * price
+    }
+    await updatePccesResourceRow(constructionId.value, parseInt(String(data.id)), body)
+    resEditingRowId.value = null; resEditBuffer.value = null
+    await loadItems()
+  } catch (e: any) {
+    alert('儲存失敗：' + (e.message || '未知錯誤'))
+  } finally { resIsSavingEdit.value = false }
+}
+
+async function deleteResRow(data: any) {
+  if (!confirm(`確定刪除「${data.name}」？`)) return
+  resIsSavingEdit.value = true
+  try {
+    await deletePccesResourceRow(constructionId.value, parseInt(String(data.id)))
+    await loadItems()
+  } catch (e: any) {
+    alert('刪除失敗：' + (e.message || '未知錯誤'))
+  } finally { resIsSavingEdit.value = false }
+}
+
+function startAddResRow(afterData: any | null) {
+  if (isAddingRes.value || resEditingRowId.value) return
+  _addResAfterId = afterData ? parseInt(String(afterData.id)) : null
+  addResBuffer.value = { itemCode: '', name: '', unitType: '', quantity: 0, price: 0 }
+  isAddingRes.value = true
+  const tempNode = {
+    id: NEW_ROW_ID, isNew: true,
+    orderNumber: null, itemCode: '', name: '（新增中）', unitType: '', quantity: 0, price: '0', amount: '0'
+  }
+  if (afterData) {
+    const idx = resourceRows.value.findIndex(r => String((r as any).id) === String(afterData.id))
+    resourceRows.value = [
+      ...resourceRows.value.slice(0, idx + 1),
+      tempNode as any,
+      ...resourceRows.value.slice(idx + 1)
+    ]
+  } else {
+    resourceRows.value = [...resourceRows.value, tempNode as any]
+  }
+}
+
+function cancelAddRes() {
+  resourceRows.value = resourceRows.value.filter((r: any) => r.id !== NEW_ROW_ID)
+  isAddingRes.value = false; addResBuffer.value = null
+}
+
+async function saveAddRes() {
+  if (!addResBuffer.value || !constructionId.value) return
+  isSavingAddRes.value = true
+  try {
+    const qty = Number(addResBuffer.value.quantity) || 0
+    const price = parseFloat(String(addResBuffer.value.price)) || 0
+    const body: CreatePccesResourceRequest = {
+      itemCode: addResBuffer.value.itemCode.trim() || null,
+      name: addResBuffer.value.name.trim() || '(未命名)',
+      unitType: addResBuffer.value.unitType.trim(),
+      quantity: qty, price, amount: qty * price,
+      insertAfterId: _addResAfterId
+    }
+    await createPccesResourceRow(constructionId.value, selectedDesignChangeId.value, body)
+    cancelAddRes()
+    await loadItems()
+  } catch (e: any) {
+    alert('新增失敗：' + (e.message || '未知錯誤'))
+  } finally { isSavingAddRes.value = false }
+}
+
+async function moveResRow(data: any, direction: 'up' | 'down') {
+  if (!constructionId.value || data.id === NEW_ROW_ID) return
+  try {
+    await movePccesResourceRow(constructionId.value, parseInt(String(data.id)), direction)
+    await loadItems()
+  } catch (e: any) {
+    alert('排序失敗：' + (e.message || '未知錯誤'))
+  }
+}
+
+// ── 就地更新樹節點（避免整個 dataSource 替換導致滾輪重置）─────────────────
+/**
+ * 遞迴在樹狀陣列中找到 id 相符的節點並就地 patch 其屬性。
+ * 直接 mutate 節點物件，不替換陣列參考，Syncfusion 不會全量重繪。
+ */
+function updateNodeInTree(nodes: any[], id: string, fields: Record<string, any>): boolean {
+  for (const node of nodes) {
+    if (String(node.id) === id) {
+      Object.assign(node, fields)
+      return true
+    }
+    if (node.children?.length && updateNodeInTree(node.children, id, fields)) return true
+  }
+  return false
+}
+
+// ── 滾輪位置保留機制（供刪除等仍需 loadItems 的操作）──────────────────────
+// Syncfusion TreeGrid 在 dataBound 事件後才完成渲染，此時才能安全還原 scrollTop。
+// 在呼叫 loadItems() 前把目前 scrollTop 存入 pendingXxxScroll，
+// dataBound handler 讀到後還原並清除，確保只生效一次。
+// 注意：元素取得須使用 Vue 元件的 $el（而非不存在的 .element 屬性）。
+
+let pendingDetailScroll: number | null = null
+let pendingBreakdownScroll: number | null = null
+
+function getGridContentEl(gridRef: any): HTMLElement | null {
+  // Syncfusion Vue 元件的根 DOM 元素透過 $el 取得，再往下找捲動容器
+  return (gridRef?.$el ?? gridRef?.ej2Instances?.element)?.querySelector('.e-content') as HTMLElement | null
+}
+
+function onDetailGridDataBound() {
+  if (pendingDetailScroll === null) return
+  const scroll = pendingDetailScroll
+  pendingDetailScroll = null
+  // dataBound 後 Syncfusion 可能還有少量 layout 計算，
+  // 用 nextTick + setTimeout(0) 雙層緩衝確保在所有後續操作完成後才還原
+  nextTick(() => setTimeout(() => {
+    const el = getGridContentEl(treegrid.value)
+    if (el) el.scrollTop = scroll
+  }, 0))
+}
+
+function onBreakdownGridDataBound() {
+  if (pendingBreakdownScroll === null) return
+  const scroll = pendingBreakdownScroll
+  pendingBreakdownScroll = null
+  nextTick(() => setTimeout(() => {
+    const el = getGridContentEl(breakdownTreegrid.value)
+    if (el) el.scrollTop = scroll
+  }, 0))
+}
+
+/**
+ * 在 loadItems() 前記下目前的 scrollTop，讓 dataBound handler 在 Syncfusion
+ * 完成渲染後自動還原，避免滾輪被重置到頂部。
+ */
+function withScrollPreserved(
+  target: 'detail' | 'breakdown'
+): void {
+  if (target === 'detail') {
+    const el = getGridContentEl(treegrid.value)
+    pendingDetailScroll = el?.scrollTop ?? null
+  } else {
+    const el = getGridContentEl(breakdownTreegrid.value)
+    pendingBreakdownScroll = el?.scrollTop ?? null
+  }
 }
 
 // 監聽工程項目變化
@@ -1815,11 +2932,31 @@ watch(showImportModal, (open) => {
 })
 
 // 初始化（需先載入變更設計列表，複製前一版才能正確算出來源版本）
+// 注入 TreeGrid row hover 全域樣式（CSS 方式無法穿透 Syncfusion + scoped 雙重邊界）
+const HOVER_STYLE_ID = 'pcces-treegrid-row-hover'
+function injectRowHoverStyle() {
+  if (document.getElementById(HOVER_STYLE_ID)) return
+  const el = document.createElement('style')
+  el.id = HOVER_STYLE_ID
+  el.textContent = [
+    '.e-grid.e-gridhover .e-row tr:not(.e-disable-gridhover):not(.e-editedrow):not(.e-detailrow):hover .e-rowcell:not(.e-cellselectionbackground):not(.e-active):not(.e-updatedtd):not(.e-indentcell),',
+    '.e-grid.e-gridhover:not(.e-rowdrag) .e-row:not(.e-disable-gridhover):not(.e-editedrow):not(.e-detailrow):hover .e-rowcell:not(.e-cellselectionbackground):not(.e-active):not(.e-updatedtd):not(.e-indentcell) {',
+    '  background-color: #1e3a5c !important;',
+    '}'
+  ].join('\n')
+  document.head.appendChild(el)
+}
+
 onMounted(async () => {
+  injectRowHoverStyle()
   if (constructionId.value) {
     await fetchDesignChangeList()
     await loadItems()
   }
+})
+
+onUnmounted(() => {
+  document.getElementById(HOVER_STYLE_ID)?.remove()
 })
 
 // 當組件重新激活時（從其他畫面切回來），確保 TreeGrid 樣式正確
@@ -1839,11 +2976,26 @@ onActivated(() => {
 
 <style scoped>
 .project-item-database-page {
+  /* 填滿 .app-content 的可用高度，內部用 flex column 分配空間 */
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   padding: 1rem;
+  box-sizing: border-box;
+}
+
+/* 極小按鈕（操作欄用） */
+.btn-xs {
+  padding: 0.1rem 0.4rem;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  border-radius: 0.2rem;
 }
 
 /* 工具列：分頁與操作同一列，底邊與表格外框銜接 */
 .pcces-toolbar-row {
+  flex-shrink: 0;  /* 固定高度，不參與 flex 伸縮 */
   padding: 0.5rem 0.75rem;
   background: rgba(15, 23, 42, 0.72);
   border: 1px solid #475569;
@@ -1922,6 +3074,11 @@ onActivated(() => {
   font-weight: 700;
 }
 
+/* 試驗項類型圖示色（紫色） */
+.text-purple {
+  color: #a855f7;
+}
+
 .pcces-diff-changed {
   color: #f87171;
   font-weight: 600;
@@ -1934,15 +3091,15 @@ onActivated(() => {
 
 .treegrid-wrapper {
   position: relative;
+  /* flex: 1 + min-height: 0 讓此區塊填滿頁面剩餘高度 */
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   border: 1px solid #475569;
   border-radius: 0.375rem;
-  /* 避免 TreeGrid 捲動到底部時內容被外層裁切 */
   overflow: visible;
-  height: calc(100vh - 180px);
-  min-height: 520px;
-  background-color: #0f172a; /* 使用深色背景，與專案主題一致 */
+  background-color: #0f172a;
 }
 
 .treegrid-fullscreen {
@@ -2044,9 +3201,9 @@ onActivated(() => {
   .project-item-database-page {
     padding: 0.5rem;
   }
-  
+
   .treegrid-wrapper {
-    height: 400px;
+    min-height: 400px;  /* 手機版給個底限，但仍用 flex: 1 填滿 */
   }
 }
 
@@ -2116,5 +3273,131 @@ onActivated(() => {
 }
 .pcces-import-replace-hint {
   color: #94a3b8;
+}
+
+/* ── 操作欄位容器 ── */
+.act-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+.act-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* 預設隱藏，row hover 時顯示 */
+.row-hover-btns {
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.e-row:hover .row-hover-btns,
+.e-row.e-altrow:hover .row-hover-btns,
+.e-row.e-focus .row-hover-btns {
+  opacity: 1;
+}
+
+/* 細分隔線 */
+.act-divider {
+  display: inline-block;
+  width: 1px;
+  height: 16px;
+  background: #cbd5e1;
+  margin: 0 2px;
+  flex-shrink: 0;
+}
+
+/* ── 按鈕基底（暗色主題） ── */
+.act-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 7px;
+  border: none;
+  border-radius: 5px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+.act-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* 編輯 — 藍 */
+.act-btn--edit {
+  background: rgba(96, 165, 250, 0.15);
+  color: #60a5fa;
+}
+.act-btn--edit:not(:disabled):hover {
+  background: rgba(96, 165, 250, 0.28);
+  color: #93c5fd;
+}
+
+/* 刪除 — 紅 */
+.act-btn--del {
+  background: rgba(248, 113, 113, 0.15);
+  color: #f87171;
+}
+.act-btn--del:not(:disabled):hover {
+  background: rgba(248, 113, 113, 0.28);
+  color: #fca5a5;
+}
+
+/* 移動 — 灰 */
+.act-btn--move {
+  background: rgba(148, 163, 184, 0.12);
+  color: #94a3b8;
+}
+.act-btn--move:not(:disabled):hover {
+  background: rgba(148, 163, 184, 0.24);
+  color: #cbd5e1;
+}
+
+/* 新增 — 綠 */
+.act-btn--add {
+  background: rgba(74, 222, 128, 0.13);
+  color: #4ade80;
+}
+.act-btn--add:not(:disabled):hover {
+  background: rgba(74, 222, 128, 0.25);
+  color: #86efac;
+}
+
+/* 儲存 — 實心綠 */
+.act-btn--save {
+  background: #16a34a;
+  color: #fff;
+  padding: 0 10px;
+  font-weight: 600;
+}
+.act-btn--save:not(:disabled):hover { background: #15803d; }
+
+/* 取消 — 實心深灰 */
+.act-btn--cancel {
+  background: rgba(148, 163, 184, 0.18);
+  color: #94a3b8;
+  padding: 0 10px;
+  font-weight: 500;
+}
+.act-btn--cancel:not(:disabled):hover {
+  background: rgba(148, 163, 184, 0.3);
+  color: #cbd5e1;
+}
+
+</style>
+
+<!-- 全域 CSS：覆蓋 Syncfusion TreeGrid row hover（JS 注入為主，此為備用） -->
+<style>
+.e-grid.e-gridhover .e-row tr:not(.e-disable-gridhover):not(.e-editedrow):not(.e-detailrow):hover .e-rowcell:not(.e-cellselectionbackground):not(.e-active):not(.e-updatedtd):not(.e-indentcell),
+.e-grid.e-gridhover:not(.e-rowdrag) .e-row:not(.e-disable-gridhover):not(.e-editedrow):not(.e-detailrow):hover .e-rowcell:not(.e-cellselectionbackground):not(.e-active):not(.e-updatedtd):not(.e-indentcell) {
+  background-color: #1e3a5c !important;
 }
 </style>

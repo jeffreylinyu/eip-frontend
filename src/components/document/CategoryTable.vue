@@ -49,7 +49,11 @@
             <tr>
               <th style="width: 50px">#</th>
               <th style="width: 80px">編號</th>
-              <th>文件名稱</th>
+              <!--
+                文件名稱：唯一彈性主欄。給 min-width 確保不會被其他固定寬度欄擠扁；
+                容器寬度不夠時改由外層 .table-responsive 觸發水平捲動。
+              -->
+              <th style="min-width: 240px">文件名稱</th>
               <th v-if="showScheduleColumn" style="min-width: 160px">規定提送日程</th>
               <th style="width: 100px">保存年限</th>
               <template v-if="planScheduleExtras">

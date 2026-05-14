@@ -1,9 +1,5 @@
 <template>
   <div class="material-inspection-panel">
-    <div v-if="error" class="alert alert-danger">
-      <i class="fa fa-circle-exclamation me-2"></i>{{ error }}
-    </div>
-
     <div class="mi-grid">
       <!-- Left: Materials -->
       <div class="mi-col">
@@ -76,31 +72,40 @@
         </div>
       </div>
 
-      <!-- Right: Test items -->
+      <!-- Middle: Test items (from pcces codes with type=TEST_ITEM) -->
       <div class="mi-col">
         <div class="border rounded-3 p-3 h-100 mi-card">
           <div class="d-flex align-items-center justify-content-between mb-2">
             <div class="fw-semibold">
-              <i class="fa fa-vial me-2"></i>試驗項（標單明細）
+              <i class="fa fa-vial me-2"></i>試驗項
             </div>
-            <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">{{ testItems.length }}</span>
+            <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">{{ allTestItems.length }}</span>
           </div>
-          <input v-model="testItemKeyword" class="form-control form-control-sm mb-2" placeholder="搜尋試驗項名稱/代碼/項次" />
+
+          <input v-model="testItemKeyword" class="form-control form-control-sm mb-2" placeholder="搜尋試驗項名稱/料碼/項次" />
           <div class="list-group list-group-flush modal-list">
-            <label v-for="t in filteredTestItems" :key="t.id" class="list-group-item py-2 d-flex align-items-start gap-2">
-              <input
-                class="form-check-input mt-1"
-                type="checkbox"
-                :disabled="selectedMaterialKey == null || !selectedMaterialUsed"
-                :checked="selectedTestItemIds.has(t.id)"
-                @change="toggleSelectedTestItem(t.id, $event)"
-              />
-              <div class="flex-grow-1">
-                <div class="small text-muted">{{ t.itemNo || '—' }} / {{ t.pccesCode || '—' }}</div>
-                <div class="fw-semibold">{{ t.name }}</div>
+            <div
+              v-for="t in filteredAllTestItems"
+              :key="t.id"
+              class="list-group-item py-2"
+            >
+              <div class="d-flex align-items-start gap-2">
+                <input
+                  class="form-check-input mt-1 flex-shrink-0"
+                  type="checkbox"
+                  :disabled="selectedMaterialKey == null || !selectedMaterialUsed"
+                  :checked="selectedTestItemIds.has(t.id)"
+                  @change="toggleSelectedTestItem(t.id, $event)"
+                />
+                <div class="flex-grow-1 min-w-0">
+                  <div class="small text-muted">{{ t.itemNo || '—' }} / {{ t.pccesCode || '—' }}</div>
+                  <div class="fw-semibold" style="word-break:break-word">{{ t.name }}</div>
+                </div>
               </div>
-            </label>
-            <div v-if="filteredTestItems.length === 0" class="text-muted small py-3 text-center">沒有符合的試驗項</div>
+            </div>
+            <div v-if="filteredAllTestItems.length === 0" class="text-muted small py-3 text-center">
+              {{ allTestItems.length === 0 ? '尚無試驗項，請在「標單明細」將類型設為「試驗項」' : '沒有符合的試驗項' }}
+            </div>
           </div>
           <div class="mt-3 d-flex gap-2">
             <button class="btn btn-outline-secondary btn-sm" type="button" @click="selectAllTestItems" :disabled="selectedMaterialKey == null || !selectedMaterialUsed">
@@ -120,11 +125,15 @@
               <i v-else class="fa fa-save me-2"></i>儲存此材料關聯
             </button>
           </div>
+          <!-- 錯誤訊息顯示在儲存按鈕下方，確保使用者看得到 -->
+          <div v-if="saveError" class="alert alert-danger alert-sm py-1 px-2 mt-2 mb-0 small">
+            <i class="fa fa-circle-exclamation me-1"></i>{{ saveError }}
+          </div>
           <div v-if="selectedMaterialKey == null" class="text-muted small mt-2">
             請先在左側選擇一個材料，才可勾選試驗項與儲存。
           </div>
           <div v-else-if="!selectedMaterialUsed" class="text-muted small mt-2">
-            此材料未勾選「使用」，右側功能已停用。
+            此材料已設為不使用，請先勾選「使用」再儲存關聯。
           </div>
         </div>
       </div>
@@ -155,7 +164,7 @@
                   <td>
                     <div class="small text-muted">
                       {{ testItemById.get(link.pccesCodeId)?.itemNo || '—' }} /
-                      {{ testItemById.get(link.pccesCodeId)?.code || '—' }}
+                      {{ testItemById.get(link.pccesCodeId)?.pccesCode || '—' }}
                     </div>
                     <div class="fw-semibold">
                       {{ testItemById.get(link.pccesCodeId)?.name || `#${link.pccesCodeId}` }}
@@ -190,10 +199,15 @@ import { computed, ref, watch } from 'vue'
 import {
   batchSetPccesMaterialUsage,
   deletePccesMaterialTestItemLink,
+  ensureTestItemsFromBreakdown,
+  getConstructionPccesCodes,
   getPccesMaterialUsage,
   listPccesMaterialTestItemLinks,
   replacePccesMaterialTestItemLinksForMaterial,
   setPccesMaterialUsage,
+  PccesItemType,
+  type ConstructionPccesCode,
+  type ConstructionPccesCostBreakdown,
   type PccesMaterialTestItemLink
 } from '@/api/pcces'
 
@@ -206,25 +220,41 @@ type PanelMaterial = {
   source?: string | null
 }
 
-type PanelTestItem = {
+/**
+ * 統一的試驗項視圖。
+ * - source='DETAIL'   → 來自 pcces_codes，id 為正數 (pcces_code.id)，可直接建立關聯
+ * - source='BREAKDOWN'→ 來自 cost_breakdown，id 為負數 (-breakdown.id)，
+ *                        建立關聯前需先呼叫 ensureTestItemsFromBreakdown 取得 pcces_code_id
+ */
+type TestItemView = {
   id: number
-  itemNo?: string | null
-  pccesCode?: string | null
+  itemNo: string | null
+  pccesCode: string | null
   name: string
+  source: 'DETAIL' | 'BREAKDOWN'
 }
 
 const props = defineProps<{
   constructionId: string
   designChangeId: number | null
   materials: PanelMaterial[]
-  testItems: PanelTestItem[]
+  /** 單價分析列表（父層傳入，用於即時顯示 type=TEST_ITEM 的試驗項） */
+  breakdownItems?: ConstructionPccesCostBreakdown[]
   /** 面板是否可見；可見時自動 refresh */
   active?: boolean
 }>()
 
+const emit = defineEmits<{
+  (e: 'refresh-needed'): void
+}>()
+
+/** 已在 pcces_codes 登記的試驗項（標單明細 type=TEST_ITEM） */
+const testItems = ref<ConstructionPccesCode[]>([])
+
 const loading = ref(false)
 const saving = ref(false)
-const error = ref('')
+const error = ref('')      // 關聯刪除等其他操作的錯誤
+const saveError = ref('')  // 儲存關聯的錯誤（顯示在儲存按鈕下方）
 const links = ref<PccesMaterialTestItemLink[]>([])
 
 const selectedMaterialKey = ref<string | null>(null)
@@ -235,6 +265,47 @@ const usageLoaded = ref(false)
 
 const materialKeyword = ref('')
 const testItemKeyword = ref('')
+
+/**
+ * 所有試驗項，合併兩個來源：
+ * 1. pcces_codes（type=TEST_ITEM）→ source='DETAIL'，id 為正數
+ * 2. cost_breakdown（type=TEST_ITEM）→ source='BREAKDOWN'，id 為負數 (-breakdown.id)
+ *    已在 pcces_codes 中存在同名者略過（避免重複）
+ */
+const allTestItems = computed((): TestItemView[] => {
+  const result: TestItemView[] = []
+  const detailNames = new Set<string>()
+
+  // 1. DETAIL 來源（pcces_codes）
+  for (const c of testItems.value) {
+    const name = String(c.name ?? '').trim()
+    if (!name) continue
+    detailNames.add(name)
+    result.push({
+      id: c.id,
+      itemNo: c.itemNo ?? null,
+      pccesCode: c.code ?? null,
+      name,
+      source: 'DETAIL'
+    })
+  }
+
+  // 2. BREAKDOWN 來源（cost_breakdown，type=TEST_ITEM）
+  for (const b of (props.breakdownItems ?? [])) {
+    if (b.type !== PccesItemType.TEST_ITEM) continue
+    const name = String(b.name ?? '').trim()
+    if (!name || detailNames.has(name)) continue  // 同名 DETAIL 已存在，略過
+    result.push({
+      id: -(b.id as unknown as number),  // 負數標識：尚無 pcces_codes 記錄
+      itemNo: b.refItemNo ?? null,
+      pccesCode: b.itemCode ?? null,
+      name,
+      source: 'BREAKDOWN'
+    })
+  }
+
+  return result
+})
 
 const selectedMaterialUsed = computed(() => {
   const k = selectedMaterialKey.value
@@ -255,46 +326,17 @@ const filteredMaterials = computed(() => {
   })
 })
 
-async function setAllMaterialsUsed(used: boolean) {
-  if (!props.constructionId) return
-  if (savingUsedKey.value != null) return
-  const codes = (props.materials || [])
-    .map((m) => String(m.itemCode ?? '').trim())
-    .filter((c) => !!c)
-  if (codes.length === 0) return
-  savingUsedKey.value = '__BATCH__' // sentinel: batch saving
-  const prevMap = { ...materialUsedByCode.value }
-  try {
-    // 先更新 UI（立即回饋）
-    const next: Record<string, boolean> = { ...materialUsedByCode.value }
-    for (const c of codes) next[c] = used
-    materialUsedByCode.value = next
-    if (!used) {
-      selectedMaterialKey.value = null
-      selectedTestItemIds.value = new Set()
-    }
-    await batchSetPccesMaterialUsage(props.constructionId, codes, used, props.designChangeId)
-    await refreshUsage()
-  } catch (e: any) {
-    materialUsedByCode.value = prevMap
-    const msg = e?.response?.data?.message ?? e?.message
-    alert(typeof msg === 'string' && msg ? msg : '批次更新材料使用狀態失敗')
-  } finally {
-    savingUsedKey.value = null
-  }
-}
-
-const filteredTestItems = computed(() => {
+const filteredAllTestItems = computed(() => {
   const k = testItemKeyword.value.trim().toLowerCase()
-  if (!k) return props.testItems
-  return props.testItems.filter((t) => {
+  if (!k) return allTestItems.value
+  return allTestItems.value.filter((t) => {
     const s = `${t.itemNo ?? ''} ${t.pccesCode ?? ''} ${t.name ?? ''}`.toLowerCase()
     return s.includes(k)
   })
 })
 
 const testItemById = computed(() => {
-  return new Map(props.testItems.map((t) => [t.id, { id: t.id, itemNo: t.itemNo, code: t.pccesCode, name: t.name }]))
+  return new Map(allTestItems.value.map((t) => [t.id, t]))
 })
 
 const materialLinks = computed(() => {
@@ -312,6 +354,34 @@ function isMaterialUsed(itemCode: string): boolean {
   const k = String(itemCode ?? '').trim()
   if (!k) return true
   return materialUsedByCode.value[k] !== false
+}
+
+async function setAllMaterialsUsed(used: boolean) {
+  if (!props.constructionId) return
+  if (savingUsedKey.value != null) return
+  const codes = (props.materials || [])
+    .map((m) => String(m.itemCode ?? '').trim())
+    .filter((c) => !!c)
+  if (codes.length === 0) return
+  savingUsedKey.value = '__BATCH__'
+  const prevMap = { ...materialUsedByCode.value }
+  try {
+    const next: Record<string, boolean> = { ...materialUsedByCode.value }
+    for (const c of codes) next[c] = used
+    materialUsedByCode.value = next
+    if (!used) {
+      selectedMaterialKey.value = null
+      selectedTestItemIds.value = new Set()
+    }
+    await batchSetPccesMaterialUsage(props.constructionId, codes, used, props.designChangeId)
+    await refreshUsage()
+  } catch (e: any) {
+    materialUsedByCode.value = prevMap
+    const msg = e?.response?.data?.message ?? e?.message
+    alert(typeof msg === 'string' && msg ? msg : '批次更新材料使用狀態失敗')
+  } finally {
+    savingUsedKey.value = null
+  }
 }
 
 async function setMaterialUsed(itemCode: string, used: boolean) {
@@ -341,6 +411,7 @@ function selectMaterial(itemCode: string) {
   if (!k) return
   if (!isMaterialUsed(k)) return
   selectedMaterialKey.value = k
+  saveError.value = ''
   const set = new Set<number>()
   for (const l of links.value) {
     if (String(l.itemCode ?? '').trim() === k) set.add(l.pccesCodeId)
@@ -360,7 +431,7 @@ function toggleSelectedTestItem(id: number, ev: Event) {
 function selectAllTestItems() {
   if (selectedMaterialKey.value == null) return
   if (!selectedMaterialUsed.value) return
-  selectedTestItemIds.value = new Set(props.testItems.map((t) => t.id))
+  selectedTestItemIds.value = new Set(allTestItems.value.map((t) => t.id))
 }
 
 function clearSelectedTestItems() {
@@ -373,13 +444,34 @@ async function saveForSelectedMaterial() {
   if (!props.constructionId || selectedMaterialKey.value == null) return
   if (!selectedMaterialUsed.value) return
   saving.value = true
-  error.value = ''
+  saveError.value = ''
   try {
-    const ids = Array.from(selectedTestItemIds.value)
-    await replacePccesMaterialTestItemLinksForMaterial(props.constructionId, selectedMaterialKey.value, ids, props.designChangeId)
+    const allIds = Array.from(selectedTestItemIds.value)
+    const positiveIds = allIds.filter((id) => id > 0)   // 已在 pcces_codes 的試驗項
+    const negativeIds = allIds.filter((id) => id < 0)   // 來自 breakdown，尚無 pcces_codes 記錄
+
+    // 若有 breakdown 來源的試驗項，先 lazy-create pcces_codes 記錄取得真實 ID
+    let finalIds = [...positiveIds]
+    if (negativeIds.length > 0) {
+      const breakdownIds = negativeIds.map((id) => -id)  // 還原正數 breakdown.id
+      const mapping = await ensureTestItemsFromBreakdown(
+        props.constructionId,
+        props.designChangeId,
+        breakdownIds
+      )
+      for (const bdId of breakdownIds) {
+        const pccesCodeId = mapping[bdId]
+        if (pccesCodeId) finalIds.push(pccesCodeId)
+      }
+    }
+
+    await replacePccesMaterialTestItemLinksForMaterial(
+      props.constructionId, selectedMaterialKey.value, finalIds, props.designChangeId
+    )
+    // refresh 會重新載入 pcces_codes，剛建立的試驗項記錄會從 BREAKDOWN 升格為 DETAIL 顯示
     await refresh()
   } catch (e: any) {
-    error.value = e?.response?.data?.message ?? e?.message ?? '儲存關聯失敗'
+    saveError.value = e?.response?.data?.message ?? e?.message ?? '儲存關聯失敗'
   } finally {
     saving.value = false
   }
@@ -408,9 +500,18 @@ async function refreshUsage() {
     for (const r of rows) next[String(r.itemCode ?? '').trim()] = r.used
     materialUsedByCode.value = next
     usageLoaded.value = true
-  } catch (e: any) {
-    // 失敗時仍允許 UI 操作（會在 set 時再報錯）
+  } catch {
     usageLoaded.value = false
+  }
+}
+
+async function fetchTestItems() {
+  if (!props.constructionId) return
+  try {
+    const codes = await getConstructionPccesCodes(props.constructionId, props.designChangeId)
+    testItems.value = codes.filter((c) => c.type === PccesItemType.TEST_ITEM)
+  } catch {
+    // 不阻斷主流程
   }
 }
 
@@ -419,8 +520,11 @@ async function refresh() {
   loading.value = true
   error.value = ''
   try {
-    links.value = await listPccesMaterialTestItemLinks(props.constructionId, props.designChangeId)
-    await refreshUsage()
+    await Promise.all([
+      listPccesMaterialTestItemLinks(props.constructionId, props.designChangeId).then((v) => { links.value = v }),
+      fetchTestItems(),
+      refreshUsage()
+    ])
     if (selectedMaterialKey.value != null) selectMaterial(selectedMaterialKey.value)
   } catch (e: any) {
     error.value = e?.response?.data?.message ?? e?.message ?? '載入關聯失敗'
@@ -438,6 +542,8 @@ watch(
   },
   { immediate: true }
 )
+
+defineExpose({ refresh })
 
 watch(
   () => props.materials,
@@ -550,4 +656,3 @@ watch(
   }
 }
 </style>
-

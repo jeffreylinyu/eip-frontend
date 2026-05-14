@@ -102,7 +102,8 @@ export enum PccesItemType {
   EQUIPMENT = 'EQUIPMENT',      // 機具
   MATERIAL = 'MATERIAL',         // 材料
   MISC = 'MISC',                // 雜項
-  WORK_ITEM = 'WORK_ITEM'        // 工項
+  WORK_ITEM = 'WORK_ITEM',       // 工項
+  TEST_ITEM = 'TEST_ITEM'        // 試驗項
 }
 
 /**
@@ -124,8 +125,6 @@ export interface ConstructionPccesCode {
   type: PccesItemType | null;   // 項目類型
   /** 是否為安全衛生設施（使用者勾選，非匯入檔；預設 false） */
   isSafetyHealthFacility?: boolean;
-  /** 是否為試驗項（使用者勾選，非匯入檔；預設 false） */
-  isTestItem?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -181,6 +180,7 @@ export interface PccesMaterialTestItemLink {
   constructionId: string;
   designChangeId: number | null;
   itemCode: string;
+  /** 指向 construction_pcces_code.id（type='TEST_ITEM'） */
   pccesCodeId: number;
   createdAt: string;
   updatedAt: string;
@@ -245,6 +245,51 @@ export interface PageableResponse<T> {
     first: boolean;
     last: boolean;
     empty: boolean;
+}
+
+/**
+ * Excel 標單匯入請求（AI 解析）
+ */
+export interface ImportPccesExcelRequest {
+  excelFile: File;
+  constructionId: string;
+  designChangeId?: number | null;
+  overwrite?: boolean;
+}
+
+/**
+ * Excel 標單匯入回應
+ */
+export interface ImportPccesExcelResponse {
+  constructionId: string;
+  designChangeId: number | null;
+  totalCodes: number;
+  totalCostBreakdown: number;
+  totalTestItems: number;
+  totalResources: number;
+}
+
+/**
+ * 匯入 Excel 標單（AI 解析，無 PCCES XML 時的替代方案）
+ */
+export async function importPccesExcelFile(
+  request: ImportPccesExcelRequest
+): Promise<ImportPccesExcelResponse> {
+  const formData = new FormData();
+  formData.append('excelFile', request.excelFile);
+  formData.append('constructionId', request.constructionId);
+  if (request.designChangeId !== undefined && request.designChangeId !== null) {
+    formData.append('designChangeId', String(request.designChangeId));
+  }
+  if (request.overwrite !== undefined) {
+    formData.append('overwrite', request.overwrite ? 'true' : 'false');
+  }
+  const response = await http.post(
+    '/management/generate/import/excel',
+    formData,
+    { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 300000 }
+  );
+  return response as unknown as ImportPccesExcelResponse;
 }
 
 /**
@@ -362,7 +407,7 @@ export async function listPccesMaterialTestItemLinks(
 export async function replacePccesMaterialTestItemLinksForMaterial(
   constructionId: string,
   itemCode: string,
-  testItemIds: number[],
+  pccesCodeIds: number[],
   designChangeId?: number | null
 ): Promise<{ inserted: number }> {
   const params = new URLSearchParams({ constructionId });
@@ -371,7 +416,7 @@ export async function replacePccesMaterialTestItemLinksForMaterial(
   }
   const res = await http.put(
     `/management/generate/pcces/material-test-item-links/material/${encodeURIComponent(itemCode)}?${params}`,
-    { testItemIds }
+    { testItemIds: pccesCodeIds }
   );
   return (res as any) || { inserted: 0 };
 }
@@ -504,40 +549,46 @@ export async function batchUpdatePccesCodeSafetyHealthFacility(
 }
 
 /**
- * 更新單筆工項「是否為試驗項」（使用者勾選，非 PCCES 匯入欄位）
+ * 更新單價分析列（名稱、料碼、單位、數量、單價、類型）
  */
-export async function updatePccesCodeTestItem(
-  constructionId: string,
-  id: number,
-  isTestItem: boolean,
-  designChangeId?: number | null
-): Promise<void> {
-  const params = new URLSearchParams({
-    constructionId,
-    isTestItem: String(isTestItem)
-  });
-  if (designChangeId !== undefined && designChangeId !== null) {
-    params.append('designChangeId', String(designChangeId));
-  }
-  await http.patch(`/management/generate/pccesCodes/${id}/test-item?${params}`);
+export interface UpdatePccesCostBreakdownRequest {
+  name: string;
+  itemCode: string | null;
+  unitType: string;
+  quantity: number;
+  price: string | number;
+  amount: string | number;
+  /** PccesItemType 的 name 字串；null 表示不分類 */
+  type: string | null;
 }
 
-export interface PccesTestItemBatchRequest {
-  constructionId: string;
-  designChangeId?: number | null;
-  ids: number[];
-  isTestItem: boolean;
+export async function updatePccesCostBreakdownRow(
+  constructionId: string,
+  id: number,
+  body: UpdatePccesCostBreakdownRequest
+): Promise<void> {
+  await http.patch(
+    `/management/generate/pccesCostBreakdown/${id}?constructionId=${encodeURIComponent(constructionId)}`,
+    body
+  );
 }
 
 /**
- * 批次更新多筆工項「是否為試驗項」（同一值，供樹狀父層一次勾選）
+ * 按需建立試驗項的 pcces_codes 記錄（Lazy Creation）。
+ * 傳入 breakdownIds，後端確保每筆都有 pcces_codes 記錄並回傳 breakdownId→pccesCodeId 的對應表。
  */
-export async function batchUpdatePccesCodeTestItem(
-  body: PccesTestItemBatchRequest
-): Promise<{ updated: number }> {
-  const res = await http.patch('/management/generate/pccesCodes/test-item/batch', body);
-  const data = res as { updated?: number };
-  return { updated: data.updated ?? 0 };
+export async function ensureTestItemsFromBreakdown(
+  constructionId: string,
+  designChangeId: number | null,
+  breakdownIds: number[]
+): Promise<Record<number, number>> {
+  const params = new URLSearchParams({ constructionId });
+  if (designChangeId != null) params.append('designChangeId', String(designChangeId));
+  const response = await http.post(
+    `/management/generate/ensureTestItemsFromBreakdown?${params}`,
+    { breakdownIds }
+  );
+  return (response as unknown as Record<number, number>) || {};
 }
 
 /**
@@ -574,6 +625,43 @@ export async function getMaterialItems(
     `/management/generate/materialItems?${params}`
   );
   return (response as unknown as ConstructionPccesCode[]) || [];
+}
+
+/**
+ * 逐行更新工項欄位（code、name、unit、quantity、price、amount、type）
+ */
+export interface UpdatePccesCodeRowRequest {
+  pccesCode: string | null;
+  name: string;
+  unitType: string;
+  quantity: number;
+  price: string | number;
+  amount: string | number;
+  /** PccesItemType 的 name 字串；null 表示不分類 */
+  type: string | null;
+}
+
+export async function updatePccesCodeRow(
+  constructionId: string,
+  id: number,
+  body: UpdatePccesCodeRowRequest
+): Promise<void> {
+  await http.patch(
+    `/management/generate/pccesCodes/${id}?constructionId=${encodeURIComponent(constructionId)}`,
+    body
+  );
+}
+
+/**
+ * 刪除單筆工項及其所有子孫節點
+ */
+export async function deletePccesCodeRow(
+  constructionId: string,
+  id: number
+): Promise<void> {
+  await http.delete(
+    `/management/generate/pccesCodes/${id}?constructionId=${encodeURIComponent(constructionId)}`
+  );
 }
 
 /**
@@ -927,4 +1015,146 @@ export async function deleteConstructionMajorItemSafetyStandardsByManageProject(
     await http.delete(
         `/management/construction-major-items/${majorItemId}/safety-standards/by-manage-project?${qs}`
     );
+}
+
+// ── 新增 / 排序：標單明細 ────────────────────────────────────────────────────
+
+export interface CreatePccesCodeRequest {
+  pccesCode?: string | null;
+  name: string;
+  unitType: string;
+  quantity?: number;
+  price?: number;
+  amount?: number;
+  type?: string | null;
+  parentId?: number | null;
+  insertAfterId?: number | null;
+}
+
+export async function createPccesCodeRow(
+  constructionId: string,
+  designChangeId: number | null,
+  body: CreatePccesCodeRequest
+): Promise<ConstructionPccesCode> {
+  const params = new URLSearchParams({ constructionId });
+  if (designChangeId != null) params.append('designChangeId', String(designChangeId));
+  const response = await http.post(`/management/generate/pccesCodes?${params}`, body);
+  return (response as any).data as ConstructionPccesCode;
+}
+
+export async function movePccesCodeRow(
+  constructionId: string,
+  id: number,
+  direction: 'up' | 'down'
+): Promise<void> {
+  await http.patch(
+    `/management/generate/pccesCodes/${id}/move?constructionId=${encodeURIComponent(constructionId)}&direction=${direction}`
+  );
+}
+
+// ── 新增 / 排序：單價分析 ────────────────────────────────────────────────────
+
+export interface CreatePccesCostBreakdownRequest {
+  name: string;
+  itemCode?: string | null;
+  unitType: string;
+  quantity?: number;
+  price?: number;
+  amount?: number;
+  type?: string | null;
+  refItemNo?: string | null;
+  parentId?: number | null;
+  insertAfterId?: number | null;
+}
+
+export async function createPccesCostBreakdownRow(
+  constructionId: string,
+  designChangeId: number | null,
+  body: CreatePccesCostBreakdownRequest
+): Promise<ConstructionPccesCostBreakdown> {
+  const params = new URLSearchParams({ constructionId });
+  if (designChangeId != null) params.append('designChangeId', String(designChangeId));
+  const response = await http.post(`/management/generate/pccesCostBreakdown?${params}`, body);
+  return (response as any).data as ConstructionPccesCostBreakdown;
+}
+
+export async function movePccesCostBreakdownRow(
+  constructionId: string,
+  id: number,
+  direction: 'up' | 'down'
+): Promise<void> {
+  await http.patch(
+    `/management/generate/pccesCostBreakdown/${id}/move?constructionId=${encodeURIComponent(constructionId)}&direction=${direction}`
+  );
+}
+
+export async function deletePccesCostBreakdownRow(
+  constructionId: string,
+  id: number
+): Promise<void> {
+  await http.delete(
+    `/management/generate/pccesCostBreakdown/${id}?constructionId=${encodeURIComponent(constructionId)}`
+  );
+}
+
+// ── 新增 / 排序 / 編輯 / 刪除：資源統計 ────────────────────────────────────
+
+export interface CreatePccesResourceRequest {
+  itemCode?: string | null;
+  name: string;
+  unitType: string;
+  quantity?: number;
+  price?: number;
+  amount?: number;
+  insertAfterId?: number | null;
+}
+
+export interface UpdatePccesResourceRequest {
+  itemCode?: string | null;
+  name: string;
+  unitType: string;
+  quantity: number;
+  price: number;
+  amount: number;
+}
+
+export async function createPccesResourceRow(
+  constructionId: string,
+  designChangeId: number | null,
+  body: CreatePccesResourceRequest
+): Promise<ConstructionPccesResource> {
+  const params = new URLSearchParams({ constructionId });
+  if (designChangeId != null) params.append('designChangeId', String(designChangeId));
+  const response = await http.post(`/management/generate/pccesResources?${params}`, body);
+  return (response as any).data as ConstructionPccesResource;
+}
+
+export async function updatePccesResourceRow(
+  constructionId: string,
+  id: number,
+  body: UpdatePccesResourceRequest
+): Promise<void> {
+  await http.patch(
+    `/management/generate/pccesResources/${id}?constructionId=${encodeURIComponent(constructionId)}`,
+    body
+  );
+}
+
+export async function deletePccesResourceRow(
+  constructionId: string,
+  id: number
+): Promise<void> {
+  await http.delete(
+    `/management/generate/pccesResources/${id}?constructionId=${encodeURIComponent(constructionId)}`
+  );
+}
+
+export async function movePccesResourceRow(
+  constructionId: string,
+  id: number,
+  direction: 'up' | 'down'
+): Promise<void> {
+  await http.patch(
+    `/management/generate/pccesResources/${id}/move?constructionId=${encodeURIComponent(constructionId)}&direction=${direction}`
+  );
 }
