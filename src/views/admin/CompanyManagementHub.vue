@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted, computed, provide } from 'vue'
 import { companyApi, type Company, type CreateCompanyRequest } from '@/api/company'
 import { userApi, type User } from '@/api/user'
 import Card from '@/components/bootstrap/Card.vue'
@@ -10,7 +10,33 @@ import CompanyFormModal from '@/components/company/CompanyFormModal.vue'
 import CompanyMemberManagement from '@/components/company/CompanyMemberManagement.vue'
 import SitePersonnelManagement from '@/components/company/SitePersonnelManagement.vue'
 import AuthorizationModal from '@/components/admin/AuthorizationModal.vue'
+import { Sort, Resize, Filter, Page, GridComponent, Toolbar } from '@syncfusion/ej2-vue-grids'
 import { getCurrentInstance } from 'vue'
+
+provide('grid', [Sort, Resize, Filter, Page, Toolbar])
+
+const companyGrid = ref<GridComponent | null>(null)
+const memberGrid = ref<GridComponent | null>(null)
+
+const pageSettings = ref({
+  pageSize: 20,
+  pageSizes: [10, 20, 50, 100],
+  pageCount: 5
+})
+
+const formatCompanyType = (type: string | undefined) => {
+  if (type === 'CONTRACTOR') return '營造廠商'
+  if (type === 'SUPERVISION') return '監造單位'
+  if (type === 'THIRD_PARTY') return '第三方'
+  return type || '-'
+}
+
+const companyTypeBadgeClass = (type: string | undefined) => {
+  if (type === 'CONTRACTOR') return 'badge bg-primary'
+  if (type === 'SUPERVISION') return 'badge bg-info'
+  if (type === 'THIRD_PARTY') return 'badge bg-success'
+  return 'badge bg-secondary'
+}
 
 const { proxy } = getCurrentInstance() as any
 const toast = {
@@ -317,62 +343,59 @@ const headerActions = computed(() => {
       ]"
       :actions="headerActions"
     />
-    <p v-if="viewMode === 'LIST'" class="text-muted small mb-4">由大到小管理：公司 ➔ 人員 ➔ 專案授權</p>
 
     <!-- VIEW: Company List -->
-    <Card v-if="viewMode === 'LIST'">
-      <CardHeader class="fw-bold fs-6">所有註冊公司 ({{ companies.length }})</CardHeader>
-            <CardBody class="p-0">
-              <div class="table-responsive">
-                <table class="table table-hover table-striped align-middle mb-0">
-                  <thead>
-                    <tr>
-                      <th class="ps-4">公司名稱</th>
-                      <th>類型</th>
-                      <th>統編</th>
-                      <th>成員數</th>
-                      <th class="text-end pe-4">操作</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="company in companies" :key="company.companyId" class="cursor-pointer" @click="handleSelectCompany(company)">
-                      <td class="ps-4 fw-bold text-theme">{{ company.companyName }}</td>
-                      <td>
-                        <span class="badge" 
-                          :class="{
-                            'bg-primary': company.companyType === 'CONTRACTOR',
-                            'bg-info': company.companyType === 'SUPERVISION',
-                            'bg-success': company.companyType === 'THIRD_PARTY'
-                          }"
-                        >
-                          {{ company.companyType === 'CONTRACTOR' ? '營造廠商' : 
-                             company.companyType === 'SUPERVISION' ? '監造單位' : '第三方' }}
-                        </span>
-                      </td>
-                      <td>{{ company.companyCode }}</td>
-                      <td>
-                        <span class="badge bg-secondary rounded-pill">{{ company.memberCount || 0 }}</span>
-                      </td>
-                      <td class="text-end pe-4">
-                        <button class="btn btn-sm btn-outline-secondary me-1" @click.stop="openEditCompanyFromList(company)" title="編輯公司">
-                          <i class="fa fa-pen me-1"></i>編輯公司
-                        </button>
-                        <button class="btn btn-sm btn-outline-theme me-1" @click.stop="handleSelectCompany(company)" title="人員管理">
-                          <i class="fa fa-users me-1"></i>人員管理
-                        </button>
-                        <button class="btn btn-sm btn-outline-warning" @click.stop="handleSitePersonnel(company)" title="工地人員">
-                          <i class="fa fa-hard-hat me-1"></i>工地人員
-                        </button>
-                      </td>
-                    </tr>
-                    <tr v-if="!companies.length && !isLoading">
-                      <td colspan="5" class="text-center py-5 text-muted">目前沒有公司資料</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </CardBody>
-          </Card>
+    <div v-if="viewMode === 'LIST'" class="grid-wrapper">
+      <div v-if="isLoading" class="text-center py-5">
+        <div class="spinner-border text-primary" role="status">
+          <span class="visually-hidden">Loading...</span>
+        </div>
+      </div>
+      <ejs-grid
+        v-else
+        ref="companyGrid"
+        :dataSource="companies"
+        :allowPaging="true"
+        :pageSettings="pageSettings"
+        :allowSorting="true"
+        :allowFiltering="true"
+        :allowResizing="true"
+        :height="'100%'"
+        locale="zh-TW"
+      >
+        <e-columns>
+          <e-column field="companyName" headerText="公司名稱" width="220" textAlign="Left" :template="'companyNameTemplate'"></e-column>
+          <e-column field="companyType" headerText="類型" width="120" textAlign="Center" :template="'companyTypeTemplate'"></e-column>
+          <e-column field="companyCode" headerText="統編" width="140" textAlign="Left"></e-column>
+          <e-column field="memberCount" headerText="成員數" width="100" textAlign="Center" :template="'memberCountTemplate'"></e-column>
+          <e-column headerText="操作" width="320" textAlign="Center" :template="'companyActionsTemplate'"></e-column>
+        </e-columns>
+
+        <template v-slot:companyNameTemplate="{ data }">
+          <span class="fw-bold text-theme cursor-pointer" @click="handleSelectCompany(data)">{{ data.companyName }}</span>
+        </template>
+
+        <template v-slot:companyTypeTemplate="{ data }">
+          <span :class="companyTypeBadgeClass(data.companyType)">{{ formatCompanyType(data.companyType) }}</span>
+        </template>
+
+        <template v-slot:memberCountTemplate="{ data }">
+          <span class="badge bg-secondary rounded-pill">{{ data.memberCount || 0 }}</span>
+        </template>
+
+        <template v-slot:companyActionsTemplate="{ data }">
+          <button type="button" class="btn btn-sm btn-outline-secondary me-1" title="編輯公司" @click.stop="openEditCompanyFromList(data)">
+            <i class="fa fa-pen me-1"></i>編輯公司
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-theme me-1" title="人員管理" @click.stop="handleSelectCompany(data)">
+            <i class="fa fa-users me-1"></i>人員管理
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-warning" title="工地人員" @click.stop="handleSitePersonnel(data)">
+            <i class="fa fa-hard-hat me-1"></i>工地人員
+          </button>
+        </template>
+      </ejs-grid>
+    </div>
 
     <!-- VIEW: Members (Admin 獨立人員管理) -->
     <div v-else-if="viewMode === 'MEMBERS' && selectedCompany">
@@ -441,42 +464,56 @@ const headerActions = computed(() => {
               </div>
             </CardHeader>
             <CardBody class="p-0">
-              <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
-                  <thead>
-                    <tr>
-                      <th class="ps-4">姓名</th>
-                      <th>Email</th>
-                      <th>角色</th>
-                      <th class="text-end pe-4">權限管理</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="member in companyMembers" :key="member.id || member.userId">
-                      <td class="ps-4 fw-bold">{{ member.username || member.name }}</td>
-                      <td>{{ member.email }}</td>
-                      <td>
-                        <span class="badge bg-secondary border border-secondary">{{ member.role || 'MEMBER' }}</span>
-                      </td>
-                      <td class="text-end pe-4">
-                        <button class="btn btn-sm btn-primary me-2" @click="openAuthModal(member)">
-                          <i class="fa fa-key me-1"></i> 管理專案權限
-                        </button>
-                        <button class="btn btn-sm btn-outline-secondary me-2" @click="openEditMemberModal(member)">
-                          <i class="fa fa-pen me-1"></i> 編輯
-                        </button>
-                        <button class="btn btn-sm btn-outline-danger" @click="handleRemoveMember(member)" v-if="member.role !== 'OWNER'">
-                          <i class="fa fa-trash"></i>
-                        </button>
-                      </td>
-                    </tr>
-                    <tr v-if="!companyMembers.length">
-                      <td colspan="4" class="text-center py-5 text-muted">
-                        尚無成員資料，請點擊上方按鈕新增。
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+              <div class="grid-wrapper grid-wrapper--compact">
+                <div v-if="isLoading" class="text-center py-5">
+                  <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                  </div>
+                </div>
+                <ejs-grid
+                  v-else
+                  ref="memberGrid"
+                  :dataSource="companyMembers"
+                  :allowPaging="true"
+                  :pageSettings="pageSettings"
+                  :allowSorting="true"
+                  :allowFiltering="true"
+                  :allowResizing="true"
+                  :height="'100%'"
+                  locale="zh-TW"
+                >
+                  <e-columns>
+                    <e-column field="username" headerText="姓名" width="160" textAlign="Left" :template="'memberNameTemplate'"></e-column>
+                    <e-column field="email" headerText="Email" width="220" textAlign="Left"></e-column>
+                    <e-column field="role" headerText="角色" width="120" textAlign="Center" :template="'memberRoleTemplate'"></e-column>
+                    <e-column headerText="權限管理" width="320" textAlign="Center" :template="'memberActionsTemplate'"></e-column>
+                  </e-columns>
+
+                  <template v-slot:memberNameTemplate="{ data }">
+                    <span class="fw-bold">{{ data.username || data.name || '-' }}</span>
+                  </template>
+
+                  <template v-slot:memberRoleTemplate="{ data }">
+                    <span class="badge bg-secondary border border-secondary">{{ data.role || 'MEMBER' }}</span>
+                  </template>
+
+                  <template v-slot:memberActionsTemplate="{ data }">
+                    <button type="button" class="btn btn-sm btn-primary me-2" @click.stop="openAuthModal(data)">
+                      <i class="fa fa-key me-1"></i> 管理專案權限
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary me-2" @click.stop="openEditMemberModal(data)">
+                      <i class="fa fa-pen me-1"></i> 編輯
+                    </button>
+                    <button
+                      v-if="data.role !== 'OWNER'"
+                      type="button"
+                      class="btn btn-sm btn-outline-danger"
+                      @click.stop="handleRemoveMember(data)"
+                    >
+                      <i class="fa fa-trash"></i>
+                    </button>
+                  </template>
+                </ejs-grid>
               </div>
             </CardBody>
           </Card>
@@ -638,5 +675,15 @@ const headerActions = computed(() => {
 </template>
 
 <style scoped>
-.cursor-pointer { cursor: pointer; }
+.cursor-pointer {
+  cursor: pointer;
+}
+
+.grid-wrapper {
+  height: 600px;
+}
+
+.grid-wrapper--compact {
+  height: 480px;
+}
 </style>

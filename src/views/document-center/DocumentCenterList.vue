@@ -137,7 +137,7 @@
           </div>
           <div v-else-if="filteredList.length === 0" class="doc-center-empty">
             <i class="fa fa-cloud-upload-alt fa-3x mb-3 opacity-50"></i>
-            <p class="mb-0">尚無上傳公文，請點擊「上傳公文」上傳檔案（支援 PDF 與圖片，將以 OCR+AI 辨識欄位）。</p>
+            <p class="mb-0">尚無上傳公文，請點擊「上傳公文」上傳檔案（支援 PDF 與圖片，將以系統辨識內容，並自動填入欄位）。</p>
           </div>
           <div v-else class="doc-center-table-wrap">
             <table class="doc-center-table">
@@ -179,10 +179,9 @@
                   <td class="doc-center-td-actions">
                     <div class="doc-center-actions-row">
                       <span
-                        v-if="item.fileUrl && isPreviewableType(item.fileType)"
                         class="doc-center-action-btn"
                         title="預覽"
-                        @click.stop="openPreview(item)"
+                        @click.stop="openListPreviewInNewTab(item)"
                       >
                         <i class="fa fa-eye"></i>
                         <span>預覽</span>
@@ -285,24 +284,13 @@
                 <div class="doc-center-detail-label">檔案名稱</div>
                 <div class="doc-center-detail-value doc-center-detail-multiline">
                   {{ detailItem.fileName || '－' }}
-                  <span
-                    v-if="detailItem.fileUrl && isPreviewableType(detailItem.fileType)"
-                    class="doc-center-file-link ms-2"
-                    role="button"
-                    @click.stop="openPreview(detailItem)"
+                  <button
+                    type="button"
+                    class="doc-center-file-link ms-2 btn btn-link btn-sm p-0 align-baseline"
+                    @click.stop="openDetailPreviewInNewTab"
                   >
-                    <i class="fa fa-eye me-1"></i>預覽
-                  </span>
-                  <a
-                    v-if="detailItem.fileUrl"
-                    :href="detailItem.fileUrl"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="doc-center-file-link ms-2"
-                    @click.stop
-                  >
-                    <i class="fa fa-external-link-alt me-1"></i>下載原檔
-                  </a>
+                    <i class="fa fa-external-link-alt me-1"></i>開啟原檔
+                  </button>
                 </div>
               </div>
               <div class="doc-center-detail-row">
@@ -333,6 +321,16 @@
           @click="doDeleteDocument"
         >
           <i class="fa fa-trash me-1"></i>刪除公文
+        </button>
+        <button
+          type="button"
+          class="btn btn-outline-info"
+          :disabled="detailPreviewLoading || !detailItem"
+          title="在新分頁預覽原檔（本機無 Signed URL 時改以登入權限下載）"
+          @click="openDetailPreviewInNewTab"
+        >
+          <i v-if="detailPreviewLoading" class="fa fa-spinner fa-spin me-1"></i>
+          <i v-else class="fa fa-eye me-1"></i>預覽
         </button>
         <button type="button" class="btn btn-outline-secondary" @click="closeDetailModal">關閉</button>
         <button type="button" class="btn btn-primary" :disabled="detailSaving" @click="doUpdateDetail">
@@ -375,27 +373,6 @@
       </template>
     </Modal>
 
-    <!-- 文件預覽 Modal -->
-    <Modal
-      :show="showPreviewModal"
-      :title="'預覽 - ' + previewTitle"
-      icon="fa fa-eye"
-      size="xl"
-      :hideFooter="true"
-      @update:show="(v: boolean) => { if (!v) closePreview() }"
-    >
-      <template #body>
-        <iframe
-          v-if="previewFileUrl"
-          :src="previewFileUrl"
-          style="width: 100%; height: 75vh; border: none; border-radius: 6px;"
-        ></iframe>
-        <div v-else class="text-center py-5 text-muted">
-          <i class="fa fa-exclamation-circle fa-2x mb-2 d-block"></i>
-          無法預覽此檔案
-        </div>
-      </template>
-    </Modal>
   </div>
 </template>
 
@@ -409,6 +386,8 @@ import RepublicDatePicker from '@/components/bootstrap/RepublicDatePicker.vue'
 import DocumentPicker from '@/components/document/DocumentPicker.vue'
 import {
   getDocumentCenterList,
+  getDocumentFileUrl,
+  openDocumentInNewTab,
   updateDocument,
   deleteDocument,
   DOCUMENT_CATEGORY_OPTIONS,
@@ -594,6 +573,8 @@ const detailForm = ref<OfficialDocumentExtractDto>({
 })
 const detailSaving = ref(false)
 const detailError = ref('')
+const detailPreviewUrl = ref('')
+const detailPreviewLoading = ref(false)
 
 // ── 使用位置相關 ──
 const usagesPopoverItem = ref<DocumentCenterListItem | null>(null)
@@ -609,28 +590,61 @@ function closeUsagesModal() {
   usagesPopoverItem.value = null
 }
 
-// ── 文件預覽 ──
-const showPreviewModal = ref(false)
-const previewFileUrl = ref('')
-const previewTitle = ref('')
-
-const previewableTypes = ['pdf', 'png', 'jpg', 'jpeg', 'webp', 'gif']
-
-function isPreviewableType(fileType: string): boolean {
-  return previewableTypes.includes(fileType?.toLowerCase())
+// ── 文件預覽（新分頁；Signed URL 失敗時改 JWT 下載，與 B-2 工程位置圖相同）──
+async function openListPreviewInNewTab(item: DocumentCenterListItem) {
+  const cid = constructionId.value
+  if (!cid) return
+  try {
+    const url = await openDocumentInNewTab(cid, item)
+    if (url && !item.fileUrl && url.startsWith('http')) {
+      item.fileUrl = url
+    }
+  } catch (e: unknown) {
+    const err = e as { message?: string }
+    alert(err?.message ?? '無法預覽檔案')
+  }
 }
 
-function openPreview(item: DocumentCenterListItem) {
-  if (!item.fileUrl) return
-  previewTitle.value = item.documentNumber || item.fileName || '文件'
-  previewFileUrl.value = item.fileUrl
-  showPreviewModal.value = true
+async function openDetailPreviewInNewTab() {
+  const cid = constructionId.value
+  const item = detailItem.value
+  if (!cid || !item) return
+  detailPreviewLoading.value = true
+  detailError.value = ''
+  try {
+    const url = await openDocumentInNewTab(cid, item)
+    detailError.value = ''
+    if (url?.startsWith('http')) {
+      detailPreviewUrl.value = url
+      detailItem.value = { ...item, fileUrl: url }
+    }
+  } catch (e: unknown) {
+    const err = e as { message?: string }
+    detailError.value = err?.message ?? '無法預覽檔案'
+  } finally {
+    detailPreviewLoading.value = false
+  }
 }
 
-function closePreview() {
-  showPreviewModal.value = false
-  previewFileUrl.value = ''
-  previewTitle.value = ''
+async function refreshDetailPreviewUrl(item: DocumentCenterListItem) {
+  detailPreviewUrl.value = (item.fileUrl || '').trim()
+  const cid = constructionId.value
+  if (!cid || !item.id) return
+  if (detailPreviewUrl.value) return
+  detailPreviewLoading.value = true
+  try {
+    const url = await getDocumentFileUrl(cid, item.id)
+    if (url) {
+      detailPreviewUrl.value = url
+      if (detailItem.value?.id === item.id) {
+        detailItem.value = { ...detailItem.value, fileUrl: url }
+      }
+    }
+  } catch {
+    // 無 Signed URL 時仍可按預覽，改走 JWT download
+  } finally {
+    detailPreviewLoading.value = false
+  }
 }
 
 function openDetail(item: DocumentCenterListItem) {
@@ -646,13 +660,17 @@ function openDetail(item: DocumentCenterListItem) {
     documentCategory: item.documentCategory || ''
   }
   detailError.value = ''
+  detailPreviewUrl.value = (item.fileUrl || '').trim()
   showDetailModal.value = true
+  void refreshDetailPreviewUrl(item)
 }
 
 function closeDetailModal() {
   showDetailModal.value = false
   detailItem.value = null
   detailError.value = ''
+  detailPreviewUrl.value = ''
+  detailPreviewLoading.value = false
 }
 
 async function doUpdateDetail() {

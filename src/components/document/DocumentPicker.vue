@@ -64,16 +64,49 @@
 
       <!-- Tab: 上傳新公文 -->
       <div v-if="tab === 'upload'">
-        <!-- Step 1: 選檔 -->
+        <!-- Step 1: 選檔（樣式比照標單匯入拖放區） -->
         <template v-if="uploadStep === 'file'">
-          <p class="text-muted small mb-2">上傳 PDF 或圖片，系統會以 OCR + AI 辨識公文欄位。</p>
-          <input
-            ref="uploadFileRef"
-            type="file"
-            class="form-control mb-3"
-            accept=".pdf,image/*"
-            @change="onUploadFileChange"
-          />
+          <div class="mb-3">
+            <label class="form-label fw-semibold">選擇檔案（PDF / 圖片）</label>
+            <input
+              ref="uploadFileRef"
+              type="file"
+              class="form-control d-none"
+              accept=".pdf,image/*"
+              @change="onUploadFileChange"
+            />
+            <div
+              class="doc-import-dropzone border rounded-3 p-4 text-center user-select-none"
+              :class="{
+                'doc-import-dropzone--active': uploadDragDepth > 0,
+                'doc-import-dropzone--has-file': !!uploadFile
+              }"
+              role="button"
+              tabindex="0"
+              @click="triggerUploadFileInput"
+              @keydown.enter.prevent="triggerUploadFileInput"
+              @keydown.space.prevent="triggerUploadFileInput"
+              @dragenter.prevent="onUploadDragEnter"
+              @dragleave.prevent="onUploadDragLeave"
+              @dragover.prevent="onUploadDragOver"
+              @drop.prevent="onUploadDrop"
+            >
+              <template v-if="uploadFile">
+                <i class="fa fa-check-circle doc-import-file-check d-block mb-2" aria-hidden="true"></i>
+                <span class="doc-import-ready-badge">已選擇檔案</span>
+                <div class="doc-import-filename text-break mt-2 mb-1">
+                  <i class="fa fa-file-alt me-2" aria-hidden="true"></i>{{ uploadFile.name }}
+                </div>
+                <div class="doc-import-filemeta">{{ formatImportFileSize(uploadFile.size) }}</div>
+                <p class="doc-import-replace-hint mb-0 mt-3 small">點此區域或拖放其他檔案可更換</p>
+              </template>
+              <template v-else>
+                <i class="fa fa-file-pdf fa-2x mb-2 d-block text-secondary" aria-hidden="true"></i>
+                <p class="mb-1 fw-medium">將 PDF 或圖片拖放到此處，或按一下選擇檔案</p>
+                <p class="mb-0 small text-muted">支援 PDF 與常見圖片格式</p>
+              </template>
+            </div>
+          </div>
         </template>
 
         <!-- Step 2: 確認欄位 -->
@@ -145,12 +178,13 @@
         <button type="button" class="btn btn-outline-secondary" @click="close">取消</button>
         <button
           type="button"
-          class="btn btn-primary"
+          class="btn btn-success"
           :disabled="!uploadFile || uploadExtracting"
           @click="doUploadExtract"
         >
-          <i v-if="uploadExtracting" class="fa fa-spinner fa-spin me-1"></i>
-          {{ uploadExtracting ? '辨識中…' : '上傳並辨識' }}
+          <span v-if="uploadExtracting" class="spinner-border spinner-border-sm me-2"></span>
+          <i v-else class="fa fa-robot me-2"></i>
+          {{ uploadExtracting ? '辨識中，請稍候...' : '上傳並辨識' }}
         </button>
       </template>
       <!-- 上傳 Tab - Step 2: 確認儲存按鈕 -->
@@ -244,6 +278,7 @@ const docListLoading = ref(false)
 const uploadStep = ref<'file' | 'confirm'>('file')
 const uploadFileRef = ref<HTMLInputElement | null>(null)
 const uploadFile = ref<File | null>(null)
+const uploadDragDepth = ref(0)
 const uploadExtracting = ref(false)
 const uploadSaving = ref(false)
 const uploadRawText = ref('')
@@ -296,10 +331,68 @@ function confirmSelect() {
 }
 
 // ── 上傳相關 ──
+function formatImportFileSize(bytes: number): string {
+  if (bytes == null || Number.isNaN(bytes) || bytes < 0) return ''
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function isAcceptableUploadFile(file: File): boolean {
+  const name = (file.name || '').toLowerCase()
+  if (name.endsWith('.pdf')) return true
+  const t = (file.type || '').toLowerCase()
+  return t.startsWith('image/') || t === 'application/pdf'
+}
+
+function assignUploadFile(file: File | null) {
+  if (!file) {
+    uploadFile.value = null
+    return
+  }
+  if (!isAcceptableUploadFile(file)) {
+    error.value = '請選擇 PDF 或圖片檔案'
+    uploadFile.value = null
+    if (uploadFileRef.value) uploadFileRef.value.value = ''
+    return
+  }
+  uploadFile.value = file
+  error.value = ''
+}
+
+function triggerUploadFileInput() {
+  if (uploadExtracting.value) return
+  uploadFileRef.value?.click()
+}
+
+function onUploadDragEnter(e: DragEvent) {
+  if (e.dataTransfer?.types?.includes('Files')) {
+    uploadDragDepth.value += 1
+  }
+}
+
+function onUploadDragLeave() {
+  uploadDragDepth.value = Math.max(0, uploadDragDepth.value - 1)
+}
+
+function onUploadDragOver(e: DragEvent) {
+  if (e.dataTransfer) {
+    e.dataTransfer.dropEffect = 'copy'
+  }
+}
+
+function onUploadDrop(e: DragEvent) {
+  uploadDragDepth.value = 0
+  const files = e.dataTransfer?.files
+  if (!files?.length) return
+  assignUploadFile(files[0])
+}
+
 function onUploadFileChange(e: Event) {
   const target = e.target as HTMLInputElement
-  uploadFile.value = target.files?.[0] ?? null
-  error.value = ''
+  if (target.files?.length) {
+    assignUploadFile(target.files[0])
+  }
 }
 
 async function doUploadExtract() {
@@ -391,6 +484,8 @@ function resetState() {
   error.value = ''
   uploadStep.value = 'file'
   uploadFile.value = null
+  uploadDragDepth.value = 0
+  if (uploadFileRef.value) uploadFileRef.value.value = ''
   uploadExtracting.value = false
   uploadSaving.value = false
   uploadRawText.value = ''
@@ -510,5 +605,65 @@ watch(() => props.show, (newVal) => {
   background: rgba(248, 113, 113, 0.1);
   border-color: rgba(248, 113, 113, 0.25);
   color: #fca5a5;
+}
+
+.doc-import-dropzone {
+  cursor: pointer;
+  background-color: rgba(15, 23, 42, 0.35);
+  border-color: #64748b !important;
+  border-style: dashed !important;
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+}
+.doc-import-dropzone:hover {
+  border-color: #94a3b8 !important;
+  background-color: rgba(30, 41, 59, 0.45);
+}
+.doc-import-dropzone--active {
+  border-color: #38bdf8 !important;
+  background-color: rgba(14, 165, 233, 0.12);
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.35);
+}
+.doc-import-dropzone--has-file:not(.doc-import-dropzone--active) {
+  border-style: solid !important;
+  border-width: 2px !important;
+  border-color: #22c55e !important;
+  background: linear-gradient(165deg, rgba(34, 197, 94, 0.22) 0%, rgba(15, 23, 42, 0.92) 55%);
+  box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.45), 0 8px 24px rgba(34, 197, 94, 0.12);
+}
+.doc-import-dropzone--has-file:not(.doc-import-dropzone--active):hover {
+  border-color: #4ade80 !important;
+  box-shadow: 0 0 0 1px rgba(74, 222, 128, 0.55), 0 10px 28px rgba(34, 197, 94, 0.18);
+}
+.doc-import-file-check {
+  font-size: 2.75rem;
+  color: #4ade80;
+  line-height: 1;
+  filter: drop-shadow(0 0 10px rgba(74, 222, 128, 0.45));
+}
+.doc-import-ready-badge {
+  display: inline-block;
+  padding: 0.35rem 0.85rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #052e16;
+  background: linear-gradient(180deg, #86efac 0%, #4ade80 100%);
+  border-radius: 999px;
+  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.35);
+}
+.doc-import-filename {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #ecfdf5;
+  line-height: 1.35;
+  word-break: break-word;
+}
+.doc-import-filemeta {
+  font-size: 0.9rem;
+  color: #a7f3d0;
+  font-weight: 600;
+}
+.doc-import-replace-hint {
+  color: #94a3b8;
 }
 </style>

@@ -569,6 +569,13 @@ const stopResize = () => {
   position: relative; /* 為日期選擇器提供定位上下文 */
 }
 
+/* 避免底部 resize 把手擋住 footer 按鈕點擊 */
+.modal-footer {
+  position: relative;
+  z-index: 20;
+  flex-shrink: 0;
+}
+
 /* 確保 modal-dialog 高度可調 */
 .modal-dialog {
   display: flex;

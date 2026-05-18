@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { userApi, type User } from '@/api/user'
 import PageHeader from '@/components/bootstrap/PageHeader.vue'
+import AuthorizationModal from '@/components/admin/AuthorizationModal.vue'
 import { Sort, Resize, Filter, Page, GridComponent, ColumnsDirective, ColumnDirective, Toolbar } from '@syncfusion/ej2-vue-grids'
 
 const router = useRouter()
@@ -20,6 +21,8 @@ const hasAdminPermission = computed(() => {
 const grid = ref<GridComponent | null>(null)
 const gridData = ref<User[]>([])
 const isLoading = ref(false)
+const showAuthModal = ref(false)
+const selectedUserForAuth = ref<User | null>(null)
 
 // 提供 Grid 服務
 provide('grid', [Sort, Resize, Filter, Page, Toolbar])
@@ -115,6 +118,11 @@ const onSystemRoleChange = async (row: User, event: Event) => {
   }
 }
 
+const openAuthModal = (user: User) => {
+  selectedUserForAuth.value = user
+  showAuthModal.value = true
+}
+
 const deleteUser = async (row: User) => {
   if (!canDeleteRow(row)) return
   const ok = window.confirm(
@@ -163,13 +171,6 @@ onMounted(() => {
       ]"
     />
 
-    <div class="mb-3 d-flex justify-content-between align-items-center">
-      <h5 class="m-0">用戶清單</h5>
-      <button class="btn btn-theme" @click="loadData">
-        <i class="fa fa-refresh me-1"></i> 重新載入
-      </button>
-    </div>
-
     <div class="grid-wrapper">
       <div v-if="isLoading" class="text-center py-5">
         <div class="spinner-border text-primary" role="status">
@@ -199,7 +200,7 @@ onMounted(() => {
           <e-column field="isPaidUser" headerText="付費用戶" width="100" textAlign="Center" :template="'paidUserTemplate'"></e-column>
           <e-column field="createdAt" headerText="建立時間" width="150" textAlign="Center" :template="'createdAtTemplate'"></e-column>
           <e-column field="updatedAt" headerText="更新時間" width="150" textAlign="Center" :template="'updatedAtTemplate'"></e-column>
-          <e-column headerText="操作" width="100" textAlign="Center" :template="'actionsTemplate'"></e-column>
+          <e-column headerText="操作" width="240" textAlign="Center" :template="'actionsTemplate'"></e-column>
         </e-columns>
 
         <template v-slot:roleTemplate="{ data }">
@@ -239,18 +240,30 @@ onMounted(() => {
         </template>
 
         <template v-slot:actionsTemplate="{ data }">
-          <button
-            v-if="canDeleteRow(data)"
-            type="button"
-            class="btn btn-sm btn-outline-danger"
-            @click.stop="deleteUser(data)"
-          >
-            刪除
-          </button>
-          <span v-else class="text-muted small">—</span>
+          <div class="d-flex flex-wrap justify-content-center gap-1">
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-primary"
+              title="管理專案權限"
+              @click.stop="openAuthModal(data)"
+            >
+              <i class="fa fa-key me-1"></i>專案權限
+            </button>
+            <button
+              v-if="canDeleteRow(data)"
+              type="button"
+              class="btn btn-sm btn-outline-danger"
+              title="停用使用者"
+              @click.stop="deleteUser(data)"
+            >
+              刪除
+            </button>
+          </div>
         </template>
       </ejs-grid>
     </div>
+
+    <AuthorizationModal v-model="showAuthModal" :user="selectedUserForAuth" />
   </div>
 </template>
 

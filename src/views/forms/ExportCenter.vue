@@ -581,9 +581,9 @@ async function startExport() {
         .map(i => `${i.category}-${i.itemNumber}`)
         .join(', ')
         + (selectedItems.value.length > 3 ? ` +${selectedItems.value.length - 3} 項` : ''),
-      createTime: new Date().toLocaleString('zh-TW'),
+          createTime: new Date().toLocaleString('zh-TW'),
       fileSize: `${(Math.random() * 3 + 0.5).toFixed(1)} MB`,
-      status: 'completed',
+          status: 'completed',
       downloadUrl: '#',
       selectedIds: Array.from(selectedIds.value),
     }
@@ -592,7 +592,7 @@ async function startExport() {
   } catch (err) {
     console.warn('匯出失敗', err)
     toastService.error('匯出失敗，請重試')
-  } finally {
+      } finally {
     isExporting.value = false
     exportProgress.value = 0
   }
@@ -719,16 +719,16 @@ const breadcrumbs = computed(() => [
                 </button>
                 <button type="button" class="btn btn-sm btn-outline-secondary" @click="collapseAll">
                   <i class="bi bi-arrows-collapse me-1"></i>全部折起
-                </button>
-                <button 
-                  type="button" 
+                  </button>
+                  <button 
+                    type="button" 
                   class="btn btn-sm btn-outline-secondary"
                   :disabled="selectedCount === 0"
                   @click="clearAllSelections"
-                >
+                  >
                   <i class="bi bi-eraser me-1"></i>清除全部 ({{ selectedCount }})
-                </button>
-              </div>
+                  </button>
+                </div>
               </div>
 
             <div v-if="isLoading" class="text-center text-muted py-3">
@@ -769,15 +769,15 @@ const breadcrumbs = computed(() => [
                     <span class="badge border border-secondary text-secondary ms-1">
                       {{ selectedCountInGroup(group) }}/{{ availableInGroup(group).length }}
                     </span>
-                  </div>
-                  <button
-                    type="button"
+                </div>
+                <button 
+                  type="button" 
                     class="btn btn-sm btn-link text-muted p-0"
                     @click="toggleCategory(group.code)"
-                  >
+                >
                     <i :class="collapsedCategories[group.code] ? 'bi bi-chevron-down' : 'bi bi-chevron-up'"></i>
-                  </button>
-                      </div>
+                </button>
+            </div>
 
                 <!-- 群組 body -->
                 <transition name="fade">
@@ -792,7 +792,7 @@ const breadcrumbs = computed(() => [
                         v-for="item in group.items"
                         :key="item.id"
                         class="item-row form-check m-0"
-                        :class="{
+                  :class="{ 
                           'item-selected': isSelected(item.id),
                           'item-disabled': !item.hasData,
                         }"
@@ -808,12 +808,12 @@ const breadcrumbs = computed(() => [
                         <span class="item-code">{{ item.category }}-{{ item.itemNumber }}</span>
                         <span class="item-name">{{ item.documentName }}</span>
                       </label>
-                    </div>
-            </div>
+                        </div>
+                      </div>
                 </transition>
-            </div>
+                    </div>
             </template>
-          </div>
+            </div>
 
           <!-- ============ Tab: 匯出歷史 ============ -->
           <div v-else-if="activeTab === 'history'">

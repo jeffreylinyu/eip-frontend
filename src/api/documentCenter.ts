@@ -117,6 +117,83 @@ export async function saveDocument(
   return null
 }
 
+/** 以 JWT 串流下載公文原檔（Signed URL 無法產生時的 fallback，與 B-2 工程位置圖相同） */
+export async function downloadDocumentBlob(
+  constructionId: string,
+  documentId: number
+): Promise<Blob> {
+  const raw = await http.get(
+    `/management/constructions/${encodeURIComponent(constructionId)}/document-center/${documentId}/download`,
+    { responseType: 'blob' }
+  )
+  const blob = raw as unknown as Blob
+  if (!(blob instanceof Blob) || blob.size === 0) {
+    throw new Error('無法載入檔案內容')
+  }
+  return blob
+}
+
+/** 在使用者點擊手勢內開新分頁（比 window.open 較少誤判為彈出視窗阻擋） */
+function openUrlInNewTab(url: string) {
+  const a = document.createElement('a')
+  a.href = url
+  a.target = '_blank'
+  a.rel = 'noopener noreferrer'
+  a.style.display = 'none'
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+}
+
+/**
+ * 在新分頁開啟公文：有 Signed URL 則直接開啟；否則 JWT 下載 blob（本機 ADC 可用）。
+ */
+export async function openDocumentInNewTab(
+  constructionId: string,
+  item: Pick<DocumentCenterListItem, 'id' | 'fileUrl'>
+): Promise<string | null> {
+  let signed = (item.fileUrl || '').trim()
+  if (!signed) {
+    try {
+      signed = await getDocumentFileUrl(constructionId, item.id)
+    } catch {
+      signed = ''
+    }
+  }
+  if (signed) {
+    openUrlInNewTab(signed)
+    return signed
+  }
+
+  const blob = await downloadDocumentBlob(constructionId, item.id)
+  const blobUrl = URL.createObjectURL(blob)
+  openUrlInNewTab(blobUrl)
+  window.setTimeout(() => URL.revokeObjectURL(blobUrl), 120_000)
+  return blobUrl
+}
+
+/** 取得公文檔案 Signed URL（預覽／下載） */
+export async function getDocumentFileUrl(
+  constructionId: string,
+  documentId: number
+): Promise<string> {
+  const data = await http.get<unknown>(
+    `/management/constructions/${encodeURIComponent(constructionId)}/document-center/${documentId}/file-url`
+  )
+  if (data && typeof data === 'object') {
+    const body = data as Record<string, unknown>
+    if (typeof body.fileUrl === 'string' && body.fileUrl.trim()) {
+      return body.fileUrl.trim()
+    }
+    if (body.message === 'fail') {
+      const inner = body.data as { message?: string } | undefined
+      const msg = typeof inner?.message === 'string' ? inner.message : '無法取得檔案連結'
+      throw new Error(msg)
+    }
+  }
+  return ''
+}
+
 /** 更新公文欄位（不重新上傳檔案） */
 export async function updateDocument(
   constructionId: string,

@@ -66,7 +66,7 @@ L10n.load({
             'Cancel': '取消'
         },
         'pager': {
-            'currentPageInfo': '{0} / {1} 頁 ({2} 個項目)',
+            'currentPageInfo': '{0} / {1} 頁',
             'totalItemsInfo': '({0} 個項目)',
             'firstPageTooltip': '第一頁',
             'lastPageTooltip': '最後一頁',
