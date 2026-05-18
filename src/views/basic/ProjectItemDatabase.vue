@@ -1459,7 +1459,7 @@ const modalMaterials = computed(() => {
 
     if (isMCode) {
       // 料碼以 M 開頭：走 upsert 優先序去重
-        upsert(
+      upsert(
         code,
         {
           name: String(b.name ?? '').trim() || code,

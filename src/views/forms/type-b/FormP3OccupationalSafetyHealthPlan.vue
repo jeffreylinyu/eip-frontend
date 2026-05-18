@@ -94,6 +94,7 @@
                   </div>
                   <div class="text-panel__toolbar">
                     <button
+                      v-if="isSuperAdmin"
                       type="button"
                       class="btn-ai-generate"
                       :disabled="isAiGenerating || !currentProject?.id"
@@ -558,6 +559,7 @@
                       <i class="fa fa-spinner fa-spin me-1"></i>圖片同步中…
                     </span>
                     <button
+                      v-if="isSuperAdmin"
                       type="button"
                       class="btn-ai-generate"
                       :disabled="isAiGenerating || !currentProject?.id"
@@ -729,7 +731,7 @@ import PersonnelComboInput from './components/PersonnelComboInput.vue'
 const workspaceStore = useWorkspaceStore()
 const companyStore = useCompanyStore()
 const authStore = useAuthStore()
-const { isContractor } = useViewPerspective()
+const { isContractor, isSuperAdmin } = useViewPerspective()
 const { runWithExportLoading } = useExportLoading()
 
 /**

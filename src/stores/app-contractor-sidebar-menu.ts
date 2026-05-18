@@ -349,6 +349,16 @@ export const useAppContractorSidebarMenuStore = defineStore("appContractorSideba
 
   const runRefreshDynamicPMenuItems = async () => {
     const requestId = ++refreshGeneration
+    // 僅在營造視角下執行；監造端直接略過，避免打 contractor API 拿到 401
+    const { isContractor } = useViewPerspective()
+    if (!isContractor.value) {
+      setDynamicPMenuDebugText([
+        '狀態: 非營造視角，略過 P 類動態載入',
+        `時間: ${new Date().toISOString()}`,
+        `requestId: ${requestId}`
+      ].join('\n'))
+      return
+    }
     setDynamicPMenuDebugText(
       [
         '狀態: refreshDynamicPMenuItems 已觸發',

@@ -1130,9 +1130,10 @@ export const useWorkspaceStore = defineStore('workspace', () => {
 
   const inviteCompanyToWorkspace = async (workspaceId: string, inviteData: InviteCompanyRequest) => {
     try {
-      // 檢查邀請規則
-      // 若有提供 companyType，則略過前端唯一性檢查，由後端處理自動替換邏輯
-      if (!inviteData.companyType) {
+      const platformAdmin = isElevatedPlatformAdministrator()
+
+      // 檢查邀請規則（平台管理員由後端處理唯一性，略過前端阻擋）
+      if (!platformAdmin && !inviteData.companyType) {
         if (inviteData.role === 'MAIN_CONTRACTOR' && !canInviteContractor.value) {
           throw new Error('工作空間已有主要承包商，無法再邀請')
         }
@@ -1147,10 +1148,13 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       }
 
       const newCompany = await workspaceApi.inviteCompany(workspaceId, inviteData)
-      workspaceCompanies.value.push(newCompany)
-      
-      if (newCompany.status === 'PENDING') {
-        pendingInvites.value.push(newCompany)
+
+      // 僅在操作的是「目前選中」工作空間時同步 store（後台管理其他專案時勿污染列表）
+      if (currentWorkspace.value?.id === workspaceId) {
+        workspaceCompanies.value.push(newCompany)
+        if (newCompany.status === 'PENDING') {
+          pendingInvites.value.push(newCompany)
+        }
       }
 
       return newCompany
@@ -1276,7 +1280,16 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     return workspaceCompanies.value.filter(company => company.role === role && company.status === 'ACTIVE')
   }
 
+  /** 與後端 SystemRoleEnum.isElevatedPlatformAdministrator 對齊 */
+  const isElevatedPlatformAdministrator = (): boolean => {
+    const authStore = useAuthStore()
+    const systemRole = authStore.user?.systemRole ?? authStore.user?.role
+    const r = (systemRole ?? '').trim().toUpperCase()
+    return r === 'SUPER_ADMIN' || r === 'ADMIN'
+  }
+
   const canInviteCompany = computed(() => {
+    if (isElevatedPlatformAdministrator()) return true
     if (!currentWorkspace.value) return false
     const permission = currentWorkspace.value.role
     return permission === 'ADMIN' || permission === 'OWNER'

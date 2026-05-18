@@ -66,6 +66,7 @@
             </ul>
           </div>
           <button
+            v-if="isSuperAdmin"
             type="button"
             class="btn-ai-generate b2-batch-ai-btn"
             :disabled="isB2AiGenerating || !currentProject?.id"
@@ -116,6 +117,7 @@
               </div>
               <div class="text-panel__toolbar">
                 <button
+                  v-if="isSuperAdmin"
                   type="button"
                   class="btn-ai-generate"
                   :disabled="aiLoading.geo || !currentProject?.id"
@@ -145,6 +147,7 @@
               </div>
               <div class="text-panel__toolbar">
                 <button
+                  v-if="isSuperAdmin"
                   type="button"
                   class="btn-ai-generate"
                   :disabled="aiLoading.env || !currentProject?.id"
@@ -174,6 +177,7 @@
               </div>
               <div class="text-panel__toolbar">
                 <button
+                  v-if="isSuperAdmin"
                   type="button"
                   class="btn-ai-generate"
                   :disabled="aiLoading.scale || !currentProject?.id"
@@ -203,6 +207,7 @@
               </div>
               <div class="text-panel__toolbar">
                 <button
+                  v-if="isSuperAdmin"
                   type="button"
                   class="btn-ai-generate"
                   :disabled="aiLoading.budget || !currentProject?.id"
@@ -367,6 +372,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, reactive, nextTick } from 'vue'
+import { useViewPerspective } from '@/composables/useViewPerspective'
 import PageHeader from '@/components/bootstrap/PageHeader.vue'
 import Card from '@/components/bootstrap/Card.vue'
 import CardBody from '@/components/bootstrap/CardBody.vue'
@@ -395,6 +401,7 @@ import {
 import { formBApi, downloadBlobAsFile, type ExportConstructionReportRequest } from '@/api/forms'
 import { extractFileNameFromResponse } from '@/utils/blobDownload'
 const workspaceStore = useWorkspaceStore()
+const { isSuperAdmin } = useViewPerspective()
 const { runWithExportLoading } = useExportLoading()
 
 const b2PageTitle = 'B-2 安全衛生監督查核計畫'

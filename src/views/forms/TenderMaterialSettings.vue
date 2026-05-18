@@ -299,15 +299,14 @@ export default defineComponent({
                 <i class="fa fa-info-circle me-2"></i>資料來源說明
               </h5>
               <p class="mb-2">
-                此頁面的材料資料來源自 <strong>工程項目標單</strong>的<strong>單價分析</strong>。
-                系統會自動帶入「單價分析」中被勾選為<strong>材料</strong>的最底層項目。
+                此頁面顯示在 <strong>工程項目標單 &gt; 材料與試驗</strong> 中勾選「<strong>使用</strong>」的材料清單。
               </p>
               <p class="mb-0">
-                如需新增或修改材料清單，請前往
+                如需新增材料至此清單，請前往
                 <router-link to="/basic/project-item-database" class="alert-link">
                   <i class="fa fa-arrow-right me-1"></i>工程項目標單
                 </router-link>
-                的「單價分析」分頁勾選材料。
+                切換至「<strong>材料與試驗</strong>」分頁，在左側材料清單勾選「使用」。
               </p>
             </div>
 
@@ -361,7 +360,7 @@ export default defineComponent({
                     <td colspan="9" class="text-center py-4 text-muted">
                       <div>{{ materials.length === 0 ? '目前尚無資料' : '查無符合條件的資料' }}</div>
                       <div v-if="materials.length === 0" class="small mt-1">
-                        請至工程項目標單 &gt; 單價分析 勾選材料
+                        請至工程項目標單 &gt; 材料與試驗，勾選「使用」的材料
                       </div>
                     </td>
                   </tr>

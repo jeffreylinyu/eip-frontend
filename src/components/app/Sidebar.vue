@@ -97,6 +97,8 @@ async function copyPMenuDebugText() {
 }
 
 onMounted(() => {
+  const effectiveViewType = routeViewType.value ?? viewType.value;
+  if (effectiveViewType !== ViewType.CONTRACTOR) return;
   const contractorStore = appContractorSidebarMenu as any;
   if (typeof contractorStore?.refreshDynamicPMenuItems === 'function') {
     contractorStore.refreshDynamicPMenuItems();

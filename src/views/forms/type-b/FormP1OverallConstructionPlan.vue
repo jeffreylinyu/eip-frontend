@@ -66,6 +66,7 @@
               </ul>
             </div>
             <button
+              v-if="isSuperAdmin"
               type="button"
               class="btn-ai-generate p1-batch-ai-btn"
               :disabled="isAiGenerating || isExporting || !currentProject?.id"
@@ -103,6 +104,7 @@
                   </div>
                   <div class="text-panel__toolbar">
                     <button
+                      v-if="isSuperAdmin"
                       type="button"
                       class="btn-ai-generate"
                       :disabled="isAiGenerating || !currentProject?.id"
@@ -135,6 +137,7 @@
                   </div>
                   <div class="text-panel__toolbar">
                     <button
+                      v-if="isSuperAdmin"
                       type="button"
                       class="btn-ai-generate"
                       :disabled="isAiGenerating || !currentProject?.id"
@@ -171,6 +174,7 @@
                   <div class="text-panel__label">施工流程概述</div>
                   <div class="text-panel__toolbar">
                     <button
+                      v-if="isSuperAdmin"
                       type="button"
                       class="btn-ai-generate"
                       :disabled="isAiGenerating || !currentProject?.id"
@@ -197,6 +201,7 @@
                   <div class="text-panel__label">施工流程圖</div>
                   <div class="text-panel__toolbar">
                     <button
+                      v-if="isSuperAdmin"
                       type="button"
                       class="btn-ai-generate"
                       :disabled="isAiGenerating || !currentProject?.id"
@@ -228,7 +233,7 @@
                   <div class="text-panel__header">
                     <div class="text-panel__label">地質概況</div>
                     <div class="text-panel__toolbar">
-                      <button type="button" class="btn-ai-generate" :disabled="isAiGenerating || !currentProject?.id" @click="generateSiteJudgementByAi('GEOLOGY_OVERVIEW')">
+                      <button v-if="isSuperAdmin" type="button" class="btn-ai-generate" :disabled="isAiGenerating || !currentProject?.id" @click="generateSiteJudgementByAi('GEOLOGY_OVERVIEW')">
                         <i class="fa me-2" :class="aiLoading.geology ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
                         {{ aiLoading.geology ? '生成中…' : '依工程地址 AI 生成' }}
                       </button>
@@ -243,7 +248,7 @@
                   <div class="text-panel__header">
                     <div class="text-panel__label">氣象及水文</div>
                     <div class="text-panel__toolbar">
-                      <button type="button" class="btn-ai-generate" :disabled="isAiGenerating || !currentProject?.id" @click="generateSiteJudgementByAi('METEOROLOGY_HYDROLOGY')">
+                      <button v-if="isSuperAdmin" type="button" class="btn-ai-generate" :disabled="isAiGenerating || !currentProject?.id" @click="generateSiteJudgementByAi('METEOROLOGY_HYDROLOGY')">
                         <i class="fa me-2" :class="aiLoading.meteo ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
                         {{ aiLoading.meteo ? '生成中…' : '依工程地址 AI 生成' }}
                       </button>
@@ -306,6 +311,7 @@
                   <div class="text-panel__label">人力資源預定進場時間表</div>
                   <div class="text-panel__toolbar table-toolbar-inline">
                     <button
+                      v-if="isSuperAdmin"
                       type="button"
                       class="btn-ai-generate"
                       :disabled="isAiGenerating || !currentProject?.id"
@@ -554,7 +560,7 @@
                     <div class="text-panel__header">
                       <div class="text-panel__label">施工機械設備資源預定進場時間表</div>
                       <div class="text-panel__toolbar table-toolbar-inline">
-                        <button type="button" class="btn-ai-generate" :disabled="isAiGenerating || !currentProject?.id" @click="generateMechanicalResourceNamesByAi">
+                        <button v-if="isSuperAdmin" type="button" class="btn-ai-generate" :disabled="isAiGenerating || !currentProject?.id" @click="generateMechanicalResourceNamesByAi">
                           <i class="fa me-2" :class="isAiGenerating ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
                           {{ isAiGenerating ? '生成中…' : '依標單 AI 生成資源名稱' }}
                         </button>
@@ -607,7 +613,7 @@
                   <div class="text-panel__header">
                     <div class="text-panel__label">物料市場調查</div>
                     <div class="text-panel__toolbar">
-                      <button type="button" class="btn-ai-generate" :disabled="isAiGenerating || !currentProject?.id" @click="generateMaterialMarketSurveyByAi">
+                      <button v-if="isSuperAdmin" type="button" class="btn-ai-generate" :disabled="isAiGenerating || !currentProject?.id" @click="generateMaterialMarketSurveyByAi">
                         <i class="fa me-2" :class="isAiGenerating ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
                         {{ isAiGenerating ? '生成中…' : '依標單 AI 生成' }}
                       </button>
@@ -858,6 +864,7 @@
                         <div class="text-panel__label">壹、工地周圍現有灌排水系統</div>
                         <div class="text-panel__toolbar">
                           <button
+                            v-if="isSuperAdmin"
                             type="button"
                             class="btn-ai-generate"
                             :disabled="isAiGenerating || !currentProject?.id"
@@ -886,6 +893,7 @@
                         <div class="text-panel__label">貳、施工中擋水及抽水措施</div>
                         <div class="text-panel__toolbar">
                           <button
+                            v-if="isSuperAdmin"
                             type="button"
                             class="btn-ai-generate"
                             :disabled="isAiGenerating || !currentProject?.id"
@@ -1098,7 +1106,7 @@ import {
 } from '@/api/construction'
 
 const workspaceStore = useWorkspaceStore()
-const { isContractor } = useViewPerspective()
+const { isContractor, isSuperAdmin } = useViewPerspective()
 const { runWithExportLoading } = useExportLoading()
 const currentProject = computed(() => workspaceStore.currentProject)
 const hasCurrentProject = computed(() => !!currentProject.value?.id)

@@ -9,6 +9,7 @@ import { useWorkspaceStore } from '@/stores/workspace';
 import { useViewPerspective, ViewType } from '@/composables/useViewPerspective';
 import ViewTypeSwitcher from '@/components/app/ViewTypeSwitcher.vue';
 import CoreDataStatusModal from '@/components/project/CoreDataStatusModal.vue';
+import EngineeringDataBuildHeaderAction from '@/components/app/EngineeringDataBuildHeaderAction.vue';
 
 const appOption = useAppOptionStore();
 const authStore = useAuthStore();
@@ -212,8 +213,13 @@ workspaceStore.initWorkspaces();
 				<ViewTypeSwitcher />
 			</div>
 
+      <!-- 工程案資料建構（全案 AI 批次生成） -->
+      <div class="menu-item" v-if="hasCurrentProject && !isAdminMode">
+        <EngineeringDataBuildHeaderAction />
+      </div>
+
       <!-- 核心資料填寫狀況（B-1 監造計劃書） -->
-      <div class="menu-item" v-if="hasCurrentProject">
+      <div class="menu-item" v-if="hasCurrentProject && !isAdminMode">
         <button
           type="button"
           class="header-chrome-text-btn"

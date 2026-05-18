@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import Card from '@/components/bootstrap/Card.vue'
 import CardBody from '@/components/bootstrap/CardBody.vue'
 import CardHeader from '@/components/bootstrap/CardHeader.vue'
@@ -426,8 +426,8 @@ onBeforeUnmount(() => {
         <!-- 儀表板內容 -->
         <div>
           
-          <!-- 天氣資訊 -->
-          <div class="d-flex justify-content-end mb-4">
+          <!-- 頂部工具列 -->
+          <div class="d-flex justify-content-end align-items-center mb-4">
             <WeatherWidget />
           </div>
           
@@ -1061,4 +1061,5 @@ onBeforeUnmount(() => {
     font-size: 0.8rem;
   }
 }
+
 </style>

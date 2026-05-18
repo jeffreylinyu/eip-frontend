@@ -74,6 +74,7 @@
                 </div>
                 <div class="d-flex flex-wrap gap-2">
                   <button
+                    v-if="isSuperAdmin"
                     type="button"
                     class="btn-ai-generate btn-ai-generate--toolbar"
                     :disabled="isAiGenerating"
@@ -245,7 +246,7 @@ const router = useRouter()
 const itemId = computed(() => Number(route.params.itemId))
 
 const workspaceStore = useWorkspaceStore()
-const { isContractor } = useViewPerspective()
+const { isContractor, isSuperAdmin } = useViewPerspective()
 const currentProject = computed(() => workspaceStore.currentProject)
 
 const designChangeId = computed((): number | null => {

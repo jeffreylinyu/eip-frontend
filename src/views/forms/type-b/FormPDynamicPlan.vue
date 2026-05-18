@@ -205,6 +205,7 @@
           </div>
           <div class="p1-toolbar-right">
             <button
+              v-if="isSuperAdmin"
               type="button"
               class="btn-ai-generate p-dynamic-batch-ai-btn"
               :disabled="isAiGenerating || isExporting || !currentProject?.id || docId == null || !targetRow || targetRow.isDefault"
@@ -232,6 +233,7 @@
                   </div>
                   <div class="text-panel__toolbar">
                     <button
+                      v-if="isSuperAdmin"
                       type="button"
                       class="btn-ai-generate"
                       :disabled="isAiGenerating || !currentProject?.id"
@@ -364,7 +366,7 @@
                       <i class="fa fa-sitemap me-2" aria-hidden="true"></i>
                       施工流程圖
                     </button>
-                    <button type="button" class="btn-ai-generate" :disabled="aiLoadingStagePlan || !currentProject?.id" @click="generateConstructionStagePlanByAi">
+                    <button v-if="isSuperAdmin" type="button" class="btn-ai-generate" :disabled="aiLoadingStagePlan || !currentProject?.id" @click="generateConstructionStagePlanByAi">
                       <i class="fa me-2" :class="aiLoadingStagePlan ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
                       {{ aiLoadingStagePlan ? '生成中…' : 'AI 生成完整結構' }}
                     </button>
@@ -502,6 +504,7 @@
                         主要工序之施工要領
                       </div>
                       <button
+                        v-if="isSuperAdmin"
                         type="button"
                         class="btn-ai-generate"
                         :disabled="aiLoadingStageEssentials || !currentProject?.id"
@@ -620,6 +623,7 @@
                   </div>
                   <div class="text-panel__toolbar">
                     <button
+                      v-if="isSuperAdmin"
                       type="button"
                       class="btn-ai-generate"
                       :disabled="aiLoadingChapter4 || !currentProject?.id"
@@ -826,6 +830,7 @@
                   </div>
                   <div class="text-panel__toolbar">
                     <button
+                      v-if="isSuperAdmin"
                       type="button"
                       class="btn-ai-generate"
                       :disabled="aiLoadingSubdivisionOrg || !currentProject?.id"
@@ -922,6 +927,7 @@
                   </div>
                   <div class="text-panel__toolbar">
                     <button
+                      v-if="isSuperAdmin"
                       type="button"
                       class="btn-ai-generate"
                       :disabled="aiLoadingSafetyHealthExecution || !currentProject?.id || docId == null"
@@ -956,6 +962,7 @@
                   </div>
                   <div class="text-panel__toolbar">
                     <button
+                      v-if="isSuperAdmin"
                       type="button"
                       class="btn-ai-generate"
                       :disabled="aiLoadingEnvironmentProtectionNotes || !currentProject?.id || docId == null"
@@ -1128,7 +1135,7 @@ const router = useRouter()
 const workspaceStore = useWorkspaceStore()
 const companyStore = useCompanyStore()
 const authStore = useAuthStore()
-const { isContractor } = useViewPerspective()
+const { isContractor, isSuperAdmin } = useViewPerspective()
 const { runWithExportLoading } = useExportLoading()
 
 const currentProject = computed(() => workspaceStore.currentProject)

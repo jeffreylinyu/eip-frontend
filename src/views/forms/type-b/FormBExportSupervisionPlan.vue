@@ -33,6 +33,7 @@
           <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
             <label class="form-label small text-muted mb-0">此內容會帶入 B-1 監造計劃書匯出，可依版本分別維護。</label>
             <button
+              v-if="isSuperAdmin"
               type="button"
               class="btn-ai-generate"
               :disabled="aiOverviewLoading || !currentProject?.id"
@@ -79,7 +80,7 @@ import { useWorkspaceStore } from '@/stores/workspace'
 import { getConstructionDetail, updateConstruction, getConstructionScaleOverviewAiGenerate } from '@/api/construction'
 
 const workspaceStore = useWorkspaceStore()
-const { fetchViewType } = useViewPerspective()
+const { fetchViewType, isSuperAdmin } = useViewPerspective()
 
 /** 送審紀錄區塊僅監造；依後端視角解析，避免與 composable 同步狀態不一致 */
 const showPlanSubmissionBlock = ref(false)

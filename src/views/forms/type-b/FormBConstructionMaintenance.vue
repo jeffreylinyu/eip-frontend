@@ -41,6 +41,7 @@
           </div>
           <div class="d-flex flex-wrap gap-2 align-items-center justify-content-end flex-shrink-0">
             <button
+              v-if="isSuperAdmin"
               type="button"
               class="btn-ai-generate"
               :disabled="aiSuggestLoading || !constructionId"
@@ -302,6 +303,7 @@
 </template>
 
 <script setup lang="ts">
+import { useViewPerspective } from '@/composables/useViewPerspective'
 import PageHeader from '@/components/bootstrap/PageHeader.vue'
 import Card from '@/components/bootstrap/Card.vue'
 import CardBody from '@/components/bootstrap/CardBody.vue'
@@ -328,6 +330,7 @@ import { exportSupervisorySubdivisionJson } from '@/api/subdivisionWorkItems'
 
 const router = useRouter()
 const workspaceStore = useWorkspaceStore()
+const { isSuperAdmin } = useViewPerspective()
 
 // 獲取當前工程 ID
 const constructionId = computed(() => workspaceStore.currentProject?.id || '')

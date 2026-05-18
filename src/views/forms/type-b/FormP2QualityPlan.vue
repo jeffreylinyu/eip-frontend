@@ -97,6 +97,7 @@
                   </div>
                   <div class="text-panel__toolbar">
                     <button
+                      v-if="isSuperAdmin"
                       type="button"
                       class="btn-ai-generate"
                       :disabled="isAiGenerating || !currentProject?.id"
@@ -426,7 +427,7 @@ import {
 } from '@/api/subdivisionWorkItems'
 
 const workspaceStore = useWorkspaceStore()
-const { isContractor } = useViewPerspective()
+const { isContractor, isSuperAdmin } = useViewPerspective()
 const { runWithExportLoading } = useExportLoading()
 
 const currentProject = computed(() => workspaceStore.currentProject)

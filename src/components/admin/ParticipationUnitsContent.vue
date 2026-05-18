@@ -279,8 +279,23 @@
     <!-- 加入公司模態框 -->
     <Modal v-model:show="showAddCompanyModal" title="加入公司到工作空間" size="lg">
       <template #footer>
-        <button type="button" class="btn btn-secondary" @click="closeAddCompanyModal">取消</button>
-        <button type="button" class="btn btn-theme" @click="addCompany" :disabled="!selectedCompany || !addCompanyForm.role">加入公司</button>
+        <div class="d-flex flex-column align-items-stretch w-100 gap-2">
+          <div v-if="addCompanyError" class="alert alert-danger py-2 mb-0 small" role="alert">
+            {{ addCompanyError }}
+          </div>
+          <div class="d-flex justify-content-end gap-2">
+            <button type="button" class="btn btn-secondary" @click="closeAddCompanyModal">取消</button>
+            <button
+              type="button"
+              class="btn btn-theme"
+              @click="addCompany"
+              :disabled="!selectedCompany || !addCompanyForm.role || isAddingCompany"
+            >
+              <span v-if="isAddingCompany" class="spinner-border spinner-border-sm me-1"></span>
+              加入公司
+            </button>
+          </div>
+        </div>
       </template>
 
       <form @submit.prevent="addCompany">
@@ -425,6 +440,8 @@ const selectedCompany = ref<{
 // 搜尋狀態
 const isSearchingCompany = ref(false)
 const searchError = ref('')
+const addCompanyError = ref('')
+const isAddingCompany = ref(false)
 
 // 權限檢查（管理員模式下允許所有操作）
 const canInviteCompany = computed(() => {
@@ -497,6 +514,7 @@ const openAddCompanyModal = (role?: 'MAIN_CONTRACTOR' | 'SUPERVISOR' | 'THIRD_PA
   searchedCompanies.value = []
   selectedCompany.value = null
   searchError.value = ''
+  addCompanyError.value = ''
   showAddCompanyModal.value = true
 }
 
@@ -511,6 +529,7 @@ const closeAddCompanyModal = () => {
   searchedCompanies.value = []
   selectedCompany.value = null
   searchError.value = ''
+  addCompanyError.value = ''
 }
 
 // 獲取已存在於工作空間的公司 ID 列表
@@ -613,6 +632,8 @@ const addCompany = async () => {
     return
   }
 
+  isAddingCompany.value = true
+  addCompanyError.value = ''
   try {
     // 轉換角色為公司類型
     let companyType: 'CONTRACTOR' | 'SUPERVISION' | 'OTHER' = 'OTHER'
@@ -641,7 +662,11 @@ const addCompany = async () => {
     await loadData() // 重新載入數據
   } catch (error: any) {
     console.error('Failed to add company:', error)
-    proxy?.$toast?.error(error.response?.data?.message || '加入公司失敗')
+    const msg = error.response?.data?.message || error.message || '加入公司失敗'
+    addCompanyError.value = msg
+    proxy?.$toast?.error(msg)
+  } finally {
+    isAddingCompany.value = false
   }
 }
 

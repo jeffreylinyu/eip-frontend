@@ -7,6 +7,8 @@ import CardHeader from '@/components/bootstrap/CardHeader.vue'
 import CardBody from '@/components/bootstrap/CardBody.vue'
 import PageHeader from '@/components/bootstrap/PageHeader.vue'
 import CompanyFormModal from '@/components/company/CompanyFormModal.vue'
+import CompanyMemberManagement from '@/components/company/CompanyMemberManagement.vue'
+import SitePersonnelManagement from '@/components/company/SitePersonnelManagement.vue'
 import AuthorizationModal from '@/components/admin/AuthorizationModal.vue'
 import { getCurrentInstance } from 'vue'
 
@@ -17,7 +19,7 @@ const toast = {
 }
 
 // 狀態管理
-const viewMode = ref<'LIST' | 'DETAIL'>('LIST')
+const viewMode = ref<'LIST' | 'DETAIL' | 'MEMBERS' | 'SITE_PERSONNEL'>('LIST')
 const isLoading = ref(false)
 const companies = ref<Company[]>([])
 const selectedCompany = ref<Company | null>(null)
@@ -34,6 +36,7 @@ const showEditCompanyModal = ref(false)
 const showAuthModal = ref(false)
 const showUserModal = ref(false)
 const selectedUserForAuth = ref<any>(null)
+const editModalCompany = ref<Company | null>(null)
 
 // 公司詳情中地址欄位標籤：一律顯示公司地址
 const selectedCompanyAddressLabel = computed(() => '公司地址')
@@ -103,10 +106,11 @@ const handleCreateCompany = async (data: any) => {
 
 // 公司編輯（管理員）
 const handleEditCompany = async (data: CreateCompanyRequest) => {
-  if (!selectedCompany.value?.companyId) return
+  const targetId = editModalCompany.value?.companyId
+  if (!targetId) return
   try {
     await companyApi.adminUpdate({
-      companyId: selectedCompany.value.companyId,
+      companyId: targetId,
       companyName: data.companyName,
       companyUnifiedNumber: data.companyUnifiedNumber,
       companyType: data.companyType,
@@ -116,12 +120,39 @@ const handleEditCompany = async (data: CreateCompanyRequest) => {
     })
     toast.success('公司資料已更新')
     showEditCompanyModal.value = false
+    editModalCompany.value = null
     await fetchCompanies()
-    const updated = companies.value.find(c => c.companyId === selectedCompany.value?.companyId)
-    if (updated) selectedCompany.value = updated
+    if (selectedCompany.value?.companyId === targetId) {
+      const updated = companies.value.find(c => c.companyId === targetId)
+      if (updated) selectedCompany.value = updated
+    }
   } catch (error: any) {
     toast.error(error.message || '更新失敗')
   }
+}
+
+// 從列表開啟編輯公司 modal
+const openEditCompanyFromList = (company: Company) => {
+  editModalCompany.value = company
+  showEditCompanyModal.value = true
+}
+
+// 從詳情頁開啟編輯公司 modal
+const openEditCompanyFromDetail = () => {
+  editModalCompany.value = selectedCompany.value
+  showEditCompanyModal.value = true
+}
+
+// 工地人員管理
+const handleSitePersonnel = (company: Company) => {
+  selectedCompany.value = company
+  viewMode.value = 'SITE_PERSONNEL'
+}
+
+// 人員管理（獨立頁）
+const handleMembersView = (company: Company) => {
+  selectedCompany.value = company
+  viewMode.value = 'MEMBERS'
 }
 
 // 用戶建立
@@ -260,6 +291,13 @@ const backToList = () => {
   companyMembers.value = []
 }
 
+const pageTitle = computed(() => {
+  if (viewMode.value === 'LIST') return '公司與用戶管理中心'
+  if (viewMode.value === 'MEMBERS') return `${selectedCompany.value?.companyName || '公司'} - 人員管理`
+  if (viewMode.value === 'SITE_PERSONNEL') return `${selectedCompany.value?.companyName || '公司'} - 工地人員管理`
+  return `${selectedCompany.value?.companyName || '公司'} - 人員管理`
+})
+
 const headerActions = computed(() => {
   if (viewMode.value === 'LIST') {
     return [{ text: '新增公司', icon: 'fa fa-plus', variant: 'btn-theme', click: () => { showCompanyModal.value = true } }]
@@ -271,7 +309,7 @@ const headerActions = computed(() => {
 <template>
   <div class="company-management-hub app-page">
     <PageHeader
-      title="公司與用戶管理中心"
+      :title="pageTitle"
       icon="fa fa-building"
       :breadcrumbs="[
         { text: '系統管理', href: '#' },
@@ -279,7 +317,7 @@ const headerActions = computed(() => {
       ]"
       :actions="headerActions"
     />
-    <p class="text-muted small mb-4">由大到小管理：公司 ➔ 人員 ➔ 專案授權</p>
+    <p v-if="viewMode === 'LIST'" class="text-muted small mb-4">由大到小管理：公司 ➔ 人員 ➔ 專案授權</p>
 
     <!-- VIEW: Company List -->
     <Card v-if="viewMode === 'LIST'">
@@ -316,8 +354,14 @@ const headerActions = computed(() => {
                         <span class="badge bg-secondary rounded-pill">{{ company.memberCount || 0 }}</span>
                       </td>
                       <td class="text-end pe-4">
-                        <button class="btn btn-sm btn-outline-theme" @click.stop="handleSelectCompany(company)">
-                          管理人員
+                        <button class="btn btn-sm btn-outline-secondary me-1" @click.stop="openEditCompanyFromList(company)" title="編輯公司">
+                          <i class="fa fa-pen me-1"></i>編輯公司
+                        </button>
+                        <button class="btn btn-sm btn-outline-theme me-1" @click.stop="handleSelectCompany(company)" title="人員管理">
+                          <i class="fa fa-users me-1"></i>人員管理
+                        </button>
+                        <button class="btn btn-sm btn-outline-warning" @click.stop="handleSitePersonnel(company)" title="工地人員">
+                          <i class="fa fa-hard-hat me-1"></i>工地人員
                         </button>
                       </td>
                     </tr>
@@ -330,8 +374,22 @@ const headerActions = computed(() => {
             </CardBody>
           </Card>
 
+    <!-- VIEW: Members (Admin 獨立人員管理) -->
+    <div v-else-if="viewMode === 'MEMBERS' && selectedCompany">
+      <CompanyMemberManagement :company-id="selectedCompany.companyId" />
+    </div>
+
+    <!-- VIEW: Site Personnel (工地人員管理) -->
+    <div v-else-if="viewMode === 'SITE_PERSONNEL' && selectedCompany">
+      <SitePersonnelManagement
+        :company-id="selectedCompany.companyId"
+        :company-name="selectedCompany.companyName"
+        :company-type="(selectedCompany.companyType === 'SUPERVISION' || selectedCompany.companyType === 'CONTRACTOR' ? selectedCompany.companyType : 'CONTRACTOR')"
+      />
+    </div>
+
     <!-- VIEW: Company Detail & Members -->
-    <div v-else>
+    <div v-else-if="viewMode === 'DETAIL'">
       <div class="row">
         <!-- Company Info -->
         <div class="col-md-4 mb-3">
@@ -358,7 +416,7 @@ const headerActions = computed(() => {
               <hr>
               <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <span class="text-muted small">ID: {{ selectedCompany?.companyId }}</span>
-                <button type="button" class="btn btn-sm btn-outline-theme" @click="showEditCompanyModal = true">
+                <button type="button" class="btn btn-sm btn-outline-theme" @click="openEditCompanyFromDetail">
                   <i class="fa fa-pen me-1"></i>編輯公司
                 </button>
               </div>
@@ -434,9 +492,9 @@ const headerActions = computed(() => {
     />
 
     <!-- Modal: Edit Company -->
-    <CompanyFormModal 
-      v-model:show="showEditCompanyModal" 
-      :company="selectedCompany"
+    <CompanyFormModal
+      v-model:show="showEditCompanyModal"
+      :company="editModalCompany"
       @submit="handleEditCompany"
     />
 

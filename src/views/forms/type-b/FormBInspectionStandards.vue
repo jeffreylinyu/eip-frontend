@@ -56,6 +56,7 @@
             :phases="itemData.phases"
             :interactive="true"
             :ai-generating="aiGenerating"
+            :show-ai-generate-button="isSuperAdmin"
             :empty-text="`目前尚無${masterKindLabel}資料`"
             :persistence-key="collapsePersistenceKey"
             @ai-generate-from-db="onAiGenerateFromDb"
@@ -227,6 +228,7 @@
 import { ref, onMounted, onBeforeUnmount, computed, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useWorkspaceStore } from '@/stores/workspace'
+import { useViewPerspective } from '@/composables/useViewPerspective'
 import { 
     getConstructionMajorItemById, 
     getConstructionMajorItemStandards,
@@ -269,6 +271,7 @@ import {
 const route = useRoute()
 const router = useRouter()
 const workspaceStore = useWorkspaceStore()
+const { isSuperAdmin } = useViewPerspective()
 const itemId = route.params.id as string
 
 /** 與舊路由 `/safety-standards` 或 query `?tab=safety` 對齊 */

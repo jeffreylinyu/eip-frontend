@@ -234,6 +234,12 @@ export function useViewPerspective() {
     return ViewType.SUPERVISORY
   })
   
+  // 是否為系統管理員（SUPER_ADMIN）
+  const isSuperAdmin = computed(() => {
+    const user = authStore.user
+    return user?.systemRole === 'SUPER_ADMIN' || user?.role === 'SUPER_ADMIN'
+  })
+
   // 是否為監造視角
   const isSupervisory = computed(() => viewType.value === ViewType.SUPERVISORY)
   
@@ -342,6 +348,7 @@ export function useViewPerspective() {
     allowedViewTypes,
 
     // 計算屬性
+    isSuperAdmin,
     isSupervisory,
     isContractor,
     isOwner,
