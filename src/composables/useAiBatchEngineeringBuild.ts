@@ -8,7 +8,13 @@ import {
   type AiBatchProgressResponse
 } from '@/api/aiBatchGenerate'
 
-export const ENGINEERING_PHASES = [
+export type EngineeringPhaseItem = {
+  label: string
+  subs: string[]
+}
+
+/** 工程引擎 Modal 階段文案（勿 as const，否則 subs 為 readonly 無法傳入 PhaseItem[]） */
+export const ENGINEERING_PHASES: EngineeringPhaseItem[] = [
   {
     label: '正在解析工程資料…',
     subs: ['工項識別中', 'XML 結構分析中', '工程類型判定中']
@@ -33,7 +39,7 @@ export const ENGINEERING_PHASES = [
     label: '正在進行工程邏輯校對…',
     subs: ['文件一致性檢查', '工程流程驗證', '查核風險分析']
   }
-] as const
+]
 
 /**
  * 全案 AI 批次生成（工程案資料建構）：啟動後端 job 並輪詢進度，搭配工程引擎動畫 Modal。
