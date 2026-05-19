@@ -181,7 +181,7 @@ export async function getDocumentFileUrl(
     `/management/constructions/${encodeURIComponent(constructionId)}/document-center/${documentId}/file-url`
   )
   if (data && typeof data === 'object') {
-    const body = data as Record<string, unknown>
+    const body = data as unknown as Record<string, unknown>
     if (typeof body.fileUrl === 'string' && body.fileUrl.trim()) {
       return body.fileUrl.trim()
     }
