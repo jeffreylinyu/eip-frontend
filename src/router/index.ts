@@ -8,6 +8,10 @@ import {
   applyAllowedViewTypesFromResolveResponse,
   syncViewPerspectiveFromRouteMeta
 } from '@/composables/useViewPerspective';
+import { resolveEffectiveViewTypeForHttpRequest } from '@/utils/effectiveViewTypeApi';
+import { requestSupervisoryDocClassSidebarRefresh } from '@/utils/supervisoryBPlanSidebar';
+import { requestContractorDocClassSidebarRefresh } from '@/utils/contractorDocClassSidebar';
+import { requestContractorPMenuSidebarRefresh } from '@/utils/contractorPMenuSidebar';
 import { dailyReportRoutes } from './dailyReport';
 
 const router = createRouter({
@@ -750,8 +754,31 @@ router.beforeEach(async (to, from, next) => {
   next();
 });
 
+// 切換監造／營造視角時，側邊欄動態項目（監造 B/C/D/H/I/L 類、營造 P 類與 B/E/G/R/T/Q 類）
+// 由各 store 的 watch 觸發載入；但 watch 是在 setViewType 改 ref 時就觸發，
+// 此時 router 尚未 commit 新網址，HTTP 的 X-Effective-View-Type 仍會解析成「舊視角前綴」，
+// 導致 sidebar 資料以錯誤視角請求 → 後端回空／視角不符 401 → store 靜默清空且不會重試。
+// afterEach 在網址 commit 後執行，此時 effective view 已正確；若視角實際改變，
+// 重新派發既有 sidebar refresh 事件讓 store 以「正確視角」重新載入（abort token 保證後到者勝出）。
+let lastEffectiveViewForSidebar: string | null = null;
+
 router.afterEach((to) => {
   syncViewPerspectiveFromRouteMeta(to.meta);
+
+  const currentEffectiveView = resolveEffectiveViewTypeForHttpRequest();
+  if (
+    currentEffectiveView &&
+    lastEffectiveViewForSidebar &&
+    currentEffectiveView !== lastEffectiveViewForSidebar
+  ) {
+    // 各 loader 會依目前視角自我守門（非該視角則安全清空），故三者皆派發即可。
+    requestSupervisoryDocClassSidebarRefresh();
+    requestContractorDocClassSidebarRefresh();
+    requestContractorPMenuSidebarRefresh();
+  }
+  if (currentEffectiveView) {
+    lastEffectiveViewForSidebar = currentEffectiveView;
+  }
 });
 
 export default router;

@@ -5,7 +5,7 @@ import { useWorkspaceStore } from '@/stores/workspace'
 import { useAuthStore } from '@/stores/auth' // Import auth store
 import { useValidation } from '@/composables/useValidation'
 import { projectFormValidationRules } from '@/utils/projectValidationRules'
-import { formatNumber, toRepublicYear } from '@/utils/format'
+import { formatAmountColloquialChinese, formatNumber, toRepublicYear } from '@/utils/format'
 import RepublicDatePicker from '@/components/bootstrap/RepublicDatePicker.vue'
 import Modal from '@/components/bootstrap/Modal.vue'
 import { validateForm, isFormValid } from '@/utils/validation'
@@ -292,56 +292,9 @@ const formattedContractAmount = computed({
   }
 })
 
-const contractAmountChineseText = computed(() => {
-  const raw = formData.value.current_contract_amount
-  if (!raw) return ''
-
-  const n = Math.floor(Number(String(raw).replace(/[^\d]/g, '')))
-  if (!Number.isFinite(n) || n <= 0) return ''
-
-  // 口語顯示：以「萬」為基底（例：2220萬 => 2千2百20萬；2億5千萬）
-  const toUnder10kText = (v: number, suffix: string): string => {
-    if (v <= 0) return ''
-
-    const qian = Math.floor(v / 1000)
-    const bai = Math.floor((v % 1000) / 100)
-    const shi = Math.floor((v % 100) / 10)
-    const ge = v % 10
-
-    let s = ''
-    if (qian) s += `${qian}千`
-    if (bai) s += `${bai}百`
-
-    const shiPart = shi * 10 + ge
-    // 尾數用 0~99 的口語數字（例：70、20、5）
-    if (shiPart) s += `${shiPart}`
-
-    // 若剛好是整千/整百，補上 0 元不顯示，直接接後綴
-    return `${s}${suffix}`
-  }
-
-  const toWanText = (wan: number): string => {
-    if (wan <= 0) return ''
-    if (wan < 10) return `${wan}萬`
-    return toUnder10kText(wan, '萬')
-  }
-
-  // 小於 1 萬也要顯示（例：9800 => 9千8百元；9870 => 9千8百70元）
-  if (n < 10000) return toUnder10kText(n, '元')
-
-  const zhao = Math.floor(n / 1000000000000)
-  const yi = Math.floor((n % 1000000000000) / 100000000)
-  const wan = Math.floor((n % 100000000) / 10000)
-  const yuan = n % 10000
-
-  const zhaoText = zhao > 0 ? `${zhao}兆` : ''
-  const yiText = yi > 0 ? `${yi}億` : ''
-  const wanText = toWanText(wan)
-  const yuanText = toUnder10kText(yuan, '元')
-
-  // 例：1兆、1兆2億、1兆20萬、2億5千萬、2220萬、1萬500元
-  return `${zhaoText}${yiText}${wanText}${yuanText}`
-})
+const contractAmountChineseText = computed(() =>
+  formatAmountColloquialChinese(formData.value.current_contract_amount)
+)
 
 // 處理契約金額輸入
 const handleContractAmountInput = (event: Event) => {

@@ -76,6 +76,57 @@ export const formatNumber = (num: number | string): string => {
 }
 
 /**
+ * 將金額轉為口語化中文（以「萬」為基底）
+ * 例：2220萬 → 2千2百20萬；2億5千萬；9800 → 9千8百元
+ */
+export const formatAmountColloquialChinese = (
+  raw: number | string | null | undefined
+): string => {
+  if (raw === null || raw === undefined || raw === '') return ''
+
+  const n = Math.floor(Number(String(raw).replace(/[^\d]/g, '')))
+  if (!Number.isFinite(n) || n <= 0) return ''
+
+  const toUnder10kText = (v: number, suffix: string): string => {
+    if (v <= 0) return ''
+
+    const qian = Math.floor(v / 1000)
+    const bai = Math.floor((v % 1000) / 100)
+    const shi = Math.floor((v % 100) / 10)
+    const ge = v % 10
+
+    let s = ''
+    if (qian) s += `${qian}千`
+    if (bai) s += `${bai}百`
+
+    const shiPart = shi * 10 + ge
+    if (shiPart) s += `${shiPart}`
+
+    return `${s}${suffix}`
+  }
+
+  const toWanText = (wan: number): string => {
+    if (wan <= 0) return ''
+    if (wan < 10) return `${wan}萬`
+    return toUnder10kText(wan, '萬')
+  }
+
+  if (n < 10000) return toUnder10kText(n, '元')
+
+  const zhao = Math.floor(n / 1000000000000)
+  const yi = Math.floor((n % 1000000000000) / 100000000)
+  const wan = Math.floor((n % 100000000) / 10000)
+  const yuan = n % 10000
+
+  const zhaoText = zhao > 0 ? `${zhao}兆` : ''
+  const yiText = yi > 0 ? `${yi}億` : ''
+  const wanText = toWanText(wan)
+  const yuanText = toUnder10kText(yuan, '元')
+
+  return `${zhaoText}${yiText}${wanText}${yuanText}`
+}
+
+/**
  * 百分比格式化函數
  * @param value 數值
  * @param decimals 小數位數，預設為 0

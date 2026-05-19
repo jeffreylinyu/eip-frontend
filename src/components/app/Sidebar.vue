@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, watch, nextTick, onMounted } from 'vue';
-import { storeToRefs } from 'pinia';
 import { useRoute } from 'vue-router';
 import { useAppSidebarMenuStore } from '@/stores/app-sidebar-menu';
 import { useAppAdminSidebarMenuStore } from '@/stores/app-admin-sidebar-menu';
@@ -14,14 +13,30 @@ const route = useRoute();
 const appSidebarMenu = useAppSidebarMenuStore();
 const appAdminSidebarMenu = useAppAdminSidebarMenuStore();
 const appContractorSidebarMenu = useAppContractorSidebarMenuStore();
-// storeToRefs 對 `as any` store 推導出的 union 型別會掉屬性，
-// 因此把回傳整個 cast 成 any，沿用 store 端 export 的同名 ref / computed。
-const {
-  dynamicPMenuDebugText: contractorPMenuDebugText,
-  menuItems: contractorMenuItemsRef,
-  dynamicPMenuItems: contractorDynamicPMenuItems,
-  contractorDocClassRows: contractorDocClassRowsRef,
-} = storeToRefs(appContractorSidebarMenu as any) as any;
+// 不使用 storeToRefs：在 `as any` + 自訂 [Symbol.iterator]/get length 的 store 上，
+// storeToRefs 取回的可能是靜態快照而非 live ref（見 ExportCenter.vue 同樣改採 computed 包裝）。
+// 直接在 computed 內讀取 store 屬性，Pinia 會自動 unwrap ref，
+// 於 computed 內讀取即建立可靠的 reactive 依賴，動態項目載入後 sidebar 會即時重繪。
+const contractorPMenuDebugText = computed(
+  () => (appContractorSidebarMenu as any).dynamicPMenuDebugText ?? ''
+);
+const contractorMenuItems = computed<any[]>(() => {
+  const m = (appContractorSidebarMenu as any).menuItems;
+  return Array.isArray(m) ? m : [];
+});
+const contractorDynamicPMenuItems = computed(
+  () => (appContractorSidebarMenu as any).dynamicPMenuItems ?? []
+);
+const contractorDocClassRows = computed(
+  () => (appContractorSidebarMenu as any).contractorDocClassRows ?? []
+);
+const supervisoryMenuItems = computed<any[]>(() => {
+  const m = (appSidebarMenu as any).menuItems;
+  return Array.isArray(m) ? m : [];
+});
+const supervisoryDocClassRows = computed(
+  () => (appSidebarMenu as any).supervisoryDocClassRows ?? []
+);
 const appOption = useAppOptionStore();
 const authStore = useAuthStore();
 const { viewType } = useViewPerspective();
@@ -61,13 +76,15 @@ const currentSidebarMenu = computed(() => {
   // 否則 P 類或 B/E/G/R/T/Q 類動態載入後畫面不會即時重繪）
   if (effectiveViewType === ViewType.CONTRACTOR) {
     void contractorDynamicPMenuItems.value;
-    void contractorDocClassRowsRef.value;
-    return contractorMenuItemsRef.value;
+    void contractorDocClassRows.value;
+    return contractorMenuItems.value;
   }
-  
+
   // 預設使用監造側邊欄（SUPERVISORY 或其他視角）
-  // 監造 store 返回的是 Object.assign(menuItems.value, {...})，可以直接使用
-  return appSidebarMenu;
+  // 與營造一致：明確訂閱動態書架 ref 後回傳陣列，
+  // 否則 B/C/D/H/I/L 類動態項目載入後 sidebar 不會即時重繪。
+  void supervisoryDocClassRows.value;
+  return supervisoryMenuItems.value;
 });
 
 // 當側邊欄「清單模式」切換時（例如：未開通清單 <-> 一般清單），強制重新建立 DOM

@@ -79,8 +79,8 @@
           <button
             type="button"
             class="btn b2-export-btn"
-            :disabled="isExporting || !currentProject?.id || isExportBlockedBySafetyAck"
-            :title="isExportBlockedBySafetyAck ? '請先完成下方「安全衛生設施標示」確認，再進行匯出' : '匯出安全衛生監督查核計畫（Word）'"
+            :disabled="isExporting || !currentProject?.id"
+            title="匯出安全衛生監督查核計畫（Word）"
             @click="exportB2SafetyPlan"
           >
             <i class="fa fa-file-word"></i>
@@ -88,11 +88,6 @@
           </button>
           </div>
         </div>
-        <div v-if="isExportBlockedBySafetyAck" class="small text-warning mt-1">
-          <i class="fa fa-exclamation-triangle me-1"></i>
-          尚未完成「安全衛生設施標示」確認，請先於下方區塊勾選後再匯出。
-        </div>
-
         <div v-if="textLoadError" class="alert alert-danger py-2 mb-0">
           {{ textLoadError }}
         </div>
@@ -224,7 +219,7 @@
                 v-model="b2ConstructionBudgetText"
                 class="form-control text-panel__textarea text-panel__textarea--mono"
                 rows="6"
-                placeholder="工程預算：&#10;本工程預算發包工程費約○○億元，其他費用約為○○億元。工程經費總計約○○億元。&#10;其他費用內容為：空氣污染防制費、二級品管委外試驗費、工程管理費、物價指數調整費、既有管線遷移及修護費等項目。"
+                placeholder="本工程預算發包工程費約○○億元，其他費用約為○○億元。工程經費總計約○○億元。&#10;其他費用內容為：空氣污染防制費、二級品管委外試驗費、工程管理費、物價指數調整費、既有管線遷移及修護費等項目。"
               />
             </div>
           </div>
@@ -351,13 +346,11 @@
           </div>
         </div>
 
-        <!-- 工程項目標單「安全衛生設施」：置於頁面最下方；可收合 + 樹狀表（與匯出連動） -->
+        <!-- 工程項目標單「安全衛生設施」：置於頁面最下方；可收合 + 樹狀表 -->
         <B2PccesSafetyFacilitySection
           v-if="hasCurrentProject && currentProject"
-          v-model:acknowledged="b2SafetyFacilityAcknowledged"
           :construction-id="currentProject.id"
           :design-change-id="selectedDesignChangeId"
-          @update:total-count="pccesTotalCount = $event"
           class="mt-3"
         />
       </CardBody>
@@ -421,12 +414,6 @@ const designChangeList = ref<{ id: number; effectiveDate: string }[]>([])
 const isCopying = ref(false)
 type ImageType = 'LOCATION_MAP' | 'SCOPE_DIAGRAM' | 'SECTION_DIAGRAM'
 
-/** 標單筆數（由 B2PccesSafetyFacilitySection 回報，供匯出前確認） */
-const pccesTotalCount = ref(0)
-const b2SafetyFacilityAcknowledged = ref(false)
-const isSavingSafetyFacilityAck = ref(false)
-let skipSafetyFacilityAckSync = false
-
 const isTextLoading = ref(false)
 const textLoadError = ref('')
 const isSavingTexts = ref(false)
@@ -474,9 +461,6 @@ const expandedByType = ref<Record<ImageType, boolean>>({
 const isUploading = ref(false)
 const deletingId = ref<number | null>(null)
 const isExporting = ref(false)
-const isExportBlockedBySafetyAck = computed(
-  () => pccesTotalCount.value > 0 && !b2SafetyFacilityAcknowledged.value
-)
 
 const sourceDesignChangeIdForCopy = computed(() => {
   const current = selectedDesignChangeId.value
@@ -550,13 +534,11 @@ async function loadB2Texts() {
   const wid = currentProject.value?.workspaceId
   if (!cid || !wid) {
     skipTextAutoSave = true
-    skipSafetyFacilityAckSync = true
     b2GeoHumanEnvironmentOverview.value = ''
     b2LocationObjectiveEnvironment.value = ''
     b2ConstructionScaleOverview.value = ''
     b2ConstructionBudgetText.value = ''
     b2EmergencyOrgChart.value = null
-    b2SafetyFacilityAcknowledged.value = false
     lastLoadedB2Texts.value = {
       b2GeoHumanEnvironmentOverview: '',
       b2LocationObjectiveEnvironment: '',
@@ -566,7 +548,6 @@ async function loadB2Texts() {
     }
     await nextTick()
     skipTextAutoSave = false
-    skipSafetyFacilityAckSync = false
     return
   }
 
@@ -580,12 +561,10 @@ async function loadB2Texts() {
       selectedDesignChangeId.value
     )
     skipTextAutoSave = true
-    skipSafetyFacilityAckSync = true
     b2GeoHumanEnvironmentOverview.value = data.b2GeoHumanEnvironmentOverview ?? ''
     b2LocationObjectiveEnvironment.value = data.b2LocationObjectiveEnvironment ?? ''
     b2ConstructionScaleOverview.value = data.b2ConstructionScaleOverview ?? ''
     b2ConstructionBudgetText.value = data.b2ConstructionBudgetText ?? ''
-    b2SafetyFacilityAcknowledged.value = data.b2SafetyFacilityAcknowledged === true
     const orgJson = data.b2EmergencyOrgChartJson ?? ''
     b2EmergencyOrgChart.value = orgJson ? JSON.parse(orgJson) : null
     lastLoadedB2Texts.value = {
@@ -597,7 +576,6 @@ async function loadB2Texts() {
     }
     await nextTick()
     skipTextAutoSave = false
-    skipSafetyFacilityAckSync = false
   } catch (e: any) {
     textLoadError.value = e?.response?.data?.message ?? e?.message ?? '載入文字內容失敗'
     skipTextAutoSave = true
@@ -615,7 +593,6 @@ async function loadB2Texts() {
     }
     await nextTick()
     skipTextAutoSave = false
-    skipSafetyFacilityAckSync = false
   } finally {
     isTextLoading.value = false
   }
@@ -634,7 +611,6 @@ async function saveB2Texts() {
         b2LocationObjectiveEnvironment: b2LocationObjectiveEnvironment.value,
         b2ConstructionScaleOverview: b2ConstructionScaleOverview.value,
         b2ConstructionBudgetText: b2ConstructionBudgetText.value,
-        b2SafetyFacilityAcknowledged: b2SafetyFacilityAcknowledged.value,
         b2EmergencyOrgChartJson: stringifyOrgChart(b2EmergencyOrgChart.value)
       } as any,
       selectedDesignChangeId.value
@@ -667,27 +643,6 @@ async function saveB2Texts() {
     if (hasTextChanges.value) {
       scheduleTextAutoSave()
     }
-  }
-}
-
-async function saveB2SafetyFacilityAck() {
-  const cid = currentProject.value?.id
-  if (!cid) return
-  if (isSavingSafetyFacilityAck.value) return
-  isSavingSafetyFacilityAck.value = true
-  try {
-    await updateConstruction(
-      cid,
-      {
-        b2SafetyFacilityAcknowledged: b2SafetyFacilityAcknowledged.value
-      } as any,
-      selectedDesignChangeId.value
-    )
-  } catch (e: any) {
-    const msg = e?.response?.data?.message ?? e?.message ?? '儲存安全衛生設施確認狀態失敗'
-    window.alert(msg)
-  } finally {
-    isSavingSafetyFacilityAck.value = false
   }
 }
 
@@ -988,12 +943,6 @@ async function exportB2SafetyPlan() {
     window.alert('請先選擇工程案')
     return
   }
-  if (pccesTotalCount.value > 0 && !b2SafetyFacilityAcknowledged.value) {
-    window.alert(
-      '請先於上方「安全衛生設施標示」區塊勾選確認：\n「我已確認本版本安全衛生設施欄位已於工程項目標單完成維護」，再進行匯出。'
-    )
-    return
-  }
   isExporting.value = true
   try {
     const taskId = `b2-export-${cid}-${Date.now()}`
@@ -1036,11 +985,6 @@ async function exportB2SafetyPlan() {
   }
 }
 
-watch(b2SafetyFacilityAcknowledged, () => {
-  if (skipSafetyFacilityAckSync) return
-  void saveB2SafetyFacilityAck()
-})
-
 watch(
   [hasCurrentProject, selectedDesignChangeId],
   () => {
@@ -1054,10 +998,6 @@ watch(
       locationMapImages.value = []
       scopeDiagramImages.value = []
       sectionDiagramImages.value = []
-      pccesTotalCount.value = 0
-      skipSafetyFacilityAckSync = true
-      b2SafetyFacilityAcknowledged.value = false
-      skipSafetyFacilityAckSync = false
     }
   },
   { immediate: true }

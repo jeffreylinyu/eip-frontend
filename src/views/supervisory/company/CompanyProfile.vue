@@ -6,7 +6,7 @@ import Card from '@/components/bootstrap/Card.vue'
 import CardBody from '@/components/bootstrap/CardBody.vue'
 import RepublicDatePicker from '@/components/bootstrap/RepublicDatePicker.vue'
 import { supervisionCompanyProfileApi, type SupervisionCompanyProfileData } from '@/api/supervisionCompanyProfile'
-import { toRepublicYear } from '@/utils/format'
+import { formatAmountColloquialChinese, formatNumber, toRepublicYear } from '@/utils/format'
 
 const { proxy } = getCurrentInstance() as any
 const workspaceStore = useWorkspaceStore()
@@ -142,6 +142,23 @@ const formattedCompletionDate = computed(() => {
   const dateValue = calculatedEndDate.value || formData.value.constructionEndDate
   return formatCompletionDateToRepublic(dateValue)
 })
+
+const formattedSupervisoryBudget = computed({
+  get: () => {
+    const value = formData.value.supervisoryBudget
+    if (!value || value === '') return ''
+    const numericValue = value.toString().replace(/[^\d]/g, '')
+    if (!numericValue) return ''
+    return formatNumber(numericValue)
+  },
+  set: (value: string) => {
+    formData.value.supervisoryBudget = value.replace(/[^\d]/g, '')
+  }
+})
+
+const supervisoryBudgetColloquialText = computed(() =>
+  formatAmountColloquialChinese(formData.value.supervisoryBudget)
+)
 
 watch(formData, async () => {
   if (isUpdatingFormData.value || !isInitialLoadSettled.value) return
@@ -409,7 +426,20 @@ onMounted(async () => {
             <label class="form-label mb-2">監造費用</label>
             <div class="input-group">
               <span class="input-group-text">NT$</span>
-              <input type="number" class="form-control" v-model="formData.supervisoryBudget" placeholder="請輸入監造費用" :disabled="isSaving" />
+              <input
+                type="text"
+                class="form-control"
+                v-model="formattedSupervisoryBudget"
+                placeholder="請輸入監造費用"
+                :disabled="isSaving"
+              />
+              <span
+                v-if="supervisoryBudgetColloquialText"
+                class="input-group-text text-muted"
+                title="中文金額"
+              >
+                {{ supervisoryBudgetColloquialText }}
+              </span>
             </div>
           </div>
         </div>

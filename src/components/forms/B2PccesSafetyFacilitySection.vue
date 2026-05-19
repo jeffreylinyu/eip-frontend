@@ -154,19 +154,6 @@
           </ejs-treegrid>
         </div>
 
-        <div v-if="itemCount > 0" class="form-check mt-3 b2-pcces-ack">
-          <input
-            id="b2PccesSafetyAck"
-            class="form-check-input"
-            type="checkbox"
-            :checked="acknowledged"
-            @change="onAckChange"
-          />
-          <label class="form-check-label" for="b2PccesSafetyAck">
-            我已確認本版本「安全衛生設施」欄位已於工程項目標單完成維護（含上列勾選），可供後續 Word 匯出使用。
-          </label>
-        </div>
-        <p v-else class="small text-muted mt-2 mb-0">無標單資料時無須勾選確認即可匯出。</p>
       </div>
     </div>
   </div>
@@ -184,12 +171,6 @@ import type { TreeGridComponent } from '@syncfusion/ej2-vue-treegrid'
 const props = defineProps<{
   constructionId: string
   designChangeId: number | null
-  acknowledged: boolean
-}>()
-
-const emit = defineEmits<{
-  (e: 'update:acknowledged', v: boolean): void
-  (e: 'update:totalCount', n: number): void
 }>()
 
 interface ProjectItem {
@@ -417,7 +398,6 @@ async function loadItems() {
   if (!props.constructionId) {
     items.value = []
     treeGridData.value = []
-    emit('update:totalCount', 0)
     return
   }
   loading.value = true
@@ -426,20 +406,13 @@ async function loadItems() {
     const data = await getConstructionPccesCodes(props.constructionId, props.designChangeId)
     items.value = data.map(convertToProjectItem)
     updateTreeGridData()
-    emit('update:totalCount', items.value.length)
   } catch (e: any) {
     items.value = []
     treeGridData.value = []
     loadError.value = e?.response?.data?.message ?? e?.message ?? '載入標單失敗'
-    emit('update:totalCount', 0)
   } finally {
     loading.value = false
   }
-}
-
-function onAckChange(e: Event) {
-  const checked = (e.target as HTMLInputElement).checked
-  emit('update:acknowledged', checked)
 }
 
 function goToProjectItemDatabase() {
@@ -640,11 +613,6 @@ watch(
   width: 0.95rem;
   height: 0.95rem;
   margin: 0;
-}
-
-.b2-pcces-ack :deep(.form-check-label) {
-  color: rgba(255, 255, 255, 0.88);
-  font-size: 0.9rem;
 }
 
 .alert-info {

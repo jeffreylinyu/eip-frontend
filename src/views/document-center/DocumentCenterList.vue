@@ -34,7 +34,7 @@
                   v-model="filterSender"
                   type="text"
                   class="doc-center-input doc-center-combo-input"
-                  placeholder="例：麒耀營造"
+                  placeholder="例：XX營造"
                   @focus="openSenderMenu"
                   @blur="closeSenderMenu"
                 />
@@ -101,7 +101,7 @@
                 <option v-for="opt in DOCUMENT_CATEGORY_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
               </select>
             </div>
-            <div class="doc-center-filter-item">
+            <div class="doc-center-filter-item doc-center-filter-item-date">
               <div class="doc-center-filter-label">發文日期</div>
               <div class="doc-center-date-range">
                 <RepublicDatePicker
@@ -797,15 +797,35 @@ function openUpload() {
 }
 
 /* 篩選列的日期選擇器也要套同色系（VueDatePicker input class 由 RepublicDatePicker 帶入） */
+:deep(.doc-center-block-bar .republic-date-picker .dp__main.hide-icon .dp__input),
 :deep(.doc-center-block-bar .republic-date-picker .dp__input) {
   /* vue-datepicker 會帶自己的主題色，這裡用 !important 保證一致 */
   background: var(--doc-input-bg) !important;
   border: 1px solid var(--doc-input-border) !important;
   color: rgba(228, 230, 235, 0.95) !important;
-  padding: 0.35rem 0.5rem;
-  font-size: 0.875rem;
+  /* 與其它篩選欄位（.doc-center-input）相同盒模型，由 padding 撐高，避免可視框被壓扁 */
+  padding: 0.35rem 0.5rem !important;
+  font-size: 0.875rem !important;
+  line-height: 1.25 !important;
   border-radius: 4px;
   width: 100%;
+  height: auto !important;
+  text-align: left !important;
+}
+
+/* 元件預設把 .dp__main 鎖在 35px，且 hide-icon 再加上下內距，會讓可視輸入框比
+   關鍵字／下拉等欄位扁。篩選列改由 .dp__input 自身 padding 撐高，使各欄位等高。 */
+:deep(.doc-center-block-bar .republic-date-picker .dp__main),
+:deep(.doc-center-block-bar .republic-date-picker .dp__main.hide-icon) {
+  height: auto !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  display: block !important;
+}
+
+:deep(.doc-center-block-bar .republic-date-picker .dp__input_wrap) {
+  height: auto !important;
+  display: block !important;
 }
 
 :deep(.doc-center-block-bar .republic-date-picker .dp__input_wrap),
@@ -860,7 +880,7 @@ function openUpload() {
 .doc-center-filters {
   display: grid;
   /* 關鍵字吃滿剩餘空間，其餘欄位固定寬度 */
-  grid-template-columns: minmax(280px, 1fr) 220px 220px 160px 360px;
+  grid-template-columns: minmax(240px, 1fr) 200px 200px 140px minmax(420px, 1.15fr);
   gap: 0.6rem 0.75rem;
   align-items: end;
   width: 100%;
@@ -877,6 +897,10 @@ function openUpload() {
   }
   .doc-center-filters {
     grid-template-columns: 1fr 1fr;
+  }
+  .doc-center-filter-item-date {
+    grid-column: 1 / -1;
+    min-width: 0;
   }
 }
 
@@ -969,11 +993,26 @@ function openUpload() {
   background: transparent;
 }
 
+.doc-center-filter-item-date {
+  min-width: 420px;
+}
+
 .doc-center-date-range {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   gap: 8px;
+  width: 100%;
+}
+
+/* 篩選列內讓日期選擇器撐滿欄位（元件預設 max-width: 240px 會導致過窄） */
+.doc-center-date-range :deep(.republic-date-picker) {
+  width: 100%;
+  max-width: none;
+}
+
+.doc-center-date-range :deep(.dp__main) {
+  width: 100%;
 }
 
 .doc-center-date-sep {

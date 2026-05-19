@@ -491,11 +491,13 @@ export const useAppSidebarMenuStore = defineStore("appSidebarMenu", () => {
     return filterMenuItems(items)
   })
 
-  // 返回包含 menuItems computed 的對象（保持響應性 + 與 Sidebar 的 v-for 兼容）
+  // 直接回傳 computed／ref，勿用 `get menuItems(){ return menuItems.value }`：
+  // Pinia setup store 對 plain getter 會在建立時取一次快照，導致 storeToRefs／讀取拿到靜態值，
+  // 監造端 B/C/D/H/I/L 類動態項目載入後 sidebar 不會即時重繪（與營造 store 對稱，見其註解）。
   return {
-    get menuItems() {
-      return menuItems.value
-    },
+    menuItems,
+    /** 供 Sidebar 訂閱，B 類等動態書架載入後強制側邊欄重繪（與營造 contractorDocClassRows 對稱） */
+    supervisoryDocClassRows,
     /** 取得帶視角前綴的 URL，用於頁內連結以與側邊欄高亮一致 */
     getViewUrl,
     hideTutorial,
