@@ -209,7 +209,7 @@
               type="button"
               class="btn-ai-generate p-dynamic-batch-ai-btn"
               :disabled="isAiGenerating || isExporting || !currentProject?.id || docId == null || !targetRow || targetRow.isDefault"
-              title="一次 AI 生成本頁所有可生成欄位（分兩階段：先產出主要工序，再依工序生成施工要領、抽查標準、機具/材料、安衛、環保）"
+              title="一次工程案資料建構本頁所有可生成欄位（分兩階段：先產出主要工序，再依工序生成施工要領、抽查標準、機具/材料、安衛、環保）"
               @click="generateAllPDynamicByAi"
             >
               <i class="fa me-2" :class="isAiGenerating ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
@@ -243,7 +243,7 @@
                         class="fa me-2"
                         :class="aiLoadingScale ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"
                       ></i>
-                      {{ aiLoadingScale ? '生成中…' : '依標單 AI 生成' }}
+                      {{ aiLoadingScale ? '生成中…' : '依標單工程案資料建構' }}
                     </button>
                   </div>
                 </div>
@@ -368,7 +368,7 @@
                     </button>
                     <button v-if="isSuperAdmin" type="button" class="btn-ai-generate" :disabled="aiLoadingStagePlan || !currentProject?.id" @click="generateConstructionStagePlanByAi">
                       <i class="fa me-2" :class="aiLoadingStagePlan ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
-                      {{ aiLoadingStagePlan ? '生成中…' : 'AI 生成完整結構' }}
+                      {{ aiLoadingStagePlan ? '生成中…' : '工程案資料建構完整結構' }}
                     </button>
                     <button type="button" class="btn btn-sm btn-outline-light ms-2" @click="addStagePlanStage">
                       <i class="fa fa-plus me-1"></i>新增階段
@@ -395,7 +395,7 @@
                 </div>
                 <div class="text-panel__body">
                   <div v-if="constructionStagePlanRows.length === 0" class="text-muted small py-3">
-                    尚無資料，可手動新增階段/工序，或使用 AI 一鍵生成。
+                    尚無資料，可手動新增階段/工序，或使用工程案資料建構一鍵建構。
                   </div>
                   <div class="stage-plan-accordion">
                     <div v-for="(stage, stageIdx) in constructionStagePlanRows" :key="stage.id" class="stage-plan-accordion__item">
@@ -511,7 +511,7 @@
                         @click="generateConstructionEssentialsByAi"
                       >
                         <i class="fa me-2" :class="aiLoadingStageEssentials ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
-                        {{ aiLoadingStageEssentials ? '生成中…' : '依目前工序 AI 生成施工要領' }}
+                        {{ aiLoadingStageEssentials ? '生成中…' : '依目前工序工程案資料建構施工要領' }}
                       </button>
                     </div>
                     <p class="text-muted small mb-2">
@@ -599,8 +599,8 @@
                     :lock-flow-structure="true"
                     :show-ai-generate-button="true"
                     :ai-generating="aiLoadingPInspectionStandards"
-                    ai-generate-button-label="依本計畫書 AI 生成"
-                    ai-generate-button-title="依本計畫書名稱與目前施工方法與步驟，由 AI 產出施工抽查標準明細並覆寫現有內容"
+                    ai-generate-button-label="依本計畫書工程案資料建構"
+                    ai-generate-button-title="依本計畫書名稱與目前施工方法與步驟，由工程案資料建構產出施工抽查標準明細並覆寫現有內容"
                     :show-hierarchy-search="false"
                     second-level-header-label="主要工序"
                     :hide-add-mgmt-item="true"
@@ -630,7 +630,7 @@
                       @click="generateChapter4ByAi"
                     >
                       <i class="fa me-2" :class="aiLoadingChapter4 ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
-                      {{ aiLoadingChapter4 ? '生成中…' : '依本計畫書 AI 生成兩表' }}
+                      {{ aiLoadingChapter4 ? '生成中…' : '依本計畫書工程案資料建構兩表' }}
                     </button>
                   </div>
                 </div>
@@ -658,7 +658,7 @@
                       </thead>
                       <tbody>
                         <tr v-if="chapter4EquipmentRows.length === 0">
-                          <td colspan="4" class="text-center text-muted py-3">尚無資料，請新增或使用上方 AI 生成。</td>
+                          <td colspan="4" class="text-center text-muted py-3">尚無資料，請新增或使用上方工程案資料建構。</td>
                         </tr>
                         <tr v-for="(row, idx) in chapter4EquipmentRows" :key="row.id || `eq-${idx}`">
                           <td><input v-model="row.equipmentName" class="form-control form-control-sm" @input="debouncedSaveCustomFields" /></td>
@@ -709,7 +709,7 @@
                       </thead>
                       <tbody>
                         <tr v-if="chapter4MaterialRows.length === 0">
-                          <td colspan="7" class="text-center text-muted py-3">尚無資料，請新增或使用上方 AI 生成。</td>
+                          <td colspan="7" class="text-center text-muted py-3">尚無資料，請新增或使用上方工程案資料建構。</td>
                         </tr>
                         <tr v-for="(row, idx) in chapter4MaterialRows" :key="row.id || `mat-${idx}`">
                           <td class="chapter4-mat-cell chapter4-mat-cell--itemno-display text-center text-muted small">
@@ -837,7 +837,7 @@
                       @click="generateSubdivisionOrgByAi"
                     >
                       <i class="fa me-2" :class="aiLoadingSubdivisionOrg ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
-                      {{ aiLoadingSubdivisionOrg ? '生成中…' : '依標單 AI 生成' }}
+                      {{ aiLoadingSubdivisionOrg ? '生成中…' : '依標單工程案資料建構' }}
                     </button>
                     <button type="button" class="btn btn-sm btn-outline-light ms-2" @click="addSubdivisionOrgRow">
                       <i class="fa fa-plus me-1"></i>新增列
@@ -858,7 +858,7 @@
                       </thead>
                       <tbody>
                         <tr v-if="subdivisionOrgRows.length === 0">
-                          <td colspan="5" class="text-center text-muted py-3">尚無資料，請新增或使用 AI 生成。</td>
+                          <td colspan="5" class="text-center text-muted py-3">尚無資料，請新增或使用工程案資料建構。</td>
                         </tr>
                         <tr v-for="(row, idx) in subdivisionOrgRows" :key="`org-${idx}`">
                           <td>
@@ -937,7 +937,7 @@
                         class="fa me-2"
                         :class="aiLoadingSafetyHealthExecution ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"
                       ></i>
-                      {{ aiLoadingSafetyHealthExecution ? '生成中…' : '依計畫與工序 AI 生成' }}
+                      {{ aiLoadingSafetyHealthExecution ? '生成中…' : '依計畫與工序工程案資料建構' }}
                     </button>
                   </div>
                 </div>
@@ -946,7 +946,7 @@
                     v-model="safetyHealthExecutionDraft"
                     class="form-control text-panel__textarea text-panel__textarea--long text-panel__textarea--pre-wrap"
                     rows="14"
-                    placeholder="請輸入安全衛生執行要點，或使用 AI 生成（含換行與縮排）"
+                    placeholder="請輸入安全衛生執行要點，或使用工程案資料建構（含換行與縮排）"
                     @input="debouncedSaveCustomFields"
                   />
                 </div>
@@ -972,7 +972,7 @@
                         class="fa me-2"
                         :class="aiLoadingEnvironmentProtectionNotes ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"
                       ></i>
-                      {{ aiLoadingEnvironmentProtectionNotes ? '生成中…' : '依計畫與工序 AI 生成' }}
+                      {{ aiLoadingEnvironmentProtectionNotes ? '生成中…' : '依計畫與工序工程案資料建構' }}
                     </button>
                   </div>
                 </div>
@@ -981,7 +981,7 @@
                     v-model="environmentProtectionDraft"
                     class="form-control text-panel__textarea text-panel__textarea--long text-panel__textarea--pre-wrap"
                     rows="14"
-                    placeholder="請輸入環境保護注意事項，或使用 AI 生成（含換行與縮排）"
+                    placeholder="請輸入環境保護注意事項，或使用工程案資料建構（含換行與縮排）"
                     @input="debouncedSaveCustomFields"
                   />
                 </div>
@@ -1198,7 +1198,7 @@ const stagePlanEditModalValue = ref('')
 const stagePlanEditTarget = ref<{ stageIndex: number; processIndex: number | null; field: StagePlanEditableField } | null>(null)
 const organizationChartPreviewRef = ref<{ exportPngBlob?: () => Promise<Blob | null> } | null>(null)
 const isAiGenerating = ref(false)
-/** 一鍵 AI 生成的階段（用於按鈕文字顯示「階段 X/2」進度） */
+/** 一鍵工程案資料建構的階段（用於按鈕文字顯示「階段 X/2」進度） */
 const batchAiPhase = ref<'idle' | 'stage1' | 'stage2'>('idle')
 const aiLoadingScale = ref(false)
 const aiLoadingSubdivisionOrg = ref(false)
@@ -1235,12 +1235,12 @@ const designChangeIdFromRoute = computed(() => {
 
 const pageTitle = computed(() => targetRow.value?.documentName || 'P類動態表單')
 
-/** 一鍵 AI 生成按鈕的顯示文字（依目前批次階段顯示進度） */
+/** 一鍵工程案資料建構按鈕的顯示文字（依目前批次階段顯示進度） */
 const batchAiButtonLabel = computed(() => {
   if (batchAiPhase.value === 'stage1') return '生成中… 階段 1/2（基礎結構）'
   if (batchAiPhase.value === 'stage2') return '生成中… 階段 2/2（依工序內容）'
   if (isAiGenerating.value) return '生成中…'
-  return '一鍵 AI 生成'
+  return '一鍵工程案資料建構'
 })
 
 /** 至少一筆「主要工序」有名称，才允許開啟流程圖（比照施工要領頁） */
@@ -2212,7 +2212,7 @@ async function generateChapter4ByAi() {
     }))
     await saveCustomFields()
   } catch (e: any) {
-    const msg = e?.response?.data?.error ?? e?.response?.data?.message ?? e?.message ?? 'AI 生成失敗'
+    const msg = e?.response?.data?.error ?? e?.response?.data?.message ?? e?.message ?? '工程案資料建構失敗'
     window.alert(msg)
   } finally {
     aiLoadingChapter4.value = false
@@ -2236,7 +2236,7 @@ async function generateSafetyHealthExecutionByAi() {
     debouncedSaveCustomFields.cancel()
     await saveCustomFields()
   } catch (e: any) {
-    const msg = e?.response?.data?.error ?? e?.response?.data?.message ?? e?.message ?? 'AI 生成失敗'
+    const msg = e?.response?.data?.error ?? e?.response?.data?.message ?? e?.message ?? '工程案資料建構失敗'
     window.alert(msg)
   } finally {
     aiLoadingSafetyHealthExecution.value = false
@@ -2260,7 +2260,7 @@ async function generateEnvironmentProtectionNotesByAi() {
     debouncedSaveCustomFields.cancel()
     await saveCustomFields()
   } catch (e: any) {
-    const msg = e?.response?.data?.error ?? e?.response?.data?.message ?? e?.message ?? 'AI 生成失敗'
+    const msg = e?.response?.data?.error ?? e?.response?.data?.message ?? e?.message ?? '工程案資料建構失敗'
     window.alert(msg)
   } finally {
     aiLoadingEnvironmentProtectionNotes.value = false
@@ -2282,7 +2282,7 @@ async function generateConstructionStagePlanByAi() {
     constructionStagePlanRows.value = rows
     await saveCustomFields()
   } catch (e: any) {
-    const msg = e?.response?.data?.error ?? e?.response?.data?.message ?? e?.message ?? 'AI 生成失敗'
+    const msg = e?.response?.data?.error ?? e?.response?.data?.message ?? e?.message ?? '工程案資料建構失敗'
     window.alert(msg)
   } finally {
     aiLoadingStagePlan.value = false
@@ -2314,7 +2314,7 @@ async function generateConstructionEssentialsByAi() {
     }
     await saveCustomFields()
   } catch (e: any) {
-    const msg = e?.response?.data?.error ?? e?.response?.data?.message ?? e?.message ?? 'AI 生成失敗'
+    const msg = e?.response?.data?.error ?? e?.response?.data?.message ?? e?.message ?? '工程案資料建構失敗'
     window.alert(msg)
   } finally {
     aiLoadingStageEssentials.value = false
@@ -2327,7 +2327,7 @@ async function generatePInspectionStandardsByAi() {
   if (!cid || did == null || !hasStagePlanProcessesForEssentials.value) return
   if (
     !window.confirm(
-      '將依本計畫書與目前「施工方法與步驟」由 AI 產出並覆寫「施工抽查標準」明細，確定執行？'
+      '將依本計畫書與目前「施工方法與步驟」由工程案資料建構產出並覆寫「施工抽查標準」明細，確定執行？'
     )
   ) {
     return
@@ -2349,7 +2349,7 @@ async function generatePInspectionStandardsByAi() {
     )
     await saveCustomFields()
   } catch (e: any) {
-    const msg = e?.response?.data?.error ?? e?.response?.data?.message ?? e?.message ?? 'AI 生成失敗'
+    const msg = e?.response?.data?.error ?? e?.response?.data?.message ?? e?.message ?? '工程案資料建構失敗'
     window.alert(msg)
   } finally {
     aiLoadingPInspectionStandards.value = false
@@ -2367,7 +2367,7 @@ async function generateSubdivisionOrgByAi() {
       const groupName = String(r?.groupName || r?.resourceName || '').trim()
       return {
         groupName,
-        // 不在前端套模板，直接使用 AI 回傳欄位；若 API 尚未提供則保持空字串。
+        // 不在前端套模板，直接使用 建構回傳欄位；若 API 尚未提供則保持空字串。
         workContent: String((r as any)?.workContent || '').trim(),
         isSResident: String((r as any)?.isSResident || '').trim(),
         remark: String((r as any)?.remark || '').trim()
@@ -2375,7 +2375,7 @@ async function generateSubdivisionOrgByAi() {
     })
     await saveCustomFields()
   } catch (e: any) {
-    const msg = e?.response?.data?.error ?? e?.response?.data?.message ?? e?.message ?? 'AI 生成失敗'
+    const msg = e?.response?.data?.error ?? e?.response?.data?.message ?? e?.message ?? '工程案資料建構失敗'
     window.alert(msg)
   } finally {
     aiLoadingSubdivisionOrg.value = false
@@ -2543,7 +2543,7 @@ async function generateScaleOverviewByAi() {
       }
     }
   } catch (e: any) {
-    const msg = e?.response?.data?.error ?? e?.response?.data?.message ?? e?.message ?? 'AI 生成失敗'
+    const msg = e?.response?.data?.error ?? e?.response?.data?.message ?? e?.message ?? '工程案資料建構失敗'
     window.alert(msg)
   } finally {
     aiLoadingScale.value = false
@@ -2552,7 +2552,7 @@ async function generateScaleOverviewByAi() {
 }
 
 /**
- * 一鍵 AI 生成（P 類動態頁）
+ * 一鍵工程案資料建構（P 類動態頁）
  *
  * 設計目標
  * - P 類動態頁面的多數欄位都依賴「主要工序（施工方法與步驟）」，因此必須分兩階段：
@@ -2584,7 +2584,7 @@ async function generateAllPDynamicByAi() {
 
   if (
     !window.confirm(
-      '一鍵 AI 生成將分兩階段執行：\n\n'
+      '一鍵工程案資料建構將分兩階段執行：\n\n'
         + '【階段 1】基礎結構（並行）\n'
         + '  1. 工程規模概述\n'
         + '  2. 分項施工組織\n'
@@ -2681,7 +2681,7 @@ async function generateAllPDynamicByAi() {
             designChangeIdFromRoute.value,
           )
           const rowsP = parseConstructionStagePlanJson(res?.planJson)
-          if (rowsP.length === 0) return { ok: false, reason: 'AI 未產出工序內容' }
+          if (rowsP.length === 0) return { ok: false, reason: '工程案資料建構未產出工序內容' }
           constructionStagePlanRows.value = rowsP
           return { ok: true }
         },
@@ -2710,7 +2710,7 @@ async function generateAllPDynamicByAi() {
               planJson,
             )
             const updates = Array.isArray(res?.updates) ? res.updates : []
-            if (updates.length === 0) return { ok: false, reason: 'AI 未產出更新' }
+            if (updates.length === 0) return { ok: false, reason: '工程案資料建構未產出更新' }
             let applied = 0
             for (const u of updates as {
               stageId?: string
@@ -2728,7 +2728,7 @@ async function generateAllPDynamicByAi() {
                 applied += 1
               }
             }
-            if (applied === 0) return { ok: false, reason: 'AI 回傳結果無法對應到目前工序' }
+            if (applied === 0) return { ok: false, reason: '建構回傳結果無法對應到目前工序' }
             return { ok: true }
           },
         },
@@ -2782,7 +2782,7 @@ async function generateAllPDynamicByAi() {
               planJson,
             )
             const t = (res?.text ?? '').trim()
-            if (!t) return { ok: false, reason: 'AI 未產出內容' }
+            if (!t) return { ok: false, reason: '工程案資料建構未產出內容' }
             safetyHealthExecutionDraft.value = t
             return { ok: true }
           },
@@ -2798,7 +2798,7 @@ async function generateAllPDynamicByAi() {
               planJson,
             )
             const t = (res?.text ?? '').trim()
-            if (!t) return { ok: false, reason: 'AI 未產出內容' }
+            if (!t) return { ok: false, reason: '工程案資料建構未產出內容' }
             environmentProtectionDraft.value = t
             return { ok: true }
           },
@@ -2814,9 +2814,9 @@ async function generateAllPDynamicByAi() {
 
     if (failed.length > 0 && typeof window.alert === 'function') {
       window.alert(
-        '一鍵 AI 生成已完成，下列項目未生成或被略過（其他項目已成功生成並儲存）：\n- '
+        '一鍵工程案資料建構已完成，下列項目未生成或被略過（其他項目已成功生成並儲存）：\n- '
           + failed.join('\n- ')
-          + '\n\n可單獨重試失敗項目，或先補齊標單／分項工程／工序資料後再執行一鍵 AI 生成。',
+          + '\n\n可單獨重試失敗項目，或先補齊標單／分項工程／工序資料後再執行一鍵工程案資料建構。',
       )
     }
   } catch (e: any) {
@@ -2824,7 +2824,7 @@ async function generateAllPDynamicByAi() {
       e?.response?.data?.error
       ?? e?.response?.data?.message
       ?? e?.message
-      ?? '一鍵 AI 生成過程發生錯誤'
+      ?? '一鍵工程案資料建構過程發生錯誤'
     if (typeof window.alert === 'function') window.alert(msg)
   } finally {
     aiLoadingScale.value = false
@@ -2988,7 +2988,7 @@ onUnmounted(() => {
   opacity: 1;
 }
 
-/** 一鍵 AI 生成（toolbar 內）：尺寸與字級對齊「匯出 Word」按鈕 */
+/** 一鍵工程案資料建構（toolbar 內）：尺寸與字級對齊「匯出 Word」按鈕 */
 .p-dynamic-batch-ai-btn {
   padding: 0.5rem 1.2rem;
   font-size: 0.9375rem;

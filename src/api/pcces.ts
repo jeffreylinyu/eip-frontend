@@ -248,7 +248,7 @@ export interface PageableResponse<T> {
 }
 
 /**
- * Excel 標單匯入請求（AI 解析）
+ * Excel 標單匯入請求（工程案資料建構解析）
  */
 export interface ImportPccesExcelRequest {
   excelFile: File;
@@ -270,7 +270,7 @@ export interface ImportPccesExcelResponse {
 }
 
 /**
- * 匯入 Excel 標單（AI 解析，無 PCCES XML 時的替代方案）
+ * 匯入 Excel 標單（工程案資料建構解析，無 PCCES XML 時的替代方案）
  */
 export async function importPccesExcelFile(
   request: ImportPccesExcelRequest
@@ -549,6 +549,40 @@ export async function batchUpdatePccesCodeSafetyHealthFacility(
 }
 
 /**
+ * 批次更新「類型」（PccesItemType）請求
+ * type = null 表示不分類（清除類型）
+ */
+export interface PccesTypeBatchRequest {
+  constructionId: string;
+  designChangeId?: number | null;
+  ids: number[];
+  /** PccesItemType 的 name 字串；null 表示不分類 */
+  type: string | null;
+}
+
+/**
+ * 批次更新標單明細多筆工項的類型
+ */
+export async function batchUpdatePccesCodeType(
+  body: PccesTypeBatchRequest
+): Promise<{ updated: number }> {
+  const res = await http.patch('/management/generate/pccesCodes/type/batch', body);
+  const data = res as { updated?: number };
+  return { updated: data.updated ?? 0 };
+}
+
+/**
+ * 批次更新單價分析多筆列的類型
+ */
+export async function batchUpdatePccesCostBreakdownType(
+  body: PccesTypeBatchRequest
+): Promise<{ updated: number }> {
+  const res = await http.patch('/management/generate/pccesCostBreakdown/type/batch', body);
+  const data = res as { updated?: number };
+  return { updated: data.updated ?? 0 };
+}
+
+/**
  * 更新單價分析列（名稱、料碼、單位、數量、單價、類型）
  */
 export interface UpdatePccesCostBreakdownRequest {
@@ -751,14 +785,14 @@ export async function copyConstructionMajorItemsFromOriginal(
   return response as unknown as { copiedCount: number };
 }
 
-/** AI 建議的施工大項項目（依標單產出，供使用者勾選後併入） */
+/** 工程案資料建構建議的施工大項項目（依標單產出，供使用者勾選後併入） */
 export interface MajorItemSuggestionItem {
   name: string;
   description: string;
 }
 
 /**
- * 依監造標單由 AI 產出施工大項建議，不寫入 DB。標單無資料時回傳空陣列。
+ * 依監造標單由工程案資料建構產出施工大項建議，不寫入 DB。標單無資料時回傳空陣列。
  * 失敗時後端回傳 503 與 error 訊息。
  */
 export async function getConstructionMajorItemAiSuggest(
@@ -865,7 +899,7 @@ export async function copyStandardFromPcces(constructionId: string, id: string, 
 }
 
 /**
- * 2-3) AI 同步生成並覆寫「施工 + 安全衛生」抽查標準（共用同一組施工階段/流程）
+ * 2-3) 工程案資料建構同步生成並覆寫「施工 + 安全衛生」抽查標準（共用同一組施工階段/流程）
  */
 export async function aiGenerateOverwriteConstructionMajorItemAllStandards(
     constructionId: string,
@@ -878,7 +912,7 @@ export async function aiGenerateOverwriteConstructionMajorItemAllStandards(
         `/management/construction-major-items/${majorItemId}/standards/ai-generate-overwrite-all?constructionId=${encodeURIComponent(constructionId)}`,
         undefined,
         {
-            timeout: 300000, // 5 分鐘：AI 同步生成可能需 1~3 分鐘以上
+            timeout: 300000, // 5 分鐘：工程案資料建構同步生成可能需 1~3 分鐘以上
         }
     )
     const data = response as unknown as {

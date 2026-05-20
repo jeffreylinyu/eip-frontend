@@ -187,7 +187,7 @@ export async function aiGenerateSubdivisionWorkItemGuide(
   if (raw && typeof raw === 'object' && 'constructionId' in (raw as any)) return raw as unknown as SubdivisionWorkItemGuide
   const wrapped = raw as { code?: number; message?: string; data?: SubdivisionWorkItemGuide; error?: string }
   if (wrapped?.code != null && wrapped.code !== 200) {
-    throw new Error(wrapped.message || wrapped.error || 'AI 生成失敗')
+    throw new Error(wrapped.message || wrapped.error || '工程案資料建構失敗')
   }
   return (wrapped?.data as SubdivisionWorkItemGuide) || ({} as SubdivisionWorkItemGuide)
 }
@@ -511,4 +511,78 @@ export async function importSubdivisionFromSupervisoryExport(payload: {
     if (r.data?.importedCount != null) return { importedCount: Number(r.data.importedCount) }
   }
   throw new Error('匯入回應格式錯誤')
+}
+
+/** 監造施工項目筆數預覽（營造分項複製用，不含明細內容） */
+export interface SupervisorySubdivisionPreviewResponse {
+  itemCount: number
+  constructionStandardCount: number
+  safetyStandardCount: number
+  supervisoryVersionAvailable?: boolean
+  contractorVersionLabel?: string | null
+  resolvedSupervisoryVersionLabel?: string | null
+}
+
+export async function getSupervisorySubdivisionPreview(
+  constructionId: string,
+  contractorDesignChangeId?: number | null
+): Promise<SupervisorySubdivisionPreviewResponse> {
+  const params: Record<string, string> = { constructionId }
+  if (contractorDesignChangeId != null && contractorDesignChangeId !== undefined) {
+    params.contractorDesignChangeId = String(contractorDesignChangeId)
+  }
+  const raw = await http.get<unknown>(
+    '/management/construction/subdivision-work-items/supervisory-preview',
+    { params }
+  )
+  const data =
+    raw && typeof raw === 'object' && 'itemCount' in raw
+      ? raw
+      : (raw as { data?: SupervisorySubdivisionPreviewResponse })?.data
+  if (!data || typeof data !== 'object') {
+    return {
+      itemCount: 0,
+      constructionStandardCount: 0,
+      safetyStandardCount: 0,
+      supervisoryVersionAvailable: false
+    }
+  }
+  return {
+    itemCount: Number((data as SupervisorySubdivisionPreviewResponse).itemCount ?? 0),
+    constructionStandardCount: Number(
+      (data as SupervisorySubdivisionPreviewResponse).constructionStandardCount ?? 0
+    ),
+    safetyStandardCount: Number((data as SupervisorySubdivisionPreviewResponse).safetyStandardCount ?? 0),
+    supervisoryVersionAvailable:
+      (data as SupervisorySubdivisionPreviewResponse).supervisoryVersionAvailable !== false,
+    contractorVersionLabel: (data as SupervisorySubdivisionPreviewResponse).contractorVersionLabel ?? null,
+    resolvedSupervisoryVersionLabel:
+      (data as SupervisorySubdivisionPreviewResponse).resolvedSupervisoryVersionLabel ?? null
+  }
+}
+
+/** 自監造對應版本複製施工項目至營造分項（含抽查標準明細） */
+export async function copySubdivisionFromSupervisory(
+  constructionId: string,
+  contractorDesignChangeId: number | null | undefined,
+  options?: { overwrite?: boolean }
+): Promise<{ copiedCount: number }> {
+  const body = {
+    constructionId,
+    contractorDesignChangeId: contractorDesignChangeId ?? null,
+    overwrite: options?.overwrite !== false
+  }
+  const raw = await http.post<unknown>(
+    '/management/construction/subdivision-work-items/copy-from-supervisory',
+    body
+  )
+  if (raw && typeof raw === 'object') {
+    const r = raw as { code?: number; message?: string; copiedCount?: number; data?: { copiedCount?: number } }
+    if (r.code != null && r.code !== 200) {
+      throw new Error(r.message || '複製失敗')
+    }
+    if (typeof r.copiedCount === 'number') return { copiedCount: r.copiedCount }
+    if (r.data?.copiedCount != null) return { copiedCount: Number(r.data.copiedCount) }
+  }
+  throw new Error('複製回應格式錯誤')
 }

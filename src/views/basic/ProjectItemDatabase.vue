@@ -139,6 +139,65 @@
         >
           <i class="fa fa-plus me-1"></i>新增列
         </button>
+
+        <!-- 批次模式（標單明細 / 單價分析）-->
+        <button
+          v-if="(pccesViewTab === 'detail' || pccesViewTab === 'breakdown') && !batchMode"
+          class="btn btn-outline-primary btn-sm"
+          type="button"
+          @click="toggleBatchMode"
+          :disabled="isLoading || editingRowId != null || bdEditingRowId != null || isAddingDetail || isAddingBd"
+          title="勾選多筆項目後一次設定類型"
+        >
+          <i class="fa fa-list-check me-1"></i>批次設定類型
+        </button>
+        <div
+          v-if="(pccesViewTab === 'detail' || pccesViewTab === 'breakdown') && batchMode"
+          class="d-flex align-items-center gap-2 flex-nowrap flex-shrink-0 pcces-batch-bar"
+        >
+          <span class="badge bg-primary-subtle text-primary border border-primary-subtle pcces-batch-bar__count">
+            已選 {{ batchSelectedCount }} 筆
+          </span>
+          <button
+            class="btn btn-outline-secondary btn-sm pcces-batch-bar__btn"
+            type="button"
+            @click="onToggleSelectAll({ target: { checked: !isAllBatchSelected } } as any)"
+            :disabled="isApplyingBatch || batchAllIdsInCurrentTab.length === 0"
+            :title="isAllBatchSelected ? '全部取消' : '全選目前分頁所有項目'"
+          >
+            <i :class="isAllBatchSelected ? 'fa fa-square me-1' : 'fa fa-check-square me-1'"></i>
+            {{ isAllBatchSelected ? '全不選' : '全選' }}
+          </button>
+          <select
+            class="form-select form-select-sm pcces-batch-bar__select"
+            v-model="batchTargetType"
+            :disabled="isApplyingBatch"
+          >
+            <option v-for="opt in typeOptions" :key="String(opt.value)" :value="opt.value">
+              {{ opt.emoji }} {{ opt.label }}
+            </option>
+          </select>
+          <button
+            class="btn btn-primary btn-sm pcces-batch-bar__btn"
+            type="button"
+            @click="applyBatchType"
+            :disabled="isApplyingBatch || batchSelectedCount === 0"
+            title="套用所選類型到已勾選的項目"
+          >
+            <span v-if="isApplyingBatch" class="spinner-border spinner-border-sm me-1"></span>
+            <i v-else class="fa fa-check me-1"></i>套用
+          </button>
+          <button
+            class="btn btn-outline-secondary btn-sm pcces-batch-bar__btn"
+            type="button"
+            @click="exitBatchMode"
+            :disabled="isApplyingBatch"
+            title="結束批次模式"
+          >
+            <i class="fa fa-xmark me-1"></i>結束
+          </button>
+        </div>
+
         <div class="btn-group btn-group-sm">
           <button
             class="btn btn-success"
@@ -160,7 +219,7 @@
           <ul class="dropdown-menu dropdown-menu-end">
             <li>
               <a class="dropdown-item small text-muted" style="cursor:pointer" @click="openExcelImportModal">
-                <i class="fa fa-file-excel me-2"></i>Excel 匯入（AI 解析）
+                <i class="fa fa-file-excel me-2"></i>Excel 匯入（工程案資料建構解析）
                 <div class="text-muted" style="font-size:0.75rem">無 PCCES XML 時的替代方案</div>
               </a>
             </li>
@@ -278,6 +337,55 @@
           >
             <i class="fa fa-copy me-1"></i>複製前一個版本
           </button>
+
+          <!-- 批次模式（全螢幕工具列）-->
+          <button
+            v-if="(pccesViewTab === 'detail' || pccesViewTab === 'breakdown') && !batchMode"
+            class="btn btn-outline-primary btn-sm"
+            type="button"
+            @click="toggleBatchMode"
+            :disabled="isLoading || editingRowId != null || bdEditingRowId != null || isAddingDetail || isAddingBd"
+            title="勾選多筆項目後一次設定類型"
+          >
+            <i class="fa fa-list-check me-1"></i>批次設定類型
+          </button>
+          <div
+            v-if="(pccesViewTab === 'detail' || pccesViewTab === 'breakdown') && batchMode"
+            class="d-flex align-items-center gap-2 flex-nowrap flex-shrink-0 pcces-batch-bar"
+          >
+            <span class="badge bg-primary-subtle text-primary border border-primary-subtle pcces-batch-bar__count">
+              已選 {{ batchSelectedCount }} 筆
+            </span>
+            <select
+              class="form-select form-select-sm pcces-batch-bar__select"
+              v-model="batchTargetType"
+              :disabled="isApplyingBatch"
+            >
+              <option v-for="opt in typeOptions" :key="String(opt.value)" :value="opt.value">
+                {{ opt.emoji }} {{ opt.label }}
+              </option>
+            </select>
+            <button
+              class="btn btn-primary btn-sm pcces-batch-bar__btn"
+              type="button"
+              @click="applyBatchType"
+              :disabled="isApplyingBatch || batchSelectedCount === 0"
+              title="套用所選類型到已勾選的項目"
+            >
+              <span v-if="isApplyingBatch" class="spinner-border spinner-border-sm me-1"></span>
+              <i v-else class="fa fa-check me-1"></i>套用
+            </button>
+            <button
+              class="btn btn-outline-secondary btn-sm pcces-batch-bar__btn"
+              type="button"
+              @click="exitBatchMode"
+              :disabled="isApplyingBatch"
+              title="結束批次模式"
+            >
+              <i class="fa fa-xmark me-1"></i>結束
+            </button>
+          </div>
+
           <div class="btn-group btn-group-sm">
             <button
               class="btn btn-success"
@@ -299,7 +407,7 @@
             <ul class="dropdown-menu dropdown-menu-end">
               <li>
                 <a class="dropdown-item small text-muted" style="cursor:pointer" @click="openExcelImportModal">
-                  <i class="fa fa-file-excel me-2"></i>Excel 匯入（AI 解析）
+                  <i class="fa fa-file-excel me-2"></i>Excel 匯入（工程案資料建構解析）
                   <div class="text-muted" style="font-size:0.75rem">無 PCCES XML 時的替代方案</div>
                 </a>
               </li>
@@ -334,13 +442,24 @@
           :allowResizing="true"
           :allowReordering="false"
           :allowSelection="false"
-          :treeColumnIndex="2"
+          :treeColumnIndex="3"
           :childMapping="'children'"
           :height="'100%'"
           locale="zh"
           :enableHover="true"
         >
           <e-columns>
+            <e-column
+              field="__batchSelect"
+              headerText="選"
+              width="60"
+              textAlign="Center"
+              :template="'detailBatchSelectTemplate'"
+              :visible="batchMode"
+              :allowFiltering="false"
+              :allowSorting="false"
+              :allowResizing="false"
+            ></e-column>
             <e-column
               field="itemNo"
               headerText="項次"
@@ -418,6 +537,19 @@
               :allowSorting="false"
             ></e-column>
           </e-columns>
+
+          <template v-slot:detailBatchSelectTemplate="{ data }">
+            <div class="d-flex align-items-center justify-content-center" @click.stop>
+              <input
+                v-if="!data.isNew"
+                type="checkbox"
+                class="form-check-input m-0"
+                :checked="isBatchSelected(data)"
+                :disabled="isApplyingBatch"
+                @change="onToggleBatchSelection(data, $event)"
+              />
+            </div>
+          </template>
 
           <template v-slot:itemNoTemplate="{ data }">
             <span :class="getCellClass(data, 'itemNo')">{{ data.itemNo }}</span>
@@ -632,13 +764,24 @@
           :allowResizing="true"
           :allowReordering="false"
           :allowSelection="false"
-          :treeColumnIndex="2"
+          :treeColumnIndex="3"
           :childMapping="'children'"
           :height="'100%'"
           locale="zh"
           :enableHover="true"
         >
           <e-columns>
+            <e-column
+              field="__batchSelect"
+              headerText="選"
+              width="60"
+              textAlign="Center"
+              :template="'bdBatchSelectTemplate'"
+              :visible="batchMode"
+              :allowFiltering="false"
+              :allowSorting="false"
+              :allowResizing="false"
+            />
             <e-column field="refItemNo" headerText="對應項次" width="120" textAlign="Left" />
             <e-column
               field="itemCode"
@@ -700,6 +843,19 @@
               :allowSorting="false"
             />
           </e-columns>
+
+          <template v-slot:bdBatchSelectTemplate="{ data }">
+            <div class="d-flex align-items-center justify-content-center" @click.stop>
+              <input
+                v-if="!data.isNew"
+                type="checkbox"
+                class="form-check-input m-0"
+                :checked="isBatchSelected(data)"
+                :disabled="isApplyingBatch"
+                @change="onToggleBatchSelection(data, $event)"
+              />
+            </div>
+          </template>
 
           <template v-slot:bdItemCodeTemplate="{ data }">
             <template v-if="data.isNew && addBdBuffer">
@@ -1045,10 +1201,10 @@
       </div>
     </div>
 
-    <!-- Excel 匯入 Modal（AI 解析，無 PCCES XML 時的替代方案） -->
+    <!-- Excel 匯入 Modal（工程案資料建構解析，無 PCCES XML 時的替代方案） -->
     <Modal
       :show="showExcelImportModal"
-      title="匯入 Excel 標單（AI 解析）"
+      title="匯入 Excel 標單（工程案資料建構解析）"
       icon="fa fa-file-excel"
       size="lg"
       @update:show="showExcelImportModal = $event"
@@ -1059,7 +1215,7 @@
         <div class="alert alert-info d-flex gap-2 py-2 mb-3">
           <i class="fa fa-info-circle mt-1 flex-shrink-0"></i>
           <div class="small">
-            此功能適用於<strong>沒有 PCCES XML 格式</strong>的標單，由 AI 自動識別欄位與層級結構後存入。
+            此功能適用於<strong>沒有 PCCES XML 格式</strong>的標單，由工程案資料建構自動識別欄位與層級結構後存入。
             匯入後請確認工項資料是否正確，並視需要補填 PCCES 料碼。
           </div>
         </div>
@@ -1139,7 +1295,7 @@
         >
           <span v-if="isExcelImporting" class="spinner-border spinner-border-sm me-2"></span>
           <i v-else class="fa fa-robot me-2"></i>
-          {{ isExcelImporting ? 'AI 解析中，請稍候...' : 'AI 解析並匯入' }}
+          {{ isExcelImporting ? '工程案資料建構解析中，請稍候...' : '工程案資料建構解析並匯入' }}
         </button>
       </template>
     </Modal>
@@ -1278,7 +1434,9 @@ import {
   createPccesResourceRow,
   updatePccesResourceRow,
   deletePccesResourceRow,
-  movePccesResourceRow
+  movePccesResourceRow,
+  batchUpdatePccesCodeType,
+  batchUpdatePccesCostBreakdownType
 } from '@/api/pcces'
 import { usePccesSafetyHealthTreeGrid } from '@/composables/usePccesSafetyHealthTreeGrid'
 import { getDesignChangeList } from '@/api/designChange'
@@ -1515,6 +1673,130 @@ const materialPanelRef = ref<InstanceType<typeof MaterialInspectionPanel> | null
 
 /** 標單明細 / 單價分析 分頁 */
 const pccesViewTab = ref<'detail' | 'breakdown' | 'resource' | 'materialInspection'>('detail')
+
+// ===== 批次模式（標單明細 / 單價分析）：勾選多筆後一次設定類型 =====
+const batchMode = ref(false)
+const batchSelectedDetailIds = ref<Set<string>>(new Set())
+const batchSelectedBdIds = ref<Set<string>>(new Set())
+const batchTargetType = ref<string | null>(PccesItemType.MATERIAL)
+const isApplyingBatch = ref(false)
+/** 切換批次模式時清空選取集 */
+function enterBatchMode() {
+  batchMode.value = true
+  batchSelectedDetailIds.value = new Set()
+  batchSelectedBdIds.value = new Set()
+}
+function exitBatchMode() {
+  batchMode.value = false
+  batchSelectedDetailIds.value = new Set()
+  batchSelectedBdIds.value = new Set()
+}
+function toggleBatchMode() {
+  if (batchMode.value) exitBatchMode()
+  else enterBatchMode()
+}
+function isBatchSelected(data: any): boolean {
+  const set = pccesViewTab.value === 'detail' ? batchSelectedDetailIds.value : batchSelectedBdIds.value
+  return set.has(String(data.id))
+}
+function onToggleBatchSelection(data: any, ev: Event) {
+  const checked = (ev.target as HTMLInputElement).checked
+  const setRef = pccesViewTab.value === 'detail' ? batchSelectedDetailIds : batchSelectedBdIds
+  const next = new Set(setRef.value)
+  if (checked) next.add(String(data.id))
+  else next.delete(String(data.id))
+  setRef.value = next
+}
+function flattenTreeIds(rows: any[]): string[] {
+  const out: string[] = []
+  const visit = (r: any) => {
+    if (r == null || r.id == null || r.id === NEW_ROW_ID) return
+    out.push(String(r.id))
+    if (Array.isArray(r.children)) r.children.forEach(visit)
+  }
+  rows.forEach(visit)
+  return out
+}
+const batchAllIdsInCurrentTab = computed<string[]>(() => {
+  const src = pccesViewTab.value === 'detail' ? treeGridData.value : breakdownTreeGridData.value
+  return flattenTreeIds(src as any[])
+})
+const batchSelectedCount = computed<number>(() => {
+  const set = pccesViewTab.value === 'detail' ? batchSelectedDetailIds.value : batchSelectedBdIds.value
+  return set.size
+})
+const isAllBatchSelected = computed<boolean>(() => {
+  const all = batchAllIdsInCurrentTab.value
+  if (all.length === 0) return false
+  const set = pccesViewTab.value === 'detail' ? batchSelectedDetailIds.value : batchSelectedBdIds.value
+  return all.every((id) => set.has(id))
+})
+const isSomeBatchSelected = computed<boolean>(() => {
+  if (isAllBatchSelected.value) return false
+  return batchSelectedCount.value > 0
+})
+function onToggleSelectAll(ev: Event) {
+  const checked = (ev.target as HTMLInputElement).checked
+  const setRef = pccesViewTab.value === 'detail' ? batchSelectedDetailIds : batchSelectedBdIds
+  setRef.value = checked ? new Set(batchAllIdsInCurrentTab.value) : new Set()
+}
+async function applyBatchType() {
+  if (!constructionId.value) return
+  const isDetail = pccesViewTab.value === 'detail'
+  const setRef = isDetail ? batchSelectedDetailIds.value : batchSelectedBdIds.value
+  const ids = Array.from(setRef).map((s) => parseInt(s, 10)).filter((n) => !Number.isNaN(n))
+  if (ids.length === 0) {
+    alert('請先勾選至少一筆項目')
+    return
+  }
+  const typeLabel = batchTargetType.value ? getTypeLabel(batchTargetType.value) : '不分類'
+  const targetLabel = isDetail ? '標單明細' : '單價分析'
+  if (!confirm(`確定將${targetLabel} ${ids.length} 筆項目的類型設定為「${typeLabel}」？`)) return
+  isApplyingBatch.value = true
+  try {
+    if (isDetail) {
+      await batchUpdatePccesCodeType({
+        constructionId: constructionId.value,
+        designChangeId: selectedDesignChangeId.value,
+        ids,
+        type: batchTargetType.value
+      })
+    } else {
+      await batchUpdatePccesCostBreakdownType({
+        constructionId: constructionId.value,
+        designChangeId: selectedDesignChangeId.value,
+        ids,
+        type: batchTargetType.value
+      })
+    }
+    exitBatchMode()
+    await loadItems()
+  } catch (e: any) {
+    alert('批次更新失敗：' + (e.message || '未知錯誤'))
+  } finally {
+    isApplyingBatch.value = false
+  }
+}
+/** 切換到非可批次的分頁時自動退出批次模式（detail/breakdown 間切換時保留各自勾選） */
+watch(pccesViewTab, (tab) => {
+  if (tab !== 'detail' && tab !== 'breakdown' && batchMode.value) {
+    exitBatchMode()
+  }
+})
+
+/** 切換批次模式時請 TreeGrid 重繪欄位（顯示/隱藏 checkbox 欄） */
+watch(batchMode, async () => {
+  await nextTick()
+  const grids: any[] = [treegrid.value, breakdownTreegrid.value]
+  for (const g of grids) {
+    const ej = (g as any)?.ej2Instances
+    try {
+      ej?.refreshColumns?.()
+    } catch {
+      // ignore
+    }
+  }
+})
 /** 目前選中的變更設計版本：null = 原契約 */
 const selectedDesignChangeId = ref<number | null>(null)
 const isLoading = ref(false)
@@ -1727,7 +2009,7 @@ const importError = ref('')
 /** 拖放進入巢狀計數，避免子元素造成 dragleave 閃爍 */
 const importDragDepth = ref(0)
 
-// Excel 匯入相關（AI 解析）
+// Excel 匯入相關（工程案資料建構解析）
 const showExcelImportModal = ref(false)
 const selectedExcelFile = ref<File | null>(null)
 const excelFileInput = ref<HTMLInputElement | null>(null)
@@ -2199,7 +2481,7 @@ const handleImport = async () => {
   }
 }
 
-// ===== Excel 匯入（AI 解析）=====
+// ===== Excel 匯入（工程案資料建構解析）=====
 
 const openExcelImportModal = () => {
   if (!constructionId.value) {
@@ -2275,7 +2557,7 @@ const handleExcelImport = async () => {
     await loadItems()
   } catch (error: any) {
     console.error('[ExcelImport] 失敗:', error)
-    excelImportError.value = error.message || 'AI 解析或匯入失敗，請確認 Excel 內容為工程標單格式後再試'
+    excelImportError.value = error.message || '工程案資料建構解析或匯入失敗，請確認 Excel 內容為工程標單格式後再試'
   } finally {
     isExcelImporting.value = false
   }
@@ -3194,6 +3476,30 @@ onActivated(() => {
 .fullscreen-toolbar {
   background-color: #0f172a;
   color: #fff;
+}
+
+/* 批次模式工具列：背景微強調，避免和一般按鈕混淆 */
+.pcces-batch-bar {
+  padding: 0.25rem 0.6rem;
+  border-radius: 0.5rem;
+  background-color: rgba(13, 110, 253, 0.08);
+  border: 1px solid rgba(13, 110, 253, 0.18);
+  flex-wrap: nowrap;
+}
+
+.pcces-batch-bar__count,
+.pcces-batch-bar__btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.pcces-batch-bar__select {
+  width: 6.75rem;
+  min-width: 5.5rem;
+  max-width: 7rem;
+  flex: 0 0 auto;
+  padding-left: 0.45rem;
+  padding-right: 1.75rem;
 }
 
 

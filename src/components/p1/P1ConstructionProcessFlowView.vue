@@ -201,7 +201,7 @@ onMounted(() => {
     <div v-if="errorText" class="text-warning small py-2">
       {{ errorText }}
     </div>
-    <div v-else-if="!flowJson?.trim()" class="text-muted small py-3 text-center">尚無流程圖，請使用 AI 生成。</div>
+    <div v-else-if="!flowJson?.trim()" class="text-muted small py-3 text-center">尚無流程圖，請使用工程案資料建構。</div>
     <div ref="hostRef" class="p1-mermaid-host" />
   </div>
 </template>

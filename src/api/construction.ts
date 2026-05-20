@@ -350,7 +350,7 @@ export const transformProjectFormToConstructionRequest = (
     payMethod: projectFormData.payment_method || '分期付款',
     segmentedAcceptance: projectFormData.inspection_methods?.includes('分段驗收') || false,
     partialAcceptance: projectFormData.inspection_methods?.includes('部分驗收') || false,
-    completionAcceptance: projectFormData.inspection_methods?.includes('竣工驗收') || true,
+    completionAcceptance: projectFormData.inspection_methods?.includes('竣工驗收') ?? false,
     prePayRatio: parseFloat(projectFormData.advance_payment_ratio) || 30.0,
     retainedRatio: parseFloat(projectFormData.retention_ratio) || 5.0,
     constructionType: projectFormData.project_category || '',
@@ -864,7 +864,7 @@ export const downloadP3SubcontractorOrgChartImageBlob = async (
 }
 
 /**
- * P-3 協力廠商組織關係圖：依工程主要施工項目（標單明細）AI 產生「材料供應商分類」清單。
+ * P-3 協力廠商組織關係圖：依工程主要施工項目（標單明細）工程案資料建構產生「材料供應商分類」清單。
  *
  * - 不寫入 DB；前端拿到 categories 後覆蓋 `subOrgChartData.materialSuppliers`，
  *   再由共用 debounce 自動儲存到 `p3SubcontractorOrgChartJson`。
@@ -957,7 +957,7 @@ export const downloadP3SafetyHealthPersonnelCredentialImageBlob = async (
 }
 
 /**
- * 依目前版本標單由 AI 產出工程規模概述（供 B-1 監造計劃書使用），不寫入 DB。
+ * 依目前版本標單由工程案資料建構產出工程規模概述（供 B-1 監造計劃書使用），不寫入 DB。
  * 標單無資料時回傳空字串；失敗時後端回傳 503 與 error 訊息。
  */
 export const getConstructionScaleOverviewAiGenerate = async (
@@ -978,7 +978,7 @@ export type B2TextAiField =
   | 'CONSTRUCTION_SCALE_OVERVIEW'
   | 'CONSTRUCTION_BUDGET_TEXT'
 
-/** 依目前版本監造標單由 AI 產出 B-2 文字欄位（安全衛生監督查核計畫），不寫入 DB。 */
+/** 依目前版本監造標單由工程案資料建構產出 B-2 文字欄位（安全衛生監督查核計畫），不寫入 DB。 */
 export const getB2TextsAiGenerate = async (
   constructionId: string,
   field: B2TextAiField,
@@ -1008,7 +1008,7 @@ export const copyB2FromPreviousVersion = async (
   return data as unknown as { copied: boolean }
 }
 
-/** 依目前版本營造標單由 AI 產出 P-1 工程規模概述，不寫入 DB。 */
+/** 依目前版本營造標單由工程案資料建構產出 P-1 工程規模概述，不寫入 DB。 */
 export const getP1TextAiGenerate = async (
   constructionId: string,
   designChangeId?: number | null
@@ -1021,7 +1021,7 @@ export const getP1TextAiGenerate = async (
   return data as unknown as { text: string }
 }
 
-/** 依標單由 AI 產出 P-1「施工執行方向」，不寫入 DB。 */
+/** 依標單由工程案資料建構產出 P-1「施工執行方向」，不寫入 DB。 */
 export const getP1ConstructionExecutionDirectionAiGenerate = async (
   constructionId: string,
   designChangeId?: number | null
@@ -1036,7 +1036,7 @@ export const getP1ConstructionExecutionDirectionAiGenerate = async (
 
 export type P1SiteJudgementAiField = 'GEOLOGY_OVERVIEW' | 'METEOROLOGY_HYDROLOGY'
 
-/** 依工程地點由 AI 產出 P-1 工地研判欄位，不寫入 DB。 */
+/** 依工程地點由工程案資料建構產出 P-1 工地研判欄位，不寫入 DB。 */
 export const getP1SiteJudgementAiGenerate = async (
   constructionId: string,
   field: P1SiteJudgementAiField,
@@ -1050,7 +1050,7 @@ export const getP1SiteJudgementAiGenerate = async (
   return data as unknown as { text: string }
 }
 
-/** 依標單由 AI 產出 P-1 施工機械設備資源預定進場時間表之資源名稱清單。 */
+/** 依標單由工程案資料建構產出 P-1 施工機械設備資源預定進場時間表之資源名稱清單。 */
 export const getP1MechanicalResourcesAiGenerate = async (
   constructionId: string,
   designChangeId?: number | null
@@ -1089,7 +1089,7 @@ export const getP1ConstructionProcessFlowAiGenerate = async (
   return data as unknown as { flowJson: string }
 }
 
-/** 依標單由 AI 產出 P-1 物料市場調查。 */
+/** 依標單由工程案資料建構產出 P-1 物料市場調查。 */
 export const getP1MaterialMarketSurveyAiGenerate = async (
   constructionId: string,
   designChangeId?: number | null
@@ -1102,10 +1102,10 @@ export const getP1MaterialMarketSurveyAiGenerate = async (
   return data as unknown as { text: string }
 }
 
-/** P-1「施工區域排水系統」AI 欄位：周圍灌排／施工中擋水抽水 */
+/** P-1「施工區域排水系統」工程案資料建構欄位：周圍灌排／施工中擋水抽水 */
 export type P1DrainageAreaAiField = 'SURROUNDING_SYSTEM' | 'DEWATERING_MEASURES'
 
-/** 依工程地點、標單與分項由 AI 產出 P-1 施工區域排水子段落。 */
+/** 依工程地點、標單與分項由工程案資料建構產出 P-1 施工區域排水子段落。 */
 export const getP1DrainageAreaAiGenerate = async (
   constructionId: string,
   field: P1DrainageAreaAiField,
@@ -1119,7 +1119,7 @@ export const getP1DrainageAreaAiGenerate = async (
   return data as unknown as { text: string }
 }
 
-/** 依分項工程帶入人力列並由 AI 建議群組名稱 */
+/** 依分項工程帶入人力列並由 工程案資料建構建議群組名稱 */
 export const getP1ManpowerFromSubdivisionsAiGenerate = async (
   constructionId: string,
   designChangeId?: number | null
@@ -1134,7 +1134,7 @@ export const getP1ManpowerFromSubdivisionsAiGenerate = async (
   return data as unknown as { rows: { resourceName: string; groupName: string; workContent?: string; isSResident?: string; remark?: string }[] }
 }
 
-/** 依分項工程由 AI 產出 P 類動態頁「施工方法與步驟」結構 JSON。 */
+/** 依分項工程由工程案資料建構產出 P 類動態頁「施工方法與步驟」結構 JSON。 */
 export const getPDynamicConstructionStagePlanAiGenerate = async (
   constructionId: string,
   documentClassificationId: number,
@@ -1151,7 +1151,7 @@ export const getPDynamicConstructionStagePlanAiGenerate = async (
   return data as unknown as { planJson: string }
 }
 
-/** 依目前「施工方法與步驟」由 AI 產出各主要工序之施工要領（可傳 planJson 以含未存檔編輯）。 */
+/** 依目前「施工方法與步驟」由工程案資料建構產出各主要工序之施工要領（可傳 planJson 以含未存檔編輯）。 */
 export const postPDynamicConstructionStagePlanEssentialsAiGenerate = async (
   constructionId: string,
   documentClassificationId: number,
@@ -1176,7 +1176,7 @@ export const postPDynamicConstructionStagePlanEssentialsAiGenerate = async (
   }
 }
 
-/** 依本 P 類計畫書與「施工方法與步驟」由 AI 產出施工抽查標準明細（可傳 planJson 以含未存檔編輯）。 */
+/** 依本 P 類計畫書與「施工方法與步驟」由工程案資料建構產出施工抽查標準明細（可傳 planJson 以含未存檔編輯）。 */
 export const postPDynamicConstructionInspectionStandardsAiGenerate = async (
   constructionId: string,
   documentClassificationId: number,
@@ -1201,7 +1201,7 @@ export const postPDynamicConstructionInspectionStandardsAiGenerate = async (
   return data as unknown as { lines: Record<string, unknown>[] }
 }
 
-/** 依本頁計畫書名稱由 AI 產出 P 類動態頁第四章機具與材料兩表 JSON（材料數量為空，由使用者填寫）。 */
+/** 依本頁計畫書名稱由工程案資料建構產出 P 類動態頁第四章機具與材料兩表 JSON（材料數量為空，由使用者填寫）。 */
 export const getPDynamicChapter4EquipmentMaterialsAiGenerate = async (
   constructionId: string,
   documentClassificationId: number,
@@ -1220,7 +1220,7 @@ export const getPDynamicChapter4EquipmentMaterialsAiGenerate = async (
   return data as unknown as { chapter4Json: string }
 }
 
-/** 依計畫書與施工方法與步驟由 AI 產出「安全衛生執行要點」長文（可傳 planJson 以含未存檔編輯）。 */
+/** 依計畫書與施工方法與步驟由工程案資料建構產出「安全衛生執行要點」長文（可傳 planJson 以含未存檔編輯）。 */
 export const postPDynamicSafetyHealthExecutionPointsAiGenerate = async (
   constructionId: string,
   documentClassificationId: number,
@@ -1241,7 +1241,7 @@ export const postPDynamicSafetyHealthExecutionPointsAiGenerate = async (
   return data as unknown as { text: string }
 }
 
-/** 依計畫書與施工方法與步驟由 AI 產出「環境保護注意事項」長文（可傳 planJson 以含未存檔編輯）。 */
+/** 依計畫書與施工方法與步驟由工程案資料建構產出「環境保護注意事項」長文（可傳 planJson 以含未存檔編輯）。 */
 export const postPDynamicEnvironmentProtectionNotesAiGenerate = async (
   constructionId: string,
   documentClassificationId: number,

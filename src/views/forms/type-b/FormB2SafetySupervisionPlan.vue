@@ -70,11 +70,11 @@
             type="button"
             class="btn-ai-generate b2-batch-ai-btn"
             :disabled="isB2AiGenerating || !currentProject?.id"
-            title="依目前版本標單由 AI 一次生成上方所有文字欄位（地理人文、工程地點、規模概述、預算）"
+            title="依目前版本標單由工程案資料建構一次生成上方所有文字欄位（地理人文、工程地點、規模概述、預算）"
             @click="generateAllB2TextByAi"
           >
             <i class="fa me-2" :class="isB2AiGenerating ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
-            <span>{{ isB2AiGenerating ? '生成中…' : '一鍵 AI 生成' }}</span>
+            <span>{{ isB2AiGenerating ? '生成中…' : '一鍵工程案資料建構' }}</span>
           </button>
           <button
             type="button"
@@ -100,7 +100,7 @@
           <div v-if="isB2AiGenerating" class="text-panels__ai-overlay" aria-live="polite">
             <div class="text-panels__ai-overlay-inner">
               <i class="fa fa-spinner fa-spin fa-2x mb-2 text-primary"></i>
-              <div class="fw-semibold">AI 生成中…</div>
+              <div class="fw-semibold">工程案資料建構中…</div>
               <div class="small text-muted mt-1">產生內容後會自動儲存至目前版本</div>
             </div>
           </div>
@@ -117,10 +117,10 @@
                   class="btn-ai-generate"
                   :disabled="aiLoading.geo || !currentProject?.id"
                   @click="generateB2TextByAi('GEO_HUMAN_ENVIRONMENT_OVERVIEW')"
-                  title="依目前版本標單由 AI 產出地理人文環境概述（用於 B-2 安全衛生監督查核計畫）"
+                  title="依目前版本標單由工程案資料建構產出地理人文環境概述（用於 B-2 安全衛生監督查核計畫）"
                 >
                   <i class="fa me-2" :class="aiLoading.geo ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
-                  {{ aiLoading.geo ? '生成中…' : '依標單 AI 生成' }}
+                  {{ aiLoading.geo ? '生成中…' : '依標單工程案資料建構' }}
                 </button>
               </div>
             </div>
@@ -147,10 +147,10 @@
                   class="btn-ai-generate"
                   :disabled="aiLoading.env || !currentProject?.id"
                   @click="generateB2TextByAi('LOCATION_OBJECTIVE_ENVIRONMENT')"
-                  title="依目前版本標單由 AI 產出工程地點及客觀環境（用於 B-2 安全衛生監督查核計畫）"
+                  title="依目前版本標單由工程案資料建構產出工程地點及客觀環境（用於 B-2 安全衛生監督查核計畫）"
                 >
                   <i class="fa me-2" :class="aiLoading.env ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
-                  {{ aiLoading.env ? '生成中…' : '依標單 AI 生成' }}
+                  {{ aiLoading.env ? '生成中…' : '依標單工程案資料建構' }}
                 </button>
               </div>
             </div>
@@ -177,10 +177,10 @@
                   class="btn-ai-generate"
                   :disabled="aiLoading.scale || !currentProject?.id"
                   @click="generateB2TextByAi('CONSTRUCTION_SCALE_OVERVIEW')"
-                  title="依目前版本標單由 AI 產出工程規模概述（用於 B-2 安全衛生監督查核計畫）"
+                  title="依目前版本標單由工程案資料建構產出工程規模概述（用於 B-2 安全衛生監督查核計畫）"
                 >
                   <i class="fa me-2" :class="aiLoading.scale ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
-                  {{ aiLoading.scale ? '生成中…' : '依標單 AI 生成' }}
+                  {{ aiLoading.scale ? '生成中…' : '依標單工程案資料建構' }}
                 </button>
               </div>
             </div>
@@ -207,10 +207,10 @@
                   class="btn-ai-generate"
                   :disabled="aiLoading.budget || !currentProject?.id"
                   @click="generateB2TextByAi('CONSTRUCTION_BUDGET_TEXT')"
-                  title="依目前版本標單由 AI 產出工程預算（用於 B-2 安全衛生監督查核計畫；固定格式）"
+                  title="依目前版本標單由工程案資料建構產出工程預算（用於 B-2 安全衛生監督查核計畫；固定格式）"
                 >
                   <i class="fa me-2" :class="aiLoading.budget ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
-                  {{ aiLoading.budget ? '生成中…' : '依標單 AI 生成' }}
+                  {{ aiLoading.budget ? '生成中…' : '依標單工程案資料建構' }}
                 </button>
               </div>
             </div>
@@ -766,7 +766,7 @@ async function generateB2TextByAi(field: B2TextAiField) {
     const text = res?.text?.trim() ?? ''
     if (!text) {
       if (typeof (window as any).alert === 'function')
-        (window as any).alert('目前版本無標單資料，或 AI 未產出內容。請先匯入標單或手動填寫。')
+        (window as any).alert('目前版本無標單資料，或 工程案資料建構未產出內容。請先匯入標單或手動填寫。')
       return
     }
     if (field === 'GEO_HUMAN_ENVIRONMENT_OVERVIEW') b2GeoHumanEnvironmentOverview.value = text
@@ -786,7 +786,7 @@ async function generateB2TextByAi(field: B2TextAiField) {
 }
 
 /**
- * 一鍵 AI 生成：**並行**對頁面上 4 個 AI 欄位呼叫生成 API。
+ * 一鍵工程案資料建構：**並行**對頁面上 4 個 工程案資料建構欄位呼叫生成 API。
  *
  * 為何用並行 (Promise.allSettled)：
  * - 4 個欄位互不相依，不需要互等。
@@ -859,7 +859,7 @@ async function generateAllB2TextByAi() {
       ;(window as any).alert(
         '部分欄位未生成（其餘已成功生成並儲存）：\n- '
         + failed.join('\n- ')
-        + '\n\n可單獨重試失敗欄位，或檢查版本標單後再執行一鍵 AI 生成。',
+        + '\n\n可單獨重試失敗欄位，或檢查版本標單後再執行一鍵工程案資料建構。',
       )
     }
   } catch (e: any) {
@@ -1173,7 +1173,7 @@ watch(
   border-radius: 0.5rem;
 }
 
-/** 一鍵 AI 生成（toolbar 內）：尺寸與字級對齊「匯出 Word」按鈕 */
+/** 一鍵工程案資料建構（toolbar 內）：尺寸與字級對齊「匯出 Word」按鈕 */
 .b2-batch-ai-btn {
   padding: 0.5rem 1.2rem;
   font-size: 0.9375rem;

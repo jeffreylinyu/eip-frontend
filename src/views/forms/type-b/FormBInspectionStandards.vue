@@ -32,7 +32,7 @@
             aria-busy="true"
           >
             <div class="spinner-border text-primary" role="status" aria-hidden="true"></div>
-            <div class="text-muted small">AI 生成中，約 1~3 分鐘，請耐心等待…</div>
+            <div class="text-muted small">工程案資料建構中，約 1~3 分鐘，請耐心等待…</div>
             <div class="text-warning-emphasis small">請勿關閉頁面</div>
           </div>
 
@@ -443,7 +443,7 @@ async function onAiGenerateFromDb() {
     if (aiGenerating.value) return
 
     const ok = await scrollPreservingConfirm(
-        '將以 AI 一次重新生成並覆寫「施工抽查標準 + 安全衛生抽查標準」明細（全刪全建）。\n' +
+        '將以工程案資料建構一次重新生成並覆寫「施工抽查標準 + 安全衛生抽查標準」明細（全刪全建）。\n' +
         '兩者會共用同一組施工階段與施工流程。\n\n是否繼續？'
     )
     if (!ok) return
@@ -465,7 +465,7 @@ async function onAiGenerateFromDb() {
             err?.response?.data?.error ??
                 err?.response?.data?.message ??
                 err?.message ??
-                'AI 生成失敗，請稍後再試'
+                '工程案資料建構失敗，請稍後再試'
         )
     } finally {
         aiGenerating.value = false

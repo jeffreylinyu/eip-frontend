@@ -90,7 +90,7 @@ export const tenderMaterialApi = {
     return response as unknown as ConstructionMaterialStandardResponse[];
   },
 
-  /** 依工程與單價分析材料脈絡 AI 產出並覆寫品質抽驗管控表（全刪全建）；不讀 PCCES 材料主檔 */
+  /** 依工程與單價分析材料脈絡 工程案資料建構產出並覆寫品質抽驗管控表（全刪全建）；不讀 PCCES 材料主檔 */
   async aiGenerateOverwriteMaterialStandards(
     pccesCode: string,
     constructionId: string,

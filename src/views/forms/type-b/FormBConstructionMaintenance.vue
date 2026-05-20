@@ -36,7 +36,7 @@
             <i class="fa fa-info-circle construction-intro-icon flex-shrink-0" aria-hidden="true"></i>
             <span class="construction-intro-pill flex-shrink-0">說明</span>
             <span class="construction-intro-line small min-w-0">
-              依版本維護<strong class="construction-kw">施工大項</strong>與<strong class="construction-kw">施工／安全衛生抽查標準</strong>；可 AI 依標單建議、複製前一版或匯出加密分項檔供營造<strong class="construction-hl">分項工程維護</strong>匯入。
+              依版本維護<strong class="construction-kw">施工大項</strong>與<strong class="construction-kw">施工／安全衛生抽查標準</strong>；可依標單工程案資料建構建議、複製前一版或匯出加密分項檔供營造<strong class="construction-hl">分項工程維護</strong>匯入。
             </span>
           </div>
           <div class="d-flex flex-wrap gap-2 align-items-center justify-content-end flex-shrink-0">
@@ -46,10 +46,10 @@
               class="btn-ai-generate"
               :disabled="aiSuggestLoading || !constructionId"
               @click="openAiSuggest"
-              title="依目前版本標單由 AI 產出施工大項建議，確認後僅併入新增、不覆蓋既有項目"
+              title="依目前版本標單由工程案資料建構產出施工大項建議，確認後僅併入新增、不覆蓋既有項目"
             >
               <i class="fa me-2" :class="aiSuggestLoading ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
-              {{ aiSuggestLoading ? '生成中...' : '依標單 AI 生成' }}
+              {{ aiSuggestLoading ? '生成中...' : '依標單工程案資料建構' }}
             </button>
             <div v-if="selectedDesignChangeId != null" class="btn-group">
               <button
@@ -227,19 +227,19 @@
     </div>
 
     <!-- 共用全畫面 Loading -->
-    <LoadingOverlay :show="aiSuggestLoading" text="AI 生成中..." />
+    <LoadingOverlay :show="aiSuggestLoading" text="工程案資料建構中..." />
 
     <!-- AI 確認說明 Modal：先告知即將做什麼，用戶確認後再執行 -->
     <div class="modal fade" id="aiConfirmModal" tabindex="-1" ref="aiConfirmModalElement">
       <div class="modal-dialog">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title">依標單 AI 生成施工項目</h5>
+            <h5 class="modal-title">依標單工程案資料建構施工項目</h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
           <div class="modal-body">
             <p class="mb-0">
-              即將依<strong>目前版本</strong>的標單由 AI 產出施工項目建議。完成後您可勾選要新增的項目，確認後僅會<strong>併入新增</strong>，不會覆蓋既有施工項目。
+              即將依<strong>目前版本</strong>的標單由工程案資料建構產出施工項目建議。完成後您可勾選要新增的項目，確認後僅會<strong>併入新增</strong>，不會覆蓋既有施工項目。
             </p>
             <p class="mb-0 mt-2 text-muted small">是否繼續？</p>
           </div>
@@ -253,18 +253,18 @@
       </div>
     </div>
 
-    <!-- AI 建議 Modal：顯示建議清單，勾選後併入新增 -->
+    <!-- 工程案資料建構建議 Modal：顯示建議清單，勾選後併入新增 -->
     <div class="modal fade" id="aiSuggestModal" tabindex="-1" ref="aiSuggestModalElement">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">依標單 AI 生成施工項目</h5>
+                    <h5 class="modal-title">依標單工程案資料建構施工項目</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
                     <p v-if="aiSuggestError" class="text-danger mb-2">{{ aiSuggestError }}</p>
                     <p v-else-if="aiSuggestions.length === 0 && !aiSuggestLoading" class="text-muted mb-2">
-                        目前版本無標單資料，或 AI 未產出建議。請先匯入標單或改用手動新增。
+                        目前版本無標單資料，或 工程案資料建構未產出建議。請先匯入標單或改用手動新增。
                     </p>
                     <div v-else class="table-responsive">
                         <table class="table table-sm table-hover">
@@ -368,7 +368,7 @@ const sourceDesignChangeIdForCopy = computed(() => {
   return list[idx - 1]?.id ?? null
 })
 
-// 依標單 AI 生成
+// 依標單工程案資料建構
 const aiConfirmModalElement = ref<HTMLElement | null>(null)
 let bsAiConfirmModal: Modal | null = null
 const aiSuggestModalElement = ref<HTMLElement | null>(null)
@@ -383,7 +383,7 @@ const selectedAiCount = computed(() => aiSuggestions.value.filter((r) => r.selec
 function toggleAiSelectAll() {
   aiSuggestions.value.forEach((r) => { r.selected = aiSelectAll.value })
 }
-/** 點擊「依標單 AI 生成」→ 先開說明 Modal，由用戶確認後再執行 */
+/** 點擊「依標單工程案資料建構」→ 先開說明 Modal，由用戶確認後再執行 */
 function openAiSuggest() {
   if (!constructionId.value) return
   aiSuggestError.value = ''

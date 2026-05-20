@@ -402,9 +402,9 @@ const props = withDefaults(
   defineProps<{
     phases: Record<string, InspectionPhaseBlock>
     interactive?: boolean
-    /** 是否顯示「依資料庫 AI 生成」按鈕（營造端分項抽查表不顯示） */
+    /** 是否顯示「依資料庫工程案資料建構」按鈕（營造端分項抽查表不顯示） */
     showAiGenerateButton?: boolean
-    /** AI 生成中：避免連點 */
+    /** 工程案資料建構中：避免連點 */
     aiGenerating?: boolean
     emptyText?: string
     /** 不為空時將收合狀態寫入 localStorage */
@@ -419,9 +419,9 @@ const props = withDefaults(
     hideAddMgmtItem?: boolean
     /** 為 true 時隱藏明細列「刪除」按鈕與操作欄（P 類動態頁） */
     hideRemoveRowButton?: boolean
-    /** AI 生成按鈕顯示文字（預設「依資料庫AI生成」） */
+    /** 工程案資料建構按鈕顯示文字（預設「依資料庫工程案資料建構」） */
     aiGenerateButtonLabel?: string
-    /** AI 生成按鈕 title 提示 */
+    /** 工程案資料建構按鈕 title 提示 */
     aiGenerateButtonTitle?: string
   }>(),
   {
@@ -435,8 +435,8 @@ const props = withDefaults(
     secondLevelHeaderLabel: '施工流程',
     hideAddMgmtItem: false,
     hideRemoveRowButton: false,
-    aiGenerateButtonLabel: '依資料庫AI生成',
-    aiGenerateButtonTitle: '依資料庫內容由 AI 產出抽查標準並覆寫'
+    aiGenerateButtonLabel: '依資料庫工程案資料建構',
+    aiGenerateButtonTitle: '依資料庫內容由工程案資料建構產出抽查標準並覆寫'
   }
 )
 

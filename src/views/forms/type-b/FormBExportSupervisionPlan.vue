@@ -38,10 +38,10 @@
               class="btn-ai-generate"
               :disabled="aiOverviewLoading || !currentProject?.id"
               @click="generateOverviewByAi"
-              title="依目前版本標單由 AI 產出工程規模概述（用於 B-1 監造計劃書）"
+              title="依目前版本標單由工程案資料建構產出工程規模概述（用於 B-1 監造計劃書）"
             >
               <i class="fa me-2" :class="aiOverviewLoading ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
-              {{ aiOverviewLoading ? '生成中…' : '依標單 AI 生成' }}
+              {{ aiOverviewLoading ? '生成中…' : '依標單工程案資料建構' }}
             </button>
           </div>
           <textarea
@@ -62,7 +62,7 @@
     <!-- 監造計畫送審紀錄：僅監造視角顯示（營造不載入元件、不發 API） -->
     <FormBPlanSubmissionRecords v-if="showPlanSubmissionBlock" embedded />
 
-    <LoadingOverlay :show="aiOverviewLoading" text="AI 生成中…" />
+    <LoadingOverlay :show="aiOverviewLoading" text="工程案資料建構中…" />
   </div>
 </template>
 
@@ -156,7 +156,7 @@ async function generateOverviewByAi() {
     overviewText.value = res?.text?.trim() ?? ''
     if (!overviewText.value) {
       // 標單無資料時後端回傳空字串
-      if (typeof (window as any).alert === 'function') (window as any).alert('目前版本無標單資料，或 AI 未產出內容。請先匯入標單或手動填寫。')
+      if (typeof (window as any).alert === 'function') (window as any).alert('目前版本無標單資料，或 工程案資料建構未產出內容。請先匯入標單或手動填寫。')
     } else {
       // 生成成功後自動儲存至目前版本
       await saveOverview()

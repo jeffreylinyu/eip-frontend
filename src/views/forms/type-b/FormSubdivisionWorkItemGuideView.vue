@@ -36,7 +36,7 @@
             <div v-if="isAiGenerating" class="text-panels__ai-overlay" aria-live="polite">
               <div class="text-panels__ai-overlay-inner">
                 <i class="fa fa-spinner fa-spin fa-2x mb-2 text-primary"></i>
-                <div class="fw-semibold">AI 生成中…</div>
+                <div class="fw-semibold">工程案資料建構中…</div>
                 <div class="small text-muted mt-1">完成後會覆蓋目前內容並自動儲存</div>
               </div>
             </div>
@@ -81,7 +81,7 @@
                     @click="generateByAi"
                   >
                     <i class="fa me-2" :class="isAiGenerating ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
-                    依標單 AI 生成
+                    依標單工程案資料建構
                   </button>
                   <button type="button" class="btn btn-sm btn-outline-primary" @click="addStep">
                     <i class="fa fa-plus me-1"></i>新增步驟
@@ -108,7 +108,7 @@
                   </thead>
                   <tbody>
                     <tr v-if="!steps.length">
-                      <td colspan="7" class="text-center text-muted py-4">尚無步驟，請新增或使用 AI 生成。</td>
+                      <td colspan="7" class="text-center text-muted py-4">尚無步驟，請新增或使用工程案資料建構。</td>
                     </tr>
                     <tr v-for="(s, idx) in steps" :key="idx" :class="{ 'guide-step--checkpoint': s.stepType === 'CHECKPOINT' }">
                       <td class="text-center fw-semibold">{{ idx + 1 }}</td>
@@ -207,7 +207,7 @@
         依目前施工要領的<span class="fw-semibold">施工步驟</span>自動生成；如需調整流程，請修改步驟順序/名稱/檢查點符號。
       </p>
       <div v-if="!flowGraphJson" class="text-center py-5 text-muted">
-        尚無流程圖資料（請先新增步驟或使用 AI 生成）。
+        尚無流程圖資料（請先新增步驟或使用工程案資料建構）。
       </div>
       <div v-else class="text-center bg-white rounded p-2 inspection-standards-flowchart-img-wrap">
         <FlowGraphSyncfusionView :flow-json="flowGraphJson" :height="flowChartHeightPx" />
@@ -538,7 +538,7 @@ async function generateByAi() {
         }))
     scheduleAutoSave()
   } catch (e: any) {
-    const msg = e?.response?.data?.message ?? e?.message ?? 'AI 生成失敗'
+    const msg = e?.response?.data?.message ?? e?.message ?? '工程案資料建構失敗'
     window.alert(msg)
   } finally {
     isAiGenerating.value = false

@@ -29,7 +29,7 @@
             aria-busy="true"
           >
             <div class="spinner-border text-primary" role="status" aria-hidden="true"></div>
-            <div class="text-muted small">AI 生成中，約 1~3 分鐘，請耐心等待…</div>
+            <div class="text-muted small">工程案資料建構中，約 1~3 分鐘，請耐心等待…</div>
             <div class="text-warning-emphasis small">請勿關閉頁面</div>
           </div>
 
@@ -57,7 +57,7 @@
           <div v-if="!standards || standards.length === 0" class="text-center py-5 text-muted">
             <i class="fa fa-clipboard-list fa-3x mb-3" aria-hidden="true"></i>
             <p class="mb-1">目前尚無管控表資料</p>
-            <div class="small">可點「新增一筆」手動維護，或用「依 AI 生成並覆寫」建立明細</div>
+            <div class="small">可點「新增一筆」手動維護，或用「依工程案資料建構並覆寫」建立明細</div>
             <div class="d-flex justify-content-center gap-2 mt-3">
               <button
                 type="button"
@@ -81,7 +81,7 @@
                   role="status"
                   aria-hidden="true"
                 />
-                依 AI 生成並覆寫
+                依工程案資料建構並覆寫
               </button>
             </div>
           </div>
@@ -95,7 +95,7 @@
                           <div class="material-qc-thead-hint small min-w-0">
                             <i class="fa fa-circle-info me-1" aria-hidden="true"></i>
                             <span class="text-truncate d-inline-block align-bottom">
-                              以 AI 依工程名稱與本筆單價分析材料產出；每次會覆寫本版既有明細（全刪全建）。
+                              以工程案資料建構依工程名稱與本筆單價分析材料產出；每次會覆寫本版既有明細（全刪全建）。
                             </span>
                           </div>
                           <div class="d-flex align-items-center justify-content-end gap-2 flex-shrink-0">
@@ -114,7 +114,7 @@
                             class="btn-ai-generate btn-ai-generate--toolbar"
                             :disabled="aiGenerating || !materialInfo"
                             @click="onAiGenerateOverwrite"
-                            title="依資料庫內容由 AI 產出並覆寫"
+                            title="依資料庫內容由工程案資料建構產出並覆寫"
                           >
                             <i class="fa fa-wand-magic-sparkles me-1 d-none d-sm-inline" aria-hidden="true"></i>
                             <span
@@ -123,7 +123,7 @@
                               role="status"
                               aria-hidden="true"
                             />
-                            依 AI 生成並覆寫
+                            依工程案資料建構並覆寫
                           </button>
                           </div>
                         </div>
@@ -290,7 +290,7 @@ const loadData = async () => {
 const onAiGenerateOverwrite = async () => {
     if (!constructionId.value || !materialInfo.value || aiGenerating.value) return
     const ok = window.confirm(
-        '將以 AI 依工程名稱與本筆單價分析材料資訊產出並覆寫「品質抽驗管控表」明細（全刪全建）。\n\n是否繼續？'
+        '將以工程案資料建構依工程名稱與本筆單價分析材料資訊產出並覆寫「品質抽驗管控表」明細（全刪全建）。\n\n是否繼續？'
     )
     if (!ok) return
     aiGenerating.value = true
@@ -300,7 +300,7 @@ const onAiGenerateOverwrite = async () => {
             constructionId.value,
             designChangeId.value
         )
-        toastService.success('AI 生成完成')
+        toastService.success('工程案資料建構完成')
     } catch (e: unknown) {
         console.error('AI generate material standards failed:', e)
         const err = e as {
@@ -311,7 +311,7 @@ const onAiGenerateOverwrite = async () => {
             err?.response?.data?.error ??
                 err?.response?.data?.message ??
                 err?.message ??
-                'AI 生成失敗，請稍後再試'
+                '工程案資料建構失敗，請稍後再試'
         )
     } finally {
         aiGenerating.value = false

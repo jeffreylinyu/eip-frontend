@@ -156,9 +156,9 @@ watch(() => props.open, (open) => {
   if (open) {
     logLines.value = []
     logQueue = []
-    pushLog('EIP Construction AI Engine v2.0 initializing...')
+    pushLog('EIP 工程案資料建構引擎 v2.0 initializing...')
     pushLog('Authenticating session credentials...')
-    pushLog('Connection established to AI processing cluster')
+    pushLog('已連線至工程案資料建構處理叢集')
     if (props.phaseIndex >= 0) enqueuePhaseLines(props.phaseIndex)
     startLogTimer()
     startCursor()
@@ -189,7 +189,7 @@ watch(() => props.progress, (p) => {
     pushLog('─────────────────────────────────────')
     pushLog('All documents generated successfully.')
     pushLog('Finalizing output bundle...')
-    pushLog('[DONE] Construction AI Engine halted.')
+    pushLog('[DONE] 工程案資料建構引擎已停止。')
     scrollLog()
   }
 })

@@ -5,7 +5,13 @@ import { useWorkspaceStore } from '@/stores/workspace'
 import { useAuthStore } from '@/stores/auth' // Import auth store
 import { useValidation } from '@/composables/useValidation'
 import { projectFormValidationRules } from '@/utils/projectValidationRules'
-import { formatAmountColloquialChinese, formatNumber, toRepublicYear } from '@/utils/format'
+import {
+  formatAmountColloquialChinese,
+  formatNumber,
+  formatProjectFormDateDisplay,
+  formatRepublicDateFromIso,
+  PROJECT_FORM_DATE_FIELD_KEYS
+} from '@/utils/format'
 import RepublicDatePicker from '@/components/bootstrap/RepublicDatePicker.vue'
 import Modal from '@/components/bootstrap/Modal.vue'
 import { validateForm, isFormValid } from '@/utils/validation'
@@ -140,7 +146,9 @@ const getInfoDisplayValue = (fieldKey: string) => {
     const titles = v.map((i: any) => i?.title).filter(Boolean)
     return titles.length ? titles.join('、') : '－'
   }
-  if (fieldKey === 'completion_date') return formattedCompletionDate.value || '－'
+  if (PROJECT_FORM_DATE_FIELD_KEYS.has(fieldKey)) {
+    return formatProjectFormDateDisplay(String(v))
+  }
   if (Array.isArray(v)) return v.length ? v.join('、') : '－'
   return String(v)
 }
@@ -211,20 +219,8 @@ watch(
 // 格式化完工日期為民國年月日
 const formatCompletionDateToRepublic = (dateString: string | null | undefined): string => {
   if (!dateString) return ''
-  
-  try {
-    const date = new Date(dateString)
-    if (isNaN(date.getTime())) return dateString
-    
-    const year = date.getFullYear()
-    const republicYear = toRepublicYear(year)
-    const month = date.getMonth() + 1
-    const day = date.getDate()
-    
-    return `民國${republicYear}年${month}月${day}日`
-  } catch (error) {
-    return dateString
-  }
+  const s = formatRepublicDateFromIso(dateString)
+  return s === '—' ? dateString : s
 }
 
 // 計算屬性：格式化後的完工日期

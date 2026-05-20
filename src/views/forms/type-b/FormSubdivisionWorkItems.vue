@@ -49,6 +49,16 @@
               class="d-none"
               @change="onSubdivisionImportFileChange"
             />
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-primary"
+              :disabled="saving || loading || isCopying || isImportingSubdivision || isCopyingFromSupervisory"
+              title="自監造對應版本複製施工項目與抽查標準明細至目前營造版本"
+              @click="openSupervisoryCopyModal"
+            >
+              <i class="fa fa-copy me-1"></i>
+              複製監造
+            </button>
             <div v-if="selectedDesignChangeId != null" class="btn-group">
               <button
                 type="button"
@@ -269,6 +279,95 @@
       </div>
     </div>
 
+    <Modal
+      :show="showSupervisoryCopyModal"
+      title=""
+      icon=""
+      size="md"
+      modal-id="subdivision-supervisory-copy"
+      :hide-confirm-button="true"
+      :hide-cancel-button="true"
+      @update:show="showSupervisoryCopyModal = $event"
+    >
+      <template #header>
+        <span class="fw-bold">複製監造施工項目</span>
+      </template>
+      <p class="text-muted small mb-2">
+        依版次序位對應監造版本，複製施工項目名稱與施工／安衛抽查標準明細至目前營造分項工程（不含施工要領）。
+      </p>
+      <div
+        class="alert py-2 px-3 mb-3 small"
+        :class="supervisoryCopyPreview.supervisoryVersionAvailable ? 'alert-light border' : 'alert-warning'"
+        role="status"
+      >
+        <div class="fw-semibold mb-1">複製版本對照</div>
+        <div>
+          <span class="text-muted">營造目前版本：</span>
+          <span class="fw-semibold">{{ supervisoryCopyVersionBanner.contractor }}</span>
+        </div>
+        <div class="mt-1">
+          <span class="text-muted">複製來源（監造）：</span>
+          <span
+            class="fw-semibold"
+            :class="{ 'text-warning': !supervisoryCopyPreview.supervisoryVersionAvailable }"
+          >
+            {{ supervisoryCopyVersionBanner.supervisory }}
+          </span>
+        </div>
+      </div>
+      <div v-if="supervisoryCopyPreviewLoading" class="text-center py-4 text-muted">
+        <i class="fa fa-spinner fa-spin me-2"></i>載入中…
+      </div>
+      <div v-else class="list-group list-group-flush border rounded">
+        <div class="list-group-item d-flex justify-content-between align-items-center">
+          <span>施工項目（分項）</span>
+          <span class="fw-semibold">{{ supervisoryCopyPreview.itemCount }} 筆</span>
+        </div>
+        <div class="list-group-item d-flex justify-content-between align-items-center">
+          <span>施工抽查標準明細</span>
+          <span class="fw-semibold">{{ supervisoryCopyPreview.constructionStandardCount }} 筆</span>
+        </div>
+        <div class="list-group-item d-flex justify-content-between align-items-center">
+          <span>安衛抽查標準明細</span>
+          <span class="fw-semibold">{{ supervisoryCopyPreview.safetyStandardCount }} 筆</span>
+        </div>
+      </div>
+      <template #footer>
+        <button type="button" class="btn btn-outline-secondary" @click="showSupervisoryCopyModal = false">
+          關閉
+        </button>
+        <div class="btn-group">
+          <button
+            type="button"
+            class="btn btn-primary dropdown-toggle"
+            :disabled="
+              isCopyingFromSupervisory ||
+              !supervisoryCopyPreview.supervisoryVersionAvailable ||
+              supervisoryCopyPreview.itemCount === 0
+            "
+            data-bs-toggle="dropdown"
+            aria-expanded="false"
+          >
+            <i v-if="isCopyingFromSupervisory" class="fa fa-spinner fa-spin me-1"></i>
+            <i v-else class="fa fa-copy me-1"></i>
+            {{ isCopyingFromSupervisory ? '複製中…' : '複製至營造' }}
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li>
+              <button type="button" class="dropdown-item" @click="copyFromSupervisory(false)">
+                合併到目前版本（保留既有項目）
+              </button>
+            </li>
+            <li>
+              <button type="button" class="dropdown-item text-danger" @click="copyFromSupervisory(true)">
+                覆寫目前版本（先清空再複製）
+              </button>
+            </li>
+          </ul>
+        </div>
+      </template>
+    </Modal>
+
   </div>
 </template>
 
@@ -281,6 +380,7 @@ import PageHeader from '@/components/bootstrap/PageHeader.vue'
 import Card from '@/components/bootstrap/Card.vue'
 import CardBody from '@/components/bootstrap/CardBody.vue'
 import DesignChangeVersionSwitcher from '@/components/common/DesignChangeVersionSwitcher.vue'
+import Modal from '@/components/bootstrap/Modal.vue'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { useViewPerspective } from '@/composables/useViewPerspective'
 import {
@@ -291,6 +391,9 @@ import {
   reorderSubdivisionWorkItems,
   copySubdivisionFromPrevious,
   importSubdivisionFromSupervisoryExport,
+  getSupervisorySubdivisionPreview,
+  copySubdivisionFromSupervisory,
+  type SupervisorySubdivisionPreviewResponse,
   type SubdivisionWorkItem,
   type SubdivisionWorkItemStandardLine,
   type SupervisorySubdivisionExportPayload
@@ -316,6 +419,25 @@ const designChangeList = ref<DesignChangeItem[]>([])
 
 const isCopying = ref(false)
 const isImportingSubdivision = ref(false)
+const isCopyingFromSupervisory = ref(false)
+const showSupervisoryCopyModal = ref(false)
+const supervisoryCopyPreviewLoading = ref(false)
+const supervisoryCopyPreview = ref<SupervisorySubdivisionPreviewResponse>({
+  itemCount: 0,
+  constructionStandardCount: 0,
+  safetyStandardCount: 0,
+  supervisoryVersionAvailable: false
+})
+
+const supervisoryCopyVersionBanner = computed(() => {
+  const contractor =
+    supervisoryCopyPreview.value.contractorVersionLabel ??
+    (selectedDesignChangeId.value == null ? '原契約' : '目前版本')
+  const supervisory = supervisoryCopyPreview.value.supervisoryVersionAvailable
+    ? (supervisoryCopyPreview.value.resolvedSupervisoryVersionLabel ?? '—')
+    : '監造無此版本'
+  return { contractor, supervisory }
+})
 const importSubdivisionFileInput = ref<HTMLInputElement | null>(null)
 
 /** 與監造「施工項目」一致：統一進入抽查標準表，頁內以 Tab 切換施工／安衛 */
@@ -528,6 +650,82 @@ async function onSubdivisionImportFileChange(ev: Event) {
     window.alert(err?.response?.data?.message ?? err?.message ?? '匯入失敗')
   } finally {
     isImportingSubdivision.value = false
+  }
+}
+
+function openSupervisoryCopyModal() {
+  showSupervisoryCopyModal.value = true
+  void loadSupervisoryCopyPreview()
+}
+
+async function loadSupervisoryCopyPreview() {
+  const cid = currentProject.value?.id?.trim()
+  if (!cid) return
+  supervisoryCopyPreviewLoading.value = true
+  try {
+    supervisoryCopyPreview.value = await getSupervisorySubdivisionPreview(
+      cid,
+      selectedDesignChangeId.value
+    )
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { message?: string } }; message?: string }
+    window.alert(err?.response?.data?.message ?? err?.message ?? '無法載入監造資料筆數')
+    supervisoryCopyPreview.value = {
+      itemCount: 0,
+      constructionStandardCount: 0,
+      safetyStandardCount: 0,
+      supervisoryVersionAvailable: false
+    }
+  } finally {
+    supervisoryCopyPreviewLoading.value = false
+  }
+}
+
+async function copyFromSupervisory(overwrite: boolean) {
+  const cid = currentProject.value?.id?.trim()
+  if (!cid) return
+  if (!supervisoryCopyPreview.value.supervisoryVersionAvailable) {
+    window.alert('監造無對應版本，無法複製')
+    return
+  }
+  if (supervisoryCopyPreview.value.itemCount === 0) {
+    window.alert('監造此版本尚無施工項目可複製')
+    return
+  }
+  if (overwrite) {
+    if (
+      !window.confirm(
+        '「覆寫」將先刪除目前版本全部分項工程與其施工／安全衛生抽查標準，再自監造複製。\n\n此動作無法復原，確定嗎？'
+      )
+    ) {
+      return
+    }
+  } else {
+    if (
+      !window.confirm(
+        '將監造對應版本的施工項目（含施工與安全衛生抽查標準明細）複製到目前版本末尾；若目前版本已有項目則一併保留。\n\n確定嗎？'
+      )
+    ) {
+      return
+    }
+  }
+  isCopyingFromSupervisory.value = true
+  try {
+    const { copiedCount } = await copySubdivisionFromSupervisory(cid, selectedDesignChangeId.value, {
+      overwrite
+    })
+    showSupervisoryCopyModal.value = false
+    window.alert(
+      overwrite
+        ? `已覆寫並複製 ${copiedCount} 筆分項工程（含抽查標準明細）`
+        : `已複製 ${copiedCount} 筆分項工程（合併至目前版本）`
+    )
+    await loadList()
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { message?: string } }; message?: string }
+    window.alert(err?.response?.data?.message ?? err?.message ?? '複製失敗')
+  } finally {
+    isCopyingFromSupervisory.value = false
   }
 }
 

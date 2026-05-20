@@ -79,7 +79,7 @@
           <div v-if="isAiGenerating" class="text-panels__ai-overlay" aria-live="polite">
             <div class="text-panels__ai-overlay-inner">
               <i class="fa fa-spinner fa-spin fa-2x mb-2 text-primary"></i>
-              <div class="fw-semibold">AI 生成中…</div>
+              <div class="fw-semibold">工程案資料建構中…</div>
               <div class="small text-muted mt-1">產生內容後會自動儲存至目前版本</div>
             </div>
           </div>
@@ -104,7 +104,7 @@
                         class="fa me-2"
                         :class="aiLoading.scaleOverview ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"
                       ></i>
-                      {{ aiLoading.scaleOverview ? '生成中…' : '依標單 AI 生成' }}
+                      {{ aiLoading.scaleOverview ? '生成中…' : '依標單工程案資料建構' }}
                     </button>
                   </div>
                 </div>
@@ -569,7 +569,7 @@
                         class="fa me-2"
                         :class="aiLoading.subSuppliers ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"
                       ></i>
-                      {{ aiLoading.subSuppliers ? '生成中…' : '依標單 AI 生成材料分類' }}
+                      {{ aiLoading.subSuppliers ? '生成中…' : '依標單工程案資料建構材料分類' }}
                     </button>
                   </div>
                 </div>
@@ -1633,7 +1633,7 @@ let savedFlashTimer: ReturnType<typeof setTimeout> | null = null
 
 /**
  * 包裝 saveTexts，使其同時更新自動儲存狀態指示器。
- * 適用於非 debounce 觸發的立即儲存（如圖片上傳/刪除後、AI 生成後）。
+ * 適用於非 debounce 觸發的立即儲存（如圖片上傳/刪除後、工程案資料建構後）。
  */
 async function saveTextsWithStatus() {
   if (savedFlashTimer) {
@@ -1717,7 +1717,7 @@ async function generateScaleOverviewByAi() {
     p3SafetyHealthScaleOverview.value = text ?? ''
     await saveTextsWithStatus()
   } catch (e: any) {
-    const msg = e?.response?.data?.error ?? e?.response?.data?.message ?? e?.message ?? 'AI 生成失敗'
+    const msg = e?.response?.data?.error ?? e?.response?.data?.message ?? e?.message ?? '工程案資料建構失敗'
     window.alert(msg)
   } finally {
     aiLoading.value.scaleOverview = false
@@ -1726,7 +1726,7 @@ async function generateScaleOverviewByAi() {
 }
 
 /**
- * 依工程主要施工項目（標單明細）AI 產生「材料供應商分類」清單。
+ * 依工程主要施工項目（標單明細）工程案資料建構產生「材料供應商分類」清單。
  *
  * - 結果整批覆蓋 `subOrgChartData.materialSuppliers`（不會合併既有清單）。
  * - 若使用者已自行填寫過分類，先彈出確認再覆蓋，避免誤刪。
@@ -1737,7 +1737,7 @@ async function generateSupplierCategoriesByAi() {
   if (!cid) return
   if (
     subOrgChartData.value.materialSuppliers.some((s) => (s ?? '').trim().length > 0) &&
-    !window.confirm('已有材料供應商分類，AI 生成會整批覆蓋目前清單，確定要繼續嗎？')
+    !window.confirm('已有材料供應商分類，工程案資料建構會整批覆蓋目前清單，確定要繼續嗎？')
   ) {
     return
   }
@@ -1746,7 +1746,7 @@ async function generateSupplierCategoriesByAi() {
   try {
     const { categories } = await generateP3SubcontractorCategoriesByAi(cid, selectedDesignChangeId.value)
     if (!Array.isArray(categories) || categories.length === 0) {
-      window.alert('AI 沒有產生任何分類，請手動新增或稍後再試。')
+      window.alert('工程案資料建構沒有產生任何分類，請手動新增或稍後再試。')
       return
     }
     subOrgChartData.value = {
@@ -1754,7 +1754,7 @@ async function generateSupplierCategoriesByAi() {
       materialSuppliers: categories.map((s) => String(s).trim()).filter((s) => s.length > 0),
     }
   } catch (e: any) {
-    const msg = e?.response?.data?.error ?? e?.response?.data?.message ?? e?.message ?? 'AI 生成失敗'
+    const msg = e?.response?.data?.error ?? e?.response?.data?.message ?? e?.message ?? '工程案資料建構失敗'
     window.alert(msg)
   } finally {
     aiLoading.value.subSuppliers = false

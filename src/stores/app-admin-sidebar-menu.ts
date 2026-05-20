@@ -80,8 +80,8 @@ export const useAppAdminSidebarMenuStore = defineStore("appAdminSidebarMenu", ()
         url: "/admin/users",
       },
 
-      // AI 工具測試（僅供管理員驗證設定）
-      { text: "AI 工具測試", is_header: true },
+      // 工程案資料建構工具測試（僅供管理員驗證設定）
+      { text: "工程案資料建構工具測試", is_header: true },
       {
         text: "OCR 測試",
         icon: "bi bi-file-text",

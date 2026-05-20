@@ -1,4 +1,4 @@
-import { ref, computed, watch, onUnmounted } from 'vue'
+import { ref, computed, watch, onUnmounted, nextTick } from 'vue'
 import { useViewPerspective } from '@/composables/useViewPerspective'
 import { useWorkspaceStore } from '@/stores/workspace'
 import {
@@ -42,7 +42,7 @@ export const ENGINEERING_PHASES: EngineeringPhaseItem[] = [
 ]
 
 /**
- * 全案 AI 批次生成（工程案資料建構）：啟動後端 job 並輪詢進度，搭配工程引擎動畫 Modal。
+ * 工程案資料建構批次：啟動後端 job 並輪詢進度，搭配工程引擎動畫 Modal。
  */
 export function useAiBatchEngineeringBuild() {
   const { isSupervisory } = useViewPerspective()
@@ -194,8 +194,14 @@ export function useAiBatchEngineeringBuild() {
   }
 
   function closeAiBatchModal() {
+    const shouldRefreshPage = aiBatchProgress.value?.status === 'DONE'
     aiBatchModalOpen.value = false
     clearPollTimer()
+    if (shouldRefreshPage) {
+      void nextTick(() => {
+        window.location.reload()
+      })
+    }
   }
 
   onUnmounted(() => {

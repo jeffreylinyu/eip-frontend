@@ -217,3 +217,44 @@ export const formatUnifiedCode = (code: string): string => {
 export const toRepublicYear = (year: number): number => {
   return year - 1911
 }
+
+/** 基本資料預覽等 API 回傳之日期欄位 key */
+export const BASIC_PREVIEW_DATE_FIELD_KEYS = new Set([
+  'constructionStartDate',
+  'constructionEndDate',
+  'signDate',
+  'constructionConfirmDate'
+])
+
+/**
+ * 將 yyyy-MM-dd 或含時間的 ISO 字串轉為「民國○○年○月○日」；已是民國格式則原樣回傳。
+ */
+export function formatRepublicDateFromIso(value: string | null | undefined): string {
+  if (value == null || value === '' || value === '—') return '—'
+  if (/民國/.test(value)) return value
+  const m = value.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/)
+  if (!m) return value
+  const roc = parseInt(m[1], 10) - 1911
+  return `民國${roc}年${parseInt(m[2], 10)}月${parseInt(m[3], 10)}日`
+}
+
+export function formatBasicPreviewFieldDisplay(key: string, display: string): string {
+  if (BASIC_PREVIEW_DATE_FIELD_KEYS.has(key)) {
+    return formatRepublicDateFromIso(display)
+  }
+  return display
+}
+
+/** ProjectForm 表單日期欄位（snake_case） */
+export const PROJECT_FORM_DATE_FIELD_KEYS = new Set([
+  'sign_date',
+  'start_date',
+  'completion_date',
+  'construction_confirm_date'
+])
+
+/** 表單唯讀資訊列：民國日期；空值顯示「－」 */
+export function formatProjectFormDateDisplay(value: string | null | undefined): string {
+  const s = formatRepublicDateFromIso(value)
+  return s === '—' ? '－' : s
+}

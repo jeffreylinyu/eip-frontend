@@ -213,7 +213,7 @@ workspaceStore.initWorkspaces();
 				<ViewTypeSwitcher />
 			</div>
 
-      <!-- 工程案資料建構（全案 AI 批次生成） -->
+      <!-- 工程案資料建構（工程案資料建構批次） -->
       <div class="menu-item" v-if="hasCurrentProject && !isAdminMode">
         <EngineeringDataBuildHeaderAction />
       </div>

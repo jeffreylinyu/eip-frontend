@@ -138,55 +138,114 @@
         </div>
       </div>
 
-      <!-- Relations -->
+      <!-- Relations：顯示所有有試驗項關聯的材料，分組可收合 -->
       <div class="mi-col">
-        <div class="border rounded-3 p-3 h-100 mi-card" :class="{ 'mi-disabled-pane': selectedMaterialKey != null && !selectedMaterialUsed }">
-          <div class="d-flex align-items-center justify-content-between mb-2">
-            <div class="fw-semibold">
+        <div class="border rounded-3 p-3 h-100 mi-card">
+          <div class="d-flex align-items-center justify-content-between mb-2 gap-2">
+            <div class="fw-semibold text-nowrap">
               <i class="fa fa-link me-2"></i>已建立關聯
             </div>
-            <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">
-              {{ selectedMaterialKey != null ? materialLinks.length : 0 }}
-            </span>
+            <div class="d-flex align-items-center gap-2 flex-wrap justify-content-end">
+              <span
+                class="badge bg-secondary-subtle text-secondary border border-secondary-subtle"
+                :title="`${groupedMaterialLinks.length} 種材料 / 共 ${totalLinkCount} 筆關聯`"
+              >
+                {{ groupedMaterialLinks.length }} / {{ totalLinkCount }}
+              </span>
+              <div class="d-flex gap-2">
+                <button
+                  class="btn btn-outline-secondary btn-sm"
+                  type="button"
+                  @click="expandAllGroups"
+                  :disabled="groupedMaterialLinks.length === 0"
+                  title="展開全部分組"
+                >
+                  <i class="fa fa-angles-down me-1"></i>全部展開
+                </button>
+                <button
+                  class="btn btn-outline-secondary btn-sm"
+                  type="button"
+                  @click="collapseAllGroups"
+                  :disabled="groupedMaterialLinks.length === 0"
+                  title="收合全部分組"
+                >
+                  <i class="fa fa-angles-up me-1"></i>全部收合
+                </button>
+              </div>
+            </div>
           </div>
 
-          <div v-if="selectedMaterialKey == null" class="text-muted small py-3 text-center">請先選擇材料</div>
-          <div v-else class="table-responsive modal-list">
-            <table class="table table-sm align-middle">
-              <thead>
-                <tr>
-                  <th>試驗項</th>
-                  <th style="width: 72px;"></th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="link in materialLinks" :key="link.id">
-                  <td>
-                    <div class="small text-muted">
-                      {{ testItemById.get(link.pccesCodeId)?.itemNo || '—' }} /
-                      {{ testItemById.get(link.pccesCodeId)?.pccesCode || '—' }}
-                    </div>
-                    <div class="fw-semibold">
-                      {{ testItemById.get(link.pccesCodeId)?.name || `#${link.pccesCodeId}` }}
-                    </div>
-                  </td>
-                  <td class="text-end">
-                    <button
-                      class="btn btn-outline-danger btn-sm"
-                      type="button"
-                      @click="removeLink(link.id)"
-                      :disabled="saving || !selectedMaterialUsed"
-                      title="移除關聯"
-                    >
-                      <i class="fa fa-trash"></i>
-                    </button>
-                  </td>
-                </tr>
-                <tr v-if="materialLinks.length === 0">
-                  <td colspan="2" class="text-muted small text-center py-3">尚未建立關聯</td>
-                </tr>
-              </tbody>
-            </table>
+          <div class="modal-list">
+            <div
+              v-if="groupedMaterialLinks.length === 0"
+              class="text-muted small py-4 text-center"
+            >
+              尚未建立任何材料-試驗項關聯
+            </div>
+            <div
+              v-for="g in groupedMaterialLinks"
+              :key="g.itemCode"
+              class="mi-link-group mb-2"
+            >
+              <button
+                type="button"
+                class="mi-link-header w-100 d-flex align-items-center gap-2"
+                :class="{ 'mi-link-header--current': selectedMaterialKey === g.itemCode }"
+                @click="toggleCollapse(g.itemCode)"
+                :aria-expanded="!collapsedMaterialKeys.has(g.itemCode)"
+              >
+                <i
+                  :class="[
+                    'mi-link-chevron',
+                    collapsedMaterialKeys.has(g.itemCode) ? 'fa fa-chevron-right' : 'fa fa-chevron-down'
+                  ]"
+                ></i>
+                <div class="flex-grow-1 text-start min-w-0">
+                  <div class="small text-muted text-truncate">{{ g.itemCode }}</div>
+                  <div class="fw-semibold mi-link-mat-name">{{ g.materialName }}</div>
+                </div>
+                <span
+                  class="badge bg-primary-subtle text-primary border border-primary-subtle flex-shrink-0"
+                >
+                  {{ g.links.length }}
+                </span>
+              </button>
+              <div
+                v-show="!collapsedMaterialKeys.has(g.itemCode)"
+                class="mi-link-body"
+              >
+                <table class="table table-sm align-middle mb-0">
+                  <tbody>
+                    <tr v-for="link in g.links" :key="link.id">
+                      <td>
+                        <div class="small text-muted">
+                          {{ testItemById.get(link.pccesCodeId)?.itemNo || '—' }} /
+                          {{ testItemById.get(link.pccesCodeId)?.pccesCode || '—' }}
+                        </div>
+                        <div>
+                          {{ testItemById.get(link.pccesCodeId)?.name || `#${link.pccesCodeId}` }}
+                        </div>
+                      </td>
+                      <td class="text-end" style="width: 72px;">
+                        <button
+                          class="btn btn-outline-danger btn-sm"
+                          type="button"
+                          @click="removeLink(link.id, g.itemCode)"
+                          :disabled="saving || !isMaterialUsed(g.itemCode)"
+                          :title="isMaterialUsed(g.itemCode) ? '移除關聯' : '此材料已停用'"
+                        >
+                          <i class="fa fa-trash"></i>
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="error" class="alert alert-danger alert-sm py-1 px-2 mt-2 mb-0 small">
+            <i class="fa fa-circle-exclamation me-1"></i>{{ error }}
           </div>
         </div>
       </div>
@@ -350,10 +409,52 @@ const testItemById = computed(() => {
   return new Map(allTestItems.value.map((t) => [t.id, t]))
 })
 
-const materialLinks = computed(() => {
-  if (!selectedMaterialKey.value) return []
-  return links.value.filter((l) => String(l.itemCode ?? '').trim() === selectedMaterialKey.value)
+/** 「已建立關聯」分組：每個有關聯的材料一組，依 itemCode 排序 */
+type LinkedMaterialGroup = {
+  itemCode: string
+  materialName: string
+  links: PccesMaterialTestItemLink[]
+}
+
+const groupedMaterialLinks = computed<LinkedMaterialGroup[]>(() => {
+  const nameMap = new Map<string, string>()
+  for (const m of props.materials || []) {
+    const code = String(m.itemCode ?? '').trim()
+    if (code) nameMap.set(code, m.name ?? code)
+  }
+  const map = new Map<string, LinkedMaterialGroup>()
+  for (const l of links.value) {
+    const code = String(l.itemCode ?? '').trim()
+    if (!code) continue
+    let g = map.get(code)
+    if (!g) {
+      g = { itemCode: code, materialName: nameMap.get(code) || code, links: [] }
+      map.set(code, g)
+    }
+    g.links.push(l)
+  }
+  return Array.from(map.values()).sort((a, b) => a.itemCode.localeCompare(b.itemCode))
 })
+
+const totalLinkCount = computed(() => links.value.length)
+
+/** 收合的材料 itemCode 集合；不在集合中表示展開（預設全展開） */
+const collapsedMaterialKeys = ref<Set<string>>(new Set())
+
+function toggleCollapse(itemCode: string) {
+  const next = new Set(collapsedMaterialKeys.value)
+  if (next.has(itemCode)) next.delete(itemCode)
+  else next.add(itemCode)
+  collapsedMaterialKeys.value = next
+}
+
+function expandAllGroups() {
+  collapsedMaterialKeys.value = new Set()
+}
+
+function collapseAllGroups() {
+  collapsedMaterialKeys.value = new Set(groupedMaterialLinks.value.map((g) => g.itemCode))
+}
 
 function getLinkCountForMaterial(itemCode: string): number {
   const k = String(itemCode ?? '').trim()
@@ -488,9 +589,9 @@ async function saveForSelectedMaterial() {
   }
 }
 
-async function removeLink(linkId: number) {
-  if (!props.constructionId || selectedMaterialKey.value == null) return
-  if (!selectedMaterialUsed.value) return
+async function removeLink(linkId: number, materialCode: string) {
+  if (!props.constructionId) return
+  if (!isMaterialUsed(materialCode)) return
   saving.value = true
   error.value = ''
   try {
@@ -659,6 +760,65 @@ watch(
   text-overflow: clip;
   line-height: 1.35;
   word-break: break-word;
+}
+
+/* ── 已建立關聯：分組可收合樣式 ── */
+.mi-link-group {
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 0.5rem;
+  overflow: hidden;
+  background: rgba(15, 23, 42, 0.25);
+}
+
+.mi-link-header {
+  appearance: none;
+  background: rgba(148, 163, 184, 0.08);
+  color: #e2e8f0;
+  border: none;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+  text-align: left;
+}
+.mi-link-header:hover {
+  background: rgba(148, 163, 184, 0.18);
+}
+.mi-link-header:focus {
+  outline: none;
+  background: rgba(148, 163, 184, 0.18);
+}
+
+.mi-link-header--current {
+  background: rgba(56, 189, 248, 0.16);
+}
+.mi-link-header--current:hover {
+  background: rgba(56, 189, 248, 0.24);
+}
+
+.mi-link-chevron {
+  width: 12px;
+  flex-shrink: 0;
+  color: #94a3b8;
+  font-size: 0.85rem;
+}
+
+.mi-link-mat-name {
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+.mi-link-body {
+  border-top: 1px solid rgba(148, 163, 184, 0.18);
+  padding: 0.25rem 0.5rem;
+}
+
+.material-inspection-panel :deep(.mi-link-body .table) {
+  margin-bottom: 0;
+  color: #e2e8f0;
+}
+.material-inspection-panel :deep(.mi-link-body .table > :not(caption) > * > *) {
+  padding: 0.4rem 0.5rem;
+  border-color: rgba(148, 163, 184, 0.12);
 }
 
 @media (max-width: 991.98px) {

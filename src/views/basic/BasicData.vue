@@ -15,6 +15,12 @@ import CardBody from '@/components/bootstrap/CardBody.vue'
 import CardHeader from '@/components/bootstrap/CardHeader.vue'
 import VerificationLogList from '@/components/common/VerificationLogList.vue'
 import DesignChangeVersionSwitcher from '@/components/common/DesignChangeVersionSwitcher.vue'
+import Modal from '@/components/bootstrap/Modal.vue'
+import {
+  contractorBasicDataApi,
+  type SupervisoryBasicDataPreviewField
+} from '@/api/contractorBasicData'
+import { formatBasicPreviewFieldDisplay } from '@/utils/format'
 
 
 // 獲取當前實例以訪問 $toast
@@ -26,11 +32,52 @@ const authStore = useAuthStore() // Init auth store
 const route = useRoute()
 const { viewType, initViewType } = useViewPerspective()
 
+const isContractorView = computed(() => viewType.value === 'CONTRACTOR')
+const constructionId = computed(() => workspaceStore.currentProject?.id ?? '')
+
 // 檢查是否為空狀態（當前視角沒有資料）
 const isEmptyState = ref(false)
 
 // 變更設計版本：null = 預設版，數字 = 該變更設計 ID
 const selectedDesignChangeId = ref<number | null>(null)
+
+const showSupervisoryBasicModal = ref(false)
+const supervisoryBasicPreviewRows = ref<SupervisoryBasicDataPreviewField[]>([])
+const supervisoryBasicPreviewLoading = ref(false)
+const isCopyingSupervisoryBasic = ref(false)
+const supervisoryVersionAvailable = ref(true)
+const contractorVersionLabel = ref<string | null>(null)
+const resolvedSupervisoryVersionLabel = ref<string | null>(null)
+
+const supervisoryBasicPreviewHint = computed(() =>
+  selectedDesignChangeId.value != null
+    ? '版次對應規則：原契約↔原契約、第一次↔第一次…。僅顯示變更設計可編輯欄位；複製將一律覆寫營造目前版本（含空值）。'
+    : '版次對應規則：原契約↔原契約。複製將覆寫營造預設版欄位（不含工程名稱／契約編號、保險及雙方專用欄位）。'
+)
+
+const supervisorySourceVersionLabel = computed(() => {
+  if (!supervisoryVersionAvailable.value) return '監造無此版本'
+  return resolvedSupervisoryVersionLabel.value?.trim() || '—'
+})
+
+const supervisoryVersionCopyBanner = computed(() => ({
+  contractor: contractorVersionLabel.value?.trim() || '原契約',
+  supervisory: supervisorySourceVersionLabel.value
+}))
+
+const copySupervisoryBasicConfirmText = computed(() => {
+  const c = supervisoryVersionCopyBanner.value.contractor
+  const s = supervisoryVersionCopyBanner.value.supervisory
+  return selectedDesignChangeId.value != null
+    ? `確定將監造「${s}」的基本資料（版本欄位）複製到營造「${c}」？\n將一律覆寫對應欄位，此操作無法復原。`
+    : `確定將監造「${s}」的基本資料複製到營造「${c}」？\n將一律覆寫對應欄位，此操作無法復原。`
+})
+
+const copySupervisoryBasicButtonText = computed(() => {
+  const c = supervisoryVersionCopyBanner.value.contractor
+  const s = supervisorySourceVersionLabel.value
+  return `複製：監造「${s}」→ 營造「${c}」`
+})
 
 // 表單數據
 const formData = ref({
@@ -206,6 +253,9 @@ const selectVersionTab = async (designChangeId: number | null) => {
       isVersionSwitching.value = false
     }
   }
+  if (showSupervisoryBasicModal.value) {
+    void loadSupervisoryBasicPreview()
+  }
 }
 
 // 監聽當前工程案變化 - 使用更安全的方式
@@ -270,6 +320,76 @@ watch(
 onUnmounted(() => {
   debouncedAutoSave.cancel()
 })
+
+function openSupervisoryBasicModal() {
+  showSupervisoryBasicModal.value = true
+  void loadSupervisoryBasicPreview()
+}
+
+async function loadSupervisoryBasicPreview() {
+  const cid = constructionId.value
+  if (!cid) return
+  supervisoryBasicPreviewLoading.value = true
+  try {
+    const result = await contractorBasicDataApi.getSupervisoryPreview(
+      cid,
+      selectedDesignChangeId.value
+    )
+    supervisoryBasicPreviewRows.value = result.fields
+    supervisoryVersionAvailable.value = result.supervisoryVersionAvailable !== false
+    contractorVersionLabel.value = result.contractorVersionLabel ?? null
+    resolvedSupervisoryVersionLabel.value = result.resolvedSupervisoryVersionLabel ?? null
+  } catch (e) {
+    console.error(e)
+    supervisoryBasicPreviewRows.value = []
+    supervisoryVersionAvailable.value = false
+    contractorVersionLabel.value = null
+    resolvedSupervisoryVersionLabel.value = null
+    proxy.$toast?.error?.('無法載入監造基本資料')
+  } finally {
+    supervisoryBasicPreviewLoading.value = false
+  }
+}
+
+function normalizeBasicPreviewDisplay(value: string): string {
+  const t = (value ?? '').trim()
+  return t === '—' ? '' : t
+}
+
+function isSupervisoryBasicPreviewDiff(row: SupervisoryBasicDataPreviewField): boolean {
+  if (row.supervisoryDisplay === '監造無此版本' || !supervisoryVersionAvailable.value) return false
+  const sup = formatBasicPreviewFieldDisplay(row.key, row.supervisoryDisplay)
+  const con = formatBasicPreviewFieldDisplay(row.key, row.contractorDisplay)
+  return normalizeBasicPreviewDisplay(sup) !== normalizeBasicPreviewDisplay(con)
+}
+
+async function copySupervisoryBasicToContractor() {
+  const cid = constructionId.value
+  if (!cid) return
+  if (!window.confirm(copySupervisoryBasicConfirmText.value)) return
+  isCopyingSupervisoryBasic.value = true
+  try {
+    await contractorBasicDataApi.copyFromSupervisory(cid, {
+      contractorDesignChangeId: selectedDesignChangeId.value
+    })
+    showSupervisoryBasicModal.value = false
+    proxy.$toast?.success?.('已複製監造基本資料')
+    isUpdatingFormData.value = true
+    try {
+      await loadCurrentProjectData(selectedDesignChangeId.value)
+      originalFormData.value = JSON.parse(JSON.stringify(formData.value))
+      hasUnsavedChanges.value = false
+    } finally {
+      isUpdatingFormData.value = false
+    }
+  } catch (e: any) {
+    console.error(e)
+    const msg = e?.response?.data?.message ?? e?.message ?? '複製失敗'
+    proxy.$toast?.error?.(msg)
+  } finally {
+    isCopyingSupervisoryBasic.value = false
+  }
+}
 
 // 方法定義
 // 載入當前工程案資料（可指定變更設計版本；null = 預設版）
@@ -766,13 +886,131 @@ onMounted(async () => {
 		]"
 	>
 		<template #extra>
-			<DesignChangeVersionSwitcher
-				v-if="!isEmptyState"
-				:model-value="selectedDesignChangeId"
-				@update:model-value="selectVersionTab"
-			/>
+			<div v-if="!isEmptyState" class="d-flex flex-wrap align-items-center gap-2">
+				<button
+					v-if="isContractorView && isProjectAdmin"
+					type="button"
+					class="btn btn-sm btn-outline-primary"
+					title="預覽監造基本資料並複製至營造"
+					@click="openSupervisoryBasicModal"
+				>
+					<i class="fa fa-eye me-1"></i>
+					監造填寫預覽
+				</button>
+				<DesignChangeVersionSwitcher
+					:model-value="selectedDesignChangeId"
+					:construction-id="constructionId || undefined"
+					:source-type="isContractorView ? 'CONTRACTOR' : 'SUPERVISORY'"
+					@update:model-value="selectVersionTab"
+				/>
+			</div>
 		</template>
 	</PageHeader>
+
+	<Modal
+		v-if="isContractorView"
+		:show="showSupervisoryBasicModal"
+		title=""
+		icon=""
+		size="xl"
+		modal-id="contractor-basic-data-supervisory-preview"
+		:hide-confirm-button="true"
+		:hide-cancel-button="true"
+		@update:show="showSupervisoryBasicModal = $event"
+	>
+		<template #header>
+			<span class="fw-bold">監造填寫預覽</span>
+		</template>
+		<p class="text-muted small mb-2">{{ supervisoryBasicPreviewHint }}</p>
+		<div
+			class="alert py-2 px-3 mb-3 small mb-0"
+			:class="supervisoryVersionAvailable ? 'alert-light border' : 'alert-warning'"
+			role="status"
+		>
+			<div class="fw-semibold mb-1">複製版本對照</div>
+			<div>
+				<span class="text-muted">營造目前版本：</span>
+				<span class="fw-semibold">{{ supervisoryVersionCopyBanner.contractor }}</span>
+			</div>
+			<div class="mt-1">
+				<span class="text-muted">複製來源（監造）：</span>
+				<span class="fw-semibold" :class="{ 'text-warning': !supervisoryVersionAvailable }">
+					{{ supervisoryVersionCopyBanner.supervisory }}
+				</span>
+			</div>
+		</div>
+		<p class="text-muted small mb-2">
+			<span class="d-block"><span class="text-danger fw-semibold">紅字</span>表示監造值與營造目前值不一致。</span>
+		</p>
+		<div v-if="supervisoryBasicPreviewLoading" class="text-center py-4 text-muted">
+			<i class="fa fa-spinner fa-spin me-2"></i>載入中…
+		</div>
+		<div v-else class="supervisory-preview-report-card">
+			<div class="supervisory-preview-report-card__body">
+				<div class="table-responsive">
+					<table class="table table-hover align-middle mb-0">
+						<thead>
+							<tr>
+								<th style="width: 50px">#</th>
+								<th style="min-width: 140px">欄位</th>
+								<th>監造值</th>
+								<th>營造目前值</th>
+							</tr>
+						</thead>
+						<tbody>
+							<tr v-if="supervisoryBasicPreviewRows.length === 0">
+								<td colspan="4" class="text-center text-muted py-4">尚無可顯示欄位</td>
+							</tr>
+							<tr
+								v-for="(row, idx) in supervisoryBasicPreviewRows"
+								:key="row.key"
+								:class="{ 'basic-preview-row--diff': isSupervisoryBasicPreviewDiff(row) }"
+							>
+								<td class="text-center text-muted">{{ idx + 1 }}</td>
+								<td>
+									{{ row.label }}
+									<div v-if="row.displayHint" class="text-muted fw-normal mt-1" style="font-size: 0.75rem">
+										{{ row.displayHint }}
+									</div>
+								</td>
+								<td
+									class="small"
+									:class="isSupervisoryBasicPreviewDiff(row) ? 'text-danger fw-semibold' : ''"
+								>
+									{{ formatBasicPreviewFieldDisplay(row.key, row.supervisoryDisplay) }}
+								</td>
+								<td
+									class="small"
+									:class="
+										isSupervisoryBasicPreviewDiff(row)
+											? 'text-danger fw-semibold'
+											: 'text-muted'
+									"
+								>
+									{{ formatBasicPreviewFieldDisplay(row.key, row.contractorDisplay) }}
+								</td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+			</div>
+		</div>
+		<template #footer>
+			<button type="button" class="btn btn-outline-secondary" @click="showSupervisoryBasicModal = false">
+				關閉
+			</button>
+			<button
+				type="button"
+				class="btn btn-primary"
+				:disabled="isCopyingSupervisoryBasic || !constructionId || !isProjectAdmin || !supervisoryVersionAvailable"
+				@click="copySupervisoryBasicToContractor"
+			>
+				<i v-if="isCopyingSupervisoryBasic" class="fa fa-spinner fa-spin me-1"></i>
+				<i v-else class="fa fa-copy me-1"></i>
+				{{ isCopyingSupervisoryBasic ? '複製中…' : copySupervisoryBasicButtonText }}
+			</button>
+		</template>
+	</Modal>
 
 	<div class="row gx-4">
 		<div class="col-lg-12">
@@ -880,4 +1118,25 @@ onMounted(async () => {
   box-shadow: 0 0 0 0.2rem rgba(var(--bs-theme-rgb), 0.25);
 }
 
+.supervisory-preview-report-card {
+  position: relative;
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.92), rgba(30, 41, 59, 0.85));
+  color: var(--bs-body-color);
+  border: 1px solid var(--bs-border-color-translucent);
+  border-radius: 0.375rem;
+  overflow: hidden;
+}
+
+.supervisory-preview-report-card__body {
+  padding: 0;
+}
+
+.contractor-supervisory-modal-title {
+  font-size: 1.1rem;
+  line-height: 1.3;
+}
+
+.basic-preview-row--diff {
+  background-color: rgba(220, 53, 69, 0.08);
+}
 </style>

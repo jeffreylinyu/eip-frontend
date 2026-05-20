@@ -19,6 +19,7 @@ import {
 } from '@/api/construction'
 import { useRouter } from 'vue-router'
 import { useViewPerspective, ViewType } from '@/composables/useViewPerspective'
+import { useDailyReportLabels } from '@/composables/useDailyReportLabels'
 
 const workspaceStore = useWorkspaceStore()
 const router = useRouter()
@@ -41,6 +42,15 @@ const dailyReportOwnerTypeQueryParam = computed((): string | undefined => {
   if (raw === 'CONTRACTOR') return 'CONTRACTOR'
   return undefined
 })
+
+const dailyReportOwnerTypeForLabel = computed(
+  (): 'SUPERVISORY' | 'CONTRACTOR' | undefined =>
+    dailyReportOwnerTypeQueryParam.value === 'SUPERVISORY' ||
+    dailyReportOwnerTypeQueryParam.value === 'CONTRACTOR'
+      ? dailyReportOwnerTypeQueryParam.value
+      : undefined
+)
+const { dailyLogLabel } = useDailyReportLabels(dailyReportOwnerTypeForLabel)
 
 // 狀態
 const currentDate = ref(new Date())
@@ -852,7 +862,7 @@ onBeforeUnmount(() => {
             <div class="d-flex justify-content-between align-items-center">
             <h6 class="mb-0">
                 <i class="fa fa-clipboard-list me-2"></i>
-                施工日誌
+                {{ dailyLogLabel }}
             </h6>
               <button 
                 v-if="dailyReport && selectedDateInfo"
@@ -879,13 +889,13 @@ onBeforeUnmount(() => {
             </div>
             <div v-else-if="!dailyReport" class="text-center py-3 text-muted">
               <i class="fa fa-file-alt fa-2x mb-2"></i>
-              <p class="mb-0 small">該日期尚未建立施工日誌</p>
+              <p class="mb-0 small">該日期尚未建立{{ dailyLogLabel }}</p>
               <button 
                 class="btn btn-sm btn-primary mt-3"
                 @click="goToDailyReport"
               >
                 <i class="fa fa-plus me-1"></i>
-                建立施工日誌
+                建立{{ dailyLogLabel }}
               </button>
             </div>
             <div v-else class="daily-report-info">
@@ -970,7 +980,7 @@ onBeforeUnmount(() => {
                   @click="goToDailyReport"
                 >
                   <i class="fa fa-edit me-2"></i>
-                  編輯施工日誌
+                  編輯{{ dailyLogLabel }}
                 </button>
               </div>
             </div>

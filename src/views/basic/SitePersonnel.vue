@@ -8,15 +8,6 @@
         { text: '基本資料管理', href: 'javascript:;' },
         { text: '工地人員管理', active: true }
       ]"
-      :actions="[
-        {
-          text: '複製 Debug',
-          icon: 'fa fa-copy',
-          variant: 'btn-outline-secondary',
-          click: copyDebugSnapshot,
-          disabled: !debugSnapshot
-        }
-      ]"
     />
 
     <!-- 錯誤提示 -->
@@ -578,41 +569,6 @@ const assignmentStartDate = ref<string>('')
 // 當前專案
 const currentProject = computed(() => projectStore.currentProject)
 
-function dlog(...args: any[]) {
-  console.log('[SitePersonnelDebug]', ...args)
-}
-
-const debugSnapshot = ref<string>('')
-
-async function copyToClipboard(text: string): Promise<void> {
-  if (navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(text)
-    return
-  }
-  // fallback
-  const ta = document.createElement('textarea')
-  ta.value = text
-  ta.style.position = 'fixed'
-  ta.style.left = '-9999px'
-  ta.style.top = '0'
-  document.body.appendChild(ta)
-  ta.focus()
-  ta.select()
-  document.execCommand('copy')
-  document.body.removeChild(ta)
-}
-
-async function copyDebugSnapshot() {
-  try {
-    if (!debugSnapshot.value) return
-    await copyToClipboard(debugSnapshot.value)
-    alert('已複製 Debug 資訊到剪貼簿')
-  } catch (e) {
-    console.error('複製失敗', e)
-    alert('複製失敗，請看 Console 錯誤')
-  }
-}
-
 /** 兼容不同專案 ID 欄位（constructionId / constructionProjectId） */
 function getCurrentProjectIdCandidates(): string[] {
   const p: any = currentProject.value
@@ -972,86 +928,8 @@ const loadData = async () => {
    
    isLoading.value = true
    try {
-     const p: any = currentProject.value
-     dlog('route', { href: window.location.href })
-     dlog('currentProject', {
-       constructionId: p?.constructionId,
-       constructionProjectId: p?.constructionProjectId,
-       constructionName: p?.constructionName
-     })
-     dlog('projectIdCandidates', getCurrentProjectIdCandidates())
-     dlog('companyIdForPersonnelList', companyId)
-
      allPersonnel.value = await sitePersonnelApi.getList(companyId)
-     const memberIdsAll = allPersonnel.value.map(x => x.memberId).filter(Boolean)
-     const memberIdCounts = memberIdsAll.reduce((acc: Record<string, number>, id) => {
-       acc[id] = (acc[id] || 0) + 1
-       return acc
-     }, {})
-     const duplicateMemberIds = Object.entries(memberIdCounts)
-       .filter(([, c]) => c > 1)
-       .map(([id, c]) => ({ memberId: id, count: c }))
-
-     const companyListLoadedPayload = {
-       total: allPersonnel.value.length,
-       withAssignments: allPersonnel.value.filter(x => (x.assignments || []).length > 0).length,
-       withoutAssignments: allPersonnel.value.filter(x => !(x.assignments || []).length).length,
-       memberIds: memberIdsAll.slice().sort(),
-       duplicateMemberIds,
-       distinctAssignmentConstructionIdsSample: Array.from(
-         new Set(
-           allPersonnel.value
-             .flatMap(x => (x.assignments || []).map(a => a.constructionId))
-             .filter(Boolean)
-         )
-       ).slice(0, 25)
-     }
-     dlog('companyListLoaded', companyListLoadedPayload)
-
      await nextTick()
-     const postReactivePayload = {
-       assignedPersonnel: assignedPersonnel.value.length,
-       assignedPersonnelSorted: assignedPersonnelSorted.value.length,
-       availablePersonnel: availablePersonnel.value.length,
-       currentProjectExists: !!currentProject.value
-     }
-     dlog('postReactive', postReactivePayload)
-
-     if (getCurrentProjectIdCandidates().length) {
-       const ids = getCurrentProjectIdCandidates()
-       const hit = allPersonnel.value.filter(pp => {
-         const list = pp.assignments || []
-         return list.some(a => ids.includes(a.constructionId))
-       })
-       const missWithAssignments = allPersonnel.value.filter(pp => (pp.assignments || []).length > 0 && !hit.includes(pp))
-       const matchSummaryPayload = {
-         matchedPeople: hit.length,
-         unmatchedButHasAssignments: missWithAssignments.length
-       }
-       dlog('matchSummary', matchSummaryPayload)
-       dlog(
-         'unmatchedExamples',
-         missWithAssignments.slice(0, 10).map(pp => ({
-           memberId: pp.memberId,
-           fullName: pp.fullName,
-           assignmentConstructionIds: (pp.assignments || []).map(a => a.constructionId),
-           assignmentFlags: (pp.assignments || []).map(a => ({ id: a.id, isActive: a.isActive, workStartDate: a.workStartDate, workEndDate: a.workEndDate }))
-         }))
-       )
-
-       // 產生一鍵複製的快照（避免你要手動選取 Console）
-       debugSnapshot.value = [
-         '=== SitePersonnel Debug Snapshot ===',
-         `time: ${new Date().toISOString()}`,
-         `href: ${window.location.href}`,
-         `currentProject: ${JSON.stringify({ constructionId: p?.constructionId, constructionProjectId: p?.constructionProjectId, constructionName: p?.constructionName }, null, 2)}`,
-         `projectIdCandidates: ${JSON.stringify(getCurrentProjectIdCandidates(), null, 2)}`,
-         `companyIdForPersonnelList: ${companyId}`,
-         `companyListLoaded: ${JSON.stringify(companyListLoadedPayload, null, 2)}`,
-         `postReactive: ${JSON.stringify(postReactivePayload, null, 2)}`,
-         `matchSummary: ${JSON.stringify(matchSummaryPayload, null, 2)}`,
-       ].join('\n')
-     }
      personnelListKey.value += 1
    } catch (error) {
      console.error('載入人員失敗', error)

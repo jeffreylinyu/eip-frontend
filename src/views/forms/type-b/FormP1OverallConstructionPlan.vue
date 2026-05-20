@@ -70,11 +70,11 @@
               type="button"
               class="btn-ai-generate p1-batch-ai-btn"
               :disabled="isAiGenerating || isExporting || !currentProject?.id"
-              title="依目前版本標單／分項／工程地點，由 AI 一次生成本頁所有可生成的文字與表格欄位"
+              title="依目前版本標單／分項／工程地點，由工程案資料建構一次生成本頁所有可生成的文字與表格欄位"
               @click="generateAllByAi"
             >
               <i class="fa me-2" :class="isAiGenerating ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
-              <span>{{ isAiGenerating ? '生成中…' : '一鍵 AI 生成' }}</span>
+              <span>{{ isAiGenerating ? '生成中…' : '一鍵工程案資料建構' }}</span>
             </button>
             <button type="button" class="btn b2-export-btn" :disabled="isExporting" @click="exportWord">
               <i class="fa fa-file-word"></i>
@@ -90,7 +90,7 @@
           <div v-if="isAiGenerating" class="text-panels__ai-overlay" aria-live="polite">
             <div class="text-panels__ai-overlay-inner">
               <i class="fa fa-spinner fa-spin fa-2x mb-2 text-primary"></i>
-              <div class="fw-semibold">AI 生成中…</div>
+              <div class="fw-semibold">工程案資料建構中…</div>
               <div class="small text-muted mt-1">產生內容後會自動儲存至目前版本</div>
             </div>
           </div>
@@ -114,7 +114,7 @@
                         class="fa me-2"
                         :class="aiLoading.scaleOverview ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"
                       ></i>
-                      {{ aiLoading.scaleOverview ? '生成中…' : '依標單 AI 生成' }}
+                      {{ aiLoading.scaleOverview ? '生成中…' : '依標單工程案資料建構' }}
                     </button>
                   </div>
                 </div>
@@ -147,7 +147,7 @@
                         class="fa me-2"
                         :class="aiLoading.executionDirection ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"
                       ></i>
-                      {{ aiLoading.executionDirection ? '生成中…' : '依標單 AI 生成' }}
+                      {{ aiLoading.executionDirection ? '生成中…' : '依標單工程案資料建構' }}
                     </button>
                   </div>
                 </div>
@@ -181,7 +181,7 @@
                       @click="generateConstructionProcessOverviewByAi"
                     >
                       <i class="fa me-2" :class="aiLoading.processOverview ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'" />
-                      {{ aiLoading.processOverview ? '生成中…' : '依標單與分項 AI 生成' }}
+                      {{ aiLoading.processOverview ? '生成中…' : '依標單與分項工程案資料建構' }}
                     </button>
                   </div>
                 </div>
@@ -190,7 +190,7 @@
                     v-model="p1ConstructionProcessOverview"
                     class="form-control text-panel__textarea"
                     rows="6"
-                    placeholder="請輸入施工流程概述，或使用 AI 生成"
+                    placeholder="請輸入施工流程概述，或使用工程案資料建構"
                     @input="scheduleAutoSave"
                   />
                 </div>
@@ -208,14 +208,14 @@
                       @click="generateConstructionProcessFlowByAi"
                     >
                       <i class="fa me-2" :class="aiLoading.processFlow ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'" />
-                      {{ aiLoading.processFlow ? '生成中…' : '依標單與分項 AI 生成流程圖' }}
+                      {{ aiLoading.processFlow ? '生成中…' : '依標單與分項工程案資料建構流程圖' }}
                     </button>
                   </div>
                 </div>
                 <div class="text-panel__body p1-flow-chart-body">
                   <P1ConstructionProcessFlowEditor ref="p1FlowEditorRef" v-model="p1ConstructionProcessFlowJson" />
                   <p class="small text-muted mb-0 mt-2">
-                    左側為預覽，右側可維護節點與連線；亦可使用上方 AI 生成後再調整。
+                    左側為預覽，右側可維護節點與連線；亦可使用上方工程案資料建構後再調整。
                   </p>
                 </div>
               </div>
@@ -235,7 +235,7 @@
                     <div class="text-panel__toolbar">
                       <button v-if="isSuperAdmin" type="button" class="btn-ai-generate" :disabled="isAiGenerating || !currentProject?.id" @click="generateSiteJudgementByAi('GEOLOGY_OVERVIEW')">
                         <i class="fa me-2" :class="aiLoading.geology ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
-                        {{ aiLoading.geology ? '生成中…' : '依工程地址 AI 生成' }}
+                        {{ aiLoading.geology ? '生成中…' : '依工程地址工程案資料建構' }}
                       </button>
                     </div>
                   </div>
@@ -250,7 +250,7 @@
                     <div class="text-panel__toolbar">
                       <button v-if="isSuperAdmin" type="button" class="btn-ai-generate" :disabled="isAiGenerating || !currentProject?.id" @click="generateSiteJudgementByAi('METEOROLOGY_HYDROLOGY')">
                         <i class="fa me-2" :class="aiLoading.meteo ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
-                        {{ aiLoading.meteo ? '生成中…' : '依工程地址 AI 生成' }}
+                        {{ aiLoading.meteo ? '生成中…' : '依工程地址工程案資料建構' }}
                       </button>
                     </div>
                   </div>
@@ -318,7 +318,7 @@
                       @click="fillManpowerFromSubdivisionsByAi"
                     >
                       <i class="fa me-2" :class="isAiGenerating ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
-                      {{ isAiGenerating ? '生成中…' : '帶入分項並 AI 填群組' }}
+                      {{ isAiGenerating ? '生成中…' : '帶入分項並工程案資料建構填群組' }}
                     </button>
                     <button type="button" class="btn-default-fill" @click="addManpowerRow">新增一列</button>
                   </div>
@@ -381,7 +381,7 @@
                         </td>
                       </tr>
                       <tr v-if="p1ManpowerEntrySchedule.length === 0">
-                        <td colspan="7" class="text-center text-muted py-3">尚無資料，請新增或使用 AI 帶入分項。</td>
+                        <td colspan="7" class="text-center text-muted py-3">尚無資料，請新增或使用工程案資料建構帶入分項。</td>
                       </tr>
                     </tbody>
                   </table>
@@ -562,7 +562,7 @@
                       <div class="text-panel__toolbar table-toolbar-inline">
                         <button v-if="isSuperAdmin" type="button" class="btn-ai-generate" :disabled="isAiGenerating || !currentProject?.id" @click="generateMechanicalResourceNamesByAi">
                           <i class="fa me-2" :class="isAiGenerating ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
-                          {{ isAiGenerating ? '生成中…' : '依標單 AI 生成資源名稱' }}
+                          {{ isAiGenerating ? '生成中…' : '依標單工程案資料建構資源名稱' }}
                         </button>
                         <button type="button" class="btn-default-fill" @click="addMechanicalResourceRow">新增一列</button>
                       </div>
@@ -601,7 +601,7 @@
                             <td><button type="button" class="btn btn-sm btn-outline-danger" @click="removeMechanicalResourceRow(idx)"><i class="fa fa-trash"></i></button></td>
                           </tr>
                           <tr v-if="p1MechanicalResources.length === 0">
-                            <td colspan="6" class="text-center text-muted py-3">尚無資料，請新增或使用 AI 生成。</td>
+                            <td colspan="6" class="text-center text-muted py-3">尚無資料，請新增或使用工程案資料建構。</td>
                           </tr>
                         </tbody>
                       </table>
@@ -615,7 +615,7 @@
                     <div class="text-panel__toolbar">
                       <button v-if="isSuperAdmin" type="button" class="btn-ai-generate" :disabled="isAiGenerating || !currentProject?.id" @click="generateMaterialMarketSurveyByAi">
                         <i class="fa me-2" :class="isAiGenerating ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
-                        {{ isAiGenerating ? '生成中…' : '依標單 AI 生成' }}
+                        {{ isAiGenerating ? '生成中…' : '依標單工程案資料建構' }}
                       </button>
                     </div>
                   </div>
@@ -874,7 +874,7 @@
                               class="fa me-2"
                               :class="aiLoading.drainageSurrounding ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"
                             ></i>
-                            {{ aiLoading.drainageSurrounding ? '生成中…' : '依工程與標單 AI 生成' }}
+                            {{ aiLoading.drainageSurrounding ? '生成中…' : '依工程與標單工程案資料建構' }}
                           </button>
                         </div>
                       </div>
@@ -903,7 +903,7 @@
                               class="fa me-2"
                               :class="aiLoading.drainageDewatering ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"
                             ></i>
-                            {{ aiLoading.drainageDewatering ? '生成中…' : '依工程與標單 AI 生成' }}
+                            {{ aiLoading.drainageDewatering ? '生成中…' : '依工程與標單工程案資料建構' }}
                           </button>
                         </div>
                       </div>
@@ -1998,7 +1998,7 @@ async function generateConstructionProcessOverviewByAi() {
     const res = await getP1ConstructionProcessOverviewAiGenerate(cid, selectedDesignChangeId.value)
     const text = res?.text?.trim() ?? ''
     if (!text) {
-      window.alert('目前版本無標單或分項資料，或 AI 未產出內容。請先維護標單／分項工程。')
+      window.alert('目前版本無標單或分項資料，或 工程案資料建構未產出內容。請先維護標單／分項工程。')
       return
     }
     p1ConstructionProcessOverview.value = text
@@ -2021,7 +2021,7 @@ async function generateConstructionProcessFlowByAi() {
     const res = await getP1ConstructionProcessFlowAiGenerate(cid, selectedDesignChangeId.value)
     const flowJson = res?.flowJson?.trim() ?? ''
     if (!flowJson) {
-      window.alert('目前版本無標單或分項資料，或 AI 未產出內容。請先維護標單／分項工程。')
+      window.alert('目前版本無標單或分項資料，或 工程案資料建構未產出內容。請先維護標單／分項工程。')
       return
     }
     p1ConstructionProcessFlowJson.value = flowJson
@@ -2044,7 +2044,7 @@ async function generateByAi() {
     const res = await getP1TextAiGenerate(cid, selectedDesignChangeId.value)
     const text = res?.text?.trim() ?? ''
     if (!text) {
-      window.alert('目前版本無標單資料，或 AI 未產出內容。請先匯入標單或手動填寫。')
+      window.alert('目前版本無標單資料，或 工程案資料建構未產出內容。請先匯入標單或手動填寫。')
       return
     }
     p1ConstructionScaleOverview.value = text
@@ -2067,7 +2067,7 @@ async function generateConstructionExecutionDirectionByAi() {
     const res = await getP1ConstructionExecutionDirectionAiGenerate(cid, selectedDesignChangeId.value)
     const text = res?.text?.trim() ?? ''
     if (!text) {
-      window.alert('目前版本無標單資料，或 AI 未產出內容。請先匯入標單或手動填寫。')
+      window.alert('目前版本無標單資料，或 工程案資料建構未產出內容。請先匯入標單或手動填寫。')
       return
     }
     p1ConstructionExecutionDirection.value = text
@@ -2117,7 +2117,7 @@ async function generateSiteJudgementByAi(field: P1SiteJudgementAiField) {
     const res = await getP1SiteJudgementAiGenerate(cid, field, selectedDesignChangeId.value)
     const text = res?.text?.trim() ?? ''
     if (!text) {
-      window.alert('工程地址為空，或 AI 未產出內容。請先確認工程地點。')
+      window.alert('工程地址為空，或 工程案資料建構未產出內容。請先確認工程地點。')
       return
     }
     if (field === 'GEOLOGY_OVERVIEW') p1GeologyOverview.value = text
@@ -2343,7 +2343,7 @@ async function generateMechanicalResourceNamesByAi() {
     const res = await getP1MechanicalResourcesAiGenerate(cid, selectedDesignChangeId.value)
     const names = (res?.names || []).map((v) => (v ?? '').toString().trim()).filter((v) => v.length > 0)
     if (names.length === 0) {
-      window.alert('目前版本無標單資料，或 AI 未產出內容。')
+      window.alert('目前版本無標單資料，或 工程案資料建構未產出內容。')
       return
     }
     p1MechanicalResources.value = names.map((name) => ({
@@ -2369,7 +2369,7 @@ async function generateMaterialMarketSurveyByAi() {
     const res = await getP1MaterialMarketSurveyAiGenerate(cid, selectedDesignChangeId.value)
     const text = res?.text?.trim() ?? ''
     if (!text) {
-      window.alert('目前版本無標單資料，或 AI 未產出內容。')
+      window.alert('目前版本無標單資料，或 工程案資料建構未產出內容。')
       return
     }
     p1MaterialMarketSurvey.value = text
@@ -2383,12 +2383,12 @@ async function generateMaterialMarketSurveyByAi() {
 }
 
 /**
- * 一鍵 AI 生成（P-1）
+ * 一鍵工程案資料建構（P-1）
  *
  * 設計目標
- * - 並行呼叫頁面上所有可由 AI 生成的欄位 / 表格，最後一次性 saveP1Texts，
+ * - 並行呼叫頁面上所有可由 工程案資料建構的欄位 / 表格，最後一次性 saveP1Texts，
  *   避免 11 個個別函式各自 PUT 造成的 race condition 與多餘的網路往返。
- * - 整段流程由 isAiGenerating 維持 true，使用者看到一個完整的 AI 生成中遮罩；
+ * - 整段流程由 isAiGenerating 維持 true，使用者看到一個完整的 工程案資料建構中遮罩；
  *   個別欄位的 aiLoading.* 也同步點亮，讓視覺進度與既有按鈕一致。
  * - 任一項目失敗只影響該項目，其餘成功項目仍會被套用並儲存；
  *   失敗清單於結束時以單一 alert 呈現，避免反覆彈窗打斷使用者。
@@ -2481,7 +2481,7 @@ async function generateAllByAi() {
       run: async () => {
         const res = await getP1SiteJudgementAiGenerate(cid, 'GEOLOGY_OVERVIEW', dcid)
         const t = res?.text?.trim() ?? ''
-        if (!t) return { ok: false, reason: '工程地址為空或 AI 未產出內容' }
+        if (!t) return { ok: false, reason: '工程地址為空或 工程案資料建構未產出內容' }
         p1GeologyOverview.value = t
         return { ok: true }
       },
@@ -2492,7 +2492,7 @@ async function generateAllByAi() {
       run: async () => {
         const res = await getP1SiteJudgementAiGenerate(cid, 'METEOROLOGY_HYDROLOGY', dcid)
         const t = res?.text?.trim() ?? ''
-        if (!t) return { ok: false, reason: '工程地址為空或 AI 未產出內容' }
+        if (!t) return { ok: false, reason: '工程地址為空或 工程案資料建構未產出內容' }
         p1MeteorologyHydrology.value = t
         return { ok: true }
       },
@@ -2611,7 +2611,7 @@ async function generateAllByAi() {
       window.alert(
         '部分項目未生成（其餘已成功生成並儲存）：\n- '
           + failed.join('\n- ')
-          + '\n\n可單獨重試失敗項目，或先補齊標單／分項工程／工程地點等資料後再執行一鍵 AI 生成。',
+          + '\n\n可單獨重試失敗項目，或先補齊標單／分項工程／工程地點等資料後再執行一鍵工程案資料建構。',
       )
     }
   } catch (e: any) {
@@ -2619,7 +2619,7 @@ async function generateAllByAi() {
       e?.response?.data?.error
       || e?.response?.data?.detail
       || e?.message
-      || '一鍵 AI 生成過程發生錯誤'
+      || '一鍵工程案資料建構過程發生錯誤'
     if (typeof window.alert === 'function') window.alert(msg)
   } finally {
     aiLoading.value.scaleOverview = false
@@ -2856,7 +2856,7 @@ watch(
 .p1-info-icon:focus-visible::before {
   opacity: 1;
 }
-/** 一鍵 AI 生成（toolbar 內）：尺寸與字級對齊「匯出 Word」按鈕 */
+/** 一鍵工程案資料建構（toolbar 內）：尺寸與字級對齊「匯出 Word」按鈕 */
 .p1-batch-ai-btn {
   padding: 0.5rem 1.2rem;
   font-size: 0.9375rem;

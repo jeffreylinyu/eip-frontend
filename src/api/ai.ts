@@ -1,6 +1,6 @@
 import http from '@/api/http'
 
-/** 目前 AI 設定（僅供顯示，不含 API Key） */
+/** 目前工程案資料建構設定（僅供顯示，不含 API Key） */
 export interface AiConfigDto {
   documentAi: {
     projectId: string

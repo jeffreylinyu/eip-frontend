@@ -149,7 +149,7 @@
                   <th class="text-nowrap" style="width: 10rem;">發文者</th>
                   <th class="text-nowrap" style="width: 10rem;">受文者</th>
                   <th class="text-nowrap" style="width: 8rem;">發文日期</th>
-                  <th class="text-nowrap text-center" style="width: 8rem;">操作</th>
+                  <th class="text-nowrap text-center" style="width: 11rem;">操作</th>
                 </tr>
               </thead>
               <tbody>
@@ -205,6 +205,15 @@
                       >
                         <i class="fa fa-pencil"></i>
                         <span>詳細</span>
+                      </span>
+                      <span
+                        class="doc-center-action-btn doc-center-action-btn--danger"
+                        title="刪除公文"
+                        :class="{ 'is-disabled': listDeletingId === item.id }"
+                        @click.stop="doDeleteDocument(item)"
+                      >
+                        <i :class="listDeletingId === item.id ? 'fa fa-spinner fa-spin' : 'fa fa-trash'"></i>
+                        <span>刪除</span>
                       </span>
                     </div>
                   </td>
@@ -318,7 +327,7 @@
           type="button"
           class="btn btn-outline-danger btn-sm me-auto"
           :disabled="detailDeleting"
-          @click="doDeleteDocument"
+          @click="() => doDeleteDocument()"
         >
           <i class="fa fa-trash me-1"></i>刪除公文
         </button>
@@ -705,25 +714,46 @@ async function doUpdateDetail() {
 }
 
 const detailDeleting = ref(false)
+const listDeletingId = ref<number | null>(null)
 
-async function doDeleteDocument() {
+async function doDeleteDocument(item?: DocumentCenterListItem) {
   const cid = constructionId.value
-  const item = detailItem.value
-  if (!cid || !item) return
-  if (!confirm(`確定刪除「${item.subject || item.fileName || '此公文'}」？\n（檔案與所有關聯紀錄都會被刪除，此操作無法復原）`)) return
-  detailDeleting.value = true
+  const target = item ?? detailItem.value
+  if (!cid || !target) return
+  if (!confirm(`確定刪除「${target.subject || target.fileName || '此公文'}」？\n（檔案與所有關聯紀錄都會被刪除，此操作無法復原）`)) return
+
+  const fromList = !!item
+  if (fromList) {
+    listDeletingId.value = target.id
+  } else {
+    detailDeleting.value = true
+  }
+
   try {
-    const ok = await deleteDocument(cid, item.id)
+    const ok = await deleteDocument(cid, target.id)
     if (ok) {
-      closeDetailModal()
+      if (detailItem.value?.id === target.id) {
+        closeDetailModal()
+      }
       await loadList()
+    } else if (fromList) {
+      alert('刪除失敗')
     } else {
       detailError.value = '刪除失敗'
     }
   } catch (e: any) {
-    detailError.value = e?.response?.data?.message ?? e?.message ?? '刪除失敗'
+    const msg = e?.response?.data?.message ?? e?.message ?? '刪除失敗'
+    if (fromList) {
+      alert(msg)
+    } else {
+      detailError.value = msg
+    }
   } finally {
-    detailDeleting.value = false
+    if (fromList) {
+      listDeletingId.value = null
+    } else {
+      detailDeleting.value = false
+    }
   }
 }
 
@@ -1314,6 +1344,18 @@ function openUpload() {
 }
 .doc-center-action-btn i {
   font-size: 0.85rem;
+}
+.doc-center-action-btn--danger {
+  color: #fca5a5;
+}
+.doc-center-action-btn--danger:hover {
+  background: rgba(248, 113, 113, 0.2);
+  color: #fecaca;
+}
+.doc-center-action-btn.is-disabled {
+  opacity: 0.6;
+  pointer-events: none;
+  cursor: not-allowed;
 }
 
 .doc-center-detail-multiline {

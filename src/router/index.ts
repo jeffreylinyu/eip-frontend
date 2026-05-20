@@ -113,6 +113,11 @@ const router = createRouter({
       meta: { requiresAuth: true }
     },
     {
+      path: '/forms/o6-insurance',
+      component: () => import('../views/forms/DocumentShelf.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
       path: '/forms/o4-labour-safety',
       component: () => import('../views/forms/type-a/FormA7Download.vue'),
       meta: { requiresAuth: true }

@@ -91,7 +91,7 @@ const canClose = computed(() => isDone.value || !!props.error)
         </div>
         <div class="bp-header-text">
           <div class="bp-header-title">工程文件建置系統</div>
-          <div class="bp-header-sub">Construction Document AI Builder</div>
+          <div class="bp-header-sub">工程案資料建構</div>
         </div>
         <div
           class="bp-status-badge"

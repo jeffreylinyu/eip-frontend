@@ -164,7 +164,7 @@ defineExpose({
               <i class="fa fa-plus me-1"></i>新增節點
             </button>
           </div>
-          <div v-if="!graph.nodes.length" class="text-muted small py-2">尚無節點，請新增或使用 AI 生成。</div>
+          <div v-if="!graph.nodes.length" class="text-muted small py-2">尚無節點，請新增或使用工程案資料建構。</div>
           <div v-else class="table-scroll-wrap p1-flow-editor__table-wrap">
             <table class="table align-middle p1-flow-editor-table mb-0">
               <thead>

@@ -1,11 +1,11 @@
 <template>
   <div class="daily-report-overview">
     <PageHeader
-      title="施工日誌"
+      :title="dailyLogLabel"
       icon="fa fa-clipboard-list"
       :breadcrumbs="[
-        { text: '施工日誌管理', href: 'javascript:;' },
-        { text: '施工日誌', active: true }
+        { text: dailyLogManageLabel, href: 'javascript:;' },
+        { text: dailyLogLabel, active: true }
       ]"
     />
 
@@ -138,34 +138,15 @@
         >
           <i class="fa fa-save me-1"></i>儲存
         </button>
-        <div class="btn-group">
-        <button 
-            type="button"
-            class="btn btn-outline-success dropdown-toggle"
-            data-bs-toggle="dropdown"
-            aria-expanded="false"
+        <button
+          type="button"
+          class="btn b2-export-btn"
             :disabled="isLoading || isExporting || !report.reportDate"
+            @click="exportWord"
         >
-            <i class="fa fa-file-word me-1"></i>
-            <span v-if="!isExporting">匯出 Word</span>
-            <span v-else>
-              <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
-              匯出中...
-            </span>
+          <i class="fa" :class="isExporting ? 'fa-spinner fa-spin' : 'fa-file-word'"></i>
+          {{ isExporting ? '匯出中…' : '匯出 Word' }}
         </button>
-          <ul class="dropdown-menu">
-            <li>
-              <a class="dropdown-item" href="javascript:;" @click="exportWord('construction')">
-                <i class="fa fa-building me-2"></i>營造版本
-              </a>
-            </li>
-            <li>
-              <a class="dropdown-item" href="javascript:;" @click="exportWord('supervision')">
-                <i class="fa fa-clipboard-check me-2"></i>監造版本
-              </a>
-            </li>
-          </ul>
-        </div>
       </div>
     </div>
 
@@ -304,34 +285,15 @@
             <i class="fa fa-save me-1"></i>儲存
           </button>
         </div>
-        <div class="btn-group w-100">
-          <button
-            type="button"
-            class="btn btn-outline-success dropdown-toggle w-100"
-            data-bs-toggle="dropdown"
-            aria-expanded="false"
-            :disabled="isLoading || isExporting || !report.reportDate"
-          >
-            <i class="fa fa-file-word me-1"></i>
-            <span v-if="!isExporting">匯出 Word</span>
-            <span v-else>
-              <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
-              匯出中...
-            </span>
-          </button>
-          <ul class="dropdown-menu w-100">
-            <li>
-              <a class="dropdown-item" href="javascript:;" @click="exportWord('construction')">
-                <i class="fa fa-building me-2"></i>營造版本
-              </a>
-            </li>
-            <li>
-              <a class="dropdown-item" href="javascript:;" @click="exportWord('supervision')">
-                <i class="fa fa-clipboard-check me-2"></i>監造版本
-              </a>
-            </li>
-          </ul>
-        </div>
+        <button
+          type="button"
+          class="btn b2-export-btn w-100"
+          :disabled="isLoading || isExporting || !report.reportDate"
+          @click="exportWord"
+        >
+          <i class="fa" :class="isExporting ? 'fa-spinner fa-spin' : 'fa-file-word'"></i>
+          {{ isExporting ? '匯出中…' : '匯出 Word' }}
+        </button>
       </div>
     </div>
 
@@ -1227,11 +1189,11 @@ import {
   saveDailyReport, 
   exportDailyReportToWord, 
   convertToSaveRequest,
-  convertFromDetailResponse,
-  type DailyReportExportVersion 
+  convertFromDetailResponse
 } from '@/api/dailyReport'
 import { useExportLoading } from '@/composables/useExportLoading'
 import { useViewPerspective, ViewType } from '@/composables/useViewPerspective'
+import { useDailyReportLabels } from '@/composables/useDailyReportLabels'
 import type {
   DailyReport,
   ExecutionSummaryItem,
@@ -1249,6 +1211,7 @@ const route = useRoute()
 const workspaceStore = useWorkspaceStore()
 const { runWithExportLoading } = useExportLoading()
 const { viewType } = useViewPerspective()
+const { dailyLogLabel, dailyLogManageLabel } = useDailyReportLabels()
 
 const dailyReportOwnerTypeParam = computed(() => {
   const v = viewType.value
@@ -2246,8 +2209,8 @@ const saveDraft = async () => {
   }
 }
 
-// 匯出 Word 文檔
-const exportWord = async (version: DailyReportExportVersion) => {
+// 匯出 Word 文檔（樣板已統一，依目前視角帶 ownerType；type 固定使用 construction）
+const exportWord = async () => {
   if (!constructionId.value) {
     alert('找不到工程 ID，無法匯出')
     return
@@ -2261,7 +2224,7 @@ const exportWord = async (version: DailyReportExportVersion) => {
   isExporting.value = true
   try {
     await runWithExportLoading('daily-report-word', '工程日報表 Word', async (signal) => {
-      await exportDailyReportToWord(constructionId.value, report.value.reportDate!, version, {
+      await exportDailyReportToWord(constructionId.value, report.value.reportDate!, 'construction', {
         signal,
         ownerType: dailyReportOwnerTypeParam.value
       })
@@ -2358,6 +2321,51 @@ onMounted(() => {
 
 .action-bar {
   gap: 1rem;
+}
+
+.b2-export-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1.2rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: #fff !important;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: linear-gradient(
+    145deg,
+    rgba(var(--bs-primary-rgb), 0.58) 0%,
+    rgba(var(--bs-primary-rgb), 0.32) 42%,
+    rgba(15, 23, 42, 0.45) 100%
+  );
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease,
+    border-color 0.16s ease,
+    filter 0.16s ease;
+}
+.b2-export-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.38);
+  filter: brightness(1.05);
+  box-shadow:
+    0 8px 24px rgba(var(--bs-primary-rgb), 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+.b2-export-btn:active:not(:disabled) {
+  transform: translateY(0);
+  filter: brightness(0.98);
+}
+.b2-export-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
 }
 
 .date-selector {

@@ -15,6 +15,32 @@
           <p class="mb-0">{{ shelfConfig.description }}</p>
         </div>
 
+        <!-- A-6：監造帳號可切換工程端／監造端（與 A-5 一致） -->
+        <div v-if="isA6Shelf && isSupervisoryUser && !isContractorRoute" class="mb-4">
+          <ul class="nav nav-tabs shelf-tabs">
+            <li class="nav-item">
+              <a
+                class="nav-link"
+                :class="{ active: activeTab === 'SUPERVISORY' }"
+                href="javascript:;"
+                @click="switchTab('SUPERVISORY')"
+              >
+                <i class="fa fa-hard-hat me-1"></i>工程端
+              </a>
+            </li>
+            <li class="nav-item">
+              <a
+                class="nav-link"
+                :class="{ active: activeTab === 'SUPERVISION_COMPANY' }"
+                href="javascript:;"
+                @click="switchTab('SUPERVISION_COMPANY')"
+              >
+                <i class="fa fa-building me-1"></i>監造端
+              </a>
+            </li>
+          </ul>
+        </div>
+
         <div v-if="!constructionId" class="alert alert-warning mb-0">
           <i class="fa fa-exclamation-triangle me-2"></i>請先選擇工程案。
         </div>
@@ -177,37 +203,88 @@ import Modal from '@/components/bootstrap/Modal.vue'
 import DocumentPicker from '@/components/document/DocumentPicker.vue'
 import RelatedDocumentsModal from '@/components/related-documents/RelatedDocumentsModal.vue'
 import { useWorkspaceStore } from '@/stores/workspace'
-import { documentShelfApi, type DocumentShelfType, type DocumentShelfRecord, type DocumentShelfAttachment } from '@/api/documentShelf'
+import { useViewPerspective } from '@/composables/useViewPerspective'
+import {
+  documentShelfApi,
+  type DocumentShelfType,
+  type DocumentShelfOwnerType,
+  type DocumentShelfRecord,
+  type DocumentShelfAttachment
+} from '@/api/documentShelf'
 import { getDocumentCenterList, type DocumentCenterListItem } from '@/api/documentCenter'
 
 const route = useRoute()
 const workspaceStore = useWorkspaceStore()
+const { isSupervisory } = useViewPerspective()
+const isSupervisoryUser = computed(() => isSupervisory.value)
 const constructionId = computed(() => workspaceStore.currentProject?.id ?? '')
+
+const isContractorRoute = computed(() => (route.path || '').toLowerCase().includes('/forms/o6-insurance'))
 
 const shelfType = computed<DocumentShelfType>(() => {
   const path = (route.path || '').toLowerCase()
   if (path.includes('a1-contract')) return 'A1'
   if (path.includes('a2-budget')) return 'A2'
-  if (path.includes('a6-insurance')) return 'A6'
+  if (path.includes('a6-insurance') || path.includes('o6-insurance')) return 'A6'
   return 'A1'
 })
+
+const isA6Shelf = computed(() => shelfType.value === 'A6')
+
+const activeTab = ref<DocumentShelfOwnerType>('SUPERVISORY')
+const switchTab = (tab: DocumentShelfOwnerType) => {
+  if (activeTab.value === tab) return
+  activeTab.value = tab
+  linkedRefIdByRecordId.value = {}
+  linkedDocByRecordId.value = {}
+  linkedDocumentIdByRecordId.value = {}
+  attachmentCountByRecordId.value = {}
+  void loadRecords()
+}
+
+/** A-6 書架 API 使用的 ownerType：O-6=營造、監造 A-6 依 Tab */
+const requestOwnerType = computed((): DocumentShelfOwnerType | undefined => {
+  if (!isA6Shelf.value) return undefined
+  if (isContractorRoute.value) return 'CONTRACTOR'
+  if (!isSupervisoryUser.value) return 'CONTRACTOR'
+  return activeTab.value
+})
+
+function apiOwnerType(): DocumentShelfOwnerType | undefined {
+  return requestOwnerType.value
+}
 
 const shelfConfig = computed(() => {
   const t = shelfType.value
   const map = {
     A1: { title: 'A-1 工程契約', description: '工程契約書架：可建立多筆紀錄，每筆可關聯一個公文並上傳多個附件。' },
     A2: { title: 'A-2 施工預算書', description: '施工預算書書架：可建立多筆紀錄，每筆可關聯一個公文並上傳多個附件。' },
-    A6: { title: 'A-6 營造工程保險', description: '營造工程保險書架：可建立多筆紀錄，每筆可關聯一個公文並上傳多個附件。' }
+    A6: {
+      title: isContractorRoute.value ? 'O-6 營造工程保險' : 'A-6 工程保險',
+      description: isContractorRoute.value
+        ? '營造端工程保險書架：可建立多筆紀錄，每筆可關聯一個公文並上傳多個附件。'
+        : '監造端工程保險書架：可分「工程端」與「監造端」維護資料，每筆可關聯公文並上傳附件。'
+    }
   }
   return map[t]
 })
 
 const pageTitle = computed(() => shelfConfig.value.title)
-const pageBreadcrumbs = computed(() => [
-  { text: '表單匯出', href: 'javascript:;' },
-  { text: 'A類表單', href: 'javascript:;' },
-  { text: pageTitle.value, active: true as const }
-])
+const pageBreadcrumbs = computed(() => {
+  const last = { text: pageTitle.value, active: true as const }
+  if (isContractorRoute.value) {
+    return [
+      { text: '表單匯出', href: 'javascript:;' },
+      { text: 'O類表單', href: 'javascript:;' },
+      last
+    ]
+  }
+  return [
+    { text: '表單匯出', href: 'javascript:;' },
+    { text: 'A類表單', href: 'javascript:;' },
+    last
+  ]
+})
 
 const records = ref<DocumentShelfRecord[]>([])
 const isLoading = ref(false)
@@ -236,7 +313,7 @@ async function loadRecords() {
   if (!constructionId.value) return
   isLoading.value = true
   try {
-    records.value = await documentShelfApi.listRecords(constructionId.value, shelfType.value)
+    records.value = await documentShelfApi.listRecords(constructionId.value, shelfType.value, apiOwnerType())
     const docList = await getDocumentCenterList(constructionId.value)
     const map = new Map<number, DocumentCenterListItem>()
     docList.forEach(d => map.set(d.id, d))
@@ -244,8 +321,8 @@ async function loadRecords() {
     const counts: Record<number, number> = {}
     for (const r of records.value) {
       const [refs, atts] = await Promise.all([
-        documentShelfApi.getLinkedDocuments(r.id, shelfType.value),
-        documentShelfApi.listAttachments(r.id, shelfType.value)
+        documentShelfApi.getLinkedDocuments(r.id, shelfType.value, apiOwnerType()),
+        documentShelfApi.listAttachments(r.id, shelfType.value, apiOwnerType())
       ])
       if (refs.length > 0) {
         linkedRefIdByRecordId.value[r.id] = refs[0].referenceId
@@ -262,13 +339,13 @@ async function loadRecords() {
   }
 }
 
-watch([constructionId, shelfType], loadRecords, { immediate: true })
+watch([constructionId, shelfType, requestOwnerType], loadRecords, { immediate: true })
 
 async function addRecord() {
   if (!constructionId.value) return
   isCreating.value = true
   try {
-    const created = await documentShelfApi.createRecord(constructionId.value, shelfType.value)
+    const created = await documentShelfApi.createRecord(constructionId.value, shelfType.value, apiOwnerType())
     records.value = [...records.value, created]
     attachmentCountByRecordId.value = { ...attachmentCountByRecordId.value, [created.id!]: 0 }
   } finally {
@@ -279,7 +356,7 @@ async function addRecord() {
 async function deleteRecord(r: DocumentShelfRecord) {
   if (!r.id || !confirm('確定要刪除此筆紀錄？')) return
   try {
-    await documentShelfApi.deleteRecord(r.id, shelfType.value)
+    await documentShelfApi.deleteRecord(r.id, shelfType.value, apiOwnerType())
     records.value = records.value.filter(x => x.id !== r.id)
     const { [r.id]: _, ...rest } = attachmentCountByRecordId.value
     attachmentCountByRecordId.value = rest
@@ -303,8 +380,8 @@ async function onDocumentPicked(payload: { document: { id: number; documentNumbe
   const rec = recordForDocPicker.value
   if (!rec?.id) return
   try {
-    await documentShelfApi.linkDocument(rec.id, payload.document.id, shelfType.value)
-    const refs = await documentShelfApi.getLinkedDocuments(rec.id, shelfType.value)
+    await documentShelfApi.linkDocument(rec.id, payload.document.id, shelfType.value, apiOwnerType())
+    const refs = await documentShelfApi.getLinkedDocuments(rec.id, shelfType.value, apiOwnerType())
     if (refs.length > 0) {
       const ref = refs[0]
       const doc = docCacheMap.value.get(ref.documentId)
@@ -330,7 +407,7 @@ async function clearLinkedDocForRecord(r: DocumentShelfRecord) {
   if (!r.id || refId == null) return
   if (!confirm('確定要取消關聯此公文？')) return
   try {
-    await documentShelfApi.unlinkDocument(r.id, refId, shelfType.value)
+    await documentShelfApi.unlinkDocument(r.id, refId, shelfType.value, apiOwnerType())
     const { [r.id]: __, ...restRef } = linkedRefIdByRecordId.value
     linkedRefIdByRecordId.value = restRef
     const { [r.id]: ___, ...restDoc } = linkedDocByRecordId.value
@@ -364,8 +441,8 @@ async function openAttachmentModal(r: DocumentShelfRecord) {
   modalAttachments.value = []
   try {
     const [refs, atts] = await Promise.all([
-      documentShelfApi.getLinkedDocuments(r.id, shelfType.value),
-      documentShelfApi.listAttachments(r.id, shelfType.value)
+      documentShelfApi.getLinkedDocuments(r.id, shelfType.value, apiOwnerType()),
+      documentShelfApi.listAttachments(r.id, shelfType.value, apiOwnerType())
     ])
     modalAttachments.value = atts
     modalLinkedRefs.value = refs.map(ref => ({ referenceId: ref.referenceId, documentId: ref.documentId }))
@@ -400,7 +477,7 @@ async function unlinkDoc(doc: DocumentCenterListItem) {
   if (!ref || !currentRecord.value) return
   if (!confirm('確定要取消關聯此公文？')) return
   try {
-    await documentShelfApi.unlinkDocument(currentRecord.value.id!, ref.referenceId, shelfType.value)
+    await documentShelfApi.unlinkDocument(currentRecord.value.id!, ref.referenceId, shelfType.value, apiOwnerType())
     modalLinkedDocs.value = modalLinkedDocs.value.filter(d => d.id !== doc.id)
     modalLinkedRefs.value = modalLinkedRefs.value.filter(r => r.documentId !== doc.id)
     const cnt = (attachmentCountByRecordId.value[currentRecord.value.id!] ?? 1) - 1
@@ -415,9 +492,9 @@ async function handleModalUpload(files: FileList) {
   isUploadingInModal.value = true
   try {
     for (const file of Array.from(files)) {
-      await documentShelfApi.uploadAttachment(currentRecord.value.id!, file, shelfType.value)
+      await documentShelfApi.uploadAttachment(currentRecord.value.id!, file, shelfType.value, apiOwnerType())
     }
-    modalAttachments.value = await documentShelfApi.listAttachments(currentRecord.value.id!, shelfType.value)
+    modalAttachments.value = await documentShelfApi.listAttachments(currentRecord.value.id!, shelfType.value, apiOwnerType())
     const linkedCount = modalLinkedDocs.value.length > 0 ? 1 : 0
     attachmentCountByRecordId.value = { ...attachmentCountByRecordId.value, [currentRecord.value.id!]: modalAttachments.value.length + linkedCount }
   } finally {
@@ -429,7 +506,7 @@ async function handleDownloadAll() {
   if (!currentRecord.value) return
   isDownloadingAll.value = true
   try {
-    await documentShelfApi.downloadAll(currentRecord.value.id!, shelfType.value)
+    await documentShelfApi.downloadAll(currentRecord.value.id!, shelfType.value, apiOwnerType())
   } finally {
     isDownloadingAll.value = false
   }
@@ -438,7 +515,7 @@ async function handleDownloadAll() {
 async function previewAtt(att: DocumentShelfAttachment) {
   if (!currentRecord.value) return
   try {
-    const result = await documentShelfApi.previewAttachment(currentRecord.value.id!, att.id, shelfType.value)
+    const result = await documentShelfApi.previewAttachment(currentRecord.value.id!, att.id, shelfType.value, apiOwnerType())
     previewFileName.value = result.fileName
     previewUrl.value = result.url
     showPreviewModal.value = true
@@ -450,7 +527,7 @@ async function previewAtt(att: DocumentShelfAttachment) {
 async function downloadAtt(att: DocumentShelfAttachment) {
   if (!currentRecord.value) return
   try {
-    await documentShelfApi.downloadAttachment(currentRecord.value.id!, att.id, att.fileName, shelfType.value)
+    await documentShelfApi.downloadAttachment(currentRecord.value.id!, att.id, att.fileName, shelfType.value, apiOwnerType())
   } catch (e) {
     console.error(e)
   }
@@ -459,7 +536,7 @@ async function downloadAtt(att: DocumentShelfAttachment) {
 async function deleteAtt(att: DocumentShelfAttachment) {
   if (!currentRecord.value || !confirm(`確定要刪除「${att.fileName}」？`)) return
   try {
-    await documentShelfApi.deleteAttachment(currentRecord.value.id!, att.id, shelfType.value)
+    await documentShelfApi.deleteAttachment(currentRecord.value.id!, att.id, shelfType.value, apiOwnerType())
     modalAttachments.value = modalAttachments.value.filter(a => a.id !== att.id)
     const linkedCount = modalLinkedDocs.value.length > 0 ? 1 : 0
     attachmentCountByRecordId.value = { ...attachmentCountByRecordId.value, [currentRecord.value.id!]: modalAttachments.value.length + linkedCount }
@@ -548,6 +625,26 @@ function formatFileSize(bytes: number): string {
 
 .a4-table tbody tr:hover td {
   background: var(--a4-hover);
+}
+
+.shelf-tabs {
+  border-bottom-color: var(--a4-border);
+}
+.shelf-tabs .nav-link {
+  color: var(--a4-muted);
+  border: 1px solid transparent;
+  border-radius: 0.375rem 0.375rem 0 0;
+  padding: 0.5rem 1rem;
+}
+.shelf-tabs .nav-link:hover {
+  color: var(--a4-text);
+  border-color: var(--a4-border) var(--a4-border) transparent;
+  background: var(--a4-hover);
+}
+.shelf-tabs .nav-link.active {
+  color: var(--a4-accent);
+  background: var(--a4-card);
+  border-color: var(--a4-border) var(--a4-border) var(--a4-card);
 }
 </style>
 

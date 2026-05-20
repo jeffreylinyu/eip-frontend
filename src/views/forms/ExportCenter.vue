@@ -92,6 +92,7 @@ const FORMS_WITH_DATA_URLS = new Set<string>([
   '/forms/o1-extension',
   '/forms/o3-estimate',
   '/forms/o4-labour-safety',
+  '/forms/o6-insurance',
   // 營造 P-1 / P-2 / P-3
   '/forms/p1-overall-construction-plan',
   '/forms/p2-quality-plan',
@@ -143,7 +144,7 @@ const SUPERVISORY_A_ITEMS: Array<{ seq: number; name: string; url: string }> = [
   { seq: 3, name: '開、竣、停工報告', url: '/forms/a3-commencement' },
   { seq: 4, name: '工期展延申請總表', url: '/forms/a4-download' },
   { seq: 5, name: '估驗請款計價單', url: '/forms/a5-download' },
-  { seq: 6, name: '營造工程保險', url: '/forms/a6-insurance' },
+  { seq: 6, name: '工程保險', url: '/forms/a6-insurance' },
   { seq: 7, name: '職安報備書', url: '/forms/a7-download' },
   { seq: 8, name: '[收文] 業主來文', url: '/document-center?category=RECEIVE_OWNER' },
   { seq: 9, name: '[收文] 廠商來文', url: '/document-center?category=RECEIVE_CONTRACTOR' },
@@ -159,6 +160,7 @@ const CONTRACTOR_O_ITEMS: Array<{ seq: number; name: string; url: string }> = [
   { seq: 2, name: '工期展延申請總表', url: '/forms/o1-extension' },
   { seq: 3, name: '估驗請款計價表', url: '/forms/o3-estimate' },
   { seq: 4, name: '職安報備書', url: '/forms/o4-labour-safety' },
+  { seq: 6, name: '營造工程保險', url: '/forms/o6-insurance' },
 ]
 
 // =========================

@@ -22,7 +22,7 @@ const {
       type="button"
       class="btn-ai-generate header-engineering-data-build-btn"
       :disabled="!currentProject?.id"
-      title="針對目前選定工程案，依視角一次執行全部 AI 生成"
+      title="針對目前選定工程案，依視角一次執行全部工程案資料建構"
       @click="startAiBatchGenerate"
     >
       <i class="fa fa-wand-magic-sparkles me-2" aria-hidden="true"></i>

@@ -82,7 +82,7 @@
           <div v-if="isAiGenerating" class="text-panels__ai-overlay" aria-live="polite">
             <div class="text-panels__ai-overlay-inner">
               <i class="fa fa-spinner fa-spin fa-2x mb-2 text-primary"></i>
-              <div class="fw-semibold">AI 生成中…</div>
+              <div class="fw-semibold">工程案資料建構中…</div>
               <div class="small text-muted mt-1">產生內容後會自動儲存至目前版本</div>
             </div>
           </div>
@@ -107,7 +107,7 @@
                         class="fa me-2"
                         :class="aiLoading.scaleOverview ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"
                       ></i>
-                      {{ aiLoading.scaleOverview ? '生成中…' : '依標單 AI 生成' }}
+                      {{ aiLoading.scaleOverview ? '生成中…' : '依標單工程案資料建構' }}
                     </button>
                   </div>
                 </div>
@@ -1058,7 +1058,7 @@ async function generateScaleOverviewByAi() {
     p2QualityScaleOverview.value = text ?? ''
     await saveTexts()
   } catch (e: any) {
-    const msg = e?.response?.data?.error ?? e?.response?.data?.message ?? e?.message ?? 'AI 生成失敗'
+    const msg = e?.response?.data?.error ?? e?.response?.data?.message ?? e?.message ?? '工程案資料建構失敗'
     window.alert(msg)
   } finally {
     aiLoading.value.scaleOverview = false

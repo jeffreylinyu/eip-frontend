@@ -27,7 +27,7 @@ export interface P3SubcontractorOrgChartData {
 }
 
 /**
- * 預設資料：材料供應商分類**預設為空陣列**，由使用者手動新增或透過「依標單 AI 生成」按鈕產出。
+ * 預設資料：材料供應商分類**預設為空陣列**，由使用者手動新增或透過「依標單工程案資料建構」按鈕產出。
  * 工程名稱／公司名稱會在頁面載入時由 prefill 自動帶入；右側框預設「其他協力廠商等」。
  */
 export const DEFAULT_P3_SUBCONTRACTOR_ORG_CHART_DATA: P3SubcontractorOrgChartData = {

@@ -3,7 +3,7 @@
     <!-- 頂部：設定與模型資訊 -->
     <div class="ai-toolbar">
       <div class="ai-toolbar-inner">
-        <span class="ai-toolbar-title"><i class="fa fa-robot me-2"></i>AI 對話</span>
+        <span class="ai-toolbar-title"><i class="fa fa-robot me-2"></i>工程案資料建構對話</span>
         <span class="ai-toolbar-divider"></span>
         <span class="ai-toolbar-meta" title="模型">
           <i class="fa fa-microchip me-1"></i><span class="ai-toolbar-label">模型</span>{{ config?.gemini?.model || '—' }}

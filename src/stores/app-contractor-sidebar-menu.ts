@@ -701,6 +701,27 @@ export const useAppContractorSidebarMenuStore = defineStore("appContractorSideba
       { text: "行事曆", is_header: true },
       { text: "行事曆", url: "/calendar", icon: "bi bi-calendar" },
 
+      // 施工日誌管理
+      { text: "施工日誌管理", is_header: true },
+      {
+        text: "施工日誌管理",
+        icon: "bi bi-journal-text",
+        children: [
+          { text: "施工日誌", url: "/daily-report" },
+          { text: "材料進場", url: "/daily-report/materials" },
+          { text: "出工紀錄", url: "/daily-report/labor" },
+          { text: "機具出工", url: "/daily-report/equipment" },
+          { text: "進場紀錄", url: "/daily-report/incoming" },
+          { text: "材料檢驗", url: "/daily-report/inspection" },
+          { text: "安全衛生", url: "/daily-report/safety" },
+          { text: "施工記錄", url: "/daily-report/construction" },
+          { text: "重要記事", url: "/daily-report/notes" },
+          { text: "明日進度", url: "/daily-report/tomorrow" },
+          { text: "製表人", url: "/daily-report/preparer" },
+          { text: "日誌歷史", url: "/daily-report/history" },
+        ],
+      },
+
       // 文件與表單管理
       { text: "文件與表單管理", is_header: true },
       {
@@ -718,6 +739,7 @@ export const useAppContractorSidebarMenuStore = defineStore("appContractorSideba
                   { text: "O-2 工期展延申請總表", url: "/forms/o1-extension" },
                   { text: "O-3 估驗請款計價表", url: "/forms/o3-estimate" },
                   { text: "O-4 職安報備書", url: "/forms/o4-labour-safety" },
+                  { text: "O-6 營造工程保險", url: "/forms/o6-insurance" },
                 ],
               },
               {
@@ -756,28 +778,6 @@ export const useAppContractorSidebarMenuStore = defineStore("appContractorSideba
                 visible: !isSupervisory.value,
                 children: buildDocClassChildrenOrPlaceholder('Q'),
               },
-        ],
-      },
-
-      // 施工日誌管理（營造端暫不顯示）
-      { text: "施工日誌管理", is_header: true, visible: false },
-      {
-        text: "施工日誌管理",
-        icon: "bi bi-journal-text",
-        visible: false,
-        children: [
-          { text: "施工日誌", url: "/daily-report" },
-          { text: "材料進場", url: "/daily-report/materials" },
-          { text: "出工紀錄", url: "/daily-report/labor" },
-          { text: "機具出工", url: "/daily-report/equipment" },
-          { text: "進場紀錄", url: "/daily-report/incoming" },
-          { text: "材料檢驗", url: "/daily-report/inspection" },
-          { text: "安全衛生", url: "/daily-report/safety" },
-          { text: "施工記錄", url: "/daily-report/construction" },
-          { text: "重要記事", url: "/daily-report/notes" },
-          { text: "明日進度", url: "/daily-report/tomorrow" },
-          { text: "製表人", url: "/daily-report/preparer" },
-          { text: "日誌歷史", url: "/daily-report/history" },
         ],
       },
     ]

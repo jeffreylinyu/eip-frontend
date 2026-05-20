@@ -5,7 +5,7 @@
       title="材料進場與使用"
       icon="fa fa-boxes"
       :breadcrumbs="[
-        { text: '施工日誌管理', href: 'javascript:;' },
+        { text: dailyLogManageLabel, href: 'javascript:;' },
         { text: '材料進場與使用', active: true },
       ]"
     />
@@ -183,6 +183,9 @@ import type {
   CellValueChangedEvent,
 } from "ag-grid-community";
 import PageHeader from "@/components/bootstrap/PageHeader.vue";
+import { useDailyReportLabels } from "@/composables/useDailyReportLabels";
+
+const { dailyLogManageLabel } = useDailyReportLabels();
 import Card from "@/components/bootstrap/Card.vue";
 import CardHeader from "@/components/bootstrap/CardHeader.vue";
 import CardBody from "@/components/bootstrap/CardBody.vue";
