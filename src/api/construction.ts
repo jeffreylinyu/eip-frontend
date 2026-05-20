@@ -1134,6 +1134,22 @@ export const getP1ManpowerFromSubdivisionsAiGenerate = async (
   return data as unknown as { rows: { resourceName: string; groupName: string; workContent?: string; isSResident?: string; remark?: string }[] }
 }
 
+/** P-1 人力結構圖預覽（PNG）。 */
+export const fetchP1ManpowerStructureImagePng = async (
+  constructionId: string,
+  designChangeId?: number | null
+): Promise<Blob> => {
+  const params: Record<string, string> = { constructionId }
+  if (designChangeId !== undefined && designChangeId !== null) {
+    params.designChangeId = String(designChangeId)
+  }
+  const buf = await http.get<ArrayBuffer>(
+    '/management/construction/p1/manpower-structure-image/preview.png',
+    { responseType: 'arraybuffer', params }
+  )
+  return new Blob([buf as unknown as ArrayBuffer], { type: 'image/png' })
+}
+
 /** 依分項工程由工程案資料建構產出 P 類動態頁「施工方法與步驟」結構 JSON。 */
 export const getPDynamicConstructionStagePlanAiGenerate = async (
   constructionId: string,

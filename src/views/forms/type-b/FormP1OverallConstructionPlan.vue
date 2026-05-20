@@ -321,6 +321,15 @@
                       {{ isAiGenerating ? '生成中…' : '帶入分項並工程案資料建構填群組' }}
                     </button>
                     <button type="button" class="btn-default-fill" @click="addManpowerRow">新增一列</button>
+                    <button
+                      type="button"
+                      class="btn btn-sm btn-outline-info"
+                      :disabled="!currentProject?.id"
+                      title="預覽 P-1 人力結構圖（匯出用 PNG）"
+                      @click="openManpowerStructurePreviewModal"
+                    >
+                      <i class="fa fa-image me-1"></i>人力結構圖預覽
+                    </button>
                   </div>
                 </div>
                 <div v-if="manpowerDefaultHint" class="small text-info mb-2">
@@ -387,6 +396,39 @@
                   </table>
                 </div>
               </div>
+
+              <Modal
+                :show="showManpowerStructurePreviewModal"
+                title=""
+                icon=""
+                size="lg"
+                modal-id="p1-manpower-structure-preview"
+                :hide-footer="true"
+                :hide-confirm-button="true"
+                :hide-cancel-button="true"
+                @update:show="(v: boolean) => { if (!v) closeManpowerStructurePreviewModal() }"
+              >
+                <template #header>
+                  <span class="fw-bold">人力結構圖預覽</span>
+                </template>
+                <div v-if="manpowerStructurePreviewLoading" class="text-center py-5 text-muted">
+                  <i class="fa fa-spinner fa-spin me-2"></i>產生預覽中…
+                </div>
+                <div v-else class="p-2">
+                  <div class="p1-manpower-structure-preview-wrap bg-white rounded p-2">
+                    <img
+                      v-if="manpowerStructurePreviewUrl"
+                      :src="manpowerStructurePreviewUrl"
+                      alt="P-1 人力結構圖預覽"
+                      class="p1-manpower-structure-preview-img"
+                    />
+                    <div v-else class="text-center text-muted py-5">無法預覽</div>
+                  </div>
+                  <div class="small text-muted mt-2 mb-0">
+                    下半部直書群組取自「人力資源預定進場時間表」之非預設列群組名稱。
+                  </div>
+                </div>
+              </Modal>
 
               <Modal
                 :show="showP1SupervisoryModal"
@@ -1096,6 +1138,7 @@ import {
   getP1DrainageAreaAiGenerate,
   getP1ManpowerDefaultMaxAvailable,
   getP1ManpowerFromSubdivisionsAiGenerate,
+  fetchP1ManpowerStructureImagePng,
   getP1ConstructionProcessOverviewAiGenerate,
   getP1ConstructionProcessFlowAiGenerate,
   updateConstruction,
@@ -1217,6 +1260,40 @@ const manpowerDefaultHint = ref('')
 const isTextLoading = ref(false)
 const isAiGenerating = ref(false)
 const isExporting = ref(false)
+
+// 人力結構圖預覽（PNG）
+const showManpowerStructurePreviewModal = ref(false)
+const manpowerStructurePreviewUrl = ref<string>('')
+const manpowerStructurePreviewLoading = ref(false)
+
+function closeManpowerStructurePreviewModal() {
+  showManpowerStructurePreviewModal.value = false
+  if (manpowerStructurePreviewUrl.value) {
+    URL.revokeObjectURL(manpowerStructurePreviewUrl.value)
+    manpowerStructurePreviewUrl.value = ''
+  }
+}
+
+async function openManpowerStructurePreviewModal() {
+  const cid = currentProject.value?.id
+  if (!cid) return
+  showManpowerStructurePreviewModal.value = true
+  manpowerStructurePreviewLoading.value = true
+  try {
+    if (manpowerStructurePreviewUrl.value) {
+      URL.revokeObjectURL(manpowerStructurePreviewUrl.value)
+      manpowerStructurePreviewUrl.value = ''
+    }
+    const blob = await fetchP1ManpowerStructureImagePng(cid, selectedDesignChangeId.value)
+    manpowerStructurePreviewUrl.value = URL.createObjectURL(blob)
+  } catch (e) {
+    console.error(e)
+    window.alert('無法產生預覽圖，請稍後再試')
+    closeManpowerStructurePreviewModal()
+  } finally {
+    manpowerStructurePreviewLoading.value = false
+  }
+}
 const aiLoading = ref({
   geology: false,
   meteo: false,
@@ -3270,5 +3347,23 @@ watch(
 .contractor-supervisory-modal-title {
   font-size: 1.1rem;
   line-height: 1.3;
+}
+
+/* 人力結構圖預覽：限制高度避免 modal-body 出現捲軸 */
+.p1-manpower-structure-preview-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+  max-height: min(48vh, calc(100vh - 12rem));
+  overflow: hidden;
+}
+.p1-manpower-structure-preview-img {
+  display: block;
+  max-width: 100%;
+  max-height: min(48vh, calc(100vh - 12rem));
+  width: auto;
+  height: auto;
+  object-fit: contain;
 }
 </style>

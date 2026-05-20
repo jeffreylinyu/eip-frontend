@@ -398,11 +398,12 @@ export const useAppSidebarMenuStore = defineStore("appSidebarMenu", () => {
     { text: "行事曆", is_header: true },
     { text: "行事曆", url: "/calendar", icon: "bi bi-calendar" },
 
-    // 工程排程
-    { text: "工程排程", is_header: true },
+    // 工程排程（監造端側邊欄暫不顯示；營造／其他視角保留）
+    { text: "工程排程", is_header: true, visible: !isSupervisory.value },
     {
       text: "工程排程管理",
       icon: "bi bi-kanban",
+      visible: !isSupervisory.value,
       children: scheduleChildren.value,
     },
 
