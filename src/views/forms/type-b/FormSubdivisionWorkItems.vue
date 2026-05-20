@@ -283,7 +283,7 @@
       :show="showSupervisoryCopyModal"
       title=""
       icon=""
-      size="md"
+      size="lg"
       modal-id="subdivision-supervisory-copy"
       :hide-confirm-button="true"
       :hide-cancel-button="true"
