@@ -891,7 +891,7 @@ onBeforeUnmount(() => {
                         <i class="fa fa-cube text-primary me-3"></i>
                         <div>
                           <div class="fw-semibold">混凝土</div>
-                          <small class="text-muted">C30 結構用</small>
+                          <small class="text-muted">210kgf 結構用</small>
                         </div>
                       </div>
                       <div class="text-end">
