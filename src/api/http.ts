@@ -27,25 +27,6 @@ const http: AxiosInstance = axios.create({
 })
 
 /**
- * 更新 HTTP 實例的 Base URL
- * 用於開發者測試時即時更新 API 網址
- */
-export const updateBaseURL = (newBaseURL: string | null) => {
-  // 生產環境不允許動態覆寫 API 來源，維持與部署設定一致。
-  if (import.meta.env.PROD) {
-    http.defaults.baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
-    return
-  }
-
-  if (newBaseURL && newBaseURL.trim()) {
-    http.defaults.baseURL = newBaseURL.trim()
-  } else {
-    // 如果清空，使用預設值
-    http.defaults.baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
-  }
-}
-
-/**
  * 請求攔截器：每次發請求前都會進來這裡
  */
 http.interceptors.request.use(
@@ -68,11 +49,8 @@ http.interceptors.request.use(
       else hh[name] = value
     }
 
-    // 動態更新 baseURL（從 localStorage 讀取最新值）
-    const currentBaseURL = getApiBaseURL()
-    if (config.baseURL !== currentBaseURL) {
-      config.baseURL = currentBaseURL
-    }
+    // 統一使用部署設定的 baseURL（不允許在前端動態覆寫來源）
+    config.baseURL = getApiBaseURL()
 
     // 上傳 FormData 時不可帶 Content-Type：讓瀏覽器自動設為 multipart/form-data; boundary=...
     if (config.data instanceof FormData) {

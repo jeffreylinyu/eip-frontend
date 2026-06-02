@@ -22,17 +22,23 @@ const internalInstance = getCurrentInstance();
 
 /** 帳號引導頁（待關聯單位等）：一律不顯示側欄與頂部列，避免僅依賴 router 守衛寫入 Pinia 時因時序未更新而仍顯示選單 */
 const isAccessStatusGuideRoute = computed(() => route.path === '/access-status-guide');
+/** 登入/註冊等訪客頁：避免初次渲染閃現側欄/頂欄（PageLogin 在 onMounted 才會寫入 appOption hide） */
+const isGuestPageRoute = computed(() => {
+  const meta = (route.meta || {}) as Record<string, unknown>;
+  return route.path.startsWith('/page/') || meta.requiresGuest === true;
+});
+const shouldHideChrome = computed(() => isAccessStatusGuideRoute.value || isGuestPageRoute.value);
 const showAppHeader = computed(
-	() => !appOption.appHeaderHide && !isAccessStatusGuideRoute.value
+	() => !appOption.appHeaderHide && !shouldHideChrome.value
 );
 const showAppSidebar = computed(
-	() => !appOption.appSidebarHide && !isAccessStatusGuideRoute.value
+	() => !appOption.appSidebarHide && !shouldHideChrome.value
 );
 const layoutWithoutSidebar = computed(
-	() => appOption.appSidebarHide || isAccessStatusGuideRoute.value
+	() => appOption.appSidebarHide || shouldHideChrome.value
 );
 const layoutWithoutHeader = computed(
-	() => appOption.appHeaderHide || isAccessStatusGuideRoute.value
+	() => appOption.appHeaderHide || shouldHideChrome.value
 );
 
 /**
