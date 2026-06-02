@@ -128,17 +128,22 @@
                     施工平面圖
                   </div>
                   <div class="text-panel__toolbar">
-                    <label class="btn btn-sm btn-outline-secondary mb-0">
-                      <i class="fa fa-image me-1"></i>上傳圖片（可多張）
-                      <input
-                        type="file"
-                        class="d-none"
-                        accept="image/*"
-                        multiple
-                        :disabled="isLayoutImageUploading || !currentProject?.id"
-                        @change="onLayoutImageFilesPicked"
-                      />
-                    </label>
+                    <FileUpload
+                      ref="layoutFileUploadRef"
+                      v-model="layoutPickBuffer"
+                      layout="toolbar"
+                      variant="dark"
+                      accept="image/*"
+                      multiple
+                      :show-upload-button="false"
+                      :show-file-list="false"
+                      :disabled="!currentProject?.id"
+                      :uploading="isLayoutImageUploading"
+                      pick-button-text="上傳圖片（可多張）"
+                      hide-hint
+                      class="p3-file-upload-toolbar"
+                      @change="onLayoutPickBufferChange"
+                    />
                   </div>
                 </div>
                 <div class="text-panel__body">
@@ -148,20 +153,24 @@
                   <div v-else class="cm-attach-images">
                     <div v-for="img in constructionLayoutImages" :key="img.objectName" class="cm-attach-img">
                       <a
-                        v-if="img.signedUrl"
                         class="cm-attach-img__link"
-                        :href="img.signedUrl"
-                        target="_blank"
+                        href="#"
                         rel="noopener"
                         title="開新視窗預覽"
+                        @click.prevent="openLayoutImage(img)"
                       >
-                        <img class="cm-attach-img__thumb" :src="img.signedUrl" alt="施工平面圖" />
+                        <img
+                          v-if="img.signedUrl"
+                          class="cm-attach-img__thumb"
+                          :src="img.signedUrl"
+                          alt="施工平面圖"
+                        />
+                        <div v-else class="cm-attach-img__placeholder text-muted small">
+                          <span v-if="layoutImagePreviewLoading.has(img.objectName)">載入中…</span>
+                          <span v-else-if="layoutImagePreviewFailed.has(img.objectName)">無法預覽</span>
+                          <span v-else>載入中…</span>
+                        </div>
                       </a>
-                      <div v-else class="cm-attach-img__placeholder text-muted small">
-                        <span v-if="layoutImagePreviewLoading.has(img.objectName)">載入中…</span>
-                        <span v-else-if="layoutImagePreviewFailed.has(img.objectName)">無法預覽</span>
-                        <span v-else>載入中…</span>
-                      </div>
                       <button
                         type="button"
                         class="btn btn-sm btn-danger cm-attach-img__remove"
@@ -171,9 +180,6 @@
                         <i class="fa fa-xmark"></i>
                       </button>
                     </div>
-                  </div>
-                  <div v-if="isLayoutImageUploading" class="text-muted small mt-2">
-                    <i class="fa fa-spinner fa-spin me-1"></i>圖片上傳中…
                   </div>
                 </div>
               </div>
@@ -492,17 +498,22 @@
                       <span>
                         <i class="fa fa-image me-1"></i>證照圖片
                       </span>
-                      <label class="btn btn-sm btn-outline-secondary mb-0">
-                        <i class="fa fa-image me-1"></i>上傳證照圖片（可多張）
-                        <input
-                          type="file"
-                          class="d-none"
-                          accept="image/*"
-                          multiple
-                          :disabled="isCredentialImageUploading || !currentProject?.id"
-                          @change="onCredentialImageFilesPicked"
-                        />
-                      </label>
+                      <FileUpload
+                        ref="credentialFileUploadRef"
+                        v-model="credentialPickBuffer"
+                        layout="toolbar"
+                        variant="dark"
+                        accept="image/*"
+                        multiple
+                        :show-upload-button="false"
+                        :show-file-list="false"
+                        :disabled="!currentProject?.id"
+                        :uploading="isCredentialImageUploading"
+                        pick-button-text="上傳證照圖片（可多張）"
+                        hide-hint
+                        class="p3-file-upload-toolbar"
+                        @change="onCredentialPickBufferChange"
+                      />
                     </div>
                     <div v-if="personnelCredentialImages.length === 0" class="text-muted small py-2">
                       尚未上傳證照圖片。可一次選取多張，匯出時會依此順序逐張插入 Word。
@@ -514,20 +525,24 @@
                         class="cm-attach-img"
                       >
                         <a
-                          v-if="img.signedUrl"
                           class="cm-attach-img__link"
-                          :href="img.signedUrl"
-                          target="_blank"
+                          href="#"
                           rel="noopener"
                           title="開新視窗預覽"
+                          @click.prevent="openCredentialImage(img)"
                         >
-                          <img class="cm-attach-img__thumb" :src="img.signedUrl" alt="證照圖片" />
+                          <img
+                            v-if="img.signedUrl"
+                            class="cm-attach-img__thumb"
+                            :src="img.signedUrl"
+                            alt="證照圖片"
+                          />
+                          <div v-else class="cm-attach-img__placeholder text-muted small">
+                            <span v-if="credentialImagePreviewLoading.has(img.objectName)">載入中…</span>
+                            <span v-else-if="credentialImagePreviewFailed.has(img.objectName)">無法預覽</span>
+                            <span v-else>載入中…</span>
+                          </div>
                         </a>
-                        <div v-else class="cm-attach-img__placeholder text-muted small">
-                          <span v-if="credentialImagePreviewLoading.has(img.objectName)">載入中…</span>
-                          <span v-else-if="credentialImagePreviewFailed.has(img.objectName)">無法預覽</span>
-                          <span v-else>載入中…</span>
-                        </div>
                         <button
                           type="button"
                           class="btn btn-sm btn-danger cm-attach-img__remove"
@@ -537,9 +552,6 @@
                           <i class="fa fa-xmark"></i>
                         </button>
                       </div>
-                    </div>
-                    <div v-if="isCredentialImageUploading" class="text-muted small mt-2">
-                      <i class="fa fa-spinner fa-spin me-1"></i>圖片上傳中…
                     </div>
                   </div>
                 </div>
@@ -675,6 +687,274 @@
                 </div>
               </div>
             </div>
+
+            <!-- 緊急應變、保全聯絡體制 -->
+            <div class="col-12 d-flex">
+              <div class="text-panel flex-fill mb-0 w-100">
+                <div class="text-panel__header">
+                  <div class="text-panel__label">
+                    <i class="fa fa-phone-volume me-2 text-danger"></i>
+                    緊急應變、保全聯絡體制
+                  </div>
+                  <div class="text-panel__toolbar">
+                    <span v-if="isEmergencyContactUploading" class="text-muted small me-2">
+                      <i class="fa fa-spinner fa-spin me-1"></i>圖片同步中…
+                    </span>
+                  </div>
+                </div>
+                <div class="text-panel__body org-chart-body">
+                  <!-- 緊急聯絡方式表（在體制圖欄位與預覽之上） -->
+                  <div class="cred-experiences emergency-contact-list">
+                    <div class="cred-experiences__title small text-muted mb-1 d-flex align-items-center justify-content-between flex-wrap gap-2">
+                      <span><i class="fa fa-table me-1"></i>緊急聯絡方式表</span>
+                      <div class="d-flex flex-wrap gap-1">
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-outline-secondary"
+                          title="新增一列（空白類別）"
+                          @click="addEmergencyContactListRow()"
+                        >
+                          <i class="fa fa-plus me-1"></i>新增一列
+                        </button>
+                      </div>
+                    </div>
+                    <p class="small text-muted mb-2">
+                      類別可從建議選項選擇或自行輸入；同一類別可新增多筆。
+                    </p>
+                    <datalist id="p3-emergency-contact-category-options">
+                      <option
+                        v-for="opt in P3_EMERGENCY_CONTACT_CATEGORY_OPTIONS"
+                        :key="opt"
+                        :value="opt"
+                      />
+                    </datalist>
+                    <div class="cred-experiences__table">
+                      <div class="cred-experiences__head row g-0 small text-muted emergency-contact-list__head">
+                        <div class="col-2">類別</div>
+                        <div class="col-4">單位名稱</div>
+                        <div class="col-2">電話</div>
+                        <div class="col-3">備註</div>
+                        <div class="col-1 text-end">&nbsp;</div>
+                      </div>
+                      <div
+                        v-for="(row, idx) in emergencyContactList.rows"
+                        :key="row.id"
+                        class="cred-experiences__row row g-1"
+                      >
+                        <div class="col-2">
+                          <input
+                            v-model="row.category"
+                            type="text"
+                            class="form-control form-control-sm"
+                            list="p3-emergency-contact-category-options"
+                            placeholder="選擇或輸入類別"
+                          />
+                        </div>
+                        <div class="col-4">
+                          <input
+                            v-model="row.unitName"
+                            type="text"
+                            class="form-control form-control-sm"
+                            placeholder="單位名稱"
+                          />
+                        </div>
+                        <div class="col-2">
+                          <input
+                            v-model="row.phone"
+                            type="text"
+                            class="form-control form-control-sm"
+                            placeholder="電話"
+                          />
+                        </div>
+                        <div class="col-3">
+                          <input
+                            v-model="row.remark"
+                            type="text"
+                            class="form-control form-control-sm"
+                            placeholder="備註"
+                          />
+                        </div>
+                        <div class="col-1 d-flex align-items-center justify-content-end">
+                          <button
+                            type="button"
+                            class="btn btn-sm btn-outline-danger"
+                            title="刪除這列"
+                            @click="removeEmergencyContactListRow(idx)"
+                          >
+                            <i class="fa fa-xmark"></i>
+                          </button>
+                        </div>
+                      </div>
+                      <div v-if="emergencyContactList.rows.length === 0" class="text-muted small py-1">
+                        尚無資料，請按「新增一列」或下方快速新增類別。
+                      </div>
+                    </div>
+                    <div class="mt-2 d-flex flex-wrap gap-1">
+                      <button
+                        v-for="cat in P3_EMERGENCY_CONTACT_CATEGORY_OPTIONS"
+                        :key="'quick-' + cat"
+                        type="button"
+                        class="btn btn-sm btn-outline-light"
+                        @click="addEmergencyContactListRow(cat)"
+                      >
+                        + {{ cat }}
+                      </button>
+                    </div>
+                  </div>
+
+                  <hr class="border-secondary my-3" />
+
+                  <p class="small text-muted mb-2">
+                    左側編號對應圖上框框；匯出 Word 時編號不會出現在圖片中。
+                  </p>
+                  <div class="org-chart-form">
+                    <div
+                      v-for="box in P3_EMERGENCY_CONTACT_EDITOR_BOXES"
+                      :key="box.id"
+                      class="p3-emergency-editor-box mb-3"
+                    >
+                      <div class="p3-emergency-editor-box__layout">
+                        <div
+                          class="p3-emergency-editor-box__marker-col"
+                          :class="{ 'p3-emergency-editor-box__marker-col--single': box.fieldKeys.length === 1 }"
+                          :title="box.title"
+                        >
+                          <span class="p3-editor-marker-badge" aria-hidden="true">{{ box.marker }}</span>
+                        </div>
+                        <div class="p3-emergency-editor-box__fields flex-grow-1">
+                          <div class="row g-2">
+                            <div
+                              v-for="fieldKey in box.fieldKeys"
+                              :key="fieldKey"
+                              :class="box.fieldKeys.length > 2 ? 'col-md-4' : 'col-md-6'"
+                            >
+                              <label class="form-label small text-light mb-1">
+                                {{ P3_EMERGENCY_CONTACT_FIELD_LABELS[fieldKey] }}
+                              </label>
+                              <input
+                                v-model="emergencyContactData[fieldKey]"
+                                type="text"
+                                class="form-control form-control-sm"
+                                :placeholder="emergencyContactFieldPlaceholder(fieldKey)"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="org-chart-preview mt-3">
+                    <button
+                      type="button"
+                      class="org-chart-preview__toggle"
+                      :aria-expanded="isEmergencyContactPreviewExpanded ? 'true' : 'false'"
+                      @click="toggleEmergencyContactPreview"
+                    >
+                      <span class="org-chart-preview__title">
+                        <i class="fa fa-eye me-2"></i>即時預覽
+                      </span>
+                      <i
+                        class="fa org-chart-preview__chevron"
+                        :class="isEmergencyContactPreviewExpanded ? 'fa-chevron-up' : 'fa-chevron-down'"
+                      ></i>
+                    </button>
+                    <div v-show="isEmergencyContactPreviewExpanded" class="org-chart-preview__canvas">
+                      <P3EmergencyResponseContactSvg
+                        ref="emergencyContactSvgRef"
+                        :data="emergencyContactData"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 防颱聯絡體制 -->
+            <div class="col-12 d-flex">
+              <div class="text-panel flex-fill mb-0 w-100">
+                <div class="text-panel__header">
+                  <div class="text-panel__label">
+                    <i class="fa fa-wind me-2 text-info"></i>
+                    防颱聯絡體制
+                  </div>
+                  <div class="text-panel__toolbar">
+                    <span v-if="isTyphoonPreventionContactUploading" class="text-muted small me-2">
+                      <i class="fa fa-spinner fa-spin me-1"></i>圖片同步中…
+                    </span>
+                  </div>
+                </div>
+                <div class="text-panel__body org-chart-body">
+                  <p class="small text-muted mb-2">
+                    左側編號對應圖上框框；匯出 Word 時編號不會出現在圖片中。
+                  </p>
+                  <div class="org-chart-form">
+                    <div
+                      v-for="box in P3_TYPHOON_PREVENTION_CONTACT_EDITOR_BOXES"
+                      :key="box.id"
+                      class="p3-emergency-editor-box mb-3"
+                    >
+                      <div class="p3-emergency-editor-box__layout">
+                        <div
+                          class="p3-emergency-editor-box__marker-col p3-emergency-editor-box__marker-col--single"
+                          :title="box.title"
+                        >
+                          <span class="p3-editor-marker-badge" aria-hidden="true">{{ box.marker }}</span>
+                        </div>
+                        <div class="p3-emergency-editor-box__fields flex-grow-1">
+                          <div class="row g-2">
+                            <div
+                              v-for="fieldKey in box.fieldKeys"
+                              :key="fieldKey"
+                              class="col-12"
+                            >
+                              <input
+                                v-model="typhoonPreventionContactData[fieldKey]"
+                                type="text"
+                                class="form-control form-control-sm"
+                                :aria-label="`${box.marker} ${box.title}`"
+                                :placeholder="typhoonPreventionContactFieldPlaceholder(fieldKey)"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="org-chart-preview mt-3">
+                    <button
+                      type="button"
+                      class="org-chart-preview__toggle"
+                      :aria-expanded="isTyphoonPreventionContactPreviewExpanded ? 'true' : 'false'"
+                      @click="toggleTyphoonPreventionContactPreview"
+                    >
+                      <span class="org-chart-preview__title">
+                        <i class="fa fa-eye me-2"></i>即時預覽
+                      </span>
+                      <i
+                        class="fa org-chart-preview__chevron"
+                        :class="isTyphoonPreventionContactPreviewExpanded ? 'fa-chevron-up' : 'fa-chevron-down'"
+                      ></i>
+                    </button>
+                    <div v-show="isTyphoonPreventionContactPreviewExpanded" class="org-chart-preview__canvas">
+                      <P3TyphoonPreventionContactSvg
+                        ref="typhoonPreventionContactSvgRef"
+                        :data="typhoonPreventionContactData"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 工程相關人員附件（與 P-2 同款） -->
+            <P3PersonnelAttachmentsPanel
+              v-model:attachments-json="p3PersonnelAttachmentsJson"
+              :construction-id="currentProject?.id"
+              :design-change-id="selectedDesignChangeId"
+              @dirty="scheduleAutoSave"
+            />
           </div>
         </div>
       </CardBody>
@@ -696,8 +976,10 @@ import Card from '@/components/bootstrap/Card.vue'
 import CardBody from '@/components/bootstrap/CardBody.vue'
 import RepublicDatePicker from '@/components/bootstrap/RepublicDatePicker.vue'
 import DesignChangeVersionSwitcher from '@/components/common/DesignChangeVersionSwitcher.vue'
+import FileUpload from '@/components/common/FileUpload.vue'
 import { formPApi, downloadBlobAsFile, type ExportConstructionReportRequest } from '@/api/forms'
 import { extractFileNameFromResponse } from '@/utils/blobDownload'
+import { openFilePreviewOrDownload } from '@/utils/openFilePreview'
 import {
   deleteP3ConstructionLayoutImage,
   deleteP3SafetyHealthPersonnelCredentialImage,
@@ -714,6 +996,8 @@ import {
   uploadP3SafetyHealthOrgChartImage,
   uploadP3SafetyHealthPersonnelCredentialImage,
   uploadP3SubcontractorOrgChartImage,
+  uploadP3EmergencyResponseContactImage,
+  uploadP3TyphoonPreventionContactImage,
   generateP3SubcontractorCategoriesByAi
 } from '@/api/construction'
 import P3SafetyHealthOrgChartSvg, {
@@ -726,6 +1010,34 @@ import P3SubcontractorOrgChartSvg, {
   normalizeP3SubcontractorOrgChartData,
   type P3SubcontractorOrgChartData
 } from './components/P3SubcontractorOrgChartSvg.vue'
+import P3EmergencyResponseContactSvg, {
+  DEFAULT_P3_EMERGENCY_RESPONSE_CONTACT_DATA,
+  normalizeP3EmergencyResponseContactData,
+  type P3EmergencyResponseContactData
+} from './components/P3EmergencyResponseContactSvg.vue'
+import {
+  DEFAULT_P3_EMERGENCY_CONTACT_LIST,
+  P3_EMERGENCY_CONTACT_CATEGORY_OPTIONS,
+  createEmptyEmergencyContactListRow,
+  normalizeP3EmergencyContactList,
+  type P3EmergencyContactListData
+} from './components/P3EmergencyContactList.ts'
+import {
+  P3_EMERGENCY_CONTACT_EDITOR_BOXES,
+  P3_EMERGENCY_CONTACT_FIELD_LABELS,
+  stripEditorOnlyFromSvg,
+  type P3EmergencyContactFieldKey
+} from './components/P3EmergencyResponseContactMarkers'
+import P3TyphoonPreventionContactSvg, {
+  DEFAULT_P3_TYPHOON_PREVENTION_CONTACT_DATA,
+  normalizeP3TyphoonPreventionContactData,
+  type P3TyphoonPreventionContactData
+} from './components/P3TyphoonPreventionContactSvg.vue'
+import P3PersonnelAttachmentsPanel from './components/P3PersonnelAttachmentsPanel.vue'
+import {
+  P3_TYPHOON_PREVENTION_CONTACT_EDITOR_BOXES,
+  type P3TyphoonPreventionContactFieldKey,
+} from './components/P3TyphoonPreventionContactMarkers'
 import PersonnelComboInput from './components/PersonnelComboInput.vue'
 
 const workspaceStore = useWorkspaceStore()
@@ -779,6 +1091,8 @@ const constructionLayoutImages = ref<P3ConstructionLayoutImageInfo[]>([])
 const layoutImagePreviewLoading = ref<Set<string>>(new Set())
 const layoutImagePreviewFailed = ref<Set<string>>(new Set())
 const isLayoutImageUploading = ref(false)
+const layoutPickBuffer = ref<File[]>([])
+const layoutFileUploadRef = ref<InstanceType<typeof FileUpload> | null>(null)
 let layoutImageBlobUrls: string[] = []
 
 function revokeLayoutImageBlobUrls() {
@@ -863,6 +1177,30 @@ async function ensureAllLayoutImagePreviews() {
   }
 }
 
+async function openLayoutImage(img: P3ConstructionLayoutImageInfo) {
+  const cid = currentProject.value?.id
+  const on = img.objectName?.trim()
+  if (!cid || !on) return
+  await openFilePreviewOrDownload({
+    url: img.signedUrl,
+    fileName: img.fileName || on,
+    contentType: img.contentType,
+    fetchBlob: () => downloadP3ConstructionLayoutImageBlob(cid, on),
+  })
+}
+
+async function openCredentialImage(img: P3SafetyHealthPersonnelCredentialImageInfo) {
+  const cid = currentProject.value?.id
+  const on = img.objectName?.trim()
+  if (!cid || !on) return
+  await openFilePreviewOrDownload({
+    url: img.signedUrl,
+    fileName: img.fileName || on,
+    contentType: img.contentType,
+    fetchBlob: () => downloadP3SafetyHealthPersonnelCredentialImageBlob(cid, on),
+  })
+}
+
 /**
  * 安全衛生組織架構圖（結構化欄位 → 即時 SVG 預覽 → 匯出前自動轉 PNG 上傳）。
  *
@@ -908,6 +1246,70 @@ function removeSupplierRow(idx: number) {
   const next = subOrgChartData.value.materialSuppliers.slice()
   next.splice(idx, 1)
   subOrgChartData.value = { ...subOrgChartData.value, materialSuppliers: next }
+}
+
+/**
+ * 緊急應變、保全聯絡體制（結構化欄位 → SVG 預覽 → 匯出前 PNG 上傳）。
+ * 紅字欄位預設 XX；`p3EmergencyResponseContactJson` / `p3EmergencyResponseContactImageObjectName`。
+ */
+const emergencyContactData = ref<P3EmergencyResponseContactData>({
+  ...DEFAULT_P3_EMERGENCY_RESPONSE_CONTACT_DATA
+})
+/** 緊急聯絡方式表（類別／單位名稱／電話／備註）→ `p3EmergencyContactListJson` */
+const emergencyContactList = ref<P3EmergencyContactListData>({
+  ...DEFAULT_P3_EMERGENCY_CONTACT_LIST,
+  rows: []
+})
+function addEmergencyContactListRow(category = '') {
+  emergencyContactList.value = {
+    ...emergencyContactList.value,
+    rows: [...emergencyContactList.value.rows, createEmptyEmergencyContactListRow(category)]
+  }
+}
+function removeEmergencyContactListRow(idx: number) {
+  if (idx < 0 || idx >= emergencyContactList.value.rows.length) return
+  const next = emergencyContactList.value.rows.slice()
+  next.splice(idx, 1)
+  emergencyContactList.value = { ...emergencyContactList.value, rows: next }
+}
+const emergencyContactSvgRef = ref<InstanceType<typeof P3EmergencyResponseContactSvg> | null>(null)
+const isEmergencyContactUploading = ref(false)
+const isEmergencyContactPreviewExpanded = ref(true)
+function toggleEmergencyContactPreview() {
+  isEmergencyContactPreviewExpanded.value = !isEmergencyContactPreviewExpanded.value
+}
+
+const typhoonPreventionContactData = ref<P3TyphoonPreventionContactData>({
+  ...DEFAULT_P3_TYPHOON_PREVENTION_CONTACT_DATA,
+})
+const typhoonPreventionContactSvgRef = ref<InstanceType<typeof P3TyphoonPreventionContactSvg> | null>(null)
+const isTyphoonPreventionContactUploading = ref(false)
+const isTyphoonPreventionContactPreviewExpanded = ref(true)
+const p3PersonnelAttachmentsJson = ref('')
+function toggleTyphoonPreventionContactPreview() {
+  isTyphoonPreventionContactPreviewExpanded.value = !isTyphoonPreventionContactPreviewExpanded.value
+}
+
+function typhoonPreventionContactFieldPlaceholder(key: P3TyphoonPreventionContactFieldKey): string {
+  return DEFAULT_P3_TYPHOON_PREVENTION_CONTACT_DATA[key]
+}
+
+const EMERGENCY_CONTACT_FIELD_PLACEHOLDERS: Partial<Record<P3EmergencyContactFieldKey, string>> = {
+  siteDirectorName: '預設 XX；可自組織架構圖帶入',
+  hospitalName: '預設 XX醫院',
+  hospitalPhone: '預設 0X-XXXXXXX',
+  architectOffice: '預設 XX建築師事務所',
+  architectName: '預設 XX',
+  architectPhone: '預設 0X-XXXXXXX',
+  contractorCompanyName: '自動帶入營造公司；可修改',
+  technicianName: '預設 XX',
+  technicianPhone: '預設 0X-XXXXXXX',
+  laborInspectionOffice: '預設 XX勞動檢查所',
+  laborInspectionPhone: '預設 02-XXXXXXXX',
+}
+
+function emergencyContactFieldPlaceholder(key: P3EmergencyContactFieldKey): string {
+  return EMERGENCY_CONTACT_FIELD_PLACEHOLDERS[key] ?? ''
 }
 
 /**
@@ -992,6 +1394,8 @@ const personnelCredentialImages = ref<P3SafetyHealthPersonnelCredentialImageInfo
 const credentialImagePreviewLoading = ref<Set<string>>(new Set())
 const credentialImagePreviewFailed = ref<Set<string>>(new Set())
 const isCredentialImageUploading = ref(false)
+const credentialPickBuffer = ref<File[]>([])
+const credentialFileUploadRef = ref<InstanceType<typeof FileUpload> | null>(null)
 let credentialImageBlobUrls: string[] = []
 
 function revokeCredentialImageBlobUrls() {
@@ -1061,11 +1465,15 @@ async function ensureAllCredentialImagePreviews() {
   }
 }
 
-async function onCredentialImageFilesPicked(event: Event) {
+async function onCredentialPickBufferChange(files: File[]) {
+  if (files.length === 0) return
+  await uploadCredentialImages(files)
+  credentialPickBuffer.value = []
+  credentialFileUploadRef.value?.clear()
+}
+
+async function uploadCredentialImages(files: File[]) {
   const cid = currentProject.value?.id
-  const input = event.target as HTMLInputElement
-  const files = Array.from(input?.files ?? [])
-  input.value = ''
   if (!cid || files.length === 0) return
 
   isCredentialImageUploading.value = true
@@ -1275,6 +1683,145 @@ async function ensureSubOrgChartUploaded(): Promise<void> {
   }
 }
 
+let emergencyContactImageObjectName = ''
+let emergencyContactPendingPromise: Promise<void> | null = null
+
+async function syncEmergencyContactImageNow(): Promise<void> {
+  const cid = currentProject.value?.id
+  if (!cid) return
+  const svgEl = emergencyContactSvgRef.value?.getSvgElement()
+  const vb = emergencyContactSvgRef.value?.getViewBox()
+  if (!svgEl || !vb) {
+    console.warn('[P3] 緊急應變聯絡體制 SVG 尚未掛載，跳過上傳')
+    return
+  }
+
+  isEmergencyContactUploading.value = true
+  try {
+    const exportSvg = stripEditorOnlyFromSvg(svgEl)
+    const blob = await svgToPngBlob(exportSvg, vb.w, vb.h, 2)
+    const file = new File([blob], `p3-emergency-contact-${Date.now()}.png`, { type: 'image/png' })
+    const uploaded = await uploadP3EmergencyResponseContactImage(cid, selectedDesignChangeId.value, file)
+    emergencyContactImageObjectName = uploaded.objectName
+  } catch (e: any) {
+    const msg = e?.response?.data?.message ?? e?.message ?? '緊急應變聯絡體制圖上傳失敗'
+    console.error('[P3] 緊急應變聯絡體制圖上傳失敗：', e)
+    window.alert(msg)
+    throw e
+  } finally {
+    isEmergencyContactUploading.value = false
+  }
+}
+
+const debouncedEmergencyContactUpload = debounce(() => {
+  emergencyContactPendingPromise = syncEmergencyContactImageNow()
+    .catch(() => { /* 已彈窗 */ })
+    .finally(() => {
+      emergencyContactPendingPromise = null
+    })
+}, 1500)
+
+async function ensureEmergencyContactUploaded(): Promise<void> {
+  try { debouncedEmergencyContactUpload.flush() } catch { /* ignore */ }
+  if (emergencyContactPendingPromise) {
+    try { await emergencyContactPendingPromise } catch { /* ignore */ }
+  }
+  try {
+    await syncEmergencyContactImageNow()
+  } catch {
+    /* 已彈窗 */
+  }
+}
+
+let typhoonPreventionContactImageObjectName = ''
+let typhoonPreventionContactPendingPromise: Promise<void> | null = null
+
+async function syncTyphoonPreventionContactImageNow(): Promise<void> {
+  const cid = currentProject.value?.id
+  if (!cid) return
+  const svgEl = typhoonPreventionContactSvgRef.value?.getSvgElement()
+  const vb = typhoonPreventionContactSvgRef.value?.getViewBox()
+  if (!svgEl || !vb) {
+    console.warn('[P3] 防颱聯絡體制 SVG 尚未掛載，跳過上傳')
+    return
+  }
+
+  isTyphoonPreventionContactUploading.value = true
+  try {
+    const exportSvg = stripEditorOnlyFromSvg(svgEl)
+    const blob = await svgToPngBlob(exportSvg, vb.w, vb.h, 2)
+    const file = new File([blob], `p3-typhoon-prevention-contact-${Date.now()}.png`, { type: 'image/png' })
+    const uploaded = await uploadP3TyphoonPreventionContactImage(cid, selectedDesignChangeId.value, file)
+    typhoonPreventionContactImageObjectName = uploaded.objectName
+  } catch (e: any) {
+    const msg = e?.response?.data?.message ?? e?.message ?? '防颱聯絡體制圖上傳失敗'
+    console.error('[P3] 防颱聯絡體制圖上傳失敗：', e)
+    window.alert(msg)
+    throw e
+  } finally {
+    isTyphoonPreventionContactUploading.value = false
+  }
+}
+
+const debouncedTyphoonPreventionContactUpload = debounce(() => {
+  typhoonPreventionContactPendingPromise = syncTyphoonPreventionContactImageNow()
+    .catch(() => { /* 已彈窗 */ })
+    .finally(() => {
+      typhoonPreventionContactPendingPromise = null
+    })
+}, 1500)
+
+async function ensureTyphoonPreventionContactUploaded(): Promise<void> {
+  try { debouncedTyphoonPreventionContactUpload.flush() } catch { /* ignore */ }
+  if (typhoonPreventionContactPendingPromise) {
+    try { await typhoonPreventionContactPendingPromise } catch { /* ignore */ }
+  }
+  try {
+    await syncTyphoonPreventionContactImageNow()
+  } catch {
+    /* 已彈窗 */
+  }
+}
+
+function prefillTyphoonPreventionContactIfEmpty() {
+  const cur = typhoonPreventionContactData.value
+  const emergency = emergencyContactData.value
+  if ((!cur.hospitalName?.trim() || cur.hospitalName === 'XX醫院') && emergency.hospitalName?.trim()) {
+    typhoonPreventionContactData.value = { ...cur, hospitalName: emergency.hospitalName }
+  }
+  if ((!cur.architectOffice?.trim() || cur.architectOffice === 'XX建築師事務所') && emergency.architectOffice?.trim()) {
+    typhoonPreventionContactData.value = {
+      ...typhoonPreventionContactData.value,
+      architectOffice: emergency.architectOffice,
+    }
+  }
+  if (!typhoonPreventionContactData.value.contractorCompanyName?.trim()) {
+    const cn =
+      emergency.contractorCompanyName?.trim() ||
+      orgChartData.value.companyName?.trim()
+    if (cn) {
+      typhoonPreventionContactData.value = {
+        ...typhoonPreventionContactData.value,
+        contractorCompanyName: cn,
+      }
+    }
+  }
+}
+
+function prefillEmergencyContactIfEmpty() {
+  const cur = emergencyContactData.value
+  const site = orgChartData.value.siteDirectorName?.trim()
+  if ((!cur.siteDirectorName?.trim() || cur.siteDirectorName === 'XX') && site && site !== 'XX') {
+    emergencyContactData.value = { ...cur, siteDirectorName: site }
+  }
+  if (!emergencyContactData.value.contractorCompanyName?.trim()) {
+    const cn = orgChartData.value.companyName?.trim()
+    if (cn) {
+      emergencyContactData.value = { ...emergencyContactData.value, contractorCompanyName: cn }
+    }
+  }
+}
+
 /**
  * 從工程案／工地人員資料自動帶入「公司名稱」「公司負責人」「工地主任」，
  * 並建立「品管人員」「勞安人員」兩組下拉建議名單（datalist）。
@@ -1400,7 +1947,7 @@ async function prefillCompanyAndOwnerIfEmpty(detail?: any) {
     }
   }
 
-  // 上面每個欄位寫入時 watch(orgChartData) 已自動排程儲存與 SVG 上傳，這裡無須額外處理。
+  prefillEmergencyContactIfEmpty()
 }
 
 const breadcrumbs = [
@@ -1420,9 +1967,13 @@ async function onVersionChange(versionId: number | null) {
   revokeCredentialImageBlobUrls()
   orgChartImageObjectName = ''
   subOrgChartImageObjectName = ''
+  emergencyContactImageObjectName = ''
+  typhoonPreventionContactImageObjectName = ''
   resetOrgChartPersonnelOptions()
   debouncedOrgChartUpload.cancel()
   debouncedSubOrgChartUpload.cancel()
+  debouncedEmergencyContactUpload.cancel()
+  debouncedTyphoonPreventionContactUpload.cancel()
   await loadTexts()
 }
 
@@ -1436,11 +1987,19 @@ async function flushPendingSavesBeforeSwitch() {
     debouncedAutoSave.flush()
     debouncedOrgChartUpload.flush()
     debouncedSubOrgChartUpload.flush()
+    debouncedEmergencyContactUpload.flush()
+    debouncedTyphoonPreventionContactUpload.flush()
     if (orgChartPendingPromise) {
       await orgChartPendingPromise
     }
     if (subOrgChartPendingPromise) {
       await subOrgChartPendingPromise
+    }
+    if (emergencyContactPendingPromise) {
+      await emergencyContactPendingPromise
+    }
+    if (typhoonPreventionContactPendingPromise) {
+      await typhoonPreventionContactPendingPromise
     }
     if (autoSaveStatus.value === 'saving') {
       const start = Date.now()
@@ -1522,12 +2081,53 @@ async function loadTexts() {
     const oldSubOrgObject = (detail as any).p3SubcontractorOrgChartImageObjectName
     subOrgChartImageObjectName = typeof oldSubOrgObject === 'string' ? oldSubOrgObject : ''
 
+    const emergencyListRaw = (detail as any).p3EmergencyContactListJson
+    if (typeof emergencyListRaw === 'string' && emergencyListRaw.trim()) {
+      try {
+        emergencyContactList.value = normalizeP3EmergencyContactList(JSON.parse(emergencyListRaw))
+      } catch {
+        emergencyContactList.value = { ...DEFAULT_P3_EMERGENCY_CONTACT_LIST, rows: [] }
+      }
+    } else {
+      emergencyContactList.value = { ...DEFAULT_P3_EMERGENCY_CONTACT_LIST, rows: [] }
+    }
+
+    const emergencyRaw = (detail as any).p3EmergencyResponseContactJson
+    if (typeof emergencyRaw === 'string' && emergencyRaw.trim()) {
+      try {
+        emergencyContactData.value = normalizeP3EmergencyResponseContactData(JSON.parse(emergencyRaw))
+      } catch {
+        emergencyContactData.value = { ...DEFAULT_P3_EMERGENCY_RESPONSE_CONTACT_DATA }
+      }
+    } else {
+      emergencyContactData.value = { ...DEFAULT_P3_EMERGENCY_RESPONSE_CONTACT_DATA }
+    }
+    const oldEmergencyObject = (detail as any).p3EmergencyResponseContactImageObjectName
+    emergencyContactImageObjectName = typeof oldEmergencyObject === 'string' ? oldEmergencyObject : ''
+
+    const typhoonRaw = (detail as any).p3TyphoonPreventionContactJson
+    if (typeof typhoonRaw === 'string' && typhoonRaw.trim()) {
+      try {
+        typhoonPreventionContactData.value = normalizeP3TyphoonPreventionContactData(JSON.parse(typhoonRaw))
+      } catch {
+        typhoonPreventionContactData.value = { ...DEFAULT_P3_TYPHOON_PREVENTION_CONTACT_DATA }
+      }
+    } else {
+      typhoonPreventionContactData.value = { ...DEFAULT_P3_TYPHOON_PREVENTION_CONTACT_DATA }
+    }
+    const oldTyphoonObject = (detail as any).p3TyphoonPreventionContactImageObjectName
+    typhoonPreventionContactImageObjectName = typeof oldTyphoonObject === 'string' ? oldTyphoonObject : ''
+
+    p3PersonnelAttachmentsJson.value = (detail as any).p3PersonnelAttachmentsJson ?? ''
+
     if (!dataReferenceDate.value) {
       dataReferenceDate.value = new Date().toISOString().slice(0, 10)
     }
 
     // 自動帶入公司名稱／公司負責人／工地主任（僅在欄位為空時，避免覆寫使用者已填值）
     void prefillCompanyAndOwnerIfEmpty(detail)
+    prefillEmergencyContactIfEmpty()
+    prefillTyphoonPreventionContactIfEmpty()
   } catch (e: any) {
     const msg = e?.response?.data?.message ?? e?.message ?? '載入失敗'
     window.alert(msg)
@@ -1549,6 +2149,10 @@ async function saveTexts() {
       p3SafetyHealthPersonnelCredentialJson: JSON.stringify(personnelCredential.value),
       p3SafetyHealthPersonnelCredentialImagesJson: syncPersonnelCredentialImagesJson(),
       p3SubcontractorOrgChartJson: JSON.stringify(subOrgChartData.value),
+      p3EmergencyResponseContactJson: JSON.stringify(emergencyContactData.value),
+      p3EmergencyContactListJson: JSON.stringify(emergencyContactList.value),
+      p3TyphoonPreventionContactJson: JSON.stringify(typhoonPreventionContactData.value),
+      p3PersonnelAttachmentsJson: p3PersonnelAttachmentsJson.value,
     } as any,
     selectedDesignChangeId.value
   )
@@ -1565,13 +2169,16 @@ function syncPersonnelCredentialImagesJson(): string {
   return JSON.stringify(arr)
 }
 
-async function onLayoutImageFilesPicked(ev: Event) {
-  const cid = currentProject.value?.id
-  if (!cid) return
-  const input = ev.target as HTMLInputElement
-  const files = input.files ? Array.from(input.files) : []
-  input.value = ''
+async function onLayoutPickBufferChange(files: File[]) {
   if (files.length === 0) return
+  await uploadLayoutImages(files)
+  layoutPickBuffer.value = []
+  layoutFileUploadRef.value?.clear()
+}
+
+async function uploadLayoutImages(files: File[]) {
+  const cid = currentProject.value?.id
+  if (!cid || files.length === 0) return
 
   isLayoutImageUploading.value = true
   try {
@@ -1691,6 +2298,8 @@ async function exportWord() {
     await ensureOrgChartUploaded()
     // 同樣：匯出前確保協力廠商組織關係圖最新 PNG 已上傳
     await ensureSubOrgChartUploaded()
+    await ensureEmergencyContactUploaded()
+    await ensureTyphoonPreventionContactUploaded()
 
     const taskId = `p3-export-${cid}-${Date.now()}`
     const res = await runWithExportLoading(taskId, 'P-3 職業安全衛生管理計畫', (signal) =>
@@ -1781,8 +2390,12 @@ watch(
     revokeCredentialImageBlobUrls()
     orgChartImageObjectName = ''
     subOrgChartImageObjectName = ''
+    emergencyContactImageObjectName = ''
+    typhoonPreventionContactImageObjectName = ''
     debouncedOrgChartUpload.cancel()
     debouncedSubOrgChartUpload.cancel()
+    debouncedEmergencyContactUpload.cancel()
+    debouncedTyphoonPreventionContactUpload.cancel()
     await loadTexts()
   }
 )
@@ -1800,6 +2413,20 @@ watch(orgChartData, () => {
 watch(subOrgChartData, () => {
   scheduleAutoSave()
   debouncedSubOrgChartUpload()
+}, { deep: true })
+
+watch(emergencyContactData, () => {
+  scheduleAutoSave()
+  debouncedEmergencyContactUpload()
+}, { deep: true })
+
+watch(emergencyContactList, () => {
+  scheduleAutoSave()
+}, { deep: true })
+
+watch(typhoonPreventionContactData, () => {
+  scheduleAutoSave()
+  debouncedTyphoonPreventionContactUpload()
 }, { deep: true })
 
 /** 安衛管理組右側列點：以多行文字編輯，再切回陣列同步到 orgChartData */
@@ -1822,6 +2449,8 @@ onUnmounted(() => {
   try { debouncedAutoSave.flush() } catch { /* ignore */ }
   try { debouncedOrgChartUpload.flush() } catch { /* ignore */ }
   try { debouncedSubOrgChartUpload.flush() } catch { /* ignore */ }
+  try { debouncedEmergencyContactUpload.flush() } catch { /* ignore */ }
+  try { debouncedTyphoonPreventionContactUpload.flush() } catch { /* ignore */ }
   if (savedFlashTimer) {
     clearTimeout(savedFlashTimer)
     savedFlashTimer = null
@@ -2076,6 +2705,20 @@ onUnmounted(() => {
   flex-shrink: 0;
   margin: 0;
 }
+
+.p3-file-upload-toolbar :deep(.file-upload__toolbar) {
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  gap: 0;
+}
+
+.p3-file-upload-toolbar :deep(.file-upload__toolbar-text) {
+  display: none;
+}
+
+.cred-images .p3-file-upload-toolbar :deep(.file-upload__toolbar) {
+  justify-content: flex-end;
+}
 .text-panel__toolbar .btn-ai-generate {
   padding: 0.45rem 1.05rem;
   font-size: 0.92rem;
@@ -2279,6 +2922,51 @@ onUnmounted(() => {
 }
 .cred-experiences__row {
   margin-bottom: 0.35rem;
+}
+.emergency-contact-list__head > div {
+  padding-right: 0.25rem;
+}
+/* 與體制圖 SVG 標記同款：藍底白字圓圈（表單略小） */
+.p3-editor-marker-badge {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  min-height: 20px;
+  padding: 0;
+  border-radius: 50%;
+  background-color: #2563eb;
+  border: 1.2px solid #fff;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  flex-shrink: 0;
+  font-family: 'Microsoft JhengHei', 'PingFang TC', sans-serif;
+  user-select: none;
+}
+.p3-emergency-editor-box {
+  padding: 0.65rem 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0.35rem;
+  background: rgba(0, 0, 0, 0.15);
+}
+.p3-emergency-editor-box__layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+}
+.p3-emergency-editor-box__marker-col {
+  padding-top: 1.15rem;
+  flex-shrink: 0;
+  width: 20px;
+}
+.p3-emergency-editor-box__marker-col--single {
+  padding-top: 0.15rem;
+  align-self: center;
 }
 .cred-experiences__row > div {
   padding: 0 0.25rem;

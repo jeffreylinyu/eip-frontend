@@ -275,21 +275,13 @@
 
                           <div v-if="t.images.length > 0" class="cm-attach-images">
                             <div v-for="img in t.images" :key="img.objectName" class="cm-attach-img">
-                              <a
-                                v-if="img.signedUrl"
-                                class="cm-attach-img__link"
-                                :href="img.signedUrl"
-                                target="_blank"
-                                rel="noopener"
-                                title="開新視窗預覽"
-                              >
-                                <img class="cm-attach-img__thumb" :src="img.signedUrl" alt="附件圖片" />
-                              </a>
-                              <div v-else class="cm-attach-img__placeholder text-muted small">
-                                <span v-if="personnelPreviewLoading.has(img.objectName)">載入中…</span>
-                                <span v-else-if="personnelPreviewFailed.has(img.objectName)">無法預覽</span>
-                                <span v-else>載入中…</span>
-                              </div>
+                              <CmAttachImageThumb
+                                :img="img"
+                                :loading="personnelPreviewLoading.has(img.objectName)"
+                                :failed="personnelPreviewFailed.has(img.objectName)"
+                                :fetch-blob="() => fetchP2PersonnelImageBlob(img)"
+                                :ensure-preview="() => ensurePersonnelImagePreview(img.objectName, img)"
+                              />
                               <button
                                 type="button"
                                 class="btn btn-sm btn-danger cm-attach-img__remove"
@@ -351,21 +343,13 @@
 
                           <div v-if="t.images.length > 0" class="cm-attach-images">
                             <div v-for="img in t.images" :key="img.objectName" class="cm-attach-img">
-                              <a
-                                v-if="img.signedUrl"
-                                class="cm-attach-img__link"
-                                :href="img.signedUrl"
-                                target="_blank"
-                                rel="noopener"
-                                title="開新視窗預覽"
-                              >
-                                <img class="cm-attach-img__thumb" :src="img.signedUrl" alt="附件圖片" />
-                              </a>
-                              <div v-else class="cm-attach-img__placeholder text-muted small">
-                                <span v-if="personnelPreviewLoading.has(img.objectName)">載入中…</span>
-                                <span v-else-if="personnelPreviewFailed.has(img.objectName)">無法預覽</span>
-                                <span v-else>載入中…</span>
-                              </div>
+                              <CmAttachImageThumb
+                                :img="img"
+                                :loading="personnelPreviewLoading.has(img.objectName)"
+                                :failed="personnelPreviewFailed.has(img.objectName)"
+                                :fetch-blob="() => fetchP2PersonnelImageBlob(img)"
+                                :ensure-preview="() => ensurePersonnelImagePreview(img.objectName, img)"
+                              />
                               <button
                                 type="button"
                                 class="btn btn-sm btn-danger cm-attach-img__remove"
@@ -406,6 +390,7 @@ import Card from '@/components/bootstrap/Card.vue'
 import CardBody from '@/components/bootstrap/CardBody.vue'
 import RepublicDatePicker from '@/components/bootstrap/RepublicDatePicker.vue'
 import DesignChangeVersionSwitcher from '@/components/common/DesignChangeVersionSwitcher.vue'
+import CmAttachImageThumb from '@/components/common/CmAttachImageThumb.vue'
 import FlowGraphSyncfusionView from '@/components/diagram/FlowGraphSyncfusionView.vue'
 import { formPApi, downloadBlobAsFile, type ExportConstructionReportRequest } from '@/api/forms'
 import { extractFileNameFromResponse } from '@/utils/blobDownload'
@@ -528,6 +513,13 @@ function revokePersonnelBlobUrls() {
     try { URL.revokeObjectURL(url) } catch { /* ignore */ }
   }
   personnelBlobUrls = []
+}
+
+function fetchP2PersonnelImageBlob(img: P2AttachmentImage): Promise<Blob> {
+  const cid = currentProject.value?.id
+  const on = String(img.objectName || '').trim()
+  if (!cid || !on) return Promise.reject(new Error('缺少工程案或檔案識別'))
+  return downloadP2PersonnelAttachmentBlob(cid, on)
 }
 
 async function ensurePersonnelImagePreview(objectName: string, target: P2AttachmentImage) {

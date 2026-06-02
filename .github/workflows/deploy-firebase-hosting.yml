@@ -49,10 +49,15 @@ jobs:
           VITE_FIREBASE_MEASUREMENT_ID: ${{ vars.VITE_FIREBASE_MEASUREMENT_ID }}
         run: npm run build
 
-      - name: Deploy to Firebase Hosting (live)
+      - name: Apply Firebase Hosting site (GitHub Variable)
+        env:
+          VITE_FIREBASE_HOSTING_SITE: ${{ vars.VITE_FIREBASE_HOSTING_SITE }}
+        run: node scripts/apply-firebase-hosting-site.mjs
+
+      - name: Deploy to Firebase Hosting (live → app.wei-yu.com)
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_WEIYU_ENGINEERING_SMART }}
+          projectId: ${{ vars.VITE_FIREBASE_PROJECT_ID }}
           channelId: live
-          projectId: weiyu-engineering-smart

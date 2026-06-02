@@ -94,17 +94,17 @@ defineExpose({
 
 // === 版型常數 ===
 /**
- * 總畫布寬高（viewBox）刻意做成 18:25 比例（與 Word 中固定插入尺寸 18cm × 25cm 對齊），
+ * 總畫布寬高刻意做成 18:22.5 比例（與 Word 中固定插入尺寸 18cm × 22.5cm 對齊），
  * 這樣 SVG → PNG 轉檔後在 Word 內呈現時不會被拉伸變形。
  *
- * 原本內容版型仍以 1100 × 1450 設計，再用 `<g transform="translate(0, INNER_OFFSET_Y)">`
- * 整體垂直置中於 1100 × 1528 的畫布內，避免重新計算每個元素座標。
+ * 內容版型仍以 1100×1450 設計；畫布寬度依 18:22.5 比例加寬並水平置中內容。
  */
-const W = 1100
-const H = 1528
 const INNER_W = 1100
 const INNER_H = 1450
-const INNER_OFFSET_Y = Math.round((H - INNER_H) / 2) // (1528 - 1450) / 2 = 39
+const H = INNER_H
+const W = Math.round((H * 18) / 22.5) // 1160，18:22.5
+const INNER_OFFSET_X = (W - INNER_W) / 2
+const INNER_OFFSET_Y = 0
 
 /** 左區：公司／工程名稱框 */
 const LEFT_X = 50
@@ -225,11 +225,11 @@ const trunkBounds = computed(() => {
     aria-label="協力廠商組織關係圖"
     style="display:block; width:100%; height:auto; background:#fff;"
   >
-    <!-- 整張畫布白底（橫越整個 18:25 viewBox） -->
+    <!-- 整張畫布白底（橫越整個 18:22.5 viewBox） -->
     <rect :style="STYLE_BG" x="0" y="0" :width="W" :height="H" />
 
-    <!-- 內部沿用原本 1100×1450 的座標，整體向下平移 INNER_OFFSET_Y 垂直置中 -->
-    <g :transform="`translate(0, ${INNER_OFFSET_Y})`">
+    <!-- 內部沿用原本 1100×1450 的座標，整體置中於 18:22.5 畫布 -->
+    <g :transform="`translate(${INNER_OFFSET_X}, ${INNER_OFFSET_Y})`">
     <!-- 內容區白底（沿用原版型；在主白底之上） -->
     <rect :style="STYLE_BG" x="0" y="0" :width="INNER_W" :height="INNER_H" />
 

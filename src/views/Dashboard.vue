@@ -4,7 +4,6 @@ import Card from '@/components/bootstrap/Card.vue'
 import CardBody from '@/components/bootstrap/CardBody.vue'
 import CardHeader from '@/components/bootstrap/CardHeader.vue'
 import apexchart from '@/components/plugins/Apexcharts.vue'
-import chartjs from '@/components/plugins/Chartjs.vue'
 
 import CalendarWidget from '@/components/dashboard/CalendarWidget.vue'
 import WeatherWidget from '@/components/dashboard/WeatherWidget.vue'
@@ -163,45 +162,61 @@ const projectProgressChart = computed(() => {
   }
 })
 
-// 工程階段分佈圖表（Chart.js）
+// 工程階段分佈圖表（ApexCharts donut；SVG 較不易在長截圖縮成小塊）
 const phaseDistributionChart = computed(() => {
   const completedPhases = dashboardData.value?.completedPhases || 0
   const totalPhases = dashboardData.value?.totalPhases || 6
   const remainingPhases = Math.max(0, totalPhases - completedPhases - 1)
-  
+  const bodyColor = appVariable.color?.bodyColor || '#e2e8f0'
+  const borderColor = appVariable.color?.borderColor || 'rgba(255,255,255,0.2)'
+
   return {
-    type: 'doughnut',
-    data: {
-      labels: ['已完成階段', '進行中階段', '未開始階段'],
-      datasets: [{
-        data: [
-          completedPhases,
-          1, // 當前階段
-          remainingPhases
-        ],
-        backgroundColor: [
-          appVariable.color?.success || '#28a745',
-          appVariable.color?.warning || '#ffc107',
-          appVariable.color?.gray300 || '#dee2e6'
-        ],
-        borderWidth: 2,
-        borderColor: '#ffffff'
-      }]
-    },
+    height: 300,
+    series: [completedPhases, 1, remainingPhases],
     options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          display: true,
-          position: 'bottom'
+      chart: {
+        type: 'donut',
+        toolbar: { show: false },
+      },
+      labels: ['已完成階段', '進行中階段', '未開始階段'],
+      colors: [
+        appVariable.color?.success || '#28a745',
+        appVariable.color?.warning || '#ffc107',
+        appVariable.color?.gray300 || '#dee2e6',
+      ],
+      title: {
+        text: '工程階段進度',
+        align: 'center',
+        style: {
+          fontSize: '14px',
+          fontWeight: '600',
+          color: bodyColor,
         },
-        title: {
-          display: true,
-          text: '工程階段進度'
-        }
-      }
-    }
+      },
+      legend: {
+        position: 'bottom',
+        labels: { colors: bodyColor },
+      },
+      plotOptions: {
+        pie: {
+          donut: {
+            size: '62%',
+          },
+        },
+      },
+      dataLabels: { enabled: false },
+      stroke: {
+        show: true,
+        width: 2,
+        colors: [borderColor],
+      },
+      tooltip: {
+        theme: 'dark',
+        y: {
+          formatter: (value: number) => `${value} 階段`,
+        },
+      },
+    },
   }
 })
 
@@ -542,11 +557,11 @@ onBeforeUnmount(() => {
                   </h5>
                 </CardHeader>
                 <CardBody>
-                  <div v-if="phaseDistributionChart" style="height: 300px;">
-                    <chartjs 
-                      :type="phaseDistributionChart.type" 
-                      :data="phaseDistributionChart.data"
+                  <div v-if="phaseDistributionChart" class="phase-distribution-chart-host">
+                    <apexchart
+                      :height="phaseDistributionChart.height"
                       :options="phaseDistributionChart.options"
+                      :series="phaseDistributionChart.series"
                     />
                   </div>
                 </CardBody>
@@ -987,6 +1002,16 @@ onBeforeUnmount(() => {
 .dashboard-content {
   padding: 2rem;
   max-width: none;
+}
+
+/* 專案狀態分佈（ApexCharts donut） */
+.phase-distribution-chart-host {
+  position: relative;
+  width: 100%;
+  min-height: 300px;
+}
+.phase-distribution-chart-host :deep(.apexcharts-canvas) {
+  margin: 0 auto;
 }
 
 .page-header {

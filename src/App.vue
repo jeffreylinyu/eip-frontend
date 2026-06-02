@@ -11,6 +11,7 @@ import AppTopNav from '@/components/app/TopNav.vue';
 import AppFooter from '@/components/app/Footer.vue';
 import AppThemePanel from '@/components/app/ThemePanel.vue';
 import ExportLoadingPanel from '@/components/common/ExportLoadingPanel.vue';
+import AiAssistantWidget from '@/components/app/AiAssistantWidget.vue';
 import router from './router';
 
 const appOption = useAppOptionStore();
@@ -98,5 +99,6 @@ document.querySelector('body').classList.add('app-init');
 		<app-footer v-if="appOption.appFooter" />
 		<app-theme-panel />
 		<ExportLoadingPanel />
+		<AiAssistantWidget />
 	</div>
 </template>

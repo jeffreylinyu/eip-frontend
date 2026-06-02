@@ -1404,6 +1404,7 @@ import Modal from '@/components/bootstrap/Modal.vue'
 import DesignChangeVersionSwitcher from '@/components/common/DesignChangeVersionSwitcher.vue'
 import MaterialInspectionPanel from '@/components/project/MaterialInspectionPanel.vue'
 import { ref, computed, watch, onMounted, onUnmounted, onActivated, nextTick, provide } from 'vue'
+import { useRoute } from 'vue-router'
 import { useWorkspaceStore } from '@/stores/workspace'
 import {
   importPccesFile,
@@ -1673,6 +1674,19 @@ const materialPanelRef = ref<InstanceType<typeof MaterialInspectionPanel> | null
 
 /** 標單明細 / 單價分析 分頁 */
 const pccesViewTab = ref<'detail' | 'breakdown' | 'resource' | 'materialInspection'>('detail')
+
+const route = useRoute()
+const PCCES_VIEW_TABS = ['detail', 'breakdown', 'resource', 'materialInspection'] as const
+
+function applyPccesTabFromRouteQuery() {
+  const raw = route.query.tab
+  const tab = typeof raw === 'string' ? raw.trim() : ''
+  if ((PCCES_VIEW_TABS as readonly string[]).includes(tab)) {
+    pccesViewTab.value = tab as (typeof PCCES_VIEW_TABS)[number]
+  }
+}
+
+watch(() => route.query.tab, applyPccesTabFromRouteQuery)
 
 // ===== 批次模式（標單明細 / 單價分析）：勾選多筆後一次設定類型 =====
 const batchMode = ref(false)
@@ -3230,6 +3244,7 @@ function injectRowHoverStyle() {
 }
 
 onMounted(async () => {
+  applyPccesTabFromRouteQuery()
   injectRowHoverStyle()
   if (constructionId.value) {
     await fetchDesignChangeList()
@@ -3243,6 +3258,7 @@ onUnmounted(() => {
 
 // 當組件重新激活時（從其他畫面切回來），確保 TreeGrid 樣式正確
 onActivated(() => {
+  applyPccesTabFromRouteQuery()
   // 強制重新渲染 TreeGrid（如果需要）
   if (treegrid.value) {
     // 觸發 TreeGrid 重新計算樣式

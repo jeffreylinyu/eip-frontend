@@ -134,17 +134,18 @@ defineExpose({
 })
 
 /**
- * viewBox 寬高刻意做成 19:23 比例（與 Word 中固定插入尺寸 19cm × 23cm 對齊），
+ * viewBox 寬高刻意做成 17:21 比例（與 Word 中固定插入尺寸 17cm × 21cm 對齊），
  * 這樣前端 SVG → PNG 轉檔後在 Word 內呈現時不會被拉伸變形。
  *
- * 內部所有節點座標仍沿用原本 1100×1080 的版型，再以一個 `<g transform="translate(0, INNER_OFFSET_Y)">`
- * 整體垂直置中於 1100×1332 的畫布內，避免重新計算每個座標。
+ * 內部所有節點座標仍沿用原本 1100×1080 的版型，再以 `<g transform="translate(INNER_OFFSET_X, INNER_OFFSET_Y)">`
+ * 整體置中於 17:21 畫布內，避免重新計算每個座標。
  */
-const W = 1100
-const H = 1332
 const INNER_W = 1100
 const INNER_H = 1080
-const INNER_OFFSET_Y = (H - INNER_H) / 2 // 垂直置中：(1332 - 1080) / 2 = 126
+const W = 1100
+const H = Math.round((W * 21) / 17) // 1359，17:21
+const INNER_OFFSET_X = (W - INNER_W) / 2
+const INNER_OFFSET_Y = (H - INNER_H) / 2
 
 // === 樣式常數（inline style；確保 SVG 序列化後外觀仍正確）===
 const FONT_FAMILY = "'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif"
@@ -197,11 +198,11 @@ const adminNoteLines = computed(() => wrapByChars(props.data.adminTeamNote, 11))
     aria-label="安全衛生組織架構圖"
     style="display:block; width:100%; height:auto; background:#fff;"
   >
-    <!-- 整個 19:23 畫布的白底（橫越整個 viewBox） -->
+    <!-- 整個 17:21 畫布的白底（橫越整個 viewBox） -->
     <rect :style="STYLE_BG" x="0" y="0" :width="W" :height="H" />
 
-    <!-- 內部沿用原本 1100×1080 的座標，整體向下平移 INNER_OFFSET_Y 垂直置中 -->
-    <g :transform="`translate(0, ${INNER_OFFSET_Y})`">
+    <!-- 內部沿用原本 1100×1080 的座標，整體置中於 17:21 畫布 -->
+    <g :transform="`translate(${INNER_OFFSET_X}, ${INNER_OFFSET_Y})`">
     <!-- 內容區白底（沿用原版型；在主白底之上） -->
     <rect :style="STYLE_BG" x="0" y="0" :width="INNER_W" :height="INNER_H" />
 

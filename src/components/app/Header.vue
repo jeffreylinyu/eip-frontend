@@ -10,6 +10,7 @@ import { useViewPerspective, ViewType } from '@/composables/useViewPerspective';
 import ViewTypeSwitcher from '@/components/app/ViewTypeSwitcher.vue';
 import CoreDataStatusModal from '@/components/project/CoreDataStatusModal.vue';
 import EngineeringDataBuildHeaderAction from '@/components/app/EngineeringDataBuildHeaderAction.vue';
+import { useAiAssistantStore } from '@/stores/ai-assistant'
 
 const appOption = useAppOptionStore();
 const authStore = useAuthStore();
@@ -17,6 +18,7 @@ const router = useRouter();
 const notificationData = [];
 const workspaceStore = useWorkspaceStore();
 const { viewType } = useViewPerspective();
+const aiAssistantStore = useAiAssistantStore()
 
 // 登出功能
 const handleLogout = async () => {
@@ -229,6 +231,20 @@ workspaceStore.initWorkspaces();
           <span class="d-none d-md-inline">核心資料填寫狀況</span>
         </button>
       </div>
+
+      <!-- 智慧 AI 助理 -->
+      <div class="menu-item" v-if="!isAdminMode">
+        <button
+          type="button"
+          class="header-chrome-text-btn header-ai-assistant-btn"
+          @click="aiAssistantStore.toggle()"
+          :aria-expanded="aiAssistantStore.open"
+          aria-label="開啟 AI 助理"
+        >
+          <i class="fa fa-robot" aria-hidden="true"></i>
+          <span class="d-none d-md-inline">AI 助理</span>
+        </button>
+      </div>
 			
 			<div class="menu-item">
 				<a href="#" v-on:click="toggleAppHeaderSearch" data-toggle-class="app-header-menu-search-toggled" data-toggle-target=".app" class="menu-link header-chrome-icon-btn" aria-label="搜尋選單">
@@ -367,5 +383,16 @@ workspaceStore.initWorkspaces();
 /* 重要：在 flex 容器內允許縮小，ellipsis 才會生效 */
 .menu-link {
 	min-width: 0;
+}
+
+.header-ai-assistant-btn {
+  background: radial-gradient(120% 120% at 30% 20%, rgba(124, 58, 237, 0.95) 0%, rgba(37, 99, 235, 0.95) 45%, rgba(14, 165, 233, 0.95) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25);
+}
+
+.header-ai-assistant-btn:hover {
+  filter: saturate(1.08) brightness(1.05);
+  transform: translateY(-1px);
 }
 </style>

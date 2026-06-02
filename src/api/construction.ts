@@ -77,6 +77,18 @@ export interface Construction {
   p3SubcontractorOrgChartJson?: string | null;
   /** P-3 協力廠商組織關係圖 PNG MinIO objectName（前端 SVG 轉 PNG 後上傳；單張覆蓋） */
   p3SubcontractorOrgChartImageObjectName?: string | null;
+  /** P-3 緊急應變、保全聯絡體制圖結構化欄位（JSON；營造端維護，依版本） */
+  p3EmergencyResponseContactJson?: string | null;
+  /** P-3 緊急應變、保全聯絡體制圖 PNG MinIO objectName（前端 SVG 轉 PNG 後上傳；單張覆蓋） */
+  p3EmergencyResponseContactImageObjectName?: string | null;
+  /** P-3 緊急聯絡方式表（JSON；類別／單位名稱／電話／備註） */
+  p3EmergencyContactListJson?: string | null;
+  /** P-3 防颱聯絡體制圖結構化欄位（JSON；營造端維護，依版本） */
+  p3TyphoonPreventionContactJson?: string | null;
+  /** P-3 防颱聯絡體制圖 PNG MinIO objectName（前端 SVG 轉 PNG 後上傳；單張覆蓋） */
+  p3TyphoonPreventionContactImageObjectName?: string | null;
+  /** P-3 工程相關人員附件（JSON；證書／勞保證明；營造端維護，依版本） */
+  p3PersonnelAttachmentsJson?: string | null;
   /** P-1 施工執行方向（營造端維護，依版本） */
   p1ConstructionExecutionDirection?: string | null;
   /** P-1 工地研判：地質概況 */
@@ -225,6 +237,18 @@ export interface CreateConstructionRequest {
   p3SubcontractorOrgChartJson?: string | null;
   /** P-3 協力廠商組織關係圖 PNG MinIO objectName（前端 SVG 轉 PNG 後上傳；單張覆蓋） */
   p3SubcontractorOrgChartImageObjectName?: string | null;
+  /** P-3 緊急應變、保全聯絡體制圖結構化欄位（JSON；營造端維護，依版本） */
+  p3EmergencyResponseContactJson?: string | null;
+  /** P-3 緊急應變、保全聯絡體制圖 PNG MinIO objectName（前端 SVG 轉 PNG 後上傳；單張覆蓋） */
+  p3EmergencyResponseContactImageObjectName?: string | null;
+  /** P-3 緊急聯絡方式表（JSON；類別／單位名稱／電話／備註） */
+  p3EmergencyContactListJson?: string | null;
+  /** P-3 防颱聯絡體制圖結構化欄位（JSON；營造端維護，依版本） */
+  p3TyphoonPreventionContactJson?: string | null;
+  /** P-3 防颱聯絡體制圖 PNG MinIO objectName（前端 SVG 轉 PNG 後上傳；單張覆蓋） */
+  p3TyphoonPreventionContactImageObjectName?: string | null;
+  /** P-3 工程相關人員附件（JSON；證書／勞保證明；營造端維護，依版本） */
+  p3PersonnelAttachmentsJson?: string | null;
   /** P-1 施工執行方向（營造端維護，依版本） */
   p1ConstructionExecutionDirection?: string | null;
   /** P-1 工地研判：地質概況 */
@@ -655,6 +679,68 @@ export const downloadP2PersonnelAttachmentBlob = async (
   return raw as unknown as Blob
 }
 
+export type P3PersonnelAttachmentMainTopic = 'CERTIFICATE' | 'LABOR_INSURANCE'
+
+export interface P3PersonnelAttachmentImageInfo {
+  objectName: string
+  signedUrl?: string | null
+  fileName?: string | null
+  contentType?: string | null
+  fileSize?: number | null
+}
+
+export const uploadP3PersonnelAttachmentImage = async (
+  constructionId: string,
+  designChangeId: number | null | undefined,
+  mainTopic: P3PersonnelAttachmentMainTopic,
+  subTopicId: string,
+  file: File
+): Promise<P3PersonnelAttachmentImageInfo> => {
+  const form = new FormData()
+  form.append('constructionId', constructionId)
+  if (designChangeId != null) form.append('designChangeId', String(designChangeId))
+  form.append('mainTopic', mainTopic)
+  form.append('subTopicId', subTopicId)
+  form.append('file', file)
+
+  const res = await http.post('/management/construction/p3/personnel-attachments/upload', form, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  })
+  return res as unknown as P3PersonnelAttachmentImageInfo
+}
+
+export const deleteP3PersonnelAttachmentImage = async (
+  constructionId: string,
+  objectName: string
+): Promise<void> => {
+  await http.delete('/management/construction/p3/personnel-attachments/image', {
+    params: { constructionId, objectName }
+  })
+}
+
+export const getP3PersonnelAttachmentSignedUrl = async (
+  constructionId: string,
+  objectName: string
+): Promise<{ signedUrl: string }> => {
+  const res = await http.get('/management/construction/p3/personnel-attachments/signed-url', {
+    params: { constructionId, objectName }
+  })
+  const raw = (res as any)?.signedUrl
+  if (typeof raw === 'string') return { signedUrl: raw }
+  return ((res as any)?.data ?? res) as { signedUrl: string }
+}
+
+export const downloadP3PersonnelAttachmentBlob = async (
+  constructionId: string,
+  objectName: string
+): Promise<Blob> => {
+  const raw = await http.get('/management/construction/p3/personnel-attachments/download', {
+    params: { constructionId, objectName },
+    responseType: 'blob',
+  })
+  return raw as unknown as Blob
+}
+
 /**
  * P-3 施工平面圖（職業安全衛生管理計畫）：圖片資訊（與 P-2 personnel attachment image 相同 shape）。
  * 整個列表 JSON 由前端組合後存到 `p3ConstructionLayoutImagesJson`；本介面僅描述「單張」。
@@ -869,6 +955,124 @@ export const downloadP3SubcontractorOrgChartImageBlob = async (
  * - 不寫入 DB；前端拿到 categories 後覆蓋 `subOrgChartData.materialSuppliers`，
  *   再由共用 debounce 自動儲存到 `p3SubcontractorOrgChartJson`。
  */
+export interface P3EmergencyResponseContactImageInfo {
+  objectName: string
+  signedUrl?: string | null
+  fileName?: string | null
+  contentType?: string | null
+  fileSize?: number | null
+}
+
+export const uploadP3EmergencyResponseContactImage = async (
+  constructionId: string,
+  designChangeId: number | null | undefined,
+  file: File
+): Promise<P3EmergencyResponseContactImageInfo> => {
+  const form = new FormData()
+  form.append('constructionId', constructionId)
+  if (designChangeId != null) form.append('designChangeId', String(designChangeId))
+  form.append('file', file)
+
+  const res = await http.post('/management/construction/p3/emergency-response-contact/upload', form, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  })
+  return res as unknown as P3EmergencyResponseContactImageInfo
+}
+
+export const deleteP3EmergencyResponseContactImage = async (
+  constructionId: string,
+  designChangeId: number | null | undefined
+): Promise<void> => {
+  await http.delete('/management/construction/p3/emergency-response-contact/image', {
+    params: {
+      constructionId,
+      ...(designChangeId != null ? { designChangeId } : {})
+    }
+  })
+}
+
+export const getP3EmergencyResponseContactImageSignedUrl = async (
+  constructionId: string,
+  objectName: string
+): Promise<{ signedUrl: string }> => {
+  const res = await http.get('/management/construction/p3/emergency-response-contact/signed-url', {
+    params: { constructionId, objectName }
+  })
+  const raw = (res as any)?.signedUrl
+  if (typeof raw === 'string') return { signedUrl: raw }
+  return ((res as any)?.data ?? res) as { signedUrl: string }
+}
+
+export const downloadP3EmergencyResponseContactImageBlob = async (
+  constructionId: string,
+  objectName: string
+): Promise<Blob> => {
+  const raw = await http.get('/management/construction/p3/emergency-response-contact/download', {
+    params: { constructionId, objectName },
+    responseType: 'blob',
+  })
+  return raw as unknown as Blob
+}
+
+export interface P3TyphoonPreventionContactImageInfo {
+  objectName: string
+  signedUrl?: string | null
+  fileName?: string | null
+  contentType?: string | null
+  fileSize?: number | null
+}
+
+export const uploadP3TyphoonPreventionContactImage = async (
+  constructionId: string,
+  designChangeId: number | null | undefined,
+  file: File
+): Promise<P3TyphoonPreventionContactImageInfo> => {
+  const form = new FormData()
+  form.append('constructionId', constructionId)
+  if (designChangeId != null) form.append('designChangeId', String(designChangeId))
+  form.append('file', file)
+
+  const res = await http.post('/management/construction/p3/typhoon-prevention-contact/upload', form, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  })
+  return res as unknown as P3TyphoonPreventionContactImageInfo
+}
+
+export const deleteP3TyphoonPreventionContactImage = async (
+  constructionId: string,
+  designChangeId: number | null | undefined
+): Promise<void> => {
+  await http.delete('/management/construction/p3/typhoon-prevention-contact/image', {
+    params: {
+      constructionId,
+      ...(designChangeId != null ? { designChangeId } : {})
+    }
+  })
+}
+
+export const getP3TyphoonPreventionContactImageSignedUrl = async (
+  constructionId: string,
+  objectName: string
+): Promise<{ signedUrl: string }> => {
+  const res = await http.get('/management/construction/p3/typhoon-prevention-contact/signed-url', {
+    params: { constructionId, objectName }
+  })
+  const raw = (res as any)?.signedUrl
+  if (typeof raw === 'string') return { signedUrl: raw }
+  return ((res as any)?.data ?? res) as { signedUrl: string }
+}
+
+export const downloadP3TyphoonPreventionContactImageBlob = async (
+  constructionId: string,
+  objectName: string
+): Promise<Blob> => {
+  const raw = await http.get('/management/construction/p3/typhoon-prevention-contact/download', {
+    params: { constructionId, objectName },
+    responseType: 'blob',
+  })
+  return raw as unknown as Blob
+}
+
 export const generateP3SubcontractorCategoriesByAi = async (
   constructionId: string,
   designChangeId: number | null

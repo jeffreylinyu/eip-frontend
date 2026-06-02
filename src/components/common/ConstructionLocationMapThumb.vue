@@ -6,6 +6,7 @@
 import { computed, ref, watch, onUnmounted } from 'vue'
 import http from '@/api/http'
 import type { ConstructionLocationMapImageInfo } from '@/api/constructionLocationMaps'
+import { openFilePreviewOrDownload } from '@/utils/openFilePreview'
 
 const props = withDefaults(
   defineProps<{
@@ -98,6 +99,40 @@ watch(
 )
 
 onUnmounted(() => revokeBlob())
+
+async function fetchLocationMapBlob(): Promise<Blob> {
+  const params: Record<string, string | number> = {
+    constructionId: props.constructionId,
+    type: props.type,
+  }
+  if (props.designChangeId != null && props.designChangeId !== undefined) {
+    params.designChangeId = props.designChangeId
+  }
+  if (props.documentClassificationId != null && props.documentClassificationId !== undefined) {
+    params.documentClassificationId = props.documentClassificationId
+  }
+  const raw = await http.get(`/management/construction/location-maps/download/${props.img.id}`, {
+    params,
+    responseType: 'blob',
+  })
+  const blob = raw as unknown as Blob
+  if (!(blob instanceof Blob) || blob.size === 0) {
+    throw new Error('empty blob')
+  }
+  return blob
+}
+
+async function onOpen() {
+  if (!displayUrl.value) {
+    await ensurePreviewUrl()
+  }
+  await openFilePreviewOrDownload({
+    url: displayUrl.value,
+    fileName: props.img.fileName,
+    contentType: props.img.contentType,
+    fetchBlob: fetchLocationMapBlob,
+  })
+}
 </script>
 
 <template>
@@ -106,14 +141,13 @@ onUnmounted(() => revokeBlob())
     class="loc-thumb__link"
     :class="linkClass"
     :style="thumbStyle"
-    :href="displayUrl"
-    target="_blank"
-    rel="noopener"
-    :title="img.fileName"
+    href="#"
+    :title="img.fileName || '開新視窗預覽'"
+    @click.prevent="onOpen"
   >
     <img class="loc-thumb__img" :src="displayUrl" :alt="img.fileName" />
     <div v-if="showB2Overlay" class="loc-thumb__overlay">
-      <span class="loc-thumb__hint"><i class="fa fa-up-right-from-square me-1"></i>開啟</span>
+      <span class="loc-thumb__hint"><i class="fa fa-up-right-from-square me-1"></i>預覽</span>
     </div>
   </a>
   <div v-else class="loc-thumb__empty" :class="emptyClass" :style="thumbStyle">

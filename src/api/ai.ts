@@ -80,6 +80,67 @@ export interface ChatMessageDto {
   content: string
 }
 
+export interface AssistantAskRequest {
+  message: string
+  systemPrompt?: string
+  /** 目前選取的工程案 ID，供後端查「本工程」資料 */
+  constructionId?: string
+  /** 本輪使用者原始問題（供導覽按鈕判斷；不含對話紀錄包裝） */
+  userQuestion?: string
+}
+
+export interface AiNavigationHintDto {
+  target: string
+  label: string
+  query?: Record<string, string> | null
+}
+
+export interface AssistantAskResponse {
+  content: string
+  navigationHints?: AiNavigationHintDto[]
+}
+
+function parseAssistantAskPayload(data: unknown): AssistantAskResponse | null {
+  if (!data || typeof data !== 'object') return null
+  const root = data as Record<string, unknown>
+  const payload =
+    'content' in root && typeof root.content === 'string'
+      ? root
+      : root.code === 200 && root.data && typeof root.data === 'object'
+        ? (root.data as Record<string, unknown>)
+        : null
+  if (!payload || typeof payload.content !== 'string') return null
+  const hintsRaw = payload.navigationHints
+  const navigationHints = Array.isArray(hintsRaw)
+    ? hintsRaw
+        .filter((h): h is Record<string, unknown> => !!h && typeof h === 'object')
+        .map((h) => ({
+          target: String(h.target ?? ''),
+          label: String(h.label ?? ''),
+          query:
+            h.query && typeof h.query === 'object' && !Array.isArray(h.query)
+              ? Object.fromEntries(
+                  Object.entries(h.query as Record<string, unknown>).map(([k, v]) => [k, String(v)]),
+                )
+              : undefined,
+        }))
+        .filter((h) => h.target.length > 0)
+    : undefined
+  return { content: payload.content, navigationHints }
+}
+
+/** 智慧 AI 對話框：單輪提問，後端以 Function Calling 查工程資料後回覆。 */
+export async function assistantAsk(body: AssistantAskRequest): Promise<AssistantAskResponse | null> {
+  const data = await http.post<unknown>('/management/ai/assistant/ask', body, { timeout: 120000 })
+
+  const parsed = parseAssistantAskPayload(data)
+  if (parsed) return parsed
+  if (data && typeof data === 'object' && 'code' in data && (data as { code: number }).code !== 200) {
+    throw new Error((data as { message?: string }).message || 'AI 助理暫時無法回覆')
+  }
+  return null
+}
+
 /** 聊天式對話：傳入對話歷史，回傳助理的純文字回覆。http 攔截器在 200 時回傳 data，故得到可能是 { content } 或完整 body。 */
 export async function chat(messages: ChatMessageDto[]): Promise<{ content: string } | null> {
   const data = await http.post<{ content: string } | { code: number; message: string; data?: { content: string } }>(
