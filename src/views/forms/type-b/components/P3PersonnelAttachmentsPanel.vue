@@ -33,7 +33,7 @@
                     class="form-control form-control-sm cm-attach-subtopic__title-input"
                     placeholder="子標題"
                     @input="debouncedPersonnelAttachmentsSync"
-                    @blur="syncPersonnelAttachmentsJson"
+                    @blur="() => syncPersonnelAttachmentsJson()"
                   />
                   <div class="cm-attach-subtopic__actions">
                     <label class="btn btn-sm btn-outline-secondary mb-0">
@@ -101,7 +101,7 @@
                     class="form-control form-control-sm cm-attach-subtopic__title-input"
                     placeholder="子標題"
                     @input="debouncedPersonnelAttachmentsSync"
-                    @blur="syncPersonnelAttachmentsJson"
+                    @blur="() => syncPersonnelAttachmentsJson()"
                   />
                   <div class="cm-attach-subtopic__actions">
                     <label class="btn btn-sm btn-outline-secondary mb-0">
