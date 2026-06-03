@@ -24,10 +24,9 @@ export async function listWebsiteDemoBookings(
   page = 0,
   size = 20
 ): Promise<WebsiteDemoBookingPage> {
-  const data = await http.get<WebsiteDemoBookingPage>(
-    '/management/admin/website/demo-bookings',
-    { params: { page, size } }
-  )
+  const data = (await http.get('/management/admin/website/demo-bookings', {
+    params: { page, size },
+  })) as unknown as WebsiteDemoBookingPage
   if (data && Array.isArray(data.content)) {
     return data
   }
