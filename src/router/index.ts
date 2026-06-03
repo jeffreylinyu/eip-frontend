@@ -310,6 +310,11 @@ const router = createRouter({
       meta: { requiresAuth: true, requiresAdmin: true }
     },
     {
+      path: '/admin/website-demo-bookings',
+      component: () => import('../views/admin/WebsiteDemoBookings.vue'),
+      meta: { requiresAuth: true, requiresAdmin: true }
+    },
+    {
       path: '/admin/ai-ocr-test',
       component: () => import('../views/admin/AiOcrTest.vue'),
       meta: { requiresAuth: true, requiresAdmin: true }

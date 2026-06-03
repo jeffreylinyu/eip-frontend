@@ -34,7 +34,7 @@ const effectiveCalendarOwnerType = computed(() =>
 
 /**
  * 施工日誌 API 僅接受 ownerType=SUPERVISORY|CONTRACTOR（見後端 resolveScmViewForConstructionApis）。
- * 行事曆分頁「監造公司」為 SUPERVISION_COMPANY，須對應監造日誌；若把 viewType=SHARED 等原樣傳出會變成 ?ownerType=SHARED 而 401。
+ * 行事曆分頁「監造公司」為 SUPERVISION_COMPANY，須對應監造報表；若把 viewType=SHARED 等原樣傳出會變成 ?ownerType=SHARED 而 401。
  */
 const dailyReportOwnerTypeQueryParam = computed((): string | undefined => {
   const raw = effectiveCalendarOwnerType.value

@@ -407,13 +407,13 @@ export const useAppSidebarMenuStore = defineStore("appSidebarMenu", () => {
       children: scheduleChildren.value,
     },
 
-    // 監造日誌管理（與營造端共用 daily-report 頁面，僅選單／標題文案不同）
-    { text: "監造日誌管理", is_header: true },
+    // 監造報表管理（與營造端共用 daily-report 頁面，僅選單／標題文案不同）
+    { text: "監造報表管理", is_header: true },
     {
-      text: "監造日誌管理",
+      text: "監造報表管理",
       icon: "bi bi-journal-text",
       children: [
-        { text: "監造日誌", url: "/daily-report" },
+        { text: "監造報表", url: "/daily-report" },
         { text: "材料進場", url: "/daily-report/materials" },
         { text: "出工紀錄", url: "/daily-report/labor" },
         { text: "機具出工", url: "/daily-report/equipment" },

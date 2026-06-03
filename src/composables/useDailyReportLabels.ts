@@ -3,15 +3,15 @@ import { useRoute } from 'vue-router'
 import { useViewPerspective } from '@/composables/useViewPerspective'
 
 export function dailyLogLabelForContractor(isContractor: boolean): string {
-  return isContractor ? '施工日誌' : '監造日誌'
+  return isContractor ? '施工日誌' : '監造報表'
 }
 
 export function dailyLogManageLabelForContractor(isContractor: boolean): string {
-  return isContractor ? '施工日誌管理' : '監造日誌管理'
+  return isContractor ? '施工日誌管理' : '監造報表管理'
 }
 
 /**
- * 監造端顯示「監造日誌」、營造端顯示「施工日誌」；共用同一組 daily-report 頁面。
+ * 監造端顯示「監造報表」、營造端顯示「施工日誌」；共用同一組 daily-report 頁面。
  * @param ownerTypeOverride 行事曆等場景可傳 SUPERVISORY | CONTRACTOR 覆寫路由推斷
  */
 export function useDailyReportLabels(

@@ -29,6 +29,9 @@ export const useAppAdminSidebarMenuStore = defineStore("appAdminSidebarMenu", ()
 
   // 系統管理側邊欄選單項目
   const menuItems = computed(() => {
+    const systemRole = authStore.user?.systemRole || authStore.user?.role;
+    const isSuperAdmin = systemRole === 'SUPER_ADMIN';
+
     const items: MenuItem[] = [
       // 工程管理
       { text: "工程管理", is_header: true },
@@ -78,6 +81,15 @@ export const useAppAdminSidebarMenuStore = defineStore("appAdminSidebarMenu", ()
         text: "用戶管理",
         icon: "bi bi-people",
         url: "/admin/users",
+      },
+
+      // 官網與對外（僅 SUPER_ADMIN；API 亦限制）
+      { text: "官網與對外", is_header: true, visible: isSuperAdmin },
+      {
+        text: "官網預約示範紀錄",
+        icon: "bi bi-calendar-check",
+        url: "/admin/website-demo-bookings",
+        visible: isSuperAdmin,
       },
 
       // 工程案資料建構工具測試（僅供管理員驗證設定）
