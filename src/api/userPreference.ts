@@ -36,8 +36,16 @@ export async function saveDailyReportExportPreferences(
         ? preferences.executionAttachItemDetails
         : false
   }
-  return http.put<DailyReportExportPreferences>(
+  const data = (await http.put(
     '/management/user/preferences/daily-report-export',
     payload
-  )
+  )) as DailyReportExportPreferences
+  return {
+    ...DEFAULT_DAILY_REPORT_EXPORT_PREFERENCES,
+    ...data,
+    executionAttachItemDetails:
+      data.executionExportMode === 'HEADER_ROWS'
+        ? data.executionAttachItemDetails
+        : false
+  }
 }

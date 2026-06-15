@@ -302,7 +302,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         // 額外的工程案詳細資訊
         contractNumber: construction.contractId || '',
         hostAgency: construction.leadOrganization || '',
-        contractorName: getLegacyContractorField(construction as Record<string, unknown>),
+        contractorName: getLegacyContractorField(construction),
         constructionPeriod: construction.workDay?.toString() || '', // 工期天數
         currentContractAmount: construction.currentContractAmount?.toString() || construction.constructionBudget?.toString() || '',
         projectCategory: construction.constructionType || '',
