@@ -384,18 +384,30 @@ const handleSubmit = async (silent: boolean = false): Promise<{ submitted: boole
 }
 
 const handleReset = () => {
-  // 清空表單數據
-  Object.keys(formData.value).forEach(key => {
-    if (Array.isArray(formData.value[key])) {
-      formData.value[key] = []
-    } else {
-      formData.value[key] = ""
+  if (
+    (isEditMode.value || isReadonlyMode.value) &&
+    props.modelValue &&
+    Object.keys(props.modelValue).length > 0
+  ) {
+    isUpdatingFromParent = true
+    formData.value = {
+      ...formData.value,
+      ...JSON.parse(JSON.stringify(props.modelValue)),
     }
-  })
-  
-  // 清除驗證錯誤
+    nextTick(() => {
+      isUpdatingFromParent = false
+    })
+  } else {
+    Object.keys(formData.value).forEach(key => {
+      if (Array.isArray(formData.value[key])) {
+        formData.value[key] = []
+      } else {
+        formData.value[key] = ''
+      }
+    })
+  }
+
   validation.clearErrors()
-  
   emit('reset')
 }
 

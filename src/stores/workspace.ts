@@ -5,7 +5,7 @@ import { storage, StorageKeys } from '@/utils/storage'
 import { workspaceApi, transformWorkspaceFromApi, transformWorkspaceToApi, type WorkspaceDetailResponse, type WorkspaceCompany, type InviteCompanyRequest, type RemoveCompanyRequest, type ParticipatingUnitsResponse } from '@/api/workspace'
 import { useUserCacheStore, type UserBasicInfo } from '@/stores/user-cache'
 import { userApi, authApi, countDistinctConstructionProjects, dedupeJoinedProjectsByConstructionId } from '@/api/user'
-import { getConstructionsByWorkspace, getConstructionDetail, type Construction, type SignLevel } from '@/api/construction'
+import { getConstructionsByWorkspace, getConstructionDetail, getLegacyContractorField, type Construction, type SignLevel } from '@/api/construction'
 import { useAuthStore } from '@/stores/auth'
 
 // 工作空間介面定義
@@ -302,7 +302,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         // 額外的工程案詳細資訊
         contractNumber: construction.contractId || '',
         hostAgency: construction.leadOrganization || '',
-        contractorName: construction.constructor || '', // 映射舊欄位 constructor
+        contractorName: getLegacyContractorField(construction as Record<string, unknown>),
         constructionPeriod: construction.workDay?.toString() || '', // 工期天數
         currentContractAmount: construction.currentContractAmount?.toString() || construction.constructionBudget?.toString() || '',
         projectCategory: construction.constructionType || '',

@@ -1,7 +1,12 @@
 import http from './http';
 import { downloadBlobAsFile } from './forms';
 import { downloadBlob, extractFileNameFromResponse } from '@/utils/blobDownload';
-import type { DailyReport, ExecutionSummaryItem, MaterialUsageSummaryItem, LaborEquipmentSummaryItem } from '@/types/dailyReport';
+import type {
+  DailyReport,
+  ExecutionSummaryItem,
+  MaterialUsageSummaryItem,
+  LaborEquipmentSummaryItem
+} from '@/types/dailyReport';
 
 export type DailyReportExportVersion = 'construction' | 'supervision';
 export type DailyReportExportType = 'CONSTRUCTOR' | 'SUPERVISOR';
@@ -73,12 +78,18 @@ export interface DailyReportDetailResponse {
     constructionPccesCodeId: number | null; // PCCES 工項 ID
     logicalId: string | null; // ⭐ 邏輯 ID，用於跨版本追蹤（必須有值）
     pccesCode: string | null; // ⭐ PCCES 編號
+    itemNo?: string | null; // 標單項次
     itemName: string | null; // 施工項目名稱（來自 PCCES）
+    type?: string | null; // 工項類型（PccesItemType）
     unit: string | null; // 單位（來自 PCCES）
     contractQty: string | null; // ⭐ 契約數量（來自 PCCES，唯讀）
     todayQty: string | null; // 本日完成數量（未填寫為 0 或 null）
     totalQty: string | null; // ✅ 後端計算的累計值（未填寫為 0 或 null）
     note: string | null; // 備註（未填寫為 null）
+    depth?: number | null;
+    parentLogicalId?: string | null;
+    fillable?: boolean | null;
+    executionRowKind?: string | null;
   }[];
   materials: {
     id: number | null; // ⭐ 可以是 null（未填寫項目）
@@ -157,7 +168,9 @@ export const saveDailyReport = async (
 /**
  * 將前端 DailyReport 格式轉換為 API 請求格式（只包含今日數據）
  */
-export const convertToSaveRequest = (report: DailyReport): DailyReportSaveRequest => {
+export const convertToSaveRequest = (
+  report: DailyReport
+): DailyReportSaveRequest => {
   // 轉換 hasRequiredTechnician: 'YES' | 'NO' | '' -> boolean
   const hasProfessionalTechnician = report.siteCheck.hasRequiredTechnician === 'YES';
   
@@ -194,9 +207,11 @@ export const convertToSaveRequest = (report: DailyReport): DailyReportSaveReques
     // ⭐ 只保存有填寫資料的項目（todayQty > 0 或有備註）
     constructionItems: report.executionSummary
       .filter(item => {
-        // 只保存有填寫資料的項目（todayQty > 0 或有備註）
-        const hasTodayQty = item.todayQuantity && item.todayQuantity > 0
+        if (item.fillable === false || item.executionRowKind === 'SECTION_HEADER') {
+          return false
+        }
         const hasNote = item.remark && item.remark.trim() !== ''
+        const hasTodayQty = item.todayQuantity && item.todayQuantity > 0
         return hasTodayQty || hasNote
       })
       .map(item => ({
@@ -317,7 +332,28 @@ export const convertFromDetailResponse = (
       const contractQuantity = contractQtyValue !== null && contractQtyValue !== undefined
         ? (typeof contractQtyValue === 'string' ? parseFloat(contractQtyValue) : contractQtyValue)
         : null
-      
+
+      const parseNumericField = (value: unknown): number | null => {
+        if (value === null || value === undefined) return null
+        const parsed = typeof value === 'string' ? parseFloat(value) : Number(value)
+        return Number.isFinite(parsed) ? parsed : null
+      }
+      const contractAmount = parseNumericField((item as { contractAmount?: unknown }).contractAmount)
+      const contractAmountPercent = parseNumericField(
+        (item as { contractAmountPercent?: unknown }).contractAmountPercent
+      )
+      const unitPrice = parseNumericField((item as { unitPrice?: unknown }).unitPrice)
+      const todayAmount = parseNumericField((item as { todayAmount?: unknown }).todayAmount)
+      const todayAmountPercent = parseNumericField(
+        (item as { todayAmountPercent?: unknown }).todayAmountPercent
+      )
+      const cumulativeAmount = parseNumericField(
+        (item as { cumulativeAmount?: unknown }).cumulativeAmount
+      )
+      const cumulativeAmountPercent = parseNumericField(
+        (item as { cumulativeAmountPercent?: unknown }).cumulativeAmountPercent
+      )
+
       // 處理今日數量（可能是 string 或 number，0 也是有效值）
       const todayQtyValue = item.todayQty
       const todayQuantity = todayQtyValue !== null && todayQtyValue !== undefined
@@ -330,17 +366,39 @@ export const convertFromDetailResponse = (
         ? (typeof totalQtyValue === 'string' ? parseFloat(totalQtyValue) : totalQtyValue)
         : null
       
+      const rowKind = item.executionRowKind as ExecutionSummaryItem['executionRowKind'] | undefined
+      const isFillable =
+        rowKind === 'SECTION_HEADER'
+          ? false
+          : (item.fillable ?? (rowKind === 'DETAIL_ITEM' || !rowKind))
+
       return {
         id: uniqueId,
+        itemNo: item.itemNo ?? existingItem?.itemNo ?? undefined,
         code: existingItem?.code ?? (item.pccesCode || ''),
         item: item.itemName || '',
-        unit: item.unit || '',
-        contractQuantity,
-        todayQuantity,
-        cumulativeQuantity, // ✅ 使用後端計算的累計值
-        remark: isFilled && item.note ? item.note : '',
+        type: item.type ?? existingItem?.type ?? undefined,
+        unit: isFillable ? (item.unit || '') : '',
+        contractQuantity: isFillable ? contractQuantity : null,
+        contractAmount: item.type === 'MAIN_ITEM' ? contractAmount : null,
+        contractAmountPercent: item.type === 'MAIN_ITEM' ? contractAmountPercent : null,
+        unitPrice: isFillable ? unitPrice : null,
+        todayAmount: item.type === 'MAIN_ITEM' ? todayAmount : null,
+        todayAmountPercent: item.type === 'MAIN_ITEM' ? todayAmountPercent : null,
+        cumulativeAmount: item.type === 'MAIN_ITEM' ? cumulativeAmount : null,
+        cumulativeAmountPercent: item.type === 'MAIN_ITEM' ? cumulativeAmountPercent : null,
+        todayQuantity: isFillable ? todayQuantity : null,
+        cumulativeQuantity: isFillable ? cumulativeQuantity : null,
+        historicalCumulative: isFillable
+          ? (cumulativeQuantity ?? 0) - (todayQuantity ?? 0)
+          : undefined,
+        remark: item.note?.trim() ? item.note : '',
         logicalId: item.logicalId || undefined, // ⭐ 儲存 logicalId 用於跨版本追蹤
-        constructionPccesCodeId: item.constructionPccesCodeId || undefined // 向後兼容
+        constructionPccesCodeId: item.constructionPccesCodeId || undefined, // 向後兼容
+        depth: item.depth ?? undefined,
+        parentLogicalId: item.parentLogicalId ?? undefined,
+        fillable: isFillable,
+        executionRowKind: rowKind
       };
     }),
     materialUsageSummary: response.materials.map((item, index) => {

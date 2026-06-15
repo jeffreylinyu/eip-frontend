@@ -195,9 +195,7 @@ workspaceStore.initWorkspaces();
 			</template>
 			<!-- 一般模式顯示 -->
 			<RouterLink v-else to="/" class="brand-logo">
-				<span class="brand-img">
-					<span class="brand-img-text text-theme">H</span>
-				</span>
+				<span class="brand-img" aria-hidden="true"></span>
 				<div class="brand-text-container">
 					<span class="brand-text" :title="getFullBrandText">
 						<span class="brand-text-part">{{ brandCompanyName || '工程智慧平台' }}</span>

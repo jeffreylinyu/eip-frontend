@@ -36,7 +36,8 @@ export interface Construction {
   supervisoryCompanyName?: string | null; // 監造公司名稱（從工作空間設定自動取得）
   contractorCompanyName?: string | null; // 營造公司名稱（從工作空間設定自動取得）
   designCompany?: string | null; // 設計公司（工程案層級的基本資料，可手動填寫或選擇監造公司）
-  constructor?: string; // 承攬廠商（舊欄位）
+  /** 承攬廠商（舊 JSON 欄位名為 constructor；請用 getLegacyContractorField 讀取） */
+  constructor?: string;
   version?: number; // 新增：樂觀鎖版本號
   permission?: 'ADMIN' | 'MEMBER' | 'VIEWER'; // 新增：工程案權限 (覆蓋 user_workspace role)
   /** 工程規模概述（B-1 頁面維護，依版本） */
@@ -321,6 +322,12 @@ export interface CreateConstructionRequest {
   p1ConstructionProcessFlowJson?: string | null;
   /** P-1 圖10.2／10.3 共用緊急聯絡表（JSON） */
   p1EmergencyContactTableJson?: string | null;
+}
+
+/** 讀取 API 舊欄位「承攬廠商」（JSON key 為 constructor；不可用 obj.constructor，會拿到 JS 內建 Object） */
+export function getLegacyContractorField(source: Record<string, unknown> | Construction): string {
+  const value = source['constructor' as keyof typeof source]
+  return typeof value === 'string' ? value : ''
 }
 
 // API 回應接口

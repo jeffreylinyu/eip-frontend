@@ -133,20 +133,33 @@
         <button
           class="btn btn-outline-theme"
           type="button"
+          :title="saveButtonTitle"
           @click="saveDraft"
-          :disabled="isLoading"
+          :disabled="isLoading || autoSaveStatus === 'saving'"
         >
-          <i class="fa fa-save me-1"></i>儲存
+          <i class="fa me-1" :class="saveButtonIconClass"></i>{{ saveButtonLabel }}
         </button>
-        <button
-          type="button"
-          class="btn b2-export-btn"
+        <div class="btn-group daily-report-export-group" role="group" aria-label="匯出 Word">
+          <button
+            type="button"
+            class="btn b2-export-btn"
             :disabled="isLoading || isExporting || !report.reportDate"
             @click="exportWord"
-        >
-          <i class="fa" :class="isExporting ? 'fa-spinner fa-spin' : 'fa-file-word'"></i>
-          {{ isExporting ? '匯出中…' : '匯出 Word' }}
-        </button>
+          >
+            <i class="fa" :class="isExporting ? 'fa-spinner fa-spin' : 'fa-file-word'"></i>
+            {{ isExporting ? '匯出中…' : '匯出 Word' }}
+          </button>
+          <button
+            type="button"
+            class="btn b2-export-btn b2-export-btn--settings"
+            title="匯出設定"
+            :disabled="isLoading || isExporting"
+            @click="showExportSettingsModal = true"
+          >
+            <i class="fa fa-cog"></i>
+            <span class="visually-hidden">匯出設定</span>
+          </button>
+        </div>
       </div>
     </div>
 
@@ -279,21 +292,34 @@
           <button
             class="btn btn-outline-theme flex-fill"
             type="button"
+            :title="saveButtonTitle"
             @click="saveDraft"
-            :disabled="isLoading"
+            :disabled="isLoading || autoSaveStatus === 'saving'"
           >
-            <i class="fa fa-save me-1"></i>儲存
+            <i class="fa me-1" :class="saveButtonIconClass"></i>{{ saveButtonLabel }}
           </button>
         </div>
-        <button
-          type="button"
-          class="btn b2-export-btn w-100"
-          :disabled="isLoading || isExporting || !report.reportDate"
-          @click="exportWord"
-        >
-          <i class="fa" :class="isExporting ? 'fa-spinner fa-spin' : 'fa-file-word'"></i>
-          {{ isExporting ? '匯出中…' : '匯出 Word' }}
-        </button>
+        <div class="btn-group daily-report-export-group w-100" role="group" aria-label="匯出 Word">
+          <button
+            type="button"
+            class="btn b2-export-btn flex-fill"
+            :disabled="isLoading || isExporting || !report.reportDate"
+            @click="exportWord"
+          >
+            <i class="fa" :class="isExporting ? 'fa-spinner fa-spin' : 'fa-file-word'"></i>
+            {{ isExporting ? '匯出中…' : '匯出 Word' }}
+          </button>
+          <button
+            type="button"
+            class="btn b2-export-btn b2-export-btn--settings"
+            title="匯出設定"
+            :disabled="isLoading || isExporting"
+            @click="showExportSettingsModal = true"
+          >
+            <i class="fa fa-cog"></i>
+            <span class="visually-hidden">匯出設定</span>
+          </button>
+        </div>
       </div>
     </div>
 
@@ -417,76 +443,17 @@
           </div>
           </CardHeader>
         <CardBody v-show="expandedSections.has('execution')" class="report-card__body">
-          <div class="table-responsive">
-            <table class="table table-bordered align-middle report-table">
-              <thead class="table-dark">
-                <tr>
-                  <th class="text-center">施工項目</th>
-                  <th class="text-center">單位</th>
-                  <th class="text-center">契約數量</th>
-                  <th class="text-center">本日完成數量</th>
-                  <th class="text-center">累計完成數量</th>
-                  <th class="text-center">備註</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr 
-                  v-for="item in report.executionSummary" 
-                  :key="item.id" 
-                  :class="{ 
-                    'row-expanded': expandedRows.has(`execution-${item.id}`),
-                    'row-unfilled': !item.id || (!item.todayQuantity && !item.remark)
-                  }"
-                >
-                  <td data-label="施工項目" class="row-header" @click="toggleRow(`execution-${item.id}`)">
-                    <div class="d-flex align-items-center justify-content-between">
-                      <span>{{ item.item }}</span>
-                      <i 
-                        class="fa d-md-none ms-2" 
-                        :class="expandedRows.has(`execution-${item.id}`) ? 'fa-chevron-up' : 'fa-chevron-down'"
-                      ></i>
-            </div>
-                  </td>
-                  <td class="text-center mobile-collapsible" data-label="單位">
-                    <span>{{ item.unit }}</span>
-                  </td>
-                  <td class="mobile-collapsible" data-label="契約數量">
-                    <span class="text-end d-block" :class="{ 'text-muted': !item.contractQuantity }">
-                      {{ item.contractQuantity ? formatNumber(item.contractQuantity) : '—' }}
-                    </span>
-                  </td>
-                  <td class="mobile-collapsible" data-label="本日完成數量">
-                    <input
-                      type="number"
-                      class="form-control form-control-sm text-end"
-                      min="0"
-                      step="0.01"
-                      :value="item.todayQuantity ?? ''"
-                      @input="updateExecutionNumber(item, 'todayQuantity', $event)"
-                    />
-                  </td>
-                  <td class="mobile-collapsible" data-label="累計完成數量">
-                    <input
-                      type="number"
-                      class="form-control form-control-sm text-end"
-                      min="0"
-                      step="0.01"
-                      :value="item.cumulativeQuantity ?? ''"
-                      @input="updateExecutionNumber(item, 'cumulativeQuantity', $event)"
-                    />
-                  </td>
-                  <td class="mobile-collapsible" data-label="備註">
-                    <input
-                      type="text"
-                      class="form-control form-control-sm"
-                      v-model="item.remark"
-                    />
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-            </div>
-          </CardBody>
+          <div v-if="isLoading" class="text-center text-muted py-4">
+            載入施工項目中…
+          </div>
+          <div v-else-if="isExecutionSummaryEmpty" class="text-center text-muted py-4">
+            目前無可帶入的標單項目（請確認工程標單已匯入）
+          </div>
+          <DailyReportExecutionTreeGrid
+            v-else
+            :items="report.executionSummary"
+          />
+        </CardBody>
         </Card>
 
       <Card class="report-card report-card--full">
@@ -1171,6 +1138,87 @@
       </Card>
     </div>
 
+    <Modal
+      v-model:show="showExportSettingsModal"
+      title="匯出設定"
+      icon="fa fa-cog"
+      size="lg"
+      modal-id="dailyReportExportSettingsModal"
+      cancel-text="取消"
+      confirm-text="儲存設定"
+      confirm-icon="fa fa-save"
+      :is-loading="isSavingExportSettings"
+      loading-text="儲存中…"
+      @confirm="saveExportSettings"
+      @hide="resetExportSettingsDraft"
+    >
+      <template #body>
+        <div v-if="isLoadingExportSettings" class="text-center text-muted py-4">
+          <i class="fa fa-spinner fa-spin me-2"></i>載入設定中…
+        </div>
+        <div v-else class="export-settings-modal">
+          <p class="text-muted small mb-3">
+            選擇匯出 Word 時，表一要帶入的資料列。設定會儲存至您的帳號，跨裝置共用。
+          </p>
+          <fieldset class="border rounded p-3 mb-0">
+            <legend class="float-none w-auto px-2 fs-6 fw-semibold mb-2">
+              一、依施工計畫書執行修繕施工概況（含約定之重要施工項目及完成數量等）
+            </legend>
+            <div class="form-check mb-2">
+              <input
+                id="export-pref-item-rows"
+                v-model="exportSettingsDraft.executionExportMode"
+                class="form-check-input"
+                type="radio"
+                value="ITEM_ROWS"
+              />
+              <label class="form-check-label" for="export-pref-item-rows">
+                項目列（工項／試驗項明細）
+              </label>
+              <div class="form-text ms-4">
+                僅輸出可填寫的工項與試驗項，扁平列出（不含大項分組列）。
+              </div>
+            </div>
+            <div class="form-check mb-2">
+              <input
+                id="export-pref-header-rows"
+                v-model="exportSettingsDraft.executionExportMode"
+                class="form-check-input"
+                type="radio"
+                value="HEADER_ROWS"
+              />
+              <label class="form-check-label" for="export-pref-header-rows">
+                標題列（大項彙總列）
+              </label>
+              <div class="form-text ms-4">
+                僅輸出倒數第二層大項，以及契約／本日／累計金額彙總。未納入大項子樹的工項／試驗項會直接列於主表。
+              </div>
+            </div>
+            <div
+              v-if="exportSettingsDraft.executionExportMode === 'HEADER_ROWS'"
+              class="form-check ms-4 mt-2"
+            >
+              <input
+                id="export-pref-attach-details"
+                v-model="exportSettingsDraft.executionAttachItemDetails"
+                class="form-check-input"
+                type="checkbox"
+              />
+              <label class="form-check-label" for="export-pref-attach-details">
+                附件（明細另附於文件末尾）
+              </label>
+              <div class="form-text ms-4">
+                倒數第二層大項備註顯示「如附件一」；其子樹工項／試驗項附於文件末尾。其餘工項／試驗項直接列於主表。
+              </div>
+            </div>
+          </fieldset>
+          <div v-if="exportSettingsError" class="alert alert-warning py-2 mt-3 mb-0 small">
+            {{ exportSettingsError }}
+          </div>
+        </div>
+      </template>
+    </Modal>
+
     <div v-if="errors.length > 0" class="alert alert-danger">
       <h6 class="mb-2">請修正以下錯誤：</h6>
       <ul class="mb-0 ps-3">
@@ -1181,16 +1229,23 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { ref, computed, nextTick, getCurrentInstance, onBeforeUnmount, onMounted, watch } from 'vue'
+import { onBeforeRouteLeave, useRoute } from 'vue-router'
+import { debounce } from 'lodash'
 import { useWorkspaceStore } from '@/stores/workspace'
-import { 
-  getDailyReport, 
-  saveDailyReport, 
-  exportDailyReportToWord, 
+import {
+  getDailyReport,
+  saveDailyReport,
+  exportDailyReportToWord,
   convertToSaveRequest,
   convertFromDetailResponse
 } from '@/api/dailyReport'
+import {
+  DEFAULT_DAILY_REPORT_EXPORT_PREFERENCES,
+  getDailyReportExportPreferences,
+  saveDailyReportExportPreferences,
+  type DailyReportExportPreferences
+} from '@/api/userPreference'
 import { useExportLoading } from '@/composables/useExportLoading'
 import { useViewPerspective, ViewType } from '@/composables/useViewPerspective'
 import { useDailyReportLabels } from '@/composables/useDailyReportLabels'
@@ -1206,8 +1261,10 @@ import Card from '@/components/bootstrap/Card.vue'
 import CardHeader from '@/components/bootstrap/CardHeader.vue'
 import CardBody from '@/components/bootstrap/CardBody.vue'
 import RepublicDatePicker from '@/components/bootstrap/RepublicDatePicker.vue'
+import DailyReportExecutionTreeGrid from '@/components/daily-report/DailyReportExecutionTreeGrid.vue'
 
 const route = useRoute()
+const { proxy } = getCurrentInstance() as { proxy: { $toast?: { success?: (m: string) => void; error?: (m: string) => void } } }
 const workspaceStore = useWorkspaceStore()
 const { runWithExportLoading } = useExportLoading()
 const { viewType } = useViewPerspective()
@@ -1219,6 +1276,8 @@ const dailyReportOwnerTypeParam = computed(() => {
   if (v === ViewType.CONTRACTOR) return 'CONTRACTOR'
   return undefined
 })
+
+const isExecutionSummaryEmpty = computed(() => report.value.executionSummary.length === 0)
 
 // 取得當前工程 ID (優先從 URL 參數取得，否則從 Store 取得)
 const constructionId = computed(() => (route.query.constructionId as string) || workspaceStore.currentProject?.id || '')
@@ -1253,168 +1312,7 @@ const report = ref<DailyReport>({
     morning: '',
     afternoon: ''
   },
-  executionSummary: [
-    {
-      id: '1',
-      code: '0311010100',
-      item: '基礎開挖，一般開挖',
-      unit: 'M3',
-      contractQuantity: 500,
-      todayQuantity: null,
-      cumulativeQuantity: null,
-      remark: ''
-    },
-    {
-      id: '2',
-      code: '0312010100',
-      item: '基礎混凝土，210kg/cm²',
-      unit: 'M3',
-      contractQuantity: 120,
-      todayQuantity: null,
-      cumulativeQuantity: null,
-      remark: ''
-    },
-    {
-      id: '3',
-      code: '0313010100',
-      item: '基礎鋼筋，D13',
-      unit: '噸',
-      contractQuantity: 15,
-      todayQuantity: null,
-      cumulativeQuantity: null,
-      remark: ''
-    },
-    {
-      id: '4',
-      code: '0314010100',
-      item: '基礎模板，一般模板',
-      unit: 'M2',
-      contractQuantity: 200,
-      todayQuantity: null,
-      cumulativeQuantity: null,
-      remark: ''
-    },
-    {
-      id: '5',
-      code: '0321010100',
-      item: '結構混凝土，210kg/cm²',
-      unit: 'M3',
-      contractQuantity: 800,
-      todayQuantity: null,
-      cumulativeQuantity: null,
-      remark: ''
-    },
-    {
-      id: '6',
-      code: '0322010100',
-      item: '結構鋼筋，D13',
-      unit: '噸',
-      contractQuantity: 85,
-      todayQuantity: null,
-      cumulativeQuantity: null,
-      remark: ''
-    },
-    {
-      id: '7',
-      code: '0322010200',
-      item: '結構鋼筋，D16',
-      unit: '噸',
-      contractQuantity: 120,
-      todayQuantity: null,
-      cumulativeQuantity: null,
-      remark: ''
-    },
-    {
-      id: '8',
-      code: '0322010300',
-      item: '結構鋼筋，D19',
-      unit: '噸',
-      contractQuantity: 95,
-      todayQuantity: null,
-      cumulativeQuantity: null,
-      remark: ''
-    },
-    {
-      id: '9',
-      code: '0323010100',
-      item: '結構模板，一般模板',
-      unit: 'M2',
-      contractQuantity: 2500,
-      todayQuantity: null,
-      cumulativeQuantity: null,
-      remark: ''
-    },
-    {
-      id: '10',
-      code: '0331010100',
-      item: '磚牆，1B磚牆',
-      unit: 'M2',
-      contractQuantity: 600,
-      todayQuantity: null,
-      cumulativeQuantity: null,
-      remark: ''
-    },
-    {
-      id: '11',
-      code: '0341010100',
-      item: '粉刷，水泥粉刷',
-      unit: 'M2',
-      contractQuantity: 1800,
-      todayQuantity: null,
-      cumulativeQuantity: null,
-      remark: ''
-    },
-    {
-      id: '12',
-      code: '0342010100',
-      item: '磁磚，外牆磁磚',
-      unit: 'M2',
-      contractQuantity: 450,
-      todayQuantity: null,
-      cumulativeQuantity: null,
-      remark: ''
-    },
-    {
-      id: '13',
-      code: '0342010200',
-      item: '磁磚，地坪磁磚',
-      unit: 'M2',
-      contractQuantity: 800,
-      todayQuantity: null,
-      cumulativeQuantity: null,
-      remark: ''
-    },
-    {
-      id: '14',
-      code: '0351010100',
-      item: '防水，PU防水',
-      unit: 'M2',
-      contractQuantity: 300,
-      todayQuantity: null,
-      cumulativeQuantity: null,
-      remark: ''
-    },
-    {
-      id: '15',
-      code: '0361010100',
-      item: '門窗，鋁窗',
-      unit: '樘',
-      contractQuantity: 45,
-      todayQuantity: null,
-      cumulativeQuantity: null,
-      remark: ''
-    },
-    {
-      id: '16',
-      code: '0371010100',
-      item: '水電，給排水配管',
-      unit: 'M',
-      contractQuantity: 500,
-      todayQuantity: null,
-      cumulativeQuantity: null,
-      remark: ''
-    }
-  ],
+  executionSummary: [] as ExecutionSummaryItem[],
   materialUsageSummary: [
     {
       id: '1',
@@ -1574,6 +1472,100 @@ const report = ref<DailyReport>({
 
 const isLoading = ref(false)
 const isExporting = ref(false)
+const showExportSettingsModal = ref(false)
+const isLoadingExportSettings = ref(false)
+const isSavingExportSettings = ref(false)
+const exportSettingsError = ref('')
+const exportSettingsDraft = ref<DailyReportExportPreferences>({
+  ...DEFAULT_DAILY_REPORT_EXPORT_PREFERENCES
+})
+
+function resetExportSettingsDraft() {
+  exportSettingsError.value = ''
+}
+
+async function loadExportSettings() {
+  isLoadingExportSettings.value = true
+  exportSettingsError.value = ''
+  try {
+    exportSettingsDraft.value = await getDailyReportExportPreferences()
+  } catch (error) {
+    console.error('載入匯出設定失敗:', error)
+    exportSettingsDraft.value = { ...DEFAULT_DAILY_REPORT_EXPORT_PREFERENCES }
+    exportSettingsError.value = '載入設定失敗，已套用預設值。'
+  } finally {
+    isLoadingExportSettings.value = false
+  }
+}
+
+async function saveExportSettings() {
+  if (exportSettingsDraft.value.executionExportMode === 'ITEM_ROWS') {
+    exportSettingsDraft.value.executionAttachItemDetails = false
+  }
+  isSavingExportSettings.value = true
+  exportSettingsError.value = ''
+  try {
+    exportSettingsDraft.value = await saveDailyReportExportPreferences(exportSettingsDraft.value)
+    proxy?.$toast?.success?.('匯出設定已儲存')
+    showExportSettingsModal.value = false
+  } catch (error: unknown) {
+    const message =
+      (error as { message?: string })?.message ??
+      (error as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+      '儲存失敗，請稍後再試'
+    exportSettingsError.value = message
+  } finally {
+    isSavingExportSettings.value = false
+  }
+}
+const isHydrating = ref(false)
+const isSwitchingDate = ref(false)
+const autoSaveStatus = ref<'idle' | 'pending' | 'saving' | 'saved' | 'error'>('idle')
+
+const saveButtonLabel = computed(() =>
+  autoSaveStatus.value === 'saving' ? '儲存中…' : '立即儲存'
+)
+
+const saveButtonIconClass = computed(() =>
+  autoSaveStatus.value === 'saving' ? 'fa-spinner fa-spin' : 'fa-save'
+)
+
+const saveButtonTitle = computed(() => {
+  if (autoSaveStatus.value === 'saving') return '正在自動儲存'
+  if (autoSaveStatus.value === 'pending') return '修改後將自動儲存'
+  return '略過等待，立即儲存'
+})
+/** 上次成功儲存（或載入）時的請求快照，用於避免儲存回寫觸發無限自動儲存 */
+let lastPersistedSnapshot = ''
+
+function getSaveSnapshot(forDate?: string): string {
+  try {
+    const reportForSave = forDate
+      ? { ...report.value, reportDate: forDate }
+      : report.value
+    return JSON.stringify(convertToSaveRequest(reportForSave))
+  } catch {
+    return ''
+  }
+}
+
+function createLoadMergeBase(date: string): DailyReport {
+  return {
+    ...report.value,
+    reportDate: date,
+    executionSummary: [],
+    materialUsageSummary: [],
+    laborEquipmentSummary: []
+  }
+}
+
+async function applyHydratedReport(nextReport: DailyReport) {
+  isHydrating.value = true
+  report.value = nextReport
+  await nextTick()
+  lastPersistedSnapshot = getSaveSnapshot()
+  isHydrating.value = false
+}
 const errors = ref<string[]>([])
 const selectedCopyDate = ref<string>('')
 const customCopyDate = ref<string>('')
@@ -1721,16 +1713,6 @@ const addSafetyInspectionRecord = () => {
   })
 }
 
-const updateExecutionNumber = (
-  item: ExecutionSummaryItem,
-  key: 'todayQuantity' | 'cumulativeQuantity',
-  event: Event
-) => {
-  const target = event.target as HTMLInputElement | null
-  const value = target?.value ?? ''
-  item[key] = value === '' ? null : Number(value)
-}
-
 const updateMaterialUsageNumber = (
   item: MaterialUsageSummaryItem,
   key: 'todayUsage' | 'cumulativeUsage',
@@ -1758,9 +1740,9 @@ const updateLaborEquipmentNumber = (
 // 格式化數字顯示
 const formatNumber = (value: number | null | undefined): string => {
   if (value === null || value === undefined) return '—'
-  return value.toLocaleString('zh-TW', { 
-    minimumFractionDigits: 0, 
-    maximumFractionDigits: 2 
+  return value.toLocaleString('zh-TW', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2
   })
 }
 
@@ -1827,6 +1809,10 @@ const clearForm = () => {
   if (!confirm('確定要清空所有資料嗎？此操作無法復原。')) {
     return
   }
+
+  debouncedAutoSave.cancel()
+  autoSaveStatus.value = 'idle'
+  lastPersistedSnapshot = ''
 
   // 重置為初始狀態
   report.value = {
@@ -2173,40 +2159,99 @@ const clearForm = () => {
   customCopyDate.value = ''
 }
 
-const saveDraft = async () => {
+async function persistDailyReport(showSuccessAlert = false, targetDate?: string) {
   if (!constructionId.value) {
-    alert('找不到工程 ID，無法儲存')
-    return
+    if (showSuccessAlert) alert('找不到工程 ID，無法儲存')
+    throw new Error('missing constructionId')
+  }
+  const saveDate = targetDate ?? report.value.reportDate
+  if (!saveDate) {
+    if (showSuccessAlert) alert('請先選擇填表日期')
+    throw new Error('missing reportDate')
   }
 
-  if (!report.value.reportDate) {
-    alert('請先選擇填表日期')
-    return
-  }
+  autoSaveStatus.value = 'saving'
 
-  isLoading.value = true
   try {
-    // 將前端格式轉換為 API 請求格式（只包含今日數據）
-    const saveRequest = convertToSaveRequest(report.value)
-    
-    // 呼叫 API 儲存（全量更新）
+    const saveRequest = convertToSaveRequest({ ...report.value, reportDate: saveDate })
     const response = await saveDailyReport(
       constructionId.value,
-      report.value.reportDate,
+      saveDate,
       saveRequest,
       dailyReportOwnerTypeParam.value
     )
-    
-    // 將 API 回應轉換回前端格式（包含累計值）
-    report.value = convertFromDetailResponse(response, report.value)
-    
-    alert('儲存成功')
+
+    if (saveDate === report.value.reportDate) {
+      await applyHydratedReport(convertFromDetailResponse(response, report.value))
+    }
+
+    autoSaveStatus.value = 'idle'
+    if (showSuccessAlert) {
+      alert('儲存成功')
+    } else {
+      proxy?.$toast?.success?.('已自動儲存')
+    }
   } catch (error) {
+    autoSaveStatus.value = 'error'
     console.error('儲存失敗:', error)
-    alert('儲存失敗，請檢查網路或稍後再試')
-  } finally {
-    isLoading.value = false
+    if (showSuccessAlert) {
+      alert('儲存失敗，請檢查網路或稍後再試')
+    } else {
+      proxy?.$toast?.error?.('自動儲存失敗')
+    }
+    throw error
   }
+}
+
+async function performAutoSave() {
+  if (getSaveSnapshot() === lastPersistedSnapshot) {
+    if (autoSaveStatus.value === 'pending') autoSaveStatus.value = 'idle'
+    return
+  }
+  try {
+    await persistDailyReport(false)
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } }; message?: string }
+    const msg = err?.response?.data?.message ?? err?.message ?? '自動儲存失敗'
+    console.error(msg)
+  }
+}
+
+const debouncedAutoSave = debounce(performAutoSave, 800)
+
+function scheduleAutoSave() {
+  if (isHydrating.value || isLoading.value || isSwitchingDate.value) return
+  if (!constructionId.value || !report.value.reportDate) return
+
+  const snapshot = getSaveSnapshot()
+  if (snapshot === lastPersistedSnapshot) {
+    if (autoSaveStatus.value === 'pending') autoSaveStatus.value = 'idle'
+    return
+  }
+
+  if (autoSaveStatus.value !== 'saving') {
+    autoSaveStatus.value = 'pending'
+  }
+  debouncedAutoSave()
+}
+
+async function flushPendingAutoSave() {
+  try {
+    debouncedAutoSave.flush()
+    if (autoSaveStatus.value === 'saving') {
+      const start = Date.now()
+      while (autoSaveStatus.value === 'saving' && Date.now() - start < 5000) {
+        await new Promise((resolve) => setTimeout(resolve, 50))
+      }
+    }
+  } catch {
+    /* 失敗時不阻擋切換 */
+  }
+}
+
+const saveDraft = async () => {
+  debouncedAutoSave.cancel()
+  await persistDailyReport(true)
 }
 
 // 匯出 Word 文檔（樣板已統一，依目前視角帶 ownerType；type 固定使用 construction）
@@ -2223,6 +2268,7 @@ const exportWord = async () => {
 
   isExporting.value = true
   try {
+    await flushPendingAutoSave()
     await runWithExportLoading('daily-report-word', '工程日報表 Word', async (signal) => {
       await exportDailyReportToWord(constructionId.value, report.value.reportDate!, 'construction', {
         signal,
@@ -2245,35 +2291,58 @@ const loadReportByDate = async (date: string) => {
     console.warn('⚠️ 無法載入日報表：缺少 constructionId')
     return
   }
-  
+  debouncedAutoSave.cancel()
+  autoSaveStatus.value = 'idle'
   isLoading.value = true
   try {
     const response = await getDailyReport(constructionId.value, date, dailyReportOwnerTypeParam.value)
-    
-    if (response) {
-      // 將 API 回應轉換為前端格式（包含累計值）
-      report.value = convertFromDetailResponse(response, report.value)
-    } else {
-    }
+    await applyHydratedReport(
+      convertFromDetailResponse(response, createLoadMergeBase(date))
+    )
   } catch (error: any) {
-    // 404 表示該日期沒有資料，這是正常情況
-    if (error?.response?.status === 404) {
-    } else {
+    isHydrating.value = true
+    report.value.executionSummary = []
+    await nextTick()
+    lastPersistedSnapshot = getSaveSnapshot()
+    isHydrating.value = false
+    if (error?.response?.status !== 404) {
       console.error('載入日報表失敗:', error)
-      // errors.value.push(`載入 ${date} 的日報表失敗`) // 暫時不顯示錯誤訊息，避免干擾
     }
   } finally {
     isLoading.value = false
   }
 }
 
-// 監聽日期變化，自動載入該日期的資料
+watch(
+  () => report.value,
+  () => {
+    scheduleAutoSave()
+  },
+  { deep: true }
+)
+
+// 監聽日期變化：先將未儲存資料寫回「舊日期」，再載入新日期（避免寫錯日報）
 watch(
   () => report.value.reportDate,
-  (newDate, oldDate) => {
-    // 避免初始化時觸發
-    if (oldDate && newDate !== oldDate) {
-      loadReportByDate(newDate)
+  async (newDate, oldDate) => {
+    if (!oldDate || newDate === oldDate) return
+
+    isSwitchingDate.value = true
+    debouncedAutoSave.cancel()
+    autoSaveStatus.value = 'idle'
+
+    try {
+      const oldDateSnapshot = getSaveSnapshot(oldDate)
+      if (oldDateSnapshot !== lastPersistedSnapshot) {
+        try {
+          await persistDailyReport(false, oldDate)
+        } catch (error) {
+          console.error('切換日期前儲存舊日報失敗:', error)
+        }
+      }
+      await loadReportByDate(newDate)
+    } finally {
+      isSwitchingDate.value = false
     }
   }
 )
@@ -2284,27 +2353,44 @@ watch(
   (newDate) => {
     if (newDate && typeof newDate === 'string' && newDate !== report.value.reportDate) {
       report.value.reportDate = newDate
-      loadReportByDate(newDate)
+    }
   }
-  },
-  { immediate: true }
 )
 
-watch(viewType, () => {
-  if (report.value.reportDate) loadReportByDate(report.value.reportDate)
+watch(viewType, async () => {
+  await flushPendingAutoSave()
+  if (report.value.reportDate) {
+    await loadReportByDate(report.value.reportDate)
+  }
 })
 
-// 生命週期
-onMounted(() => {
-  // 優先使用 URL 參數中的日期
+onBeforeRouteLeave(async () => {
+  await flushPendingAutoSave()
+})
+
+onBeforeUnmount(() => {
+  debouncedAutoSave.cancel()
+})
+
+const initDailyReportPage = async () => {
   const dateFromQuery = route.query.reportDate as string
   if (dateFromQuery) {
     report.value.reportDate = dateFromQuery
-    loadReportByDate(dateFromQuery)
+    await loadReportByDate(dateFromQuery)
   } else {
-    // 載入當前日期的日報表資料
-    loadReportByDate(report.value.reportDate)
+    await loadReportByDate(report.value.reportDate)
   }
+}
+
+// 生命週期
+watch(showExportSettingsModal, (visible) => {
+  if (visible) {
+    void loadExportSettings()
+  }
+})
+
+onMounted(() => {
+  void initDailyReportPage()
 })
 </script>
 
@@ -2323,16 +2409,7 @@ onMounted(() => {
   gap: 1rem;
 }
 
-.b2-export-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1.2rem;
-  font-size: 0.9375rem;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  color: #fff !important;
+.daily-report-export-group {
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.22);
   background: linear-gradient(
@@ -2350,7 +2427,7 @@ onMounted(() => {
     border-color 0.16s ease,
     filter 0.16s ease;
 }
-.b2-export-btn:hover:not(:disabled) {
+.daily-report-export-group:hover:not(:has(.b2-export-btn:disabled)) {
   transform: translateY(-1px);
   border-color: rgba(255, 255, 255, 0.38);
   filter: brightness(1.05);
@@ -2358,14 +2435,53 @@ onMounted(() => {
     0 8px 24px rgba(var(--bs-primary-rgb), 0.25),
     inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
-.b2-export-btn:active:not(:disabled) {
+.daily-report-export-group:active:not(:has(.b2-export-btn:disabled)) {
   transform: translateY(0);
   filter: brightness(0.98);
+}
+
+.b2-export-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1.2rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: #fff !important;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  transition:
+    background-color 0.16s ease,
+    opacity 0.16s ease;
+}
+.b2-export-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+}
+.b2-export-btn:active:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
 }
 .b2-export-btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
-  box-shadow: none;
+}
+
+.daily-report-export-group .b2-export-btn:first-child {
+  border-top-left-radius: 999px;
+  border-bottom-left-radius: 999px;
+}
+.daily-report-export-group .b2-export-btn:last-child {
+  border-top-right-radius: 999px;
+  border-bottom-right-radius: 999px;
+  border-left: 1px solid rgba(255, 255, 255, 0.18);
+  padding-left: 0.75rem;
+  padding-right: 0.85rem;
+}
+.daily-report-export-group .b2-export-btn--settings {
+  min-width: 2.75rem;
 }
 
 .date-selector {
@@ -2532,10 +2648,54 @@ onMounted(() => {
   font-weight: 600;
 }
 
+/* 施工項目表格：黑暗模式（桌面） */
+.report-table {
+  --report-table-border: #334155;
+  --report-table-row-bg: rgba(15, 23, 42, 0.45);
+  --report-table-row-hover: rgba(51, 65, 85, 0.55);
+  --report-table-row-unfilled: rgba(15, 23, 42, 0.25);
+  --report-table-input-bg: #2d3139;
+  --report-table-input-border: #4a4d54;
+  --report-table-text: #e2e8f0;
+  --report-table-muted: #94a3b8;
+}
+
+.report-table tbody td {
+  color: var(--report-table-text);
+  border-color: var(--report-table-border);
+  background-color: var(--report-table-row-bg);
+}
+
+.report-table tbody tr:hover td {
+  background-color: var(--report-table-row-hover);
+}
+
+.report-table tbody tr.row-unfilled td {
+  background-color: var(--report-table-row-unfilled);
+}
 
 .report-table td input.form-control,
 .report-table td textarea.form-control {
   min-width: 100px;
+  background-color: var(--report-table-input-bg);
+  border-color: var(--report-table-input-border);
+  color: #f1f5f9;
+}
+
+.report-table td input.form-control::placeholder {
+  color: var(--report-table-muted);
+}
+
+.report-table td input.form-control:focus,
+.report-table td textarea.form-control:focus {
+  background-color: #343a45;
+  border-color: #60a5fa;
+  color: #f8fafc;
+  box-shadow: 0 0 0 0.2rem rgba(96, 165, 250, 0.2);
+}
+
+.report-table .text-muted {
+  color: var(--report-table-muted) !important;
 }
 
 
@@ -2752,6 +2912,17 @@ onMounted(() => {
   }
 }
 
+[data-bs-theme='light'] .report-table {
+  --report-table-border: var(--bs-border-color);
+  --report-table-row-bg: var(--bs-body-bg);
+  --report-table-row-hover: rgba(var(--bs-primary-rgb), 0.04);
+  --report-table-row-unfilled: var(--bs-secondary-bg);
+  --report-table-input-bg: var(--bs-body-bg);
+  --report-table-input-border: var(--bs-border-color);
+  --report-table-text: var(--bs-body-color);
+  --report-table-muted: var(--bs-secondary-color);
+}
+
 @media (min-width: 768px) {
   .metric-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2767,4 +2938,5 @@ onMounted(() => {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
+
 </style>

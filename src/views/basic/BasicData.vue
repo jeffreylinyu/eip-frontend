@@ -1,12 +1,11 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch, watchEffect, onMounted, onUnmounted, nextTick, getCurrentInstance } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, onBeforeRouteLeave } from 'vue-router'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { storage } from '@/utils/storage'
 import { updateConstruction, transformProjectFormToConstructionRequest } from '@/api/construction'
 import { useAuthStore } from '@/stores/auth'
 import { useViewPerspective } from '@/composables/useViewPerspective'
-import { throttle, debounce } from 'lodash'
 import tagsInput from '@/components/plugins/TagsInput.vue'
 import quillEditor from '@/components/plugins/QuillEditor.vue'
 import ProjectForm from '@/components/project/ProjectForm.vue'
@@ -20,7 +19,13 @@ import {
   contractorBasicDataApi,
   type SupervisoryBasicDataPreviewField
 } from '@/api/contractorBasicData'
-import { formatBasicPreviewFieldDisplay } from '@/utils/format'
+import {
+  formatBasicPreviewFieldDisplay,
+  formatProjectFormDateDisplay,
+  formatNumber,
+  formatAmountColloquialChinese,
+  PROJECT_FORM_DATE_FIELD_KEYS
+} from '@/utils/format'
 
 
 // 獲取當前實例以訪問 $toast
@@ -86,7 +91,6 @@ const formData = ref({
   contract_number: "",
   project_location: "",
   host_agency: "",
-  contractor_name: "",
   // 新增：公司名稱顯示欄位
   supervisory_company_name: "",
   contractor_company_name: "",
@@ -162,12 +166,8 @@ const originalFormData = ref({})
 const isSaving = ref(false)
 const hasUnsavedChanges = ref(false)
 const isUpdatingFormData = ref(false)
-const isAutoSaving = ref(false)
-const isSavingInProgress = ref(false)
-// 版本切換或初次載入時的資料套用階段，避免觸發自動儲存
+// 版本切換或初次載入時的資料套用階段
 const isVersionSwitching = ref(false)
-// 頁面初始載入穩定標記：防止初始資料載入、自動計算、v-model 同步期間觸發自動儲存
-const isInitialLoadSettled = ref(false)
       // 標籤相關
 const tag = ref('')
 const tags = ref([{
@@ -191,6 +191,194 @@ const tagsAutocomplete = ref([{ text: '道路工程'}, { text: '橋梁工程'}, 
 
 // ProjectForm 組件引用
 const projectFormRef = ref(null)
+
+/** 基本資料欄位顯示名稱 */
+const BASIC_DATA_FIELD_LABELS: Record<string, string> = {
+  project_name: '工程契約名稱',
+  contract_number: '契約編號',
+  project_location: '工程地點',
+  host_agency: '主辦機關',
+  supervisory_company_name: '監造公司',
+  contractor_company_name: '營造公司',
+  design_company: '設計公司',
+  construction_period: '契約工期（天）',
+  duration_type: '工期計算模式',
+  current_contract_amount: '契約金額',
+  project_category: '工程類別/工程屬性',
+  sign_date: '訂約日期',
+  start_date: '開工日期',
+  completion_date: '完工日期',
+  construction_confirm_date: '施工確認日期',
+  construction_project_id: '工程專案編號',
+  payment_method: '付款方式',
+  advance_payment_ratio: '預付款比例（%）',
+  retention_ratio: '保留款比例（%）',
+  inspection_methods: '驗收方式',
+  segmented_acceptance: '分段驗收',
+  partial_acceptance: '部分驗收',
+  completion_acceptance: '竣工驗收',
+  signLevel: '簽核層級',
+}
+
+/** 異動後可能影響其他資料計算的欄位 */
+const CALCULATION_IMPACT_FIELD_KEYS = new Set([
+  'construction_period',
+  'duration_type',
+  'sign_date',
+  'start_date',
+  'completion_date',
+  'construction_confirm_date',
+  'current_contract_amount',
+  'payment_method',
+  'advance_payment_ratio',
+  'retention_ratio',
+])
+
+interface BasicDataFormChange {
+  key: string
+  label: string
+  oldDisplay: string
+  newDisplay: string
+  affectsCalculation: boolean
+}
+
+const showSaveConfirmModal = ref(false)
+const saveConfirmChanges = ref<BasicDataFormChange[]>([])
+
+type PendingLeaveAction =
+  | { type: 'route'; next: (valid?: boolean) => void }
+  | { type: 'version'; designChangeId: number | null }
+
+const showLeaveConfirmModal = ref(false)
+const leaveConfirmChanges = ref<BasicDataFormChange[]>([])
+const pendingLeaveAction = ref<PendingLeaveAction | null>(null)
+/** 使用者已確認離開不儲存，略過後續離開守衛 */
+const skipUnsavedLeaveGuard = ref(false)
+
+const saveConfirmHasCalculationImpact = computed(() =>
+  saveConfirmChanges.value.some(c => c.affectsCalculation)
+)
+
+const leaveConfirmHasCalculationImpact = computed(() =>
+  leaveConfirmChanges.value.some(c => c.affectsCalculation)
+)
+
+function hasPendingUnsavedEdits(): boolean {
+  if (!isProjectAdmin.value || isEmptyState.value) return false
+  if (isUpdatingFormData.value || isVersionSwitching.value) return false
+  return hasUnsavedChanges.value
+}
+
+function executePendingLeaveAction(action: PendingLeaveAction) {
+  if (action.type === 'route') {
+    skipUnsavedLeaveGuard.value = true
+    action.next()
+    return
+  }
+  void performVersionTabSwitch(action.designChangeId)
+}
+
+/** 若有未儲存變更則開啟離開確認 Modal；回傳 true 表示已直接放行 */
+function tryLeaveWithConfirm(action: PendingLeaveAction): boolean {
+  const changes = computeFormChanges()
+  if (changes.length === 0) {
+    hasUnsavedChanges.value = false
+    executePendingLeaveAction(action)
+    return true
+  }
+  leaveConfirmChanges.value = changes
+  pendingLeaveAction.value = action
+  showLeaveConfirmModal.value = true
+  return false
+}
+
+const confirmLeaveWithoutSave = () => {
+  showLeaveConfirmModal.value = false
+  const action = pendingLeaveAction.value
+  pendingLeaveAction.value = null
+  if (action) {
+    executePendingLeaveAction(action)
+  }
+}
+
+const cancelLeaveConfirm = () => {
+  showLeaveConfirmModal.value = false
+  pendingLeaveAction.value = null
+}
+
+function handleBeforeUnload(e: BeforeUnloadEvent) {
+  if (skipUnsavedLeaveGuard.value) return
+  if (!hasPendingUnsavedEdits()) return
+  if (computeFormChanges().length === 0) return
+  e.preventDefault()
+  e.returnValue = ''
+}
+
+/** 不納入異動比對的欄位（非表單可編輯或內部狀態） */
+const BASIC_DATA_EXCLUDED_CHANGE_KEYS = new Set(['version', 'contractor_name'])
+
+function normalizeFormValueForCompare(value: unknown): string {
+  if (value === undefined || value === null || value === '') return ''
+  if (typeof value === 'function') return ''
+  if (Array.isArray(value)) return JSON.stringify(value)
+  if (typeof value === 'boolean') return value ? 'true' : 'false'
+  return String(value)
+}
+
+function formatFormFieldDisplay(key: string, value: unknown): string {
+  if (value === undefined || value === null || value === '') return '－'
+  if (typeof value === 'function') return '－'
+
+  if (PROJECT_FORM_DATE_FIELD_KEYS.has(key)) {
+    return formatProjectFormDateDisplay(String(value))
+  }
+  if (key === 'duration_type') {
+    if (value === 'CALENDAR_DAYS') return '日曆天'
+    if (value === 'WORKING_DAYS') return '工作天'
+    return String(value)
+  }
+  if (key === 'current_contract_amount') {
+    const num = formatNumber(String(value))
+    const colloquial = formatAmountColloquialChinese(value as string | number)
+    return colloquial ? `${num}（${colloquial}）` : num
+  }
+  if (key === 'signLevel' && Array.isArray(value)) {
+    const titles = value.map((i: { title?: string }) => i?.title).filter(Boolean)
+    return titles.length ? titles.join('、') : '－'
+  }
+  if (key === 'inspection_methods' && Array.isArray(value)) {
+    return value.length ? value.join('、') : '－'
+  }
+  if (typeof value === 'boolean') {
+    return value ? '是' : '否'
+  }
+  if (Array.isArray(value)) {
+    return value.length ? JSON.stringify(value) : '－'
+  }
+  return String(value)
+}
+
+function computeFormChanges(): BasicDataFormChange[] {
+  const changes: BasicDataFormChange[] = []
+  const original = originalFormData.value as Record<string, unknown>
+  const current = formData.value as Record<string, unknown>
+  const skipKeys = BASIC_DATA_EXCLUDED_CHANGE_KEYS
+
+  for (const key of Object.keys(current)) {
+    if (skipKeys.has(key)) continue
+    const oldVal = original[key]
+    const newVal = current[key]
+    if (normalizeFormValueForCompare(oldVal) === normalizeFormValueForCompare(newVal)) continue
+    changes.push({
+      key,
+      label: BASIC_DATA_FIELD_LABELS[key] || key,
+      oldDisplay: formatFormFieldDisplay(key, oldVal),
+      newDisplay: formatFormFieldDisplay(key, newVal),
+      affectsCalculation: CALCULATION_IMPACT_FIELD_KEYS.has(key),
+    })
+  }
+  return changes
+}
 
 
 
@@ -228,24 +416,16 @@ const loadProjectData = async (project: any, forceRefresh: boolean = false) => {
 
   originalFormData.value = JSON.parse(JSON.stringify(formData.value))
   hasUnsavedChanges.value = false
-  isInitialLoadSettled.value = false
-  setTimeout(() => {
-    originalFormData.value = JSON.parse(JSON.stringify(formData.value))
-    hasUnsavedChanges.value = false
-    isInitialLoadSettled.value = true
-  }, 5000)
 }
 
 // 切換變更設計版本 Tab
-const selectVersionTab = async (designChangeId: number | null) => {
-  if (selectedDesignChangeId.value === designChangeId) return
+async function performVersionTabSwitch(designChangeId: number | null) {
   selectedDesignChangeId.value = designChangeId
   if (workspaceStore.currentProject) {
     isUpdatingFormData.value = true
     isVersionSwitching.value = true
     try {
       await loadCurrentProjectData(designChangeId)
-      // 將新版本資料視為目前基準狀態，避免剛切換就觸發自動儲存
       originalFormData.value = JSON.parse(JSON.stringify(formData.value))
       hasUnsavedChanges.value = false
     } finally {
@@ -258,6 +438,15 @@ const selectVersionTab = async (designChangeId: number | null) => {
   }
 }
 
+const selectVersionTab = async (designChangeId: number | null) => {
+  if (selectedDesignChangeId.value === designChangeId) return
+  if (hasPendingUnsavedEdits()) {
+    if (!tryLeaveWithConfirm({ type: 'version', designChangeId })) return
+    return
+  }
+  await performVersionTabSwitch(designChangeId)
+}
+
 // 監聽當前工程案變化 - 使用更安全的方式
 watch(() => workspaceStore.currentProject, async (newProject, oldProject) => {
   if (newProject && newProject.id !== oldProject?.id) {
@@ -266,59 +455,36 @@ watch(() => workspaceStore.currentProject, async (newProject, oldProject) => {
 }, { immediate: false })
 
 
-/** 自動儲存防抖：避免連續 PATCH 撞 master 樂觀鎖（409） */
-const AUTO_SAVE_DEBOUNCE_MS = 1000
-
-const debouncedAutoSave = debounce(async () => {
-  if (isUpdatingFormData.value) return
-  if (isVersionSwitching.value) return
-  if (!isInitialLoadSettled.value) return
-
-  const hasChange = JSON.stringify(formData.value) !== JSON.stringify(originalFormData.value)
-  if (!hasChange) {
-    hasUnsavedChanges.value = false
-    return
-  }
-
-  hasUnsavedChanges.value = true
-  if (isSavingInProgress.value) return
-
-  isSavingInProgress.value = true
-  isAutoSaving.value = true
-  try {
-    if (projectFormRef.value) {
-      const result = await (projectFormRef.value as any).handleSubmit(true)
-      if (result && !result.submitted) {
-        await (projectFormRef.value as any).handleSubmit(false)
-      }
-    }
-  } finally {
-    isAutoSaving.value = false
-    isSavingInProgress.value = false
-  }
-}, AUTO_SAVE_DEBOUNCE_MS)
-
-// 監聯表單數據變化，防抖後自動儲存
+// 監聽表單數據變化，更新未儲存狀態
 watch(
   formData,
   () => {
     if (isUpdatingFormData.value) return
     if (isVersionSwitching.value) return
-    if (!isInitialLoadSettled.value) return
 
-    const hasChange = JSON.stringify(formData.value) !== JSON.stringify(originalFormData.value)
-    hasUnsavedChanges.value = hasChange
-    if (hasChange) {
-      debouncedAutoSave()
-    } else {
-      debouncedAutoSave.cancel()
-    }
+    hasUnsavedChanges.value =
+      JSON.stringify(formData.value) !== JSON.stringify(originalFormData.value)
   },
   { deep: true }
 )
 
 onUnmounted(() => {
-  debouncedAutoSave.cancel()
+  window.removeEventListener('beforeunload', handleBeforeUnload)
+})
+
+onBeforeRouteLeave((_to, _from, next) => {
+  if (skipUnsavedLeaveGuard.value) {
+    next()
+    return
+  }
+  if (!hasPendingUnsavedEdits()) {
+    next()
+    return
+  }
+  if (tryLeaveWithConfirm({ type: 'route', next })) {
+    return
+  }
+  next(false)
 })
 
 function openSupervisoryBasicModal() {
@@ -492,7 +658,6 @@ const clearFormData = () => {
       contract_number: "",
       project_location: "",
       host_agency: "",
-      contractor_name: "",
       supervisory_company_name: "",
       contractor_company_name: "",
       design_company: "",
@@ -560,7 +725,6 @@ const mapProjectDataToForm = (project: any) => {
       contract_number: project.contractNumber || '',
       project_location: project.location || '',
       host_agency: project.hostAgency || '',
-      contractor_name: project.contractorName || '',
       // 新增：映射公司名稱（如果工程案中沒有，則從工作空間設定自動帶入）
       supervisory_company_name: project.supervisoryCompanyName || workspaceStore.participatingUnits.supervisoryCompany?.companyName || '',
       contractor_company_name: project.contractorCompanyName || workspaceStore.participatingUnits.contractorCompany?.companyName || '',
@@ -608,72 +772,59 @@ const mapProjectDataToForm = (project: any) => {
     // 瀏覽器離開頁面處理
  
 
-    // 保存表單
+    // 保存表單：先驗證，再以 Modal 顯示變更內容供確認
 const saveForm = async () => {
-  // 通過 ProjectForm 組件引用觸發驗證和提交
-  if (projectFormRef.value) {
-    // 直接調用 ProjectForm 的 handleSubmit 方法，讓它處理驗證
-    await (projectFormRef.value as any).handleSubmit()
-  } else {
+  if (!projectFormRef.value) {
     console.error('❌ 無法找到 ProjectForm 組件引用')
     proxy.$toast.error('表單組件未正確載入，請重新整理頁面')
+    return
   }
+
+  const formValidation = (projectFormRef.value as { validation: { validateAll: () => boolean } }).validation
+  const isValid = formValidation.validateAll()
+  if (!isValid) {
+    await nextTick()
+    return
+  }
+
+  const changes = computeFormChanges()
+  if (changes.length === 0) {
+    proxy.$toast.info('沒有需要保存的變更')
+    return
+  }
+
+  saveConfirmChanges.value = changes
+  showSaveConfirmModal.value = true
+}
+
+const cancelSaveConfirm = () => {
+  showSaveConfirmModal.value = false
+}
+
+const confirmSaveForm = async () => {
+  showSaveConfirmModal.value = false
+  await handleProjectFormSubmit(JSON.parse(JSON.stringify(formData.value)))
 }
     
-// Throttled success toast for auto-save (max once every 3 seconds)
-const showAutoSaveSuccessToast = throttle(() => {
-  proxy.$toast.success('自動儲存成功')
-}, 3000, { trailing: false })
-
 // 處理 ProjectForm 的提交事件
 const handleProjectFormSubmit = async (data: any) => {
-  const isAuto = isAutoSaving.value // 保存當前是否為自動儲存狀態
-  
-  // 自動儲存時不設置 isSaving，避免觸發 UI 更新導致焦點丟失
-  if (!isAuto) {
-    isSaving.value = true
-  }
-  
+  isSaving.value = true
+
   try {
-    // 調用API保存數據，傳入自動儲存標記
-    await submitFormData(data, isAuto)
-    
-    // 自動儲存時：更新狀態但不重新渲染表單，避免焦點丟失
-    // 手動儲存時：更新原始數據和狀態
-    if (!isAuto) {
-      // 手動儲存時，正常更新
-      originalFormData.value = JSON.parse(JSON.stringify(formData.value))
-      hasUnsavedChanges.value = false
-      proxy.$toast.success('工程資料保存成功！')
-    } else {
-      // 自動儲存成功後：更新狀態（但不重新渲染表單）並顯示提示
-      // 使用 isUpdatingFormData 標誌防止觸發 watch 監聽器
-      isUpdatingFormData.value = true
-      try {
-        originalFormData.value = JSON.parse(JSON.stringify(formData.value))
-        hasUnsavedChanges.value = false
-      } finally {
-        isUpdatingFormData.value = false
-      }
-      // 顯示自動儲存成功提示（使用 throttle 限制頻率）
-      showAutoSaveSuccessToast()
-    }
-    
+    await submitFormData(data)
+    originalFormData.value = JSON.parse(JSON.stringify(formData.value))
+    hasUnsavedChanges.value = false
+    proxy.$toast.success('工程資料保存成功！')
   } catch (error) {
     console.error('保存失敗:', error)
-    // 自動儲存失敗時不顯示錯誤提示，以免打斷用戶，僅在控制台記錄
-    if (!isAuto) {
-        proxy.$toast.error('保存失敗，請重試！')
-    }
+    proxy.$toast.error('保存失敗，請重試！')
   } finally {
-    if (!isAuto) {
-      isSaving.value = false
-    }
+    isSaving.value = false
   }
 }
 
     // 提交表單數據（使用真實 API）
-const submitFormData = async (data?: any, isAutoSave: boolean = false) => {
+const submitFormData = async (data?: any) => {
   const currentProject = workspaceStore.currentProject
   if (!currentProject) {
     throw new Error('沒有選擇工程案')
@@ -723,7 +874,7 @@ const submitFormData = async (data?: any, isAutoSave: boolean = false) => {
     updatedConstruction = (response as any).construction
   }
 
-  // 同步 master 樂觀鎖版本（自動／手動儲存皆需），避免連續 PATCH 仍帶舊版號觸發 409
+  // 同步 master 樂觀鎖版本，避免連續 PATCH 仍帶舊版號觸發 409
   const versionFromApi =
     typeof (updatedConstruction as any)?.version === 'number'
       ? (updatedConstruction as any).version
@@ -739,11 +890,8 @@ const submitFormData = async (data?: any, isAutoSave: boolean = false) => {
     }
   }
   
-  // 自動儲存時：不整頁重載表單（避免焦點丟失），但已於上方同步樂觀鎖 version
-  // 手動儲存時：更新 workspace store 和表單資料
-  if (!isAutoSave) {
-    // 如果 API 回傳了完整的工程案資料，直接使用回傳的資料
-    if (updatedConstruction) {
+  // 同步樂觀鎖 version；儲存後更新 workspace store 和表單資料
+  if (updatedConstruction) {
       // 後端有回傳完整的工程案資料，直接使用
       
       // 將 Construction 格式轉換為 WorkspaceProject 格式
@@ -823,30 +971,32 @@ const submitFormData = async (data?: any, isAutoSave: boolean = false) => {
         mapProjectDataToForm(updatedProject)
       }
     }
-  }
-  // 自動儲存時：什麼都不做，保持當前編輯狀態
-  
+
   return response
 }
     
     // 重置表單
-const resetForm = () => {
+const resetForm = async () => {
   if (hasUnsavedChanges.value) {
     const answer = window.confirm('確定要重置表單嗎？所有未保存的變更將會丟失。')
-        if (!answer) {
+    if (!answer) {
       return
     }
   }
-  
-  // 重置 formData
-  formData.value = JSON.parse(JSON.stringify(originalFormData.value))
-  hasUnsavedChanges.value = false
-  
-  // 通過 ProjectForm 組件引用重置表單
-  if (projectFormRef.value) {
-    (projectFormRef.value as any).handleReset()
+
+  isUpdatingFormData.value = true
+  try {
+    formData.value = JSON.parse(JSON.stringify(originalFormData.value))
+    hasUnsavedChanges.value = false
+    // 由 v-model 同步至 ProjectForm；勿呼叫 handleReset（會清空子表單並覆寫父層資料）
+    if (projectFormRef.value) {
+      (projectFormRef.value as { validation?: { clearErrors: () => void } }).validation?.clearErrors()
+    }
+  } finally {
+    await nextTick()
+    isUpdatingFormData.value = false
   }
-  
+
   proxy.$toast.info('表單已重置')
 }
 
@@ -870,7 +1020,8 @@ onMounted(async () => {
   if (workspaceStore.currentProject) {
     await loadProjectData(workspaceStore.currentProject, true) // 傳入 true 強制刷新
   }
-  
+
+  window.addEventListener('beforeunload', handleBeforeUnload)
 })
 
  
@@ -887,6 +1038,38 @@ onMounted(async () => {
 	>
 		<template #extra>
 			<div v-if="!isEmptyState" class="d-flex flex-wrap align-items-center gap-2">
+				<template v-if="isProjectAdmin">
+					<span v-if="hasUnsavedChanges && !isSaving" class="text-warning small">
+						<i class="fa fa-exclamation-circle me-1"></i>有未儲存變更
+					</span>
+					<span v-else-if="!hasUnsavedChanges && !isSaving" class="text-success small">
+						<i class="fa fa-check me-1"></i>已儲存
+					</span>
+					<button
+						type="button"
+						class="btn btn-sm btn-outline-secondary"
+						@click="resetForm"
+						:disabled="isSaving"
+					>
+						<i class="fa fa-undo me-1"></i>
+						重置
+					</button>
+					<button
+						type="button"
+						class="btn btn-sm btn-theme"
+						@click="saveForm"
+						:disabled="isSaving"
+					>
+						<i
+							class="fa me-1"
+							:class="{
+								'fa-spin fa-spinner': isSaving,
+								'fa-save': !isSaving,
+							}"
+						></i>
+						{{ isSaving ? '處理中...' : '保存' }}
+					</button>
+				</template>
 				<button
 					v-if="isContractorView && isProjectAdmin"
 					type="button"
@@ -1012,6 +1195,125 @@ onMounted(async () => {
 		</template>
 	</Modal>
 
+	<Modal
+		:show="showSaveConfirmModal"
+		title="確認保存基本資料"
+		icon="fa fa-save"
+		size="lg"
+		modal-id="basic-data-save-confirm"
+		confirm-text="確認儲存"
+		confirm-icon="fa fa-check"
+		cancel-text="取消"
+		:is-loading="isSaving"
+		loading-text="儲存中..."
+		@update:show="showSaveConfirmModal = $event"
+		@confirm="confirmSaveForm"
+		@hide="cancelSaveConfirm"
+	>
+		<p class="text-muted small mb-3">
+			請確認以下變更內容。確認後才會寫入資料庫。
+		</p>
+		<div
+			v-if="saveConfirmHasCalculationImpact"
+			class="alert alert-warning py-2 px-3 small mb-3"
+			role="alert"
+		>
+			<div class="fw-semibold mb-1">
+				<i class="fa fa-exclamation-triangle me-1"></i>注意：部分異動會影響其他資料
+			</div>
+			<div>
+				標示「影響計算」的欄位異動，可能會連動重算完工日期、變更設計版本區間、展延紀錄、人員配置級距、估驗金額及表單匯出內容，請再次確認無誤後再儲存。
+			</div>
+		</div>
+		<div class="table-responsive">
+			<table class="table table-sm table-hover align-middle mb-0">
+				<thead>
+					<tr>
+						<th style="width: 50px">#</th>
+						<th style="min-width: 140px">欄位</th>
+						<th>原值</th>
+						<th>新值</th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr v-for="(row, idx) in saveConfirmChanges" :key="row.key">
+						<td class="text-center text-muted">{{ idx + 1 }}</td>
+						<td>
+							{{ row.label }}
+							<span
+								v-if="row.affectsCalculation"
+								class="badge bg-warning text-dark ms-1"
+								title="此欄位異動可能影響其他資料計算"
+							>影響計算</span>
+						</td>
+						<td class="text-muted small">{{ row.oldDisplay }}</td>
+						<td class="small fw-semibold text-theme">{{ row.newDisplay }}</td>
+					</tr>
+				</tbody>
+			</table>
+		</div>
+	</Modal>
+
+	<Modal
+		:show="showLeaveConfirmModal"
+		title="尚未儲存的變更"
+		icon="fa fa-exclamation-triangle"
+		size="lg"
+		modal-id="basic-data-leave-confirm"
+		confirm-text="離開不儲存"
+		confirm-icon="fa fa-sign-out-alt"
+		confirm-button-class="btn btn-warning"
+		cancel-text="留在此頁"
+		:backdrop="'static'"
+		:keyboard="false"
+		@update:show="showLeaveConfirmModal = $event"
+		@confirm="confirmLeaveWithoutSave"
+		@hide="cancelLeaveConfirm"
+	>
+		<p class="text-muted small mb-3">
+			您有尚未儲存的修改。若現在離開，以下變更將會遺失。是否仍要離開？
+		</p>
+		<div
+			v-if="leaveConfirmHasCalculationImpact"
+			class="alert alert-warning py-2 px-3 small mb-3"
+			role="alert"
+		>
+			<div class="fw-semibold mb-1">
+				<i class="fa fa-exclamation-triangle me-1"></i>注意：未儲存的異動含會影響計算的欄位
+			</div>
+			<div>
+				若離開而不儲存，這些欄位將維持修改前的值；相關報表與計算仍依已儲存資料為準。
+			</div>
+		</div>
+		<div class="table-responsive">
+			<table class="table table-sm table-hover align-middle mb-0">
+				<thead>
+					<tr>
+						<th style="width: 50px">#</th>
+						<th style="min-width: 140px">欄位</th>
+						<th>原值</th>
+						<th>未儲存的新值</th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr v-for="(row, idx) in leaveConfirmChanges" :key="row.key">
+						<td class="text-center text-muted">{{ idx + 1 }}</td>
+						<td>
+							{{ row.label }}
+							<span
+								v-if="row.affectsCalculation"
+								class="badge bg-warning text-dark ms-1"
+								title="此欄位異動可能影響其他資料計算"
+							>影響計算</span>
+						</td>
+						<td class="text-muted small">{{ row.oldDisplay }}</td>
+						<td class="small fw-semibold text-danger">{{ row.newDisplay }}</td>
+					</tr>
+				</tbody>
+			</table>
+		</div>
+	</Modal>
+
 	<div class="row gx-4">
 		<div class="col-lg-12">
 			<!-- 審核紀錄顯示區塊 -->
@@ -1067,8 +1369,8 @@ onMounted(async () => {
 
 			<!-- 操作按鈕（僅專案管理員可見，且有資料時顯示） -->
 			<div v-if="!isEmptyState && isProjectAdmin" class="d-flex justify-content-end gap-2 align-items-center">
-                <span v-if="isAutoSaving" class="text-muted small me-2">
-                    <i class="fa fa-spinner fa-spin me-1"></i>自動儲存中...
+                <span v-if="hasUnsavedChanges && !isSaving" class="text-warning small me-2">
+                    <i class="fa fa-exclamation-circle me-1"></i>有未儲存變更
                 </span>
                 <span v-else-if="!hasUnsavedChanges && !isSaving" class="text-success small me-2">
                     <i class="fa fa-check me-1"></i>已儲存

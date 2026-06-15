@@ -69,7 +69,10 @@
 	
 	& .brand {
 		height: 100%;
-		width: $app-sidebar-width + $app-content-padding-y;
+		flex: 0 1 auto;
+		width: auto;
+		min-width: $app-sidebar-width + $app-content-padding-y;
+		max-width: min(42rem, calc(100vw - 22rem));
 		padding: 0 $spacer;
 		display: flex;
 		align-items: center;
@@ -82,9 +85,11 @@
 			text-decoration: none;
 			color: var(--#{$prefix}app-header-link-color);
 			font-size: $font-size-base * 1.05;
-			letter-spacing: 2px;
 			display: flex;
 			align-items: center;
+			width: 100%;
+			height: 100%;
+			min-width: 0;
 			
 			@include media-breakpoint-down(md) {
 				display: none;
@@ -101,15 +106,15 @@
 				}
 			}
 			& .brand-img {
-				width: rem(26px);
-				height: rem(26px);
+				width: rem(32px);
+				height: rem(32px);
+				flex-shrink: 0;
+				align-self: center;
 				background: var(--#{$prefix}app-header-brand-img);
-				background-size: cover;
+				background-size: contain;
 				background-position: center;
 				background-repeat: no-repeat;
-				display: flex;
-				align-items: center;
-				justify-content: center;
+				display: block;
 				
 				@if $enable-rtl {
 					margin-left: $spacer;
@@ -127,17 +132,23 @@
 			
 			& .brand-text-container {
 				flex: 1;
-				min-width: 0; // 允許 flex 項目收縮
+				min-width: 0;
 				overflow: hidden;
+				display: flex;
+				align-items: center;
+				align-self: stretch;
+				height: 100%;
 			}
 			
 			& .brand-text {
 				display: block;
+				width: 100%;
 				white-space: nowrap;
 				overflow: hidden;
 				text-overflow: ellipsis;
 				max-width: 100%;
-				line-height: 1.2;
+				line-height: 1.25;
+				letter-spacing: 2px;
 			}
 			
 			& .brand-text-part {

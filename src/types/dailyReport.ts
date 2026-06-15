@@ -96,17 +96,46 @@ export interface DailyReport {
   updatedBy?: string
 }
 
+/** 表一列類型 */
+export type DailyReportExecutionRowKind =
+  | 'SECTION_HEADER'
+  | 'DETAIL_ITEM'
+
 export interface ExecutionSummaryItem {
   id: string
+  itemNo?: string  // 標單項次
   code: string  // PCCES 代碼
   item: string  // PCCES 項目名稱
+  /** 工項類型（PccesItemType，與標單頁圖示一致） */
+  type?: string | null
   unit: string
   contractQuantity: number | null
+  /** 大項金額（標單 amount） */
+  contractAmount?: number | null
+  /** 大項金額佔契約金額百分比 */
+  contractAmountPercent?: number | null
+  /** 標單單價（可填寫之工項／試驗項） */
+  unitPrice?: number | null
+  /** 大項本日完成金額（後端初值；前端會即時重算） */
+  todayAmount?: number | null
+  /** 大項本日完成金額佔該大項總額百分比 */
+  todayAmountPercent?: number | null
+  /** 大項累計完成金額（後端初值；前端會即時重算） */
+  cumulativeAmount?: number | null
+  /** 大項累計完成金額佔該大項總額百分比 */
+  cumulativeAmountPercent?: number | null
   todayQuantity: number | null
+  /** 後端計算之累計（載入時）；顯示請用 getDisplayedCumulativeQuantity */
   cumulativeQuantity: number | null
+  /** 本日之前的歷史累計（totalQty - todayQty，供前端即時推算累計顯示） */
+  historicalCumulative?: number | null
   remark: string
   logicalId?: string  // 用於跨版本追蹤（優先使用）
   constructionPccesCodeId?: number  // 向後兼容
+  depth?: number
+  parentLogicalId?: string
+  fillable?: boolean
+  executionRowKind?: DailyReportExecutionRowKind
 }
 
 export interface MaterialUsageSummaryItem {
