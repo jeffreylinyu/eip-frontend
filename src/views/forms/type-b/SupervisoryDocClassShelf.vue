@@ -32,28 +32,38 @@
 
     <Card v-else>
       <CardBody>
-        <div class="alert alert-info mb-4">
-          <h5 class="alert-heading">
-            <i class="fa fa-info-circle me-2"></i>說明
-          </h5>
-          <p class="mb-0">
-            {{ supportedCategory }} 類書架：可建立多筆紀錄，每筆可關聯一個公文並上傳多個附件。
-          </p>
-        </div>
+        <SelfCheckInspectionList
+          v-if="supportedCategory === 'D' && targetItem"
+          :construction-id="currentProject?.id ?? ''"
+          :document-classification-id="targetItem.id"
+          owner-type="SUPERVISORY"
+          :base-path="`/supervisory/forms/doc-class/D/${targetItem.id}`"
+        />
 
-        <div class="d-flex justify-content-between align-items-center gap-3 mb-3 flex-wrap">
-          <div></div>
-          <button type="button" class="btn btn-sm btn-primary" disabled>
-            <i class="fa fa-plus me-1"></i>
-            新增紀錄
-          </button>
-        </div>
+        <template v-else>
+          <div class="alert alert-info mb-4">
+            <h5 class="alert-heading">
+              <i class="fa fa-info-circle me-2"></i>說明
+            </h5>
+            <p class="mb-0">
+              {{ supportedCategory }} 類書架：可建立多筆紀錄，每筆可關聯一個公文並上傳多個附件。
+            </p>
+          </div>
 
-        <div class="text-center py-4 text-muted border rounded">
-          <i class="fa fa-inbox fa-2x mb-2 d-block"></i>
-          尚無紀錄
-          <div class="small mt-1">點擊「新增紀錄」開始建立</div>
-        </div>
+          <div class="d-flex justify-content-between align-items-center gap-3 mb-3 flex-wrap">
+            <div></div>
+            <button type="button" class="btn btn-sm btn-primary" disabled>
+              <i class="fa fa-plus me-1"></i>
+              新增紀錄
+            </button>
+          </div>
+
+          <div class="text-center py-4 text-muted border rounded">
+            <i class="fa fa-inbox fa-2x mb-2 d-block"></i>
+            尚無紀錄
+            <div class="small mt-1">點擊「新增紀錄」開始建立</div>
+          </div>
+        </template>
       </CardBody>
     </Card>
   </div>
@@ -79,6 +89,7 @@ import { useWorkspaceStore } from '@/stores/workspace'
 import { useViewPerspective } from '@/composables/useViewPerspective'
 import { documentClassificationApi, type DocumentClassification } from '@/api/documentClassification'
 import { getDesignChangeList } from '@/api/designChange'
+import SelfCheckInspectionList from '@/components/self-check/SelfCheckInspectionList.vue'
 
 const SUPPORTED_CATEGORIES = ['B', 'C', 'D', 'H', 'I', 'L'] as const
 type SupportedCategory = typeof SUPPORTED_CATEGORIES[number]

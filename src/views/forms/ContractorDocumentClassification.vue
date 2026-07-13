@@ -163,13 +163,19 @@
         :dark-inputs="cat.code === 'P'"
         :lock-default-document-name="cat.code === 'P'"
         :show-apply-sidebar-column="cat.code === 'P'"
-        :import-subdivisions="cat.code === 'E'"
+        :is-dynamic="cat.code === 'E'"
+        :sync-label="cat.code === 'E' ? '同步分項工程' : undefined"
+        :sync-title="
+          cat.code === 'E'
+            ? '依目前版本分項工程重新同步 E 類（{分項名稱}自主檢查表；覆寫既有項目）'
+            : undefined
+        "
         @add="(data) => handleAdd(cat.code, data)"
         @update="(id, data) => handleUpdate(cat.code, id, data)"
         @toggle-apply-sidebar="(id, value) => handleToggleApplySidebar(cat.code, id, value)"
         @delete="(id) => handleDelete(id)"
         @reorder="handleReorder"
-        @import-subdivisions="handleImportSubdivisions"
+        @sync="() => cat.code === 'E' && handleSyncE()"
       >
         <template v-if="cat.code === 'P'" #headerActions>
           <button
@@ -419,7 +425,7 @@ function toTableRow(row: ContractorDocumentClassification): DocumentClassificati
     applyToSidebar: row.category === 'P' ? row.applyToSidebar !== false : row.applyToSidebar,
     isDefault: row.isDefault,
     isLocked: row.isLocked,
-    constructionMajorItemId: undefined,
+    subdivisionWorkItemId: row.subdivisionWorkItemId ?? undefined,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     createdBy: row.createdBy,
@@ -670,17 +676,24 @@ async function handleToggleApplySidebar(category: string, id: number, applyToSid
   }
 }
 
-async function handleImportSubdivisions() {
+async function handleSyncE() {
   const cid = constructionId.value
   if (!cid) return
-  if (!confirm('依目前版本「分項工程」批次新增 E 類「{分項名稱}自主檢查表」（保存 15 年）？重複項目不會自動合併。')) return
+  if (
+    !confirm(
+      '確定要根據分項工程重新同步 E 類別嗎？將以「{分項名稱}自主檢查表」覆寫目前 E 類內容。'
+    )
+  ) {
+    return
+  }
   try {
-    await contractorDocumentClassificationApi.importSubdivisionsToE(cid, selectedDesignChangeId.value)
-    if (proxy?.$toast) proxy.$toast.success('已帶入分項')
+    await contractorDocumentClassificationApi.syncCategoryE(cid, selectedDesignChangeId.value)
+    if (proxy?.$toast) proxy.$toast.success('E 類別同步完成')
     await loadData()
+    refreshContractorSidebar()
   } catch (error: any) {
     console.error(error)
-    const msg = error?.response?.data?.message ?? error?.message ?? '帶入失敗'
+    const msg = error?.response?.data?.message ?? error?.message ?? '同步失敗'
     if (proxy?.$toast) proxy.$toast.error(msg)
   }
 }

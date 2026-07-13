@@ -1,5 +1,6 @@
 import http from './http';
 import { useAuthStore } from '@/stores/auth';
+import { normalizeCalendarDateKey } from '@/utils/calendarWeather';
 
 // 工程案數據接口
 export interface Construction {
@@ -9,6 +10,11 @@ export interface Construction {
   constructionId: string;
   constructionName: string;
   constructionLocation: string;
+  constructionLatitude?: number | null;
+  constructionLongitude?: number | null;
+  cwaStationId?: string | null;
+  cwaStationName?: string | null;
+  cwaStationDistanceKm?: number | null;
   signDate?: string;
   constructionStartDate: string;
   constructionEndDate: string;
@@ -181,6 +187,8 @@ export interface CreateConstructionRequest {
   contractId: string; // 契約編號（後端會自動使用此值作為 constructionId）
   constructionName: string;
   constructionLocation: string;
+  constructionLatitude?: number | null;
+  constructionLongitude?: number | null;
   leadOrganization?: string | null;
   constructionBudget: number;
   currentContractAmount: number;
@@ -362,6 +370,13 @@ export const transformProjectFormToConstructionRequest = (
     contractId: projectFormData.contract_number || '',
     constructionName: projectFormData.project_name || '',
     constructionLocation: projectFormData.project_location || '',
+    ...(projectFormData.construction_latitude != null &&
+    projectFormData.construction_longitude != null
+      ? {
+          constructionLatitude: Number(projectFormData.construction_latitude),
+          constructionLongitude: Number(projectFormData.construction_longitude),
+        }
+      : {}),
     leadOrganization: projectFormData.host_agency || '',
     // 契約金額：只使用「目前契約金額」（可隨變更設計變動）
     // 相容處理：若舊表單仍有 project_amount，則僅作為 fallback
@@ -1813,6 +1828,113 @@ export const getCalendarExtensionDates = async (
   }
 };
 
+export interface CalendarDailyWeather {
+  date: string;
+  /** 使用者編輯（行事曆顯示／日報帶入） */
+  weatherMorning?: string | null;
+  weatherAfternoon?: string | null;
+  /** 氣象局彙整（對照／一鍵帶入） */
+  cwaWeatherMorning?: string | null;
+  cwaWeatherAfternoon?: string | null;
+  hasCwaWeather?: boolean;
+  cwaTempMorning?: number | null;
+  cwaTempAfternoon?: number | null;
+  cwaStationId?: string | null;
+  cwaStationName?: string | null;
+  status?: string | null;
+}
+
+export interface CalendarWeatherStatus {
+  recordingStartDate?: string | null;
+  configured: boolean;
+  message?: string | null;
+}
+
+/**
+ * 獲取工程案行事曆每日天氣（上午／下午）
+ */
+export const getCalendarWeather = async (
+  constructionId: string,
+  startDate: string,
+  endDate: string,
+  ownerType?: string
+): Promise<CalendarDailyWeather[]> => {
+  try {
+    const params: Record<string, string> = { start: startDate, end: endDate };
+    if (ownerType) params.ownerType = ownerType;
+    const data = await http.get(
+      `/management/constructions/${constructionId}/calendar/weather`,
+      { params }
+    );
+    return data as unknown as CalendarDailyWeather[];
+  } catch (error) {
+    console.error('獲取行事曆天氣失敗:', error);
+    throw error;
+  }
+};
+
+export const getCalendarWeatherForDate = async (
+  constructionId: string,
+  date: string,
+  ownerType?: string
+): Promise<CalendarDailyWeather | null> => {
+  const dateKey = normalizeCalendarDateKey(date);
+  const rows = await getCalendarWeather(constructionId, dateKey, dateKey, ownerType);
+  return rows.find((row) => normalizeCalendarDateKey(row.date) === dateKey) ?? rows[0] ?? null;
+};
+
+export const getCalendarWeatherStatus = async (
+  constructionId: string,
+  ownerType?: string
+): Promise<CalendarWeatherStatus> => {
+  try {
+    const params: Record<string, string> = {};
+    if (ownerType) params.ownerType = ownerType;
+    const data = await http.get(
+      `/management/constructions/${constructionId}/calendar/weather/status`,
+      { params }
+    );
+    return data as unknown as CalendarWeatherStatus;
+  } catch (error) {
+    console.error('獲取行事曆天氣狀態失敗:', error);
+    throw error;
+  }
+};
+
+export const saveCalendarUserWeather = async (
+  constructionId: string,
+  body: {
+    weatherDate: string;
+    weatherMorning?: string | null;
+    weatherAfternoon?: string | null;
+  },
+  ownerType?: string
+): Promise<CalendarDailyWeather> => {
+  const payload = {
+    ...body,
+    weatherMorning: body.weatherMorning || null,
+    weatherAfternoon: body.weatherAfternoon || null,
+    ownerType: ownerType ?? null,
+  };
+  const data = await http.put(
+    `/management/constructions/${constructionId}/calendar/weather/user`,
+    payload
+  );
+  return data as unknown as CalendarDailyWeather;
+};
+
+export const applyCwaCalendarWeather = async (
+  constructionId: string,
+  weatherDate: string,
+  ownerType?: string
+): Promise<CalendarDailyWeather> => {
+  const data = await http.post(
+    `/management/constructions/${constructionId}/calendar/weather/apply-cwa`,
+    { weatherDate, ownerType: ownerType ?? null }
+  );
+  return data as unknown as CalendarDailyWeather;
+};
+
 export default {
   getAllConstructions,
   createConstruction,
@@ -1828,6 +1950,11 @@ export default {
   updateCalendarSettings,
   getCalendarDocuments,
   getCalendarExtensionDates,
+  getCalendarWeather,
+  getCalendarWeatherForDate,
+  getCalendarWeatherStatus,
+  saveCalendarUserWeather,
+  applyCwaCalendarWeather,
   getLaborSafetySettings,
   updateLaborSafetySettings,
 };

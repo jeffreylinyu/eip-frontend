@@ -21,6 +21,8 @@ export interface ContractorDocumentClassification {
   applyToSidebar: boolean
   isDefault: boolean
   isLocked: boolean
+  /** E 類專用：關聯分項工程 id（同步分項工程時寫入） */
+  subdivisionWorkItemId?: number | null
   /** 營造自訂 P 類動態頁：工程規模概述；預設列為 null */
   customPScaleOverview?: string | null
   /** 營造自訂 P 類動態頁：安全衛生執行要點（長文） */
@@ -183,9 +185,9 @@ export const contractorDocumentClassificationApi = {
     return res.data ?? res
   },
 
-  async importSubdivisionsToE(constructionId: string, designChangeId: number | null | undefined): Promise<void> {
+  async syncCategoryE(constructionId: string, designChangeId: number | null | undefined): Promise<void> {
     await http.post(
-      `/management/constructions/${constructionId}/contractor-document-classification/import-subdivisions-to-e`,
+      `/management/constructions/${constructionId}/contractor-document-classification/sync-category-e`,
       null,
       { params: versionParams(designChangeId) }
     )

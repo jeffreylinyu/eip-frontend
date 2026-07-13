@@ -230,9 +230,9 @@
                         <button
                           class="btn btn-outline-danger btn-sm"
                           type="button"
-                          @click="removeLink(link.id, g.itemCode)"
-                          :disabled="saving || !isMaterialUsed(g.itemCode)"
-                          :title="isMaterialUsed(g.itemCode) ? '移除關聯' : '此材料已停用'"
+                          @click="removeLink(link.id)"
+                          :disabled="saving"
+                          title="移除關聯"
                         >
                           <i class="fa fa-trash"></i>
                         </button>
@@ -505,12 +505,18 @@ async function setMaterialUsed(itemCode: string, used: boolean) {
   if (!used && selectedMaterialKey.value === k) {
     selectedMaterialKey.value = null
     selectedTestItemIds.value = new Set()
+  } else if (used) {
+    selectMaterial(k)
   }
   savingUsedKey.value = k
   try {
     await setPccesMaterialUsage(props.constructionId, k, used, props.designChangeId)
   } catch (e: any) {
     materialUsedByCode.value = { ...materialUsedByCode.value, [k]: prev }
+    if (used && !prev && selectedMaterialKey.value === k) {
+      selectedMaterialKey.value = null
+      selectedTestItemIds.value = new Set()
+    }
     const msg = e?.response?.data?.message ?? e?.message
     alert(typeof msg === 'string' && msg ? msg : '更新材料使用狀態失敗')
   } finally {
@@ -589,9 +595,8 @@ async function saveForSelectedMaterial() {
   }
 }
 
-async function removeLink(linkId: number, materialCode: string) {
+async function removeLink(linkId: number) {
   if (!props.constructionId) return
-  if (!isMaterialUsed(materialCode)) return
   saving.value = true
   error.value = ''
   try {

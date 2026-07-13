@@ -78,6 +78,12 @@
         :title="cat.name"
         :items="groupedItems[cat.code] || []"
         :is-dynamic="cat.code === 'D'"
+        :sync-label="cat.code === 'D' ? '同步施工大項' : undefined"
+        :sync-title="
+          cat.code === 'D'
+            ? '依目前版本施工大項重新同步 D 類（{施工大項名稱}自主檢查表；覆寫既有項目）'
+            : undefined
+        "
         :header-note="
           cat.code === 'B'
             ? '營造端可於「P類-計畫書」查看並複製您在此填寫的自訂項目與「規定提送日程」（不含預設列）。'
@@ -107,7 +113,7 @@ const categories = [
   { code: 'A', name: 'A類' },
   { code: 'B', name: 'B類' },
   { code: 'C', name: 'C類' },
-  { code: 'D', name: 'D類 (動態)' },
+  { code: 'D', name: 'D類 (動態/自主檢查)' },
   { code: 'H', name: 'H類' },
   { code: 'I', name: 'I類' },
   { code: 'L', name: 'L類' }
@@ -250,7 +256,7 @@ async function handleDelete(id: number) {
 async function handleSyncD() {
   const cid = constructionId.value
   if (!cid) return
-  if (!confirm('確定要根據施工大項重新同步 D 類別嗎？目前的 D 類自訂內容將會被重置。')) return
+  if (!confirm('確定要根據施工大項重新同步 D 類別嗎？將以「{施工大項名稱}自主檢查表」覆寫目前 D 類自訂內容。')) return
   try {
     await documentClassificationApi.syncCategoryD(cid, selectedDesignChangeId.value)
     if (proxy?.$toast) proxy.$toast.success('D 類別同步完成')

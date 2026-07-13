@@ -109,10 +109,18 @@ export const useCompanyStore = defineStore('company', () => {
       const response = await companyApi.getDetail(companyId)
       const company = companyDataTransform.fromApi(response)
       
-      // 更新緩存中的公司資訊
+      // 更新緩存中的公司資訊（保留成員列表 API 才有的權限欄位，詳情 API 通常不帶）
       const index = companies.value.findIndex(c => c.companyId === companyId)
       if (index !== -1) {
-        companies.value[index] = company
+        const existing = companies.value[index]
+        companies.value[index] = {
+          ...company,
+          userRole: company.userRole ?? existing.userRole,
+          companyPermission: company.companyPermission ?? existing.companyPermission,
+          jobTitle: company.jobTitle ?? existing.jobTitle,
+          joinedAt: company.joinedAt ?? existing.joinedAt,
+          memberCount: company.memberCount ?? existing.memberCount,
+        }
       }
       
       return company

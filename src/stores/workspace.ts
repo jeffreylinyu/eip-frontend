@@ -30,6 +30,11 @@ export interface WorkspaceProject {
   name: string
   workspaceId: string
   location: string
+  constructionLatitude?: number | null
+  constructionLongitude?: number | null
+  cwaStationId?: string | null
+  cwaStationName?: string | null
+  cwaStationDistanceKm?: number | null
   budget: string
   status: 'PLANNING' | 'IN_PROGRESS' | 'COMPLETED' | 'SUSPENDED'
   signDate?: string
@@ -291,6 +296,11 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         name: construction.constructionName || '',
         workspaceId: workspaceId,
         location: construction.constructionLocation || '',
+        constructionLatitude: construction.constructionLatitude ?? null,
+        constructionLongitude: construction.constructionLongitude ?? null,
+        cwaStationId: construction.cwaStationId ?? null,
+        cwaStationName: construction.cwaStationName ?? null,
+        cwaStationDistanceKm: construction.cwaStationDistanceKm ?? null,
         budget: construction.constructionBudget?.toString() || '',
         status: 'IN_PROGRESS' as const, // 預設狀態，可以根據實際 API 回應調整
         signDate: construction.signDate || '',

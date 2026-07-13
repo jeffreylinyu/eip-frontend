@@ -49,3 +49,35 @@ export async function saveDailyReportExportPreferences(
         : false
   }
 }
+
+export interface SelfCheckInspectionSignPreferences {
+  autoFillInspectorOnSign: boolean
+}
+
+export const DEFAULT_SELF_CHECK_INSPECTION_SIGN_PREFERENCES: SelfCheckInspectionSignPreferences =
+  {
+    autoFillInspectorOnSign: true
+  }
+
+export async function getSelfCheckInspectionSignPreferences(): Promise<SelfCheckInspectionSignPreferences> {
+  const data = await http.get<SelfCheckInspectionSignPreferences>(
+    '/management/user/preferences/self-check-inspection-sign'
+  )
+  return {
+    ...DEFAULT_SELF_CHECK_INSPECTION_SIGN_PREFERENCES,
+    ...(data ?? {})
+  }
+}
+
+export async function saveSelfCheckInspectionSignPreferences(
+  preferences: SelfCheckInspectionSignPreferences
+): Promise<SelfCheckInspectionSignPreferences> {
+  const data = (await http.put(
+    '/management/user/preferences/self-check-inspection-sign',
+    preferences
+  )) as SelfCheckInspectionSignPreferences
+  return {
+    ...DEFAULT_SELF_CHECK_INSPECTION_SIGN_PREFERENCES,
+    ...data
+  }
+}

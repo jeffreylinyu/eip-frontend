@@ -60,22 +60,42 @@
                       <div class="card-content p-3">
                         <div class="d-flex justify-content-between align-items-start mb-2">
                           <h6 class="mb-0 fw-bold fs-4 text-primary">{{ workspaceStore.mainContractor.companyName }}</h6>
-                          <div class="dropdown ms-2" v-if="canInviteCompany">
+                          <div class="dropdown ms-2" v-if="showCompanyDropdown(workspaceStore.mainContractor)">
                             <button class="btn btn-icon btn-sm btn-light text-muted" type="button" data-bs-toggle="dropdown">
                               <i class="fa fa-ellipsis-v"></i>
                             </button>
                             <ul class="dropdown-menu dropdown-menu-end">
-                              <li>
-                                <a class="dropdown-item text-danger" href="javascript:;" @click="changeCompanyRole(workspaceStore.mainContractor, 'OTHER')">
-                                  <i class="fa fa-arrow-down me-2"></i>降級為第三方公司
-                                </a>
-                              </li>
-                              <li><hr class="dropdown-divider"></li>
-                              <li>
-                                <a class="dropdown-item text-danger" href="javascript:;" @click="openRemovalModal(workspaceStore.mainContractor)">
-                                  <i class="fa fa-trash-alt me-2"></i>請求移除
-                                </a>
-                              </li>
+                              <template v-if="canEditCompany(workspaceStore.mainContractor?.companyId)">
+                                <li>
+                                  <a class="dropdown-item" href="javascript:;" @click="openEditCompanyModal(workspaceStore.mainContractor)">
+                                    <i class="fa fa-pen me-2"></i>編輯公司
+                                  </a>
+                                </li>
+                                <li>
+                                  <a class="dropdown-item" href="javascript:;" @click="goToCompanyMembers(workspaceStore.mainContractor!.companyId!)">
+                                    <i class="fa fa-users me-2"></i>人員管理
+                                  </a>
+                                </li>
+                                <li>
+                                  <a class="dropdown-item" href="javascript:;" @click="goToSitePersonnel(workspaceStore.mainContractor!.companyId!)">
+                                    <i class="fa fa-hard-hat me-2"></i>工地人員
+                                  </a>
+                                </li>
+                                <li v-if="canInviteCompany"><hr class="dropdown-divider"></li>
+                              </template>
+                              <template v-if="canInviteCompany">
+                                <li>
+                                  <a class="dropdown-item text-danger" href="javascript:;" @click="changeCompanyRole(workspaceStore.mainContractor, 'OTHER')">
+                                    <i class="fa fa-arrow-down me-2"></i>降級為第三方公司
+                                  </a>
+                                </li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li>
+                                  <a class="dropdown-item text-danger" href="javascript:;" @click="openRemovalModal(workspaceStore.mainContractor)">
+                                    <i class="fa fa-trash-alt me-2"></i>請求移除
+                                  </a>
+                                </li>
+                              </template>
                             </ul>
                           </div>
                         </div>
@@ -147,22 +167,42 @@
                       <div class="card-content p-3">
                         <div class="d-flex justify-content-between align-items-start mb-2">
                           <h6 class="mb-0 fw-bold fs-4 text-info">{{ workspaceStore.supervisor.companyName }}</h6>
-                          <div class="dropdown ms-2" v-if="canInviteCompany">
+                          <div class="dropdown ms-2" v-if="showCompanyDropdown(workspaceStore.supervisor)">
                             <button class="btn btn-icon btn-sm btn-light text-muted" type="button" data-bs-toggle="dropdown">
                               <i class="fa fa-ellipsis-v"></i>
                             </button>
                             <ul class="dropdown-menu dropdown-menu-end">
-                              <li>
-                                <a class="dropdown-item text-danger" href="javascript:;" @click="changeCompanyRole(workspaceStore.supervisor, 'OTHER')">
-                                  <i class="fa fa-arrow-down me-2"></i>降級為第三方公司
-                                </a>
-                              </li>
-                              <li><hr class="dropdown-divider"></li>
-                              <li>
-                                <a class="dropdown-item text-danger" href="javascript:;" @click="openRemovalModal(workspaceStore.supervisor)">
-                                  <i class="fa fa-trash-alt me-2"></i>請求移除
-                                </a>
-                              </li>
+                              <template v-if="canEditCompany(workspaceStore.supervisor?.companyId)">
+                                <li>
+                                  <a class="dropdown-item" href="javascript:;" @click="openEditCompanyModal(workspaceStore.supervisor)">
+                                    <i class="fa fa-pen me-2"></i>編輯公司
+                                  </a>
+                                </li>
+                                <li>
+                                  <a class="dropdown-item" href="javascript:;" @click="goToCompanyMembers(workspaceStore.supervisor!.companyId!)">
+                                    <i class="fa fa-users me-2"></i>人員管理
+                                  </a>
+                                </li>
+                                <li>
+                                  <a class="dropdown-item" href="javascript:;" @click="goToSitePersonnel(workspaceStore.supervisor!.companyId!)">
+                                    <i class="fa fa-hard-hat me-2"></i>工地人員
+                                  </a>
+                                </li>
+                                <li v-if="canInviteCompany"><hr class="dropdown-divider"></li>
+                              </template>
+                              <template v-if="canInviteCompany">
+                                <li>
+                                  <a class="dropdown-item text-danger" href="javascript:;" @click="changeCompanyRole(workspaceStore.supervisor, 'OTHER')">
+                                    <i class="fa fa-arrow-down me-2"></i>降級為第三方公司
+                                  </a>
+                                </li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li>
+                                  <a class="dropdown-item text-danger" href="javascript:;" @click="openRemovalModal(workspaceStore.supervisor)">
+                                    <i class="fa fa-trash-alt me-2"></i>請求移除
+                                  </a>
+                                </li>
+                              </template>
                             </ul>
                           </div>
                         </div>
@@ -231,27 +271,47 @@
                   <div class="card-content p-3">
                     <div class="d-flex justify-content-between align-items-start mb-2">
                       <h6 class="mb-0 fw-bold fs-5 text-success">{{ company.companyName }}</h6>
-                      <div class="dropdown ms-2" v-if="canInviteCompany">
+                      <div class="dropdown ms-2" v-if="showCompanyDropdown(company)">
                         <button class="btn btn-icon btn-sm btn-light text-muted" type="button" data-bs-toggle="dropdown">
                           <i class="fa fa-ellipsis-v"></i>
                         </button>
                         <ul class="dropdown-menu dropdown-menu-end">
-                          <li>
-                            <a class="dropdown-item" href="javascript:;" @click="changeCompanyRole(company, 'CONTRACTOR')">
-                              <i class="fa fa-hard-hat me-2 text-primary"></i>設為主要承包商
-                            </a>
-                          </li>
-                          <li>
-                            <a class="dropdown-item" href="javascript:;" @click="changeCompanyRole(company, 'SUPERVISION')">
-                              <i class="fa fa-eye me-2 text-info"></i>設為監造單位
-                            </a>
-                          </li>
-                          <li><hr class="dropdown-divider"></li>
-                          <li>
-                            <a class="dropdown-item text-danger" href="javascript:;" @click="openRemovalModal(company)">
-                              <i class="fa fa-trash-alt me-2"></i>請求移除
-                            </a>
-                          </li>
+                          <template v-if="canEditCompany(company.companyId)">
+                            <li>
+                              <a class="dropdown-item" href="javascript:;" @click="openEditCompanyModal(company)">
+                                <i class="fa fa-pen me-2"></i>編輯公司
+                              </a>
+                            </li>
+                            <li>
+                              <a class="dropdown-item" href="javascript:;" @click="goToCompanyMembers(company.companyId!)">
+                                <i class="fa fa-users me-2"></i>人員管理
+                              </a>
+                            </li>
+                            <li>
+                              <a class="dropdown-item" href="javascript:;" @click="goToSitePersonnel(company.companyId!)">
+                                <i class="fa fa-hard-hat me-2"></i>工地人員
+                              </a>
+                            </li>
+                            <li v-if="canInviteCompany"><hr class="dropdown-divider"></li>
+                          </template>
+                          <template v-if="canInviteCompany">
+                            <li>
+                              <a class="dropdown-item" href="javascript:;" @click="changeCompanyRole(company, 'CONTRACTOR')">
+                                <i class="fa fa-hard-hat me-2 text-primary"></i>設為主要承包商
+                              </a>
+                            </li>
+                            <li>
+                              <a class="dropdown-item" href="javascript:;" @click="changeCompanyRole(company, 'SUPERVISION')">
+                                <i class="fa fa-eye me-2 text-info"></i>設為監造單位
+                              </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                              <a class="dropdown-item text-danger" href="javascript:;" @click="openRemovalModal(company)">
+                                <i class="fa fa-trash-alt me-2"></i>請求移除
+                              </a>
+                            </li>
+                          </template>
                         </ul>
                       </div>
                     </div>
@@ -413,30 +473,41 @@
         </div>
       </form>
     </Modal>
+
+    <!-- 編輯公司模態框 -->
+    <CompanyFormModal
+      v-model:show="showEditCompanyModal"
+      :company="editingCompany"
+      @hide="closeEditCompanyModal"
+      @submit="handleCompanyFormSubmit"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, getCurrentInstance } from 'vue'
+import { useRouter } from 'vue-router'
 import { useWorkspaceStore } from '@/stores/workspace'
-import { useCompanyStore } from '@/stores/company'
+import { useCompanyStore, type Company } from '@/stores/company'
 import { useAuthStore } from '@/stores/auth'
-import { COMPANY_TYPE_OPTIONS, CONTRACTOR_LEVEL_OPTIONS } from '@/api/company'
-import { workspaceApi } from '@/api/workspace'
+import { COMPANY_TYPE_OPTIONS, CONTRACTOR_LEVEL_OPTIONS, type CreateCompanyRequest } from '@/api/company'
+import { workspaceApi, type WorkspaceCompany } from '@/api/workspace'
 import PageHeader from '@/components/bootstrap/PageHeader.vue'
-import Card from '@/components/bootstrap/Card.vue'
-import CardBody from '@/components/bootstrap/CardBody.vue'
-import CardHeader from '@/components/bootstrap/CardHeader.vue'
 import Modal from '@/components/bootstrap/Modal.vue'
+import CompanyFormModal from '@/components/company/CompanyFormModal.vue'
 
+const router = useRouter()
 const workspaceStore = useWorkspaceStore()
 const companyStore = useCompanyStore()
 const authStore = useAuthStore()
+const { proxy } = getCurrentInstance() as any
 
 // 狀態
 const isLoading = ref(false)
 const showInviteModal = ref(false)
 const showRemovalModal = ref(false)
+const showEditCompanyModal = ref(false)
+const editingCompany = ref<Company | null>(null)
 
 // 邀請公司表單
 const   inviteForm = ref({
@@ -489,6 +560,19 @@ const canInviteThirdParty = computed(() => {
   return canInviteCompany.value // 第三方公司可以邀請多間
 })
 
+const canEditCompany = (companyId?: string): boolean => {
+  if (!companyId) return false
+  const company = companyStore.getCompanyById(companyId) as Company | undefined
+  if (!company) return false
+  const role = company.companyPermission || company.userRole
+  return role === 'OWNER' || role === 'ADMIN'
+}
+
+const showCompanyDropdown = (company: WorkspaceCompany | null | undefined): boolean => {
+  if (!company) return false
+  return canInviteCompany.value || canEditCompany(company.companyId)
+}
+
 const availableRoles = computed(() => {
   const roles: { value: 'MAIN_CONTRACTOR' | 'SUPERVISOR' | 'THIRD_PARTY', label: string, disabled: boolean }[] = [
     { 
@@ -523,7 +607,8 @@ const loadData = async () => {
   try {
     await Promise.all([
       workspaceStore.fetchParticipatingUnits(workspaceStore.currentWorkspace.id),
-      workspaceStore.searchAvailableCompanies(workspaceStore.currentWorkspace.id)
+      workspaceStore.searchAvailableCompanies(workspaceStore.currentWorkspace.id),
+      companyStore.companies.length === 0 ? companyStore.initCompanies() : Promise.resolve()
     ])
   } catch (error) {
     console.error('Failed to load data:', error)
@@ -699,6 +784,58 @@ const requestRemoval = async () => {
     console.error('Failed to request removal:', error)
     alert('請求移除失敗')
   }
+}
+
+const openEditCompanyModal = async (company: WorkspaceCompany) => {
+  if (!company.companyId) return
+  try {
+    const detail = await companyStore.getCompanyDetail(company.companyId)
+    if (!detail) {
+      proxy?.$toast?.error('無法載入公司資料')
+      return
+    }
+    editingCompany.value = detail
+    showEditCompanyModal.value = true
+  } catch (error) {
+    console.error('Failed to load company detail:', error)
+    proxy?.$toast?.error('載入公司資料失敗')
+  }
+}
+
+const closeEditCompanyModal = () => {
+  showEditCompanyModal.value = false
+  editingCompany.value = null
+}
+
+const handleCompanyFormSubmit = async (data: CreateCompanyRequest) => {
+  if (!editingCompany.value) return
+  try {
+    const result = await companyStore.updateCompany(editingCompany.value.companyId, data)
+    if (result) {
+      proxy?.$toast?.success('公司更新成功！')
+      closeEditCompanyModal()
+      await loadData()
+    } else {
+      proxy?.$toast?.error('公司更新失敗，請重試！')
+    }
+  } catch (error) {
+    console.error('Company form submit error:', error)
+    proxy?.$toast?.error('操作失敗，請重試！')
+  }
+}
+
+const goToCompanyMembers = (companyId: string) => {
+  router.push({
+    path: '/company/management',
+    query: { tab: 'members', companyId }
+  })
+}
+
+const goToSitePersonnel = (companyId: string) => {
+  router.push({
+    path: '/company/site-personnel',
+    query: { companyId }
+  })
 }
 
 

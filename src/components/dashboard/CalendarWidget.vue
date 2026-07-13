@@ -12,14 +12,28 @@ import {
   updateCalendarSettings,
   getCalendarDocuments,
   getCalendarExtensionDates,
+  getCalendarWeather,
+  getCalendarWeatherStatus,
+  saveCalendarUserWeather,
+  applyCwaCalendarWeather,
   type CalendarEvent as ApiCalendarEvent,
   type CalendarDocument,
   type CalendarExtensionDate,
-  type CalendarSettings
+  type CalendarSettings,
+  type CalendarDailyWeather,
+  type CalendarWeatherStatus,
 } from '@/api/construction'
 import { useRouter } from 'vue-router'
 import { useViewPerspective, ViewType } from '@/composables/useViewPerspective'
 import { useDailyReportLabels } from '@/composables/useDailyReportLabels'
+import { WEATHER_OPTIONS } from '@/types/dailyReport'
+import WeatherIcon from '@/components/weather/WeatherIcon.vue'
+import WeatherPeriodDisplay from '@/components/weather/WeatherPeriodDisplay.vue'
+import {
+  formatCalendarWeatherTooltip,
+  hasCalendarWeatherRecord,
+  resolveCalendarDisplayWeather,
+} from '@/utils/calendarWeather'
 
 const workspaceStore = useWorkspaceStore()
 const router = useRouter()
@@ -50,6 +64,8 @@ const dailyReportOwnerTypeForLabel = computed(
       ? dailyReportOwnerTypeQueryParam.value
       : undefined
 )
+/** 行事曆天氣 API 僅區分監造／營造 */
+const calendarWeatherOwnerType = computed((): string | undefined => dailyReportOwnerTypeQueryParam.value)
 const { dailyLogLabel } = useDailyReportLabels(dailyReportOwnerTypeForLabel)
 
 // 狀態
@@ -69,6 +85,12 @@ const showGovHolidayInfo = ref(false)
 
 // 展延免計日期資料
 const extensionDates = ref<CalendarExtensionDate[]>([])
+const calendarWeatherByDate = ref<Record<string, CalendarDailyWeather>>({})
+const calendarWeatherStatus = ref<CalendarWeatherStatus | null>(null)
+const userWeatherDraft = ref({ morning: '', afternoon: '' })
+const isSavingUserWeather = ref(false)
+const isApplyingCwaWeather = ref(false)
+const weatherOptions = WEATHER_OPTIONS
 
 // 計算屬性
 const currentMonth = computed(() => {
@@ -148,6 +170,43 @@ const calendarDays = computed(() => {
   return days
 })
 
+const calendarWeatherCellsByDate = computed(() => {
+  const map: Record<string, {
+    show: boolean
+    display: ReturnType<typeof resolveCalendarDisplayWeather>
+    tooltip: string
+  }> = {}
+
+  for (const day of calendarDays.value) {
+    if (!day.fullDate) continue
+    const key = formatDateString(day.fullDate)
+    const row = calendarWeatherByDate.value[key]
+    map[key] = {
+      show: hasCalendarWeatherRecord(row),
+      display: resolveCalendarDisplayWeather(row),
+      tooltip: formatCalendarWeatherTooltip(row),
+    }
+  }
+
+  return map
+})
+
+const getWeatherCellForDayIndex = (dayIndex: number) => {
+  const day = calendarDays.value[dayIndex]
+  if (!day?.fullDate) {
+    return {
+      show: false,
+      display: { morning: '', afternoon: '', morningFromUser: false, afternoonFromUser: false },
+      tooltip: '',
+    }
+  }
+  return calendarWeatherCellsByDate.value[formatDateString(day.fullDate)] ?? {
+    show: false,
+    display: { morning: '', afternoon: '', morningFromUser: false, afternoonFromUser: false },
+    tooltip: '',
+  }
+}
+
 // 選中日期的資訊
 const selectedDateInfo = computed(() => {
   if (!selectedDate.value) return null
@@ -220,6 +279,81 @@ const selectedDateExtensions = computed(() => {
   const dateStr = formatDateString(selectedDate.value)
   return extensionDates.value.filter(d => d.date === dateStr)
 })
+
+const selectedDateWeather = computed(() => {
+  if (!selectedDate.value) return null
+  return calendarWeatherByDate.value[formatDateString(selectedDate.value)] ?? null
+})
+
+const getWeatherForDate = (date: Date | null | undefined): CalendarDailyWeather | null => {
+  if (!date) return null
+  return calendarWeatherByDate.value[formatDateString(date)] ?? null
+}
+
+const selectedDateHasCwaWeather = computed(
+  () => selectedDateWeather.value?.hasCwaWeather === true
+)
+
+watch([selectedDate, calendarWeatherByDate], () => {
+  const weather = selectedDateWeather.value
+  userWeatherDraft.value = {
+    morning: weather?.weatherMorning?.trim() || '',
+    afternoon: weather?.weatherAfternoon?.trim() || '',
+  }
+}, { immediate: true })
+
+const upsertCalendarWeatherRow = (row: CalendarDailyWeather) => {
+  calendarWeatherByDate.value = {
+    ...calendarWeatherByDate.value,
+    [row.date]: row,
+  }
+}
+
+const saveUserCalendarWeather = async () => {
+  if (!workspaceStore.currentProject?.id || !selectedDate.value || !calendarWeatherOwnerType.value) return
+  isSavingUserWeather.value = true
+  try {
+    const dateStr = formatDateString(selectedDate.value)
+    const row = await saveCalendarUserWeather(
+      workspaceStore.currentProject.id,
+      {
+        weatherDate: dateStr,
+        weatherMorning: userWeatherDraft.value.morning || null,
+        weatherAfternoon: userWeatherDraft.value.afternoon || null,
+      },
+      calendarWeatherOwnerType.value
+    )
+    upsertCalendarWeatherRow(row)
+  } catch (error) {
+    console.error('儲存行事曆天氣失敗:', error)
+    alert('儲存天氣失敗，請稍後再試')
+  } finally {
+    isSavingUserWeather.value = false
+  }
+}
+
+const applyCwaToUserWeather = async () => {
+  if (!workspaceStore.currentProject?.id || !selectedDate.value || !calendarWeatherOwnerType.value) return
+  isApplyingCwaWeather.value = true
+  try {
+    const dateStr = formatDateString(selectedDate.value)
+    const row = await applyCwaCalendarWeather(
+      workspaceStore.currentProject.id,
+      dateStr,
+      calendarWeatherOwnerType.value
+    )
+    upsertCalendarWeatherRow(row)
+    userWeatherDraft.value = {
+      morning: row.weatherMorning?.trim() || '',
+      afternoon: row.weatherAfternoon?.trim() || '',
+    }
+  } catch (error: any) {
+    console.error('使用氣象局資料失敗:', error)
+    alert(error?.response?.data?.message || error?.message || '使用氣象局資料失敗')
+  } finally {
+    isApplyingCwaWeather.value = false
+  }
+}
 
 // 載入行事曆事件
 const loadCalendarEvents = async () => {
@@ -328,6 +462,58 @@ const loadExtensionDates = async () => {
   }
 }
 
+const loadCalendarWeather = async () => {
+  if (!workspaceStore.currentProject?.id || !calendarWeatherOwnerType.value) {
+    calendarWeatherByDate.value = {}
+    return
+  }
+
+  try {
+    const year = currentDate.value.getFullYear()
+    const month = currentDate.value.getMonth()
+
+    const startDate = new Date(year, month, 1)
+    startDate.setDate(startDate.getDate() - 7)
+
+    const endDate = new Date(year, month + 1, 0)
+    endDate.setDate(endDate.getDate() + 7)
+
+    const startDateStr = formatDateString(startDate)
+    const endDateStr = formatDateString(endDate)
+
+    const rows = await getCalendarWeather(
+      workspaceStore.currentProject.id,
+      startDateStr,
+      endDateStr,
+      calendarWeatherOwnerType.value
+    )
+    const map: Record<string, CalendarDailyWeather> = {}
+    rows.forEach((row) => {
+      map[row.date] = row
+    })
+    calendarWeatherByDate.value = map
+  } catch (error) {
+    console.error('載入行事曆天氣失敗:', error)
+    calendarWeatherByDate.value = {}
+  }
+}
+
+const loadCalendarWeatherStatus = async () => {
+  if (!workspaceStore.currentProject?.id || !calendarWeatherOwnerType.value) {
+    calendarWeatherStatus.value = null
+    return
+  }
+  try {
+    calendarWeatherStatus.value = await getCalendarWeatherStatus(
+      workspaceStore.currentProject.id,
+      calendarWeatherOwnerType.value
+    )
+  } catch (error) {
+    console.error('載入行事曆天氣狀態失敗:', error)
+    calendarWeatherStatus.value = null
+  }
+}
+
 const loadCalendarSettings = async () => {
   if (!workspaceStore.currentProject?.id) {
     govHolidayEnabled.value = false
@@ -370,6 +556,8 @@ const switchCalendarOwnerType = (type: string) => {
   loadCalendarEvents()
   loadCalendarSettings()
   loadExtensionDates()
+  loadCalendarWeather()
+  loadCalendarWeatherStatus()
 }
 
 // 載入選中日期的施工日誌
@@ -404,15 +592,17 @@ watch([selectedDate, () => workspaceStore.currentProject, dailyReportOwnerTypeQu
 }, { immediate: true })
 
 // 監聽當前月份和工程案變化，自動載入行事曆事件、公文資訊、展延免計日
-watch([currentDate, () => workspaceStore.currentProject], () => {
+watch([currentDate, () => workspaceStore.currentProject, calendarWeatherOwnerType], () => {
   loadCalendarEvents()
   loadCalendarDocuments()
   loadExtensionDates()
+  loadCalendarWeather()
 }, { immediate: true })
 
 // 監聽工程案變化，載入行事曆設定
 watch(() => workspaceStore.currentProject, () => {
   loadCalendarSettings()
+  loadCalendarWeatherStatus()
 }, { immediate: true })
 
 
@@ -726,6 +916,27 @@ onBeforeUnmount(() => {
                       </div>
                     </div>
                   </div>
+                  <div
+                    v-if="getWeatherCellForDayIndex(weekIndex * 7 + dayIndex - 1).show"
+                    class="day-weather"
+                    :title="getWeatherCellForDayIndex(weekIndex * 7 + dayIndex - 1).tooltip"
+                  >
+                    <WeatherIcon
+                      v-if="getWeatherCellForDayIndex(weekIndex * 7 + dayIndex - 1).display.morning"
+                      :weather="getWeatherCellForDayIndex(weekIndex * 7 + dayIndex - 1).display.morning"
+                      :size="18"
+                    />
+                    <span
+                      v-if="getWeatherCellForDayIndex(weekIndex * 7 + dayIndex - 1).display.morning && getWeatherCellForDayIndex(weekIndex * 7 + dayIndex - 1).display.afternoon"
+                      class="day-weather__sep"
+                      aria-hidden="true"
+                    >/</span>
+                    <WeatherIcon
+                      v-if="getWeatherCellForDayIndex(weekIndex * 7 + dayIndex - 1).display.afternoon"
+                      :weather="getWeatherCellForDayIndex(weekIndex * 7 + dayIndex - 1).display.afternoon"
+                      :size="18"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -781,6 +992,95 @@ onBeforeUnmount(() => {
                     {{ selectedDateInfo.holidayTitle }}
                   </span>
                 </div>
+              </div>
+
+              <!-- 行事曆天氣（使用者編輯） -->
+              <div
+                v-if="calendarWeatherStatus?.configured"
+                class="selected-date-weather mb-3"
+              >
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                  <h6 class="mb-0">
+                    <i class="fa fa-cloud-sun me-2 text-info"></i>
+                    天氣
+                  </h6>
+                  <button
+                    v-if="selectedDateHasCwaWeather"
+                    type="button"
+                    class="btn btn-sm btn-outline-info"
+                    :disabled="isApplyingCwaWeather || isSavingUserWeather"
+                    @click="applyCwaToUserWeather"
+                  >
+                    <i v-if="isApplyingCwaWeather" class="fa fa-spinner fa-spin me-1"></i>
+                    <i v-else class="fa fa-cloud-download-alt me-1"></i>
+                    使用氣象局資料
+                  </button>
+                </div>
+
+                <div v-if="selectedDateHasCwaWeather" class="cwa-weather-reference small text-muted mb-2">
+                  <div class="cwa-weather-reference__title">氣象局</div>
+                  <div class="cwa-weather-reference__row">
+                    <WeatherPeriodDisplay
+                      period-label="上午"
+                      :weather="selectedDateWeather?.cwaWeatherMorning"
+                      :icon-size="14"
+                      show-label
+                    />
+                  </div>
+                  <div class="cwa-weather-reference__row">
+                    <WeatherPeriodDisplay
+                      period-label="下午"
+                      :weather="selectedDateWeather?.cwaWeatherAfternoon"
+                      :icon-size="14"
+                      show-label
+                    />
+                  </div>
+                  <div v-if="selectedDateWeather?.cwaStationName" class="cwa-weather-reference__station">
+                    測站：{{ selectedDateWeather.cwaStationName }}
+                  </div>
+                </div>
+
+                <div class="weather-edit-card">
+                  <div class="row g-2 mb-2">
+                    <div class="col-6">
+                      <label class="form-label small mb-1 d-flex align-items-center gap-1">
+                        上午
+                        <WeatherIcon :weather="userWeatherDraft.morning" :size="14" />
+                      </label>
+                      <select v-model="userWeatherDraft.morning" class="form-select form-select-sm">
+                        <option value="">請選擇</option>
+                        <option v-for="opt in weatherOptions" :key="'am-' + opt" :value="opt">{{ opt }}</option>
+                      </select>
+                    </div>
+                    <div class="col-6">
+                      <label class="form-label small mb-1 d-flex align-items-center gap-1">
+                        下午
+                        <WeatherIcon :weather="userWeatherDraft.afternoon" :size="14" />
+                      </label>
+                      <select v-model="userWeatherDraft.afternoon" class="form-select form-select-sm">
+                        <option value="">請選擇</option>
+                        <option v-for="opt in weatherOptions" :key="'pm-' + opt" :value="opt">{{ opt }}</option>
+                      </select>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-primary w-100"
+                    :disabled="isSavingUserWeather || isApplyingCwaWeather"
+                    @click="saveUserCalendarWeather"
+                  >
+                    <i v-if="isSavingUserWeather" class="fa fa-spinner fa-spin me-1"></i>
+                    <i v-else class="fa fa-save me-1"></i>
+                    儲存天氣
+                  </button>
+                </div>
+              </div>
+              <div
+                v-else-if="calendarWeatherStatus && !calendarWeatherStatus.configured"
+                class="alert alert-light border small py-2 mb-3"
+              >
+                <i class="fa fa-info-circle me-1"></i>
+                {{ calendarWeatherStatus.message || '請於基本資料設定開工日期與工地氣象站' }}
               </div>
               
               <!-- 該日期的展延免計日資訊 -->
@@ -927,12 +1227,18 @@ onBeforeUnmount(() => {
               <!-- 天氣資訊 -->
               <div v-if="dailyReport.weatherMorning || dailyReport.weatherAfternoon" class="mb-3">
                 <div class="text-muted small mb-2">天氣</div>
-                <div class="d-flex gap-2">
-                  <span v-if="dailyReport.weatherMorning" class="badge border border-info text-info">
-                    上午：{{ dailyReport.weatherMorning }}
+                <div class="d-flex gap-2 flex-wrap">
+                  <span
+                    v-if="dailyReport.weatherMorning"
+                    class="badge border border-info text-info d-inline-flex align-items-center gap-1"
+                  >
+                    <WeatherPeriodDisplay period-label="上午" :weather="dailyReport.weatherMorning" :icon-size="12" show-label />
                   </span>
-                  <span v-if="dailyReport.weatherAfternoon" class="badge border border-info text-info">
-                    下午：{{ dailyReport.weatherAfternoon }}
+                  <span
+                    v-if="dailyReport.weatherAfternoon"
+                    class="badge border border-info text-info d-inline-flex align-items-center gap-1"
+                  >
+                    <WeatherPeriodDisplay period-label="下午" :weather="dailyReport.weatherAfternoon" :icon-size="12" show-label />
                   </span>
                 </div>
               </div>
@@ -1310,6 +1616,56 @@ onBeforeUnmount(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   line-height: 1.2;
+}
+
+.day-weather {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 1px;
+  z-index: 2;
+}
+
+.day-weather__sep {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--bs-secondary-color, #94a3b8);
+  line-height: 1;
+  margin: 0 1px;
+  user-select: none;
+}
+
+.cwa-weather-reference {
+  padding: 0.5rem 0.625rem;
+  border-radius: 0.25rem;
+  background: rgba(148, 163, 184, 0.12);
+}
+
+.cwa-weather-reference__title {
+  font-size: 0.7rem;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.cwa-weather-reference__row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.125rem;
+}
+
+.cwa-weather-reference__station {
+  margin-top: 0.25rem;
+  font-size: 0.7rem;
+}
+
+.weather-edit-card {
+  padding: 0.625rem 0.75rem;
+  border-radius: 0.375rem;
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.25);
 }
 
 /* 公文指示標記（日曆格子內） */
@@ -1726,6 +2082,15 @@ onBeforeUnmount(() => {
 
   .day-number {
     font-size: 0.8rem;
+  }
+
+  .day-weather :deep(.weather-icon) {
+    width: 14px !important;
+    height: 14px !important;
+  }
+
+  .day-weather__sep {
+    font-size: 0.55rem;
   }
 
   .doc-indicator {

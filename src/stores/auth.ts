@@ -157,6 +157,10 @@ export const useAuthStore = defineStore('auth', () => {
     storage.remove(StorageKeys.AUTH_USER)
     clearStoredEffectiveViewType()
     clearViewTypeInitWorkspaceCache()
+    // 權限快取跟著認證狀態一起清（動態 import 避免循環依賴）
+    import('@/stores/permission')
+      .then(({ usePermissionStore }) => usePermissionStore().clear())
+      .catch(() => {})
   }
 
   // 獲取當前用戶信息

@@ -165,6 +165,56 @@ export const saveDailyReport = async (
   }
 };
 
+export type DailyReportQuantityOverrunCategory = 'EXECUTION_ITEM' | 'MATERIAL'
+
+export interface DailyReportQuantityOverrunItem {
+  category: DailyReportQuantityOverrunCategory
+  logicalId: string | null
+  itemNo: string | null
+  name: string
+  unit: string | null
+  contractQuantity: number
+  cumulativeQuantity: number
+  overrunQuantity: number
+  firstExceededDate: string
+}
+
+export interface DailyReportQuantityOverrunSummary {
+  asOfDate: string
+  items: DailyReportQuantityOverrunItem[]
+}
+
+/**
+ * 超出契約數量總表（截至今天或指定日期）
+ */
+export const getQuantityOverrunSummary = async (
+  constructionId: string,
+  options?: { asOfDate?: string; ownerType?: string }
+): Promise<DailyReportQuantityOverrunSummary> => {
+  const params: Record<string, string> = {}
+  if (options?.asOfDate) params.asOfDate = options.asOfDate
+  if (options?.ownerType) params.ownerType = options.ownerType
+
+  const response = await http.get(
+    `/management/constructions/${constructionId}/daily-reports/quantity-overruns`,
+    Object.keys(params).length > 0 ? { params } : undefined
+  )
+
+  const data = (response as { data?: DailyReportQuantityOverrunSummary }).data ?? response
+  const summary = data as DailyReportQuantityOverrunSummary
+
+  return {
+    asOfDate: summary.asOfDate,
+    items: (summary.items ?? []).map((item) => ({
+      ...item,
+      category: item.category as DailyReportQuantityOverrunCategory,
+      contractQuantity: Number(item.contractQuantity),
+      cumulativeQuantity: Number(item.cumulativeQuantity),
+      overrunQuantity: Number(item.overrunQuantity)
+    }))
+  }
+}
+
 /**
  * 將前端 DailyReport 格式轉換為 API 請求格式（只包含今日數據）
  */

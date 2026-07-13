@@ -14,6 +14,7 @@ import {
 } from '@/utils/format'
 import RepublicDatePicker from '@/components/bootstrap/RepublicDatePicker.vue'
 import Modal from '@/components/bootstrap/Modal.vue'
+import ConstructionLocationMapPicker from '@/components/project/ConstructionLocationMapPicker.vue'
 import { validateForm, isFormValid } from '@/utils/validation'
 import { calculateEndDate } from '@/api/construction'
 
@@ -67,6 +68,13 @@ const emit = defineEmits<{
   'update:modelValue': [value: any]
   'submit': [data: any]
   'reset': []
+  'construction-geo-confirmed': [value: {
+    latitude: number
+    longitude: number
+    cwaStationId: string
+    cwaStationName: string
+    cwaStationDistanceKm: number
+  }]
 }>()
 
   // 表單數據
@@ -75,6 +83,11 @@ const formData = ref({
   project_name: "",
   contract_number: "",
   project_location: "",
+  construction_latitude: null as number | null,
+  construction_longitude: null as number | null,
+  cwa_station_id: null as string | null,
+  cwa_station_name: null as string | null,
+  cwa_station_distance_km: null as number | null,
   host_agency: "",
   // 新增：公司名稱顯示欄位
   supervisory_company_name: "",
@@ -227,6 +240,32 @@ const formatCompletionDateToRepublic = (dateString: string | null | undefined): 
 const formattedCompletionDate = computed(() => {
   const dateValue = calculatedEndDate.value || formData.value.completion_date
   return formatCompletionDateToRepublic(dateValue)
+})
+
+const constructionGeoSelection = computed({
+  get: () => ({
+    latitude: formData.value.construction_latitude,
+    longitude: formData.value.construction_longitude,
+    cwaStationId: formData.value.cwa_station_id,
+    cwaStationName: formData.value.cwa_station_name,
+    cwaStationDistanceKm: formData.value.cwa_station_distance_km,
+  }),
+  set: (value) => {
+    if (!value) {
+      formData.value.construction_latitude = null
+      formData.value.construction_longitude = null
+      formData.value.cwa_station_id = null
+      formData.value.cwa_station_name = null
+      formData.value.cwa_station_distance_km = null
+      return
+    }
+    formData.value.construction_latitude = value.latitude
+    formData.value.construction_longitude = value.longitude
+    formData.value.cwa_station_id = value.cwaStationId
+    formData.value.cwa_station_name = value.cwaStationName
+    formData.value.cwa_station_distance_km = value.cwaStationDistanceKm
+    emit('construction-geo-confirmed', value)
+  },
 })
 
 
@@ -572,6 +611,13 @@ defineExpose({
             >
               {{ validation.getFieldError('project_location') }}
             </div>
+            <ConstructionLocationMapPicker
+              v-model="constructionGeoSelection"
+              :address="formData.project_location"
+              class="mt-2"
+              :readonly="isFieldReadonly('project_location')"
+              :disabled="propValues.isSubmitting"
+            />
           </div>
         </div>
         

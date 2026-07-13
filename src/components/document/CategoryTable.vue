@@ -25,18 +25,9 @@
           v-if="isDynamic"
           class="btn btn-sm btn-outline-warning"
           @click="emit('sync')"
-          title="重新同步施工大項"
+          :title="syncTitle"
         >
-          <i class="bi bi-arrow-repeat me-1"></i> 同步施工大項
-        </button>
-        <button
-          v-if="importSubdivisions"
-          type="button"
-          class="btn btn-sm btn-outline-info"
-          title="依目前版本分項工程批次新增 E 類自主檢查表"
-          @click="emit('importSubdivisions')"
-        >
-          <i class="bi bi-box-arrow-in-down me-1"></i> 帶入分項
+          <i class="bi bi-arrow-repeat me-1"></i> {{ syncLabel }}
         </button>
         <slot name="headerActions" />
       </div>
@@ -346,11 +337,13 @@ const props = withDefaults(
     category: string
     title: string
     items: DocumentClassification[]
-    isDynamic?: boolean // 是否為 D 類 (無法手動新增/刪除，只能同步)
+    isDynamic?: boolean // 動態類別：僅能透過同步按鈕更新（如監造 D、營造 E）
+    /** 同步按鈕文字（需搭配 isDynamic） */
+    syncLabel?: string
+    /** 同步按鈕 title 提示 */
+    syncTitle?: string
     /** 保存年限可為 null（永久），用於營造端文件分類 */
     allowNullRetention?: boolean
-    /** E 類：帶入分項工程 */
-    importSubdivisions?: boolean
     /** 顯示「規定提送日程」欄的大項代碼，例如監造 ['B']、營造 P 類 ['P'] */
     scheduleColumnCategories?: string[]
     /** 標題下方提示（例如監造 B 類：營造端可預覽） */
@@ -368,7 +361,8 @@ const props = withDefaults(
   }>(),
   {
     allowNullRetention: false,
-    importSubdivisions: false,
+    syncLabel: '同步施工大項',
+    syncTitle: '依目前版本施工大項重新同步此類別（覆寫既有項目）',
     scheduleColumnCategories: () => ['B'],
     planScheduleExtras: false,
     inlineEditNonDefault: false,
@@ -406,7 +400,6 @@ const emit = defineEmits<{
   (e: 'delete', id: number): void
   (e: 'sync'): void
   (e: 'reorder', items: DocumentClassification[]): void
-  (e: 'importSubdivisions'): void
   (e: 'toggleApplySidebar', id: number, applyToSidebar: boolean): void
 }>()
 

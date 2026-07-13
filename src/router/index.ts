@@ -235,6 +235,18 @@ const router = createRouter({
       meta: { requiresAuth: true }
     },
     {
+      path: '/supervisory/forms/doc-class/D/:itemId/records/:recordId',
+      component: () => import('../views/forms/self-check/SelfCheckInspectionRecordDetail.vue'),
+      props: { ownerType: 'SUPERVISORY', category: 'D' },
+      meta: { requiresAuth: true, requiresSupervisory: true }
+    },
+    {
+      path: '/contractor/forms/doc-class/E/:itemId/records/:recordId',
+      component: () => import('../views/forms/self-check/SelfCheckInspectionRecordDetail.vue'),
+      props: { ownerType: 'CONTRACTOR', category: 'E' },
+      meta: { requiresAuth: true }
+    },
+    {
       // 舊 B 類書架 path 保留向後相容：自動轉為新的共用 path（B 視為新 :category）。
       path: '/supervisory/forms/b-plan/:itemId',
       redirect: (to) => `/supervisory/forms/doc-class/B/${to.params.itemId}`
@@ -257,6 +269,11 @@ const router = createRouter({
     {
       path: '/calendar',
       component: () => import('../views/Calendar.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/user/signature',
+      component: () => import('../views/user/UserSignature.vue'),
       meta: { requiresAuth: true }
     },
     {
@@ -339,11 +356,16 @@ const router = createRouter({
       component: () => import('../views/company/SitePersonnelManagement.vue'),
       meta: { requiresAuth: true, requiresCompanyAdmin: true }
     },
-    // 工程進度排程
+    // 施工進度（依視角以施工項目/分項工程編排；自製甘特圖與 S 曲線）
     {
-      path: '/schedule/versions',
-      component: () => import('../views/schedule/ScheduleEditor.vue'),
+      path: '/schedule/progress',
+      component: () => import('../views/progress2/ConstructionProgress2.vue'),
       meta: { requiresAuth: true }
+    },
+    // 舊「施工進度2」路徑相容
+    {
+      path: '/schedule/progress2',
+      redirect: '/schedule/progress'
     },
     // 公文中心（以工程案為單位）- 僅列表；詳情頁路由先隱藏，頁面檔案保留
     {
@@ -435,7 +457,12 @@ const router = createRouter({
       component: () => import('../views/design-change/DesignChangeList.vue'),
       meta: { requiresAuth: true, viewType: 'SUPERVISORY' }
     },
-    
+    {
+      path: '/supervisory/floor-plans',
+      component: () => import('../views/shared/FloorPlanPins.vue'),
+      meta: { requiresAuth: true, viewType: 'SUPERVISORY' }
+    },
+
     // ========================================================
     // 視角特定路由（營造）
     // ========================================================
@@ -452,6 +479,11 @@ const router = createRouter({
     {
       path: '/contractor/basic/basic-data',
       component: () => import('../views/contractor/basic/BasicData.vue'),
+      meta: { requiresAuth: true, viewType: 'CONTRACTOR' }
+    },
+    {
+      path: '/contractor/floor-plans',
+      component: () => import('../views/shared/FloorPlanPins.vue'),
       meta: { requiresAuth: true, viewType: 'CONTRACTOR' }
     },
     {
@@ -589,6 +621,33 @@ router.beforeEach(async (to, from, next) => {
     return
   }
 
+  // 2.5 權限載入與檢查（meta.requiredPermission；未標註的路由不受影響）
+  // 權限資料以工作空間＋工程案為快取鍵，切換時 store 會自動重載
+  {
+    const { usePermissionStore } = await import('@/stores/permission')
+    const permissionStore = usePermissionStore()
+    const wid = workspaceStore.currentWorkspace?.id
+    const cid = workspaceStore.currentProject?.id
+    const requiredPermission = (to.meta as { requiredPermission?: string | string[] })
+      .requiredPermission
+
+    if (requiredPermission) {
+      // 需要特定權限的路由：等權限載入完成再判斷（載入失敗時 hasPermission 為過渡期放行）
+      await permissionStore.load({ workspaceId: wid, constructionId: cid })
+      const required = Array.isArray(requiredPermission)
+        ? requiredPermission
+        : [requiredPermission]
+      if (!permissionStore.hasAnyPermission(required)) {
+        console.warn('Guard: 權限不足，導回首頁', { path: to.path, required })
+        next('/')
+        return
+      }
+    } else {
+      // 一般路由：背景預載，不阻塞導航
+      permissionStore.load({ workspaceId: wid, constructionId: cid }).catch(() => {})
+    }
+  }
+
   // 監造計畫送審紀錄獨立頁：直接依後端 /viewType/resolve 字串判斷（與 composable 載入時序無關）
   if (authStore.isAuthenticated && (to.meta as { requiresSupervisory?: boolean }).requiresSupervisory) {
     const systemRole = authStore.user?.systemRole || authStore.user?.role
@@ -724,6 +783,7 @@ router.beforeEach(async (to, from, next) => {
             '/page/', // 已在 publicRoutes 擋掉，這裡保險
             '/access-status-guide',
             '/user/profile',
+            '/user/signature',
             '/my-projects',
             '/company/management',
             '/company/site-personnel',

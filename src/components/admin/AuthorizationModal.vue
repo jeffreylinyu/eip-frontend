@@ -2,7 +2,9 @@
 import { ref, watch, computed } from 'vue'
 import { getAllConstructions, getConstructionsByCompany, type Construction } from '@/api/construction'
 import { userConstructionApi, ConstructionPermissionEnum, ConstructionRoleEnum, type ConstructionParticipantScope } from '@/api/userConstruction'
+import { sitePersonnelApi, type SitePersonnel } from '@/api/sitePersonnel'
 import Card from '@/components/bootstrap/Card.vue'
+import MemberBindingManager from '@/components/admin/MemberBindingManager.vue'
 
 /** 管理後台專用：不依頂部監造/營造切換，新增時可指定任一侧；列表顯示後端回傳之全部授權列 */
 const ADMIN_INVITE_SCOPES: ConstructionParticipantScope[] = ['SUPERVISORY', 'CONTRACTOR']
@@ -30,6 +32,47 @@ const allProjects = ref<Construction[]>([])
 const selectedProjectId = ref('')
 const selectedRole = ref(ConstructionRoleEnum.SITE_ENGINEER) // 預設角色
 const selectedPermission = ref(ConstructionPermissionEnum.VIEWER) // 預設權限
+
+const bindingProjectId = ref('')
+const bindingPersonnel = ref<SitePersonnel[]>([])
+const bindingPersonnelLoading = ref(false)
+
+const bindingProject = computed(() =>
+  joinedProjects.value.find((p) => p.constructionId === bindingProjectId.value)
+)
+
+const bindingScope = computed<ConstructionParticipantScope>(() =>
+  (bindingProject.value?.participantScope || 'SUPERVISORY') as ConstructionParticipantScope
+)
+
+const loadBindingPersonnel = async () => {
+  if (!props.companyId || !bindingProjectId.value) {
+    bindingPersonnel.value = []
+    return
+  }
+  bindingPersonnelLoading.value = true
+  try {
+    const all = await sitePersonnelApi.getList(props.companyId)
+    bindingPersonnel.value = all.filter((p) => {
+      const assignments = p.assignments || []
+      if (assignments.length) {
+        return assignments.some(
+          (a) => a.constructionId === bindingProjectId.value && a.isActive
+        )
+      }
+      return p.constructionId === bindingProjectId.value && p.status === 'Y'
+    })
+  } catch (e) {
+    console.warn('載入工地人員失敗', e)
+    bindingPersonnel.value = []
+  } finally {
+    bindingPersonnelLoading.value = false
+  }
+}
+
+watch(bindingProjectId, () => {
+  loadBindingPersonnel()
+})
 
 // 角色選項 (職位/職稱)
 const roleOptions = [
@@ -174,6 +217,8 @@ watch(() => props.modelValue, (val) => {
     selectedInviteScope.value = 'SUPERVISORY'
     loadData()
     selectedProjectId.value = ''
+    bindingProjectId.value = ''
+    bindingPersonnel.value = []
   }
 })
 
@@ -299,6 +344,37 @@ const closeModal = () => {
                 </tr>
               </tbody>
             </table>
+          </div>
+
+          <!-- 簽名身份綁定 -->
+          <div v-if="companyId && joinedProjects.length" class="mt-4 border-top pt-4">
+            <h6 class="fw-bold mb-2">簽名身份綁定</h6>
+            <p class="text-muted small mb-3">
+              將此帳號與工地人員建立關聯，供表單簽名時選擇「以誰身份簽」。
+            </p>
+            <div class="mb-3">
+              <label class="form-label small">選擇工程案</label>
+              <select v-model="bindingProjectId" class="form-select form-select-sm" style="max-width: 28rem">
+                <option value="">請選擇已授權的工程案…</option>
+                <option
+                  v-for="p in joinedProjects"
+                  :key="`${p.constructionId}-${p.participantScope}`"
+                  :value="p.constructionId"
+                >
+                  {{ p.constructionName }}（{{ participantScopeLabel(p.participantScope) }}）
+                </option>
+              </select>
+            </div>
+            <div v-if="bindingPersonnelLoading" class="text-muted small py-2">載入工地人員…</div>
+            <MemberBindingManager
+              v-else-if="bindingProjectId && companyId"
+              :key="`${bindingProjectId}-${user?.userId}`"
+              :construction-id="bindingProjectId"
+              :company-id="companyId"
+              :participant-scope="bindingScope"
+              :personnel="bindingPersonnel"
+              :default-user-id="user?.userId"
+            />
           </div>
         </div>
         

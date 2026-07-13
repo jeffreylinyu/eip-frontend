@@ -86,7 +86,7 @@ export const useAppSidebarMenuStore = defineStore("appSidebarMenu", () => {
   // 工程排程子選單
   const scheduleChildren = computed(() => {
     const children: MenuItem[] = [
-      { text: "版本與工項管理", url: "/schedule/versions" },
+      { text: "施工進度", url: "/schedule/progress" },
     ]
     
     return filterMenuItems(children)
@@ -315,6 +315,10 @@ export const useAppSidebarMenuStore = defineStore("appSidebarMenu", () => {
     if (baseUrl === '/design-changes') {
       return `${prefix}/design-changes`
     }
+    // 工地平面圖點位：監造/營造分開
+    if (baseUrl === '/floor-plans') {
+      return `${prefix}/floor-plans`
+    }
     
     return baseUrl
   }
@@ -390,6 +394,10 @@ export const useAppSidebarMenuStore = defineStore("appSidebarMenu", () => {
     },
 
 
+    // 工地管理
+    { text: "工地管理", is_header: true },
+    { text: "工地平面圖點位", url: getViewUrl("/floor-plans"), icon: "bi bi-geo-alt" },
+
     // 公文中心（以工程案為單位）
     { text: "公文中心", is_header: true },
     { text: "公文列表", url: "/document-center", icon: "bi bi-folder2-open" },
@@ -398,12 +406,11 @@ export const useAppSidebarMenuStore = defineStore("appSidebarMenu", () => {
     { text: "行事曆", is_header: true },
     { text: "行事曆", url: "/calendar", icon: "bi bi-calendar" },
 
-    // 工程排程（監造端側邊欄暫不顯示；營造／其他視角保留）
-    { text: "工程排程", is_header: true, visible: !isSupervisory.value },
+    // 工程排程
+    { text: "工程排程", is_header: true },
     {
       text: "工程排程管理",
       icon: "bi bi-kanban",
-      visible: !isSupervisory.value,
       children: scheduleChildren.value,
     },
 

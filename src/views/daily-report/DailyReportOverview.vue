@@ -62,9 +62,11 @@
               <button
                 class="btn btn-sm btn-outline-primary"
                 type="button"
+                :disabled="isLoading"
+                @click="importWeatherFromCalendar"
               >
-                <i class="fa fa-cloud-download me-1"></i>
-                從氣象局帶入
+                <i class="fa fa-calendar-day me-1"></i>
+                從行事曆帶入
               </button>
             </div>
           </div>
@@ -122,6 +124,14 @@
             </li>
           </ul>
         </div>
+        <button
+          class="btn btn-outline-warning"
+          type="button"
+          :disabled="isLoading || !constructionId"
+          @click="showQuantityOverrunModal = true"
+        >
+          <i class="fa fa-exclamation-triangle me-1"></i>超出數量總表
+        </button>
         <button 
           class="btn btn-outline-danger"
           type="button"
@@ -221,9 +231,11 @@
             <button
               class="btn btn-sm btn-outline-primary w-100"
               type="button"
+              :disabled="isLoading"
+              @click="importWeatherFromCalendar"
             >
-              <i class="fa fa-cloud-download me-1"></i>
-              從氣象局帶入
+              <i class="fa fa-calendar-day me-1"></i>
+              從行事曆帶入
             </button>
           </div>
         </CardBody>
@@ -280,6 +292,14 @@
             </li>
           </ul>
         </div>
+        <button
+          class="btn btn-outline-warning w-100 mb-2"
+          type="button"
+          :disabled="isLoading || !constructionId"
+          @click="showQuantityOverrunModal = true"
+        >
+          <i class="fa fa-exclamation-triangle me-1"></i>超出契約數量總表
+        </button>
         <div class="d-flex gap-2">
           <button
             class="btn btn-outline-danger flex-fill"
@@ -435,6 +455,14 @@
               <span class="report-card__title">
                 一、依施工計畫書執行修繕施工概況（含約定之重要施工項目及完成數量等）
               </span>
+              <span
+                v-if="executionOverrunCount > 0"
+                class="badge bg-danger-subtle text-danger border border-danger-subtle quantity-overrun-badge"
+                title="點擊捲動至第一筆超出項目"
+                @click.stop="scrollToFirstExecutionOverrun"
+              >
+                <i class="fa fa-exclamation-triangle me-1"></i>{{ executionOverrunCount }} 項超出
+              </span>
             </div>
             <i 
               class="fa text-primary" 
@@ -452,6 +480,7 @@
           <DailyReportExecutionTreeGrid
             v-else
             :items="report.executionSummary"
+            @quantity-change="onExecutionQuantityChange"
           />
         </CardBody>
         </Card>
@@ -466,6 +495,14 @@
               <i class="fa fa-boxes report-card__icon text-primary"></i>
               <span class="report-card__title">
                 二、工程材料管理概況（含約定之重要材料使用狀況及數量等）
+              </span>
+              <span
+                v-if="materialOverrunCount > 0"
+                class="badge bg-danger-subtle text-danger border border-danger-subtle quantity-overrun-badge"
+                title="點擊捲動至第一筆超出項目"
+                @click.stop="scrollToFirstMaterialOverrun"
+              >
+                <i class="fa fa-exclamation-triangle me-1"></i>{{ materialOverrunCount }} 項超出
               </span>
       </div>
             <i 
@@ -493,14 +530,22 @@
                   :key="material.id" 
                   :class="{ 
                     'row-expanded': expandedRows.has(`material-${material.id}`),
-                    'row-unfilled': !material.id || (!material.todayUsage && !material.remark)
+                    'row-unfilled': !material.id || (!material.todayUsage && !material.remark),
+                    'row-overrun-quantity': getMaterialOverrun(material)
                   }"
                 >
                   <td data-label="材料名稱" class="row-header" @click="toggleRow(`material-${material.id}`)">
                     <div class="d-flex align-items-center justify-content-between">
-                      <span>{{ material.materialName }}</span>
+                      <div class="d-flex align-items-center gap-2 min-w-0">
+                        <span class="text-truncate">{{ material.materialName }}</span>
+                        <i
+                          v-if="getMaterialOverrun(material)"
+                          class="fa fa-exclamation-triangle text-warning flex-shrink-0 quantity-overrun-icon"
+                          :title="formatMaterialOverrunTooltip(material)"
+                        ></i>
+                      </div>
                       <i 
-                        class="fa d-md-none ms-2" 
+                        class="fa d-md-none ms-2 flex-shrink-0" 
                         :class="expandedRows.has(`material-${material.id}`) ? 'fa-chevron-up' : 'fa-chevron-down'"
                       ></i>
                     </div>
@@ -527,11 +572,18 @@
                     <input
                       type="number"
                       class="form-control form-control-sm text-end"
+                      :class="{ 'quantity-overrun-input': getMaterialOverrun(material) }"
                       min="0"
                       step="0.01"
                       :value="material.cumulativeUsage ?? ''"
                       @input="updateMaterialUsageNumber(material, 'cumulativeUsage', $event)"
                     />
+                    <div
+                      v-if="getMaterialOverrun(material)"
+                      class="small text-danger text-end mt-1"
+                    >
+                      超出 {{ formatNumber(getMaterialOverrun(material)!.overrunQuantity) }}
+                    </div>
                   </td>
                   <td class="mobile-collapsible" data-label="備註">
                     <input
@@ -1219,6 +1271,13 @@
       </template>
     </Modal>
 
+    <DailyReportQuantityOverrunModal
+      v-model:show="showQuantityOverrunModal"
+      :construction-id="constructionId"
+      :owner-type="dailyReportOwnerTypeParam"
+      @open-report-date="openOverrunReportDate"
+    />
+
     <div v-if="errors.length > 0" class="alert alert-danger">
       <h6 class="mb-2">請修正以下錯誤：</h6>
       <ul class="mb-0 ps-3">
@@ -1246,6 +1305,11 @@ import {
   saveDailyReportExportPreferences,
   type DailyReportExportPreferences
 } from '@/api/userPreference'
+import { getCalendarWeatherForDate } from '@/api/construction'
+import {
+  normalizeCalendarDateKey,
+  resolveCalendarDisplayWeather,
+} from '@/utils/calendarWeather'
 import { useExportLoading } from '@/composables/useExportLoading'
 import { useViewPerspective, ViewType } from '@/composables/useViewPerspective'
 import { useDailyReportLabels } from '@/composables/useDailyReportLabels'
@@ -1262,6 +1326,14 @@ import CardHeader from '@/components/bootstrap/CardHeader.vue'
 import CardBody from '@/components/bootstrap/CardBody.vue'
 import RepublicDatePicker from '@/components/bootstrap/RepublicDatePicker.vue'
 import DailyReportExecutionTreeGrid from '@/components/daily-report/DailyReportExecutionTreeGrid.vue'
+import DailyReportQuantityOverrunModal from '@/components/daily-report/DailyReportQuantityOverrunModal.vue'
+import {
+  countExecutionOverruns,
+  countMaterialOverruns,
+  formatOverrunTooltip,
+  getMaterialItemOverrun,
+  type QuantityOverrunInfo
+} from '@/utils/dailyReportQuantityOverrun'
 
 const route = useRoute()
 const { proxy } = getCurrentInstance() as { proxy: { $toast?: { success?: (m: string) => void; error?: (m: string) => void } } }
@@ -1278,6 +1350,60 @@ const dailyReportOwnerTypeParam = computed(() => {
 })
 
 const isExecutionSummaryEmpty = computed(() => report.value.executionSummary.length === 0)
+
+/** 觸發超出項數即時重算（子元件直接 mutate 陣列元素時需手動 bump） */
+const quantityOverrunTick = ref(0)
+
+const onExecutionQuantityChange = () => {
+  quantityOverrunTick.value++
+}
+
+const executionOverrunCount = computed(() => {
+  quantityOverrunTick.value
+  return countExecutionOverruns(report.value.executionSummary)
+})
+
+const materialOverrunCount = computed(() => {
+  quantityOverrunTick.value
+  return countMaterialOverruns(report.value.materialUsageSummary)
+})
+
+const getMaterialOverrun = (material: MaterialUsageSummaryItem): QuantityOverrunInfo | null =>
+  getMaterialItemOverrun(material)
+
+const formatMaterialOverrunTooltip = (material: MaterialUsageSummaryItem): string => {
+  const overrun = getMaterialOverrun(material)
+  if (!overrun) return ''
+  return formatOverrunTooltip(overrun, material.unit)
+}
+
+const scrollToFirstExecutionOverrun = async () => {
+  if (!expandedSections.value.has('execution')) {
+    expandedSections.value.add('execution')
+  }
+  await nextTick()
+  document.querySelector('.execution-tree-overrun-row')?.scrollIntoView({
+    behavior: 'smooth',
+    block: 'center'
+  })
+}
+
+const scrollToFirstMaterialOverrun = async () => {
+  if (!expandedSections.value.has('material')) {
+    expandedSections.value.add('material')
+  }
+  await nextTick()
+  document.querySelector('.row-overrun-quantity')?.scrollIntoView({
+    behavior: 'smooth',
+    block: 'center'
+  })
+}
+
+const openOverrunReportDate = async (date: string) => {
+  if (!date) return
+  report.value.reportDate = date
+  await loadReportByDate(date)
+}
 
 // 取得當前工程 ID (優先從 URL 參數取得，否則從 Store 取得)
 const constructionId = computed(() => (route.query.constructionId as string) || workspaceStore.currentProject?.id || '')
@@ -1473,6 +1599,7 @@ const report = ref<DailyReport>({
 const isLoading = ref(false)
 const isExporting = ref(false)
 const showExportSettingsModal = ref(false)
+const showQuantityOverrunModal = ref(false)
 const isLoadingExportSettings = ref(false)
 const isSavingExportSettings = ref(false)
 const exportSettingsError = ref('')
@@ -1608,6 +1735,37 @@ const toggleRow = (rowId: string) => {
 // 計算屬性
 const weatherOptions = computed(() => WEATHER_OPTIONS)
 
+const importWeatherFromCalendar = async () => {
+  if (!constructionId.value || !report.value.reportDate) {
+    proxy.$toast?.error?.('請先選擇填表日期')
+    return
+  }
+  if (!dailyReportOwnerTypeParam.value) {
+    proxy.$toast?.error?.('目前視角無法帶入行事曆天氣')
+    return
+  }
+  try {
+    const dateKey = normalizeCalendarDateKey(report.value.reportDate)
+    const data = await getCalendarWeatherForDate(
+      constructionId.value,
+      dateKey,
+      dailyReportOwnerTypeParam.value
+    )
+    const resolved = resolveCalendarDisplayWeather(data)
+    if (!resolved.morning && !resolved.afternoon) {
+      proxy.$toast?.warning?.('該日尚無天氣資料，請確認已設定氣象站且系統已開始紀錄，或於行事曆手動編輯天氣')
+      return
+    }
+    if (resolved.morning) report.value.weather.morning = resolved.morning
+    if (resolved.afternoon) report.value.weather.afternoon = resolved.afternoon
+    const usedCwaFallback = !resolved.morningFromUser && !resolved.afternoonFromUser
+    proxy.$toast?.success?.(usedCwaFallback ? '已從行事曆帶入氣象局天氣' : '已從行事曆帶入天氣')
+  } catch (error) {
+    console.error('從行事曆帶入天氣失敗:', error)
+    proxy.$toast?.error?.('從行事曆帶入天氣失敗')
+  }
+}
+
 const reportDateDisplay = computed(() => formatDate(report.value.reportDate))
 
 const weekdayText = computed(() => {
@@ -1721,6 +1879,7 @@ const updateMaterialUsageNumber = (
   const target = event.target as HTMLInputElement | null
   const value = target?.value ?? ''
   item[key] = value === '' ? null : Number(value)
+  quantityOverrunTick.value++
 }
 
 const updateLaborEquipmentNumber = (
@@ -2672,6 +2831,32 @@ onMounted(() => {
 
 .report-table tbody tr.row-unfilled td {
   background-color: var(--report-table-row-unfilled);
+}
+
+.report-table tbody tr.row-overrun-quantity td {
+  background-color: rgba(220, 53, 69, 0.12);
+}
+
+.report-table tbody tr.row-overrun-quantity:hover td {
+  background-color: rgba(220, 53, 69, 0.18);
+}
+
+.quantity-overrun-badge {
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.quantity-overrun-icon {
+  cursor: help;
+  font-size: 0.85rem;
+}
+
+.quantity-overrun-input {
+  border-color: var(--bs-danger) !important;
+  color: var(--bs-danger);
+  font-weight: 600;
 }
 
 .report-table td input.form-control,

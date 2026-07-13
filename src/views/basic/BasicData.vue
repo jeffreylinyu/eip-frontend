@@ -90,6 +90,11 @@ const formData = ref({
   project_name: "",
   contract_number: "",
   project_location: "",
+  construction_latitude: null as number | null,
+  construction_longitude: null as number | null,
+  cwa_station_id: null as string | null,
+  cwa_station_name: null as string | null,
+  cwa_station_distance_km: null as number | null,
   host_agency: "",
   // 新增：公司名稱顯示欄位
   supervisory_company_name: "",
@@ -314,8 +319,24 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
   e.returnValue = ''
 }
 
-/** 不納入異動比對的欄位（非表單可編輯或內部狀態） */
-const BASIC_DATA_EXCLUDED_CHANGE_KEYS = new Set(['version', 'contractor_name'])
+/** 不納入異動比對的欄位（非表單可編輯或內部狀態；工地座標於地圖 modal 確認時即時儲存） */
+const BASIC_DATA_EXCLUDED_CHANGE_KEYS = new Set([
+  'version',
+  'contractor_name',
+  'construction_latitude',
+  'construction_longitude',
+  'cwa_station_id',
+  'cwa_station_name',
+  'cwa_station_distance_km',
+])
+
+const CONSTRUCTION_GEO_FORM_KEYS = [
+  'construction_latitude',
+  'construction_longitude',
+  'cwa_station_id',
+  'cwa_station_name',
+  'cwa_station_distance_km',
+] as const
 
 function normalizeFormValueForCompare(value: unknown): string {
   if (value === undefined || value === null || value === '') return ''
@@ -380,6 +401,14 @@ function computeFormChanges(): BasicDataFormChange[] {
   return changes
 }
 
+function refreshUnsavedChangesState() {
+  if (isUpdatingFormData.value || isVersionSwitching.value) return
+  const hasChanges = computeFormChanges().length > 0
+  if (hasUnsavedChanges.value !== hasChanges) {
+    hasUnsavedChanges.value = hasChanges
+  }
+}
+
 
 
 // 監聽器
@@ -389,10 +418,7 @@ const checkForChanges = () => {
     return
   }
   
-  const newState = JSON.stringify(formData.value) !== JSON.stringify(originalFormData.value)
-  if (hasUnsavedChanges.value !== newState) {
-    hasUnsavedChanges.value = newState
-  }
+  refreshUnsavedChangesState()
 }
 
 // 手動載入工程案資料的方法
@@ -459,11 +485,7 @@ watch(() => workspaceStore.currentProject, async (newProject, oldProject) => {
 watch(
   formData,
   () => {
-    if (isUpdatingFormData.value) return
-    if (isVersionSwitching.value) return
-
-    hasUnsavedChanges.value =
-      JSON.stringify(formData.value) !== JSON.stringify(originalFormData.value)
+    refreshUnsavedChangesState()
   },
   { deep: true }
 )
@@ -657,6 +679,11 @@ const clearFormData = () => {
       project_name: "",
       contract_number: "",
       project_location: "",
+      construction_latitude: null,
+      construction_longitude: null,
+      cwa_station_id: null,
+      cwa_station_name: null,
+      cwa_station_distance_km: null,
       host_agency: "",
       supervisory_company_name: "",
       contractor_company_name: "",
@@ -724,6 +751,11 @@ const mapProjectDataToForm = (project: any) => {
       project_name: project.name || '',
       contract_number: project.contractNumber || '',
       project_location: project.location || '',
+      construction_latitude: project.constructionLatitude ?? null,
+      construction_longitude: project.constructionLongitude ?? null,
+      cwa_station_id: project.cwaStationId ?? null,
+      cwa_station_name: project.cwaStationName ?? null,
+      cwa_station_distance_km: project.cwaStationDistanceKm ?? null,
       host_agency: project.hostAgency || '',
       // 新增：映射公司名稱（如果工程案中沒有，則從工作空間設定自動帶入）
       supervisory_company_name: project.supervisoryCompanyName || workspaceStore.participatingUnits.supervisoryCompany?.companyName || '',
@@ -799,6 +831,83 @@ const saveForm = async () => {
 
 const cancelSaveConfirm = () => {
   showSaveConfirmModal.value = false
+}
+
+function extractUpdatedConstructionFromResponse(response: unknown): Record<string, unknown> | null {
+  if (response && (response as { constructionId?: string }).constructionId) {
+    return response as Record<string, unknown>
+  }
+  if (response && (response as { construction?: Record<string, unknown> }).construction) {
+    return (response as { construction: Record<string, unknown> }).construction
+  }
+  return null
+}
+
+function syncConstructionGeoBaseline() {
+  for (const key of CONSTRUCTION_GEO_FORM_KEYS) {
+    (originalFormData.value as Record<string, unknown>)[key] = formData.value[key]
+  }
+  if (typeof formData.value.version === 'number') {
+    (originalFormData.value as Record<string, unknown>).version = formData.value.version
+  }
+}
+
+const saveConstructionGeoImmediately = async (geo: {
+  latitude: number
+  longitude: number
+  cwaStationId: string
+  cwaStationName: string
+  cwaStationDistanceKm: number
+}) => {
+  const currentProject = workspaceStore.currentProject
+  if (!currentProject?.id) return
+
+  isUpdatingFormData.value = true
+  try {
+    const response = await updateConstruction(
+      currentProject.id,
+      {
+        constructionLatitude: geo.latitude,
+        constructionLongitude: geo.longitude,
+      } as Parameters<typeof updateConstruction>[1],
+      selectedDesignChangeId.value
+    )
+
+    const updatedConstruction = extractUpdatedConstructionFromResponse(response)
+    if (updatedConstruction) {
+      formData.value.construction_latitude = (updatedConstruction.constructionLatitude as number | null) ?? geo.latitude
+      formData.value.construction_longitude = (updatedConstruction.constructionLongitude as number | null) ?? geo.longitude
+      formData.value.cwa_station_id = (updatedConstruction.cwaStationId as string | null) ?? geo.cwaStationId
+      formData.value.cwa_station_name = (updatedConstruction.cwaStationName as string | null) ?? geo.cwaStationName
+      formData.value.cwa_station_distance_km =
+        (updatedConstruction.cwaStationDistanceKm as number | null) ?? geo.cwaStationDistanceKm
+      if (typeof updatedConstruction.version === 'number') {
+        formData.value.version = updatedConstruction.version
+      }
+    }
+    syncConstructionGeoBaseline()
+
+    if (updatedConstruction) {
+      workspaceStore.updateProject(currentProject.id, {
+        constructionLatitude: (updatedConstruction.constructionLatitude as number | null) ?? geo.latitude,
+        constructionLongitude: (updatedConstruction.constructionLongitude as number | null) ?? geo.longitude,
+        cwaStationId: (updatedConstruction.cwaStationId as string | null) ?? geo.cwaStationId,
+        cwaStationName: (updatedConstruction.cwaStationName as string | null) ?? geo.cwaStationName,
+        cwaStationDistanceKm:
+          (updatedConstruction.cwaStationDistanceKm as number | null) ?? geo.cwaStationDistanceKm,
+        ...(typeof updatedConstruction.version === 'number' ? { version: updatedConstruction.version } : {}),
+      })
+    }
+
+    proxy.$toast.success('工地座標已儲存')
+  } catch (error) {
+    console.error('工地座標儲存失敗:', error)
+    proxy.$toast.error('工地座標儲存失敗，請重試')
+  } finally {
+    await nextTick()
+    isUpdatingFormData.value = false
+    refreshUnsavedChangesState()
+  }
 }
 
 const confirmSaveForm = async () => {
@@ -900,6 +1009,11 @@ const submitFormData = async (data?: any) => {
         name: updatedConstruction.constructionName || '',
         workspaceId: currentWorkspace.id,
         location: updatedConstruction.constructionLocation || '',
+        constructionLatitude: updatedConstruction.constructionLatitude ?? null,
+        constructionLongitude: updatedConstruction.constructionLongitude ?? null,
+        cwaStationId: updatedConstruction.cwaStationId ?? null,
+        cwaStationName: updatedConstruction.cwaStationName ?? null,
+        cwaStationDistanceKm: updatedConstruction.cwaStationDistanceKm ?? null,
         budget: updatedConstruction.constructionBudget?.toString() || '',
         status: 'IN_PROGRESS' as const,
         signDate: updatedConstruction.signDate || '',
@@ -1362,6 +1476,7 @@ onMounted(async () => {
 				:show-reset-button="false"
 				:version-fields-only="selectedDesignChangeId != null"
 				@submit="handleProjectFormSubmit"
+				@construction-geo-confirmed="saveConstructionGeoImmediately"
 			/>
 
 

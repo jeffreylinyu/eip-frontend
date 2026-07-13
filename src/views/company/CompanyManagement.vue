@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useCompanyStore } from '@/stores/company'
 import Card from '@/components/bootstrap/Card.vue'
 import CardBody from '@/components/bootstrap/CardBody.vue'
@@ -11,6 +11,7 @@ import CompanyMemberManagement from '@/components/company/CompanyMemberManagemen
 import SitePersonnelManagement from '@/components/company/SitePersonnelManagement.vue'
 
 const router = useRouter()
+const route = useRoute()
 
 const companyStore = useCompanyStore()
 
@@ -63,8 +64,14 @@ const backToCompanyList = () => {
 }
 
 // 生命週期
-onMounted(() => {
-  companyStore.initCompanies()
+onMounted(async () => {
+  await companyStore.initCompanies()
+
+  const tab = route.query.tab
+  const companyId = route.query.companyId
+  if (tab === 'members' && typeof companyId === 'string' && companyId.trim()) {
+    switchTab('members', companyId.trim())
+  }
 })
 </script>
 

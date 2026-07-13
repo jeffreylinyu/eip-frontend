@@ -17,6 +17,8 @@ export interface DocumentClassification {
   isDefault: boolean
   isLocked: boolean
   constructionMajorItemId?: string | null
+  /** E 類（營造）專用：關聯分項工程 id */
+  subdivisionWorkItemId?: number | null
   createdAt?: string
   updatedAt?: string
   createdBy?: string

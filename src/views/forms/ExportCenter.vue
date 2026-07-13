@@ -267,7 +267,7 @@ const SUPERVISORY_LABELS: Record<string, string> = {
   A: 'A類 - 監造工程文件',
   B: 'B類 - 計畫與監督',
   C: 'C類',
-  D: 'D類',
+  D: 'D類 - 自主檢查',
   H: 'H類',
   I: 'I類',
   L: 'L類',

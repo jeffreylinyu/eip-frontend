@@ -336,6 +336,7 @@ workspaceStore.initWorkspaces();
 				</a>
 				<div class="dropdown-menu dropdown-menu-end me-lg-3 fs-11px mt-1">
 					<RouterLink to="/profile" class="dropdown-item d-flex align-items-center">個人資料 <i class="bi bi-person-circle ms-auto text-theme fs-16px my-n1"></i></RouterLink>
+					<RouterLink to="/user/signature" class="dropdown-item d-flex align-items-center">個人簽名檔 <i class="bi bi-pen ms-auto text-theme fs-16px my-n1"></i></RouterLink>
 					<RouterLink to="/email/inbox" class="dropdown-item d-flex align-items-center">收件匣 <i class="bi bi-envelope ms-auto text-theme fs-16px my-n1"></i></RouterLink>
 					<RouterLink to="/calendar" class="dropdown-item d-flex align-items-center">行事曆 <i class="bi bi-calendar ms-auto text-theme fs-16px my-n1"></i></RouterLink>
 					<RouterLink to="/settings" class="dropdown-item d-flex align-items-center">設定 <i class="bi bi-gear ms-auto text-theme fs-16px my-n1"></i></RouterLink>

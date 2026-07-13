@@ -92,6 +92,11 @@
             <span :class="nameTextClass(data)">
               {{ data.name }}
             </span>
+            <i
+              v-if="getItemOverrun(data.id)"
+              class="fa fa-exclamation-triangle text-warning execution-overrun-icon flex-shrink-0"
+              :title="formatItemOverrunTooltip(data.id)"
+            ></i>
           </div>
         </template>
 
@@ -131,8 +136,9 @@
           <span
             v-if="resolveItem(data.id)?.fillable"
             class="text-end d-block execution-cumulative-readonly"
+            :class="{ 'execution-cumulative-overrun': getItemOverrun(data.id) }"
           >
-            {{ formatDisplayedCumulative(data.id) }}
+            {{ formatDisplayedCumulativeWithOverrun(data.id) }}
           </span>
           <span v-else-if="data.type === 'MAIN_ITEM'" class="text-end d-block">
             {{ formatMainItemCumulativeDisplay(data.id) }}
@@ -157,7 +163,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, provide, ref, shallowRef, watch } from 'vue'
+import { computed, nextTick, provide, ref, shallowRef, watch } from 'vue'
 import { Sort, Resize, Filter } from '@syncfusion/ej2-vue-treegrid'
 import type { TreeGridComponent } from '@syncfusion/ej2-vue-treegrid'
 import type { ExecutionSummaryItem } from '@/types/dailyReport'
@@ -168,11 +174,24 @@ import {
   formatAmountWithPercent
 } from '@/utils/computeMainItemTodayRollup'
 import { getDisplayedCumulativeQuantity } from '@/utils/executionSummaryQuantity'
+import {
+  formatOverrunDisplayValue,
+  formatOverrunTooltip,
+  getExecutionItemOverrun,
+  type QuantityOverrunInfo
+} from '@/utils/dailyReportQuantityOverrun'
 import { getPccesTypeIcon, getPccesTypeLabel } from '@/utils/pccesItemTypeDisplay'
 
 const props = defineProps<{
   items: ExecutionSummaryItem[]
 }>()
+
+const emit = defineEmits<{
+  'quantity-change': []
+}>()
+
+/** 強制觸發超出狀態重算（Syncfusion TreeGrid 不會自動重繪 template） */
+const quantityRevision = ref(0)
 
 provide('treegrid', [Sort, Resize, Filter])
 
@@ -229,6 +248,7 @@ const mainItemCumulativeRollupById = computed(() =>
 )
 
 const displayedCumulativeByItemId = computed(() => {
+  quantityRevision.value
   const map = new Map<string, number>()
   for (const item of props.items) {
     if (item.fillable) {
@@ -237,6 +257,81 @@ const displayedCumulativeByItemId = computed(() => {
   }
   return map
 })
+
+const overrunByItemId = computed(() => {
+  quantityRevision.value
+  const map = new Map<string, QuantityOverrunInfo>()
+  for (const item of props.items) {
+    if (!item.fillable) continue
+    const overrun = getExecutionItemOverrun(item)
+    if (overrun) map.set(item.id, overrun)
+  }
+  return map
+})
+
+function getTreeGridInstance(): {
+  getRows?: () => HTMLElement[]
+  getRowInfo?: (row: Element) => { rowData?: { id?: string } }
+  getColumnIndexByField?: (field: string) => number
+} | null {
+  return (treegridRef.value as { ej2Instances?: unknown } | null)?.ej2Instances as {
+    getRows?: () => HTMLElement[]
+    getRowInfo?: (row: Element) => { rowData?: { id?: string } }
+    getColumnIndexByField?: (field: string) => number
+  } | null
+}
+
+/** Syncfusion 不會隨 Vue computed 更新 template，改以 DOM 同步超出警示 */
+function syncOverrunVisuals() {
+  const grid = getTreeGridInstance()
+  if (!grid?.getRows || !grid.getColumnIndexByField) return
+
+  const cumulativeColIndex = grid.getColumnIndexByField('cumulativeQuantity')
+  const nameColIndex = grid.getColumnIndexByField('name')
+  if (cumulativeColIndex < 0 || nameColIndex < 0) return
+
+  for (const row of grid.getRows()) {
+    const rowData = grid.getRowInfo?.(row)?.rowData
+    if (!rowData?.id) continue
+
+    const item = resolveItem(rowData.id)
+    const overrun = item?.fillable ? getExecutionItemOverrun(item) : null
+
+    row.classList.toggle('execution-tree-overrun-row', !!overrun)
+
+    if (!item?.fillable) continue
+
+    const cells = row.querySelectorAll('.e-rowcell')
+    const cumulativeCell = cells[cumulativeColIndex] as HTMLElement | undefined
+    if (cumulativeCell) {
+      let span = cumulativeCell.querySelector('.execution-cumulative-readonly') as HTMLElement | null
+      if (!span) {
+        span = document.createElement('span')
+        span.className = 'text-end d-block execution-cumulative-readonly'
+        cumulativeCell.replaceChildren(span)
+      }
+      const cumulative = getDisplayedCumulativeQuantity(item)
+      span.textContent = formatOverrunDisplayValue(cumulative, overrun)
+      span.classList.toggle('execution-cumulative-overrun', !!overrun)
+    }
+
+    const nameCell = cells[nameColIndex] as HTMLElement | undefined
+    const nameWrap = nameCell?.querySelector('.execution-tree-name-cell')
+    if (nameWrap) {
+      let icon = nameWrap.querySelector('.execution-overrun-icon')
+      if (overrun && !icon) {
+        icon = document.createElement('i')
+        icon.className = 'fa fa-exclamation-triangle text-warning execution-overrun-icon flex-shrink-0'
+        nameWrap.appendChild(icon)
+      }
+      if (overrun && icon) {
+        icon.setAttribute('title', formatOverrunTooltip(overrun, item.unit))
+      } else if (!overrun && icon) {
+        icon.remove()
+      }
+    }
+  }
+}
 
 const resolveItem = (id: string): ExecutionSummaryItem | undefined => itemsById.value.get(id)
 
@@ -276,13 +371,27 @@ const parseNumberInput = (event: Event): number | null => {
 
 const onTodayQuantityInput = (id: string, event: Event) => {
   const item = resolveItem(id)
-  if (item) item.todayQuantity = parseNumberInput(event)
+  if (!item) return
+  item.todayQuantity = parseNumberInput(event)
+  quantityRevision.value++
+  emit('quantity-change')
+  nextTick(() => syncOverrunVisuals())
 }
 
-const formatDisplayedCumulative = (itemId: string): string => {
+const getItemOverrun = (itemId: string): QuantityOverrunInfo | null =>
+  overrunByItemId.value.get(itemId) ?? null
+
+const formatItemOverrunTooltip = (itemId: string): string => {
+  const item = resolveItem(itemId)
+  const overrun = getItemOverrun(itemId)
+  if (!item || !overrun) return ''
+  return formatOverrunTooltip(overrun, item.unit)
+}
+
+const formatDisplayedCumulativeWithOverrun = (itemId: string): string => {
   const value = displayedCumulativeByItemId.value.get(itemId)
   if (value === undefined) return '—'
-  return formatNumber(value)
+  return formatOverrunDisplayValue(value, getItemOverrun(itemId))
 }
 
 const onRemarkInput = (id: string, event: Event) => {
@@ -297,9 +406,12 @@ const onRowDataBound = (args: {
   const row = args.row
   const data = args.data
   if (!row || !data?.id) return
-  row.classList.remove('execution-tree-section-row')
+  row.classList.remove('execution-tree-section-row', 'execution-tree-overrun-row')
   if (data.executionRowKind === 'SECTION_HEADER') {
     row.classList.add('execution-tree-section-row')
+  }
+  if (getItemOverrun(data.id)) {
+    row.classList.add('execution-tree-overrun-row')
   }
 }
 
@@ -441,6 +553,24 @@ function onTreeGridActionBegin(e: {
 .execution-cumulative-readonly {
   color: rgba(248, 250, 252, 0.92);
   padding: 0.25rem 0.35rem;
+}
+
+.execution-cumulative-overrun {
+  color: #f87171 !important;
+  font-weight: 600;
+}
+
+.execution-overrun-icon {
+  font-size: 0.85rem;
+  cursor: help;
+}
+
+:deep(.e-treegrid .execution-tree-overrun-row .e-rowcell) {
+  background-color: rgba(248, 113, 113, 0.12) !important;
+}
+
+:deep(.e-treegrid .execution-tree-overrun-row:hover .e-rowcell) {
+  background-color: rgba(248, 113, 113, 0.18) !important;
 }
 
 :deep(.e-treegrid .e-filterbarcell input) {

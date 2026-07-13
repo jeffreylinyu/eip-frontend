@@ -17,9 +17,8 @@ export const StorageKeys = {
   WORKSPACES_CACHE: 'workspaces_cache', // 快取的工作空間列表
   PROJECTS_CACHE: 'projects_cache',     // 快取的專案列表 (備用)
   
-  // Schedule
-  SCHEDULE_DATA: 'schedule_data',
-  SCHEDULE_VERSION: 'schedule_version',
+  // 施工進度（依視角+工程案的進度編排離線快取；主要儲存在後端）
+  PROGRESS2_DATA: 'progress2_data',
   
   // Cache
   BASIC_DATA_CACHE: 'basic_data_cache',

@@ -265,6 +265,15 @@
                         </button>
                         <button
                           type="button"
+                          class="btn btn-sm btn-outline-primary me-2"
+                          v-if="person.status === 'Y'"
+                          @click="openPersonBinding(person)"
+                          title="將系統帳號與此工地人員建立綁定（供簽名使用）"
+                        >
+                          綁定帳號
+                        </button>
+                        <button
+                          type="button"
                           class="btn btn-sm btn-outline-secondary"
                           v-if="getAssignmentsForCurrentProject(person).length > 0"
                           @click="openAssignmentDetail(person)"
@@ -278,6 +287,19 @@
               </div>
             </card-body>
           </card>
+        </div>
+      </div>
+
+      <!-- 帳號 ↔ 工地人員綁定（簽名代理） -->
+      <div v-if="currentConstructionId && getCurrentCompanyId()" class="row mt-4">
+        <div class="col-12">
+          <MemberBindingManager
+            ref="bindingManagerRef"
+            :construction-id="currentConstructionId"
+            :company-id="getCurrentCompanyId()!"
+            :participant-scope="participantScope"
+            :personnel="assignedPersonnel"
+          />
         </div>
       </div>
       
@@ -527,6 +549,8 @@ import { computeVersionPersonnelConfig, getConfigRoleLabel, getLabourSafetyRequi
 import { formatAmount } from '@/utils/format'
 import Modal from '@/components/bootstrap/Modal.vue'
 import RepublicDatePicker from '@/components/bootstrap/RepublicDatePicker.vue'
+import MemberBindingManager from '@/components/admin/MemberBindingManager.vue'
+import type { ConstructionParticipantScope } from '@/api/memberBinding'
 
 const router = useRouter()
 const projectStore = useProjectStore()
@@ -534,6 +558,8 @@ const workspaceStore = useWorkspaceStore()
 const authStore = useAuthStore()
 const companyStore = useCompanyStore()
 const { isContractor } = useViewPerspective()
+
+const bindingManagerRef = ref<InstanceType<typeof MemberBindingManager> | null>(null)
 
 // 狀態
 const isLoading = ref(false)
@@ -576,6 +602,18 @@ function getCurrentProjectIdCandidates(): string[] {
     .filter((v: any) => typeof v === 'string' && v.trim())
     .map((v: string) => v.trim())
   return Array.from(new Set(ids))
+}
+
+const currentConstructionId = computed(() => getCurrentProjectIdCandidates()[0] ?? '')
+
+const participantScope = computed<ConstructionParticipantScope>(() =>
+  isContractor.value ? 'CONTRACTOR' : 'SUPERVISORY'
+)
+
+function openPersonBinding(person: SitePersonnel) {
+  const dbId = Number(person.id)
+  if (!Number.isFinite(dbId)) return
+  bindingManagerRef.value?.openCreate(dbId)
 }
 
 /** 用於顯示的版本列表：原契約 + 各變更設計（人員配置建議依版本顯示） */
@@ -1329,28 +1367,33 @@ watch(
   color: rgba(226, 232, 240, 0.7) !important;
 }
 
-.site-personnel-dark-table {
+.site-personnel-project :deep(.site-personnel-dark-table) {
   color: #e2e8f0;
 }
 
-.site-personnel-dark-table thead th {
+.site-personnel-project :deep(.site-personnel-dark-table thead th) {
   color: rgba(226, 232, 240, 0.85);
   background: rgba(15, 23, 42, 0.85);
   border-color: rgba(148, 163, 184, 0.25);
 }
 
-.site-personnel-dark-table tbody td {
+.site-personnel-project :deep(.site-personnel-dark-table tbody td) {
   border-color: rgba(148, 163, 184, 0.18);
   background: transparent;
 }
 
-.site-personnel-dark-table.table-hover tbody tr:hover > * {
+.site-personnel-project :deep(.site-personnel-dark-table.table-hover tbody tr:hover > *) {
   background: rgba(30, 41, 59, 0.45);
   color: #e2e8f0;
 }
 
-.site-personnel-dark-table :deep(.badge.border) {
+.site-personnel-project :deep(.site-personnel-dark-table .badge.border) {
   background: rgba(15, 23, 42, 0.2);
+}
+
+.site-personnel-project :deep(.site-personnel-dark-table .text-muted),
+.site-personnel-project :deep(.member-binding-manager .text-muted) {
+  color: rgba(226, 232, 240, 0.7) !important;
 }
 
 .person-card {

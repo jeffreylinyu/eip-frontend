@@ -20,7 +20,7 @@ export interface BlobDownloadOptions {
   method?: 'GET' | 'POST'
   /** 請求體資料（POST 請求時使用） */
   data?: any
-  /** 查詢參數（GET 請求時使用） */
+  /** 查詢參數（GET／POST 皆可附加於 URL） */
   params?: Record<string, string | number | boolean>
   /** 額外的 headers */
   headers?: Record<string, string>
@@ -99,7 +99,7 @@ export const downloadBlob = async (options: BlobDownloadOptions): Promise<AxiosR
     config.data = data
   }
 
-  if (method === 'GET' && params) {
+  if (params) {
     config.params = params
   }
 
@@ -174,6 +174,20 @@ export const downloadBlob = async (options: BlobDownloadOptions): Promise<AxiosR
   if (!(response.data instanceof Blob)) {
     console.error('回應不是 Blob 類型:', response.data)
     throw new Error('API 回應格式錯誤')
+  }
+
+  // 後端錯誤若以 JSON blob 回傳（少見），避免存成 .docx
+  if (response.data.type?.includes('json')) {
+    try {
+      const text = await response.data.text()
+      const parsed = JSON.parse(text) as { message?: string }
+      throw new Error(parsed?.message || '匯出失敗')
+    } catch (e) {
+      if (e instanceof Error && e.message !== '匯出失敗') {
+        throw e
+      }
+      throw new Error('匯出失敗')
+    }
   }
 
   return response

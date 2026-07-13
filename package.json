@@ -43,6 +43,7 @@
     "@syncfusion/ej2-vue-diagrams": "^31.1.22",
     "@syncfusion/ej2-vue-gantt": "^31.1.22",
     "@syncfusion/ej2-vue-grids": "^31.1.23",
+    "@syncfusion/ej2-vue-inputs": "31.1.23",
     "@syncfusion/ej2-vue-treegrid": "^31.1.22",
     "@vuepic/vue-datepicker": "^11.0.2",
     "@vueup/vue-quill": "^1.2.0",
