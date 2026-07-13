@@ -1336,7 +1336,7 @@ import {
 } from '@/utils/dailyReportQuantityOverrun'
 
 const route = useRoute()
-const { proxy } = getCurrentInstance() as { proxy: { $toast?: { success?: (m: string) => void; error?: (m: string) => void } } }
+const { proxy } = getCurrentInstance() as { proxy: { $toast?: { success?: (m: string) => void; error?: (m: string) => void; warning?: (m: string) => void } } }
 const workspaceStore = useWorkspaceStore()
 const { runWithExportLoading } = useExportLoading()
 const { viewType } = useViewPerspective()

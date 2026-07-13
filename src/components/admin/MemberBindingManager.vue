@@ -82,7 +82,7 @@ const personnelOptions = computed<PersonnelOption[]>(() => {
         label: `${p.fullName} · ${getOccupationDisplayLabel(occ, p.occupationCategory, occupationOptions.value)}`
       }
     })
-    .filter((x): x is PersonnelOption => x != null)
+    .filter((x) => x != null) as PersonnelOption[]
 })
 
 const scopedBindings = computed(() =>
