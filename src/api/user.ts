@@ -184,6 +184,11 @@ export const authApi = {
     return http.get(`/management/user/${userId}`)
   },
 
+  /** 更新個人資料（目前僅支援顯示名稱），只能更新自己的帳號 */
+  updateProfile: (data: { username: string }): Promise<void> => {
+    return http.patch('/management/user/profile', data)
+  },
+
   // 更新使用者目前使用的工程案和工作空間
   updateCurrentConstruction: (constructionId: string | null, workspaceId?: string | null): Promise<void> => {
     return http.patch('/management/user/current-construction', {

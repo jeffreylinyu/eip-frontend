@@ -10,6 +10,7 @@ import { useViewPerspective, ViewType } from '@/composables/useViewPerspective';
 import { useOnboardingStore } from '@/stores/onboarding';
 import ViewTypeSwitcher from '@/components/app/ViewTypeSwitcher.vue';
 import CoreDataStatusModal from '@/components/project/CoreDataStatusModal.vue';
+import EditProfileModal from '@/components/app/EditProfileModal.vue';
 import EngineeringDataBuildHeaderAction from '@/components/app/EngineeringDataBuildHeaderAction.vue';
 import { useAiAssistantStore } from '@/stores/ai-assistant'
 
@@ -27,6 +28,9 @@ const isOnboardingLocked = computed(() => {
 	const systemRole = authStore.user?.systemRole || authStore.user?.role;
 	return systemRole !== 'SUPER_ADMIN' && isSupervisory.value && onboardingStore.shouldUseOnboardingFlow && !onboardingStore.isCompleted;
 });
+
+// 個人資料 Modal（編輯顯示名稱）
+const showEditProfileModal = ref(false);
 
 // 登出功能
 const handleLogout = async () => {
@@ -343,7 +347,7 @@ workspaceStore.initWorkspaces();
 					</div>
 				</a>
 				<div class="dropdown-menu dropdown-menu-end me-lg-3 fs-11px mt-1">
-					<RouterLink to="/profile" class="dropdown-item d-flex align-items-center">個人資料 <i class="bi bi-person-circle ms-auto text-theme fs-16px my-n1"></i></RouterLink>
+					<a href="#" @click.prevent="showEditProfileModal = true" class="dropdown-item d-flex align-items-center">個人資料 <i class="bi bi-person-circle ms-auto text-theme fs-16px my-n1"></i></a>
 					<RouterLink to="/user/signature" class="dropdown-item d-flex align-items-center">個人簽名檔 <i class="bi bi-pen ms-auto text-theme fs-16px my-n1"></i></RouterLink>
 					<RouterLink to="/email/inbox" class="dropdown-item d-flex align-items-center">收件匣 <i class="bi bi-envelope ms-auto text-theme fs-16px my-n1"></i></RouterLink>
 					<RouterLink to="/calendar" class="dropdown-item d-flex align-items-center">行事曆 <i class="bi bi-calendar ms-auto text-theme fs-16px my-n1"></i></RouterLink>
@@ -368,6 +372,12 @@ workspaceStore.initWorkspaces();
 			</div>
 		</form>
 		<!-- END menu-search -->
+
+    <!-- 個人資料 Modal（編輯顯示名稱） -->
+    <EditProfileModal
+      :show="showEditProfileModal"
+      @update:show="showEditProfileModal = $event"
+    />
 
     <!-- 全域 B-1 核心資料填寫狀況 Modal -->
     <CoreDataStatusModal
