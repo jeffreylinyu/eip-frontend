@@ -1,0 +1,128 @@
+/**
+ * 共用：全系統按鈕樣式優化（參考 Windows 11 Fluent 設計語言）
+ *
+ * 1) 全域 `.btn` 基礎打磨：統一圓角、focus 焦點框、過渡動畫與按壓回饋。
+ *    不動各 variant 的顏色，避免影響既有主題。
+ * 2) `.win-btn` 系列：Windows 風格的共用按鈕類，供工具列動作鈕使用
+ *    （例如計劃書「送審紀錄」、檔案總管命令列）。
+ *    - .win-btn          中性表面（subtle）
+ *    - .win-btn-accent   強調（主要動作）
+ *    - .win-btn-danger   危險動作
+ */
+
+/* ===== 1) 全域 .btn 基礎打磨 ===== */
+.btn {
+  border-radius: 6px;
+  font-weight: 500;
+  transition:
+    background-color 0.12s ease,
+    border-color 0.12s ease,
+    color 0.12s ease,
+    box-shadow 0.12s ease,
+    transform 0.06s ease;
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(0.5px);
+}
+
+/* Windows 式鍵盤焦點框（僅鍵盤操作時顯示） */
+.btn:focus-visible {
+  outline: 2px solid rgba(96, 165, 250, 0.9);
+  outline-offset: 1px;
+  box-shadow: none;
+}
+
+.btn-sm {
+  border-radius: 5px;
+}
+
+/* ===== 2) .win-btn 系列 ===== */
+.win-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.45rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.3;
+  white-space: nowrap;
+  color: var(--bs-body-color, #e4e6eb);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background-color 0.12s ease,
+    border-color 0.12s ease,
+    box-shadow 0.12s ease,
+    transform 0.06s ease;
+}
+
+.win-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.24);
+}
+
+.win-btn:active:not(:disabled) {
+  background: rgba(255, 255, 255, 0.04);
+  transform: translateY(0.5px);
+}
+
+.win-btn:focus-visible {
+  outline: 2px solid rgba(96, 165, 250, 0.9);
+  outline-offset: 1px;
+}
+
+.win-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.win-btn > i {
+  color: #60a5fa;
+}
+
+.win-btn--sm {
+  padding: 0.3rem 0.75rem;
+  font-size: 0.8125rem;
+}
+
+/* 強調（主要動作） */
+.win-btn-accent {
+  color: #fff;
+  background: #2563eb;
+  border-color: #2563eb;
+}
+
+.win-btn-accent:hover:not(:disabled) {
+  background: #3b82f6;
+  border-color: #3b82f6;
+}
+
+.win-btn-accent:active:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.win-btn-accent > i {
+  color: #fff;
+}
+
+/* 危險動作 */
+.win-btn-danger {
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.4);
+  background: rgba(248, 113, 113, 0.08);
+}
+
+.win-btn-danger:hover:not(:disabled) {
+  color: #fff;
+  background: #dc2626;
+  border-color: #dc2626;
+}
+
+.win-btn-danger > i {
+  color: inherit;
+}

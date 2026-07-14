@@ -159,7 +159,8 @@ const resolveNearestStation = async (lat: number, lng: number) => {
     nearestStation.value = await findNearestCwaStation(lat, lng)
   } catch (error: any) {
     nearestStation.value = null
-    resolveError.value = error?.message || '無法推算最近氣象站'
+    resolveError.value =
+      error?.response?.data?.message || error?.message || '無法推算最近氣象站'
   } finally {
     isResolvingStation.value = false
   }

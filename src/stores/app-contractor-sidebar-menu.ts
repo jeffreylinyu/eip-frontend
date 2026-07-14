@@ -705,6 +705,10 @@ export const useAppContractorSidebarMenuStore = defineStore("appContractorSideba
       { text: "公文中心", is_header: true },
       { text: "公文列表", url: "/document-center", icon: "bi bi-folder2-open" },
 
+      // 檔案總管（系統文件彙整 + 專案文件自由區）
+      { text: "檔案總管", is_header: true },
+      { text: "檔案總管", url: "/file-explorer", icon: "bi bi-hdd-stack" },
+
       // 行事曆
       { text: "行事曆", is_header: true },
       { text: "行事曆", url: "/calendar", icon: "bi bi-calendar" },

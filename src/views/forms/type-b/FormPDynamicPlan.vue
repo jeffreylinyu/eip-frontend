@@ -11,6 +11,13 @@
       </template>
     </PageHeader>
 
+    <PlanSubmissionPModal
+      v-if="dynamicPlanType"
+      v-model:show="showSubmissionModal"
+      :plan-type="dynamicPlanType"
+      :plan-label="pageTitle"
+    />
+
     <div v-if="!hasCurrentProject" class="alert alert-warning mb-0">
       <i class="fa fa-exclamation-triangle me-2"></i>
       請先於左側選擇工程案。
@@ -214,6 +221,14 @@
             >
               <i class="fa me-2" :class="isAiGenerating ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
               <span>{{ batchAiButtonLabel }}</span>
+            </button>
+            <button
+              v-if="dynamicPlanType"
+              type="button"
+              class="win-btn"
+              @click="showSubmissionModal = true"
+            >
+              <i class="fa fa-clipboard-list"></i>送審紀錄
             </button>
             <button type="button" class="btn b2-export-btn" :disabled="isExporting" @click="exportWord">
               <i class="fa fa-file-word"></i>
@@ -1091,6 +1106,7 @@ import CardBody from '@/components/bootstrap/CardBody.vue'
 import Modal from '@/components/bootstrap/Modal.vue'
 import RepublicDatePicker from '@/components/bootstrap/RepublicDatePicker.vue'
 import DesignChangeVersionSwitcher from '@/components/common/DesignChangeVersionSwitcher.vue'
+import PlanSubmissionPModal from '@/components/forms/PlanSubmissionPModal.vue'
 import ConstructionLocationMapThumb from '@/components/common/ConstructionLocationMapThumb.vue'
 import P1ConstructionProcessFlowSyncfusionView from '@/components/p1/P1ConstructionProcessFlowSyncfusionView.vue'
 import InspectionStandardsPhasesTable from '@/components/inspection/InspectionStandardsPhasesTable.vue'
@@ -1234,6 +1250,16 @@ const designChangeIdFromRoute = computed(() => {
 })
 
 const pageTitle = computed(() => targetRow.value?.documentName || 'P類動態表單')
+
+/** 送審紀錄：由分類表項次推導計劃書類型（例如 itemNumber "04" → P4）；預設列或無法解析時不顯示按鈕 */
+const showSubmissionModal = ref(false)
+const dynamicPlanType = computed(() => {
+  const row = targetRow.value
+  if (!row || row.isDefault) return ''
+  const n = parseInt(String(row.itemNumber ?? '').trim(), 10)
+  if (!Number.isFinite(n) || n <= 0 || n > 99) return ''
+  return `P${n}`
+})
 
 /** 一鍵工程案資料建構按鈕的顯示文字（依目前批次階段顯示進度） */
 const batchAiButtonLabel = computed(() => {

@@ -373,6 +373,12 @@ const router = createRouter({
       component: () => import('../views/document-center/DocumentCenterList.vue'),
       meta: { requiresAuth: true }
     },
+    // 檔案總管（系統文件唯讀彙整 + 專案文件自由區，依視角過濾）
+    {
+      path: '/file-explorer',
+      component: () => import('../views/file-explorer/FileExplorer.vue'),
+      meta: { requiresAuth: true }
+    },
     // 變更設計（依工程案，主表列表與新增/編輯）
     {
       path: '/design-changes',

@@ -7,6 +7,7 @@ import { useAuthStore } from '@/stores/auth';
 import { RouterLink, useRouter } from 'vue-router';
 import { useWorkspaceStore } from '@/stores/workspace';
 import { useViewPerspective, ViewType } from '@/composables/useViewPerspective';
+import { useOnboardingStore } from '@/stores/onboarding';
 import ViewTypeSwitcher from '@/components/app/ViewTypeSwitcher.vue';
 import CoreDataStatusModal from '@/components/project/CoreDataStatusModal.vue';
 import EngineeringDataBuildHeaderAction from '@/components/app/EngineeringDataBuildHeaderAction.vue';
@@ -17,8 +18,15 @@ const authStore = useAuthStore();
 const router = useRouter();
 const notificationData = [];
 const workspaceStore = useWorkspaceStore();
-const { viewType } = useViewPerspective();
+const { viewType, isSupervisory } = useViewPerspective();
 const aiAssistantStore = useAiAssistantStore()
+const onboardingStore = useOnboardingStore();
+
+// 監造端未開通：隱藏工程案資料建構／核心資料填寫狀況／AI 助理（條件與開通專用側邊欄一致）
+const isOnboardingLocked = computed(() => {
+	const systemRole = authStore.user?.systemRole || authStore.user?.role;
+	return systemRole !== 'SUPER_ADMIN' && isSupervisory.value && onboardingStore.shouldUseOnboardingFlow && !onboardingStore.isCompleted;
+});
 
 // 登出功能
 const handleLogout = async () => {
@@ -214,12 +222,12 @@ workspaceStore.initWorkspaces();
 			</div>
 
       <!-- 工程案資料建構（工程案資料建構批次） -->
-      <div class="menu-item" v-if="hasCurrentProject && !isAdminMode">
+      <div class="menu-item" v-if="hasCurrentProject && !isAdminMode && !isOnboardingLocked">
         <EngineeringDataBuildHeaderAction />
       </div>
 
       <!-- 核心資料填寫狀況（B-1 監造計劃書） -->
-      <div class="menu-item" v-if="hasCurrentProject && !isAdminMode">
+      <div class="menu-item" v-if="hasCurrentProject && !isAdminMode && !isOnboardingLocked">
         <button
           type="button"
           class="header-chrome-text-btn"
@@ -231,7 +239,7 @@ workspaceStore.initWorkspaces();
       </div>
 
       <!-- 智慧 AI 助理 -->
-      <div class="menu-item" v-if="!isAdminMode">
+      <div class="menu-item" v-if="!isAdminMode && !isOnboardingLocked">
         <button
           type="button"
           class="header-chrome-text-btn header-ai-assistant-btn"

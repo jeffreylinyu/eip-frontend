@@ -15,6 +15,12 @@
       </template>
     </PageHeader>
 
+    <PlanSubmissionPModal
+      v-model:show="showSubmissionModal"
+      plan-type="B2"
+      plan-label="B-2 安全衛生監督查核計畫"
+    />
+
     <Card v-if="hasCurrentProject" class="mb-3 report-card report-card--full">
       <CardBody class="report-card__body">
         <div class="b2-content-toolbar">
@@ -75,6 +81,9 @@
           >
             <i class="fa me-2" :class="isB2AiGenerating ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
             <span>{{ isB2AiGenerating ? '生成中…' : '一鍵工程案資料建構' }}</span>
+          </button>
+          <button type="button" class="win-btn" :disabled="!currentProject?.id" @click="showSubmissionModal = true">
+            <i class="fa fa-clipboard-list"></i>送審紀錄
           </button>
           <button
             type="button"
@@ -393,6 +402,7 @@ import {
 } from '@/api/constructionLocationMaps'
 import { formBApi, downloadBlobAsFile, type ExportConstructionReportRequest } from '@/api/forms'
 import { extractFileNameFromResponse } from '@/utils/blobDownload'
+import PlanSubmissionPModal from '@/components/forms/PlanSubmissionPModal.vue'
 const workspaceStore = useWorkspaceStore()
 const { isSuperAdmin } = useViewPerspective()
 const { runWithExportLoading } = useExportLoading()
@@ -407,6 +417,9 @@ const b2PageBreadcrumbs = [
 
 const hasCurrentProject = computed(() => !!workspaceStore.currentProject?.id)
 const currentProject = computed(() => workspaceStore.currentProject)
+
+/** 送審紀錄 Modal */
+const showSubmissionModal = ref(false)
 
 const selectedDesignChangeId = ref<number | null>(null)
 const dataReferenceDate = ref('')

@@ -27,7 +27,7 @@
         <div class="mt-3">
           <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
             <div class="small text-muted">
-              完成度：<strong>{{ passedCount }}</strong>/5
+              完成度：<strong>{{ passedCount }}</strong>/3
             </div>
             <div class="d-flex gap-2">
               <button class="btn btn-outline-secondary" type="button" :disabled="store.isLoading" @click="refresh">
@@ -39,7 +39,7 @@
                 :disabled="store.isLoading || !!status?.completed || !allPassed"
                 @click="complete"
               >
-                <i class="fa fa-check me-1"></i>完成開通
+                <i class="fa fa-wand-magic-sparkles me-1"></i>工程案資料建構
               </button>
             </div>
           </div>
@@ -98,7 +98,7 @@
                 </div>
               </div>
               <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">
-                {{ passedCount }}/5 已完成
+                {{ passedCount }}/3 已完成
               </span>
             </div>
             <hr class="mt-3 mb-0 opacity-25" />
@@ -123,26 +123,10 @@
               </div>
               <div class="col-md-6">
                 <CheckCard
-                  title="施工項目維護"
-                  icon="fa fa-tools"
-                  :result="status.checks.majorItems"
-                  to="/forms/b-construction-maintenance"
-                />
-              </div>
-              <div class="col-md-6">
-                <CheckCard
                   title="工程項目標單"
                   icon="fa fa-database"
                   :result="status.checks.projectItemDatabase"
                   :to="toSupervisory('/basic/project-item-database')"
-                />
-              </div>
-              <div class="col-md-6">
-                <CheckCard
-                  title="標單材料設定（品質抽驗管控表）"
-                  icon="fa fa-list-check"
-                  :result="status.checks.tenderMaterialQualityControl"
-                  to="/forms/tender-material-settings"
                 />
               </div>
             </div>
@@ -167,6 +151,19 @@
         </div>
       </div>
     </div>
+
+    <AiBatchModalEngineering
+      v-if="aiBatchModalOpen"
+      :open="aiBatchModalOpen"
+      :progress="aiBatchProgress"
+      :error="aiBatchError"
+      :displayed-percent="displayedPercent"
+      :phase-index="phaseIndex"
+      :visible-subs="visibleSubs"
+      :core-states="coreStates"
+      :phases="ENGINEERING_PHASES"
+      @close="closeAiBatchModal"
+    />
   </div>
 </template>
 
@@ -176,6 +173,8 @@ import { useRouter } from 'vue-router'
 import { useOnboardingStore, onboardingCacheKey } from '@/stores/onboarding'
 import { useWorkspaceStore } from '@/stores/workspace'
 import PageHeader from '@/components/bootstrap/PageHeader.vue'
+import AiBatchModalEngineering from '@/components/dashboard/AiBatchModalEngineering.vue'
+import { ENGINEERING_PHASES, useAiBatchEngineeringBuild } from '@/composables/useAiBatchEngineeringBuild'
 
 const router = useRouter()
 const proxy = getCurrentInstance()?.proxy as any
@@ -196,13 +195,11 @@ const passedCount = computed(() => {
   return [
     s.checks.basicData.passed,
     s.checks.sitePersonnel.passed,
-    s.checks.majorItems.passed,
-    s.checks.projectItemDatabase.passed,
-    s.checks.tenderMaterialQualityControl.passed
+    s.checks.projectItemDatabase.passed
   ].filter(Boolean).length
 })
 
-const progressPercent = computed(() => Math.round((passedCount.value / 5) * 100))
+const progressPercent = computed(() => Math.round((passedCount.value / 3) * 100))
 
 const allPassed = computed(() => {
   const s = status.value
@@ -210,9 +207,7 @@ const allPassed = computed(() => {
   return (
     s.checks.basicData.passed &&
     s.checks.sitePersonnel.passed &&
-    s.checks.majorItems.passed &&
-    s.checks.projectItemDatabase.passed &&
-    s.checks.tenderMaterialQualityControl.passed
+    s.checks.projectItemDatabase.passed
   )
 })
 
@@ -226,12 +221,25 @@ const goDashboard = () => {
   router.replace('/supervisory/')
 }
 
+const {
+  aiBatchModalOpen,
+  aiBatchProgress,
+  aiBatchError,
+  displayedPercent,
+  phaseIndex,
+  visibleSubs,
+  coreStates,
+  startAiBatchGenerate,
+  closeAiBatchModal
+} = useAiBatchEngineeringBuild()
+
+/** 完成開通後直接啟動工程案資料建構批次（建構完成關閉 Modal 會重新整理，解鎖全部功能） */
 const complete = async () => {
   if (!constructionId.value) return
   const res = await store.complete(constructionId.value)
   if (res?.completed) {
     proxy?.$toast?.success('恭喜完成維護，工程已開通完成')
-    goDashboard()
+    await startAiBatchGenerate()
   }
 }
 

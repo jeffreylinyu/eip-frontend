@@ -8,6 +8,18 @@
         { text: 'B類表單', href: 'javascript:;' },
         { text: 'B-1 監造計劃書', active: true }
       ]"
+    >
+      <template v-if="hasCurrentProject && showPlanSubmissionBlock" #extra>
+        <button type="button" class="win-btn" @click="showSubmissionModal = true">
+          <i class="fa fa-clipboard-list"></i>送審紀錄
+        </button>
+      </template>
+    </PageHeader>
+
+    <PlanSubmissionPModal
+      v-model:show="showSubmissionModal"
+      plan-type="B1"
+      plan-label="B-1 監造計劃書"
     />
 
     <!-- 工程規模概述（依版本維護，B-1 匯出時帶入） -->
@@ -76,6 +88,7 @@ import CardBody from '@/components/bootstrap/CardBody.vue'
 import DesignChangeVersionSwitcher from '@/components/common/DesignChangeVersionSwitcher.vue'
 import LoadingOverlay from '@/components/common/LoadingOverlay.vue'
 import FormBPlanSubmissionRecords from '@/views/forms/type-b/FormBPlanSubmissionRecords.vue'
+import PlanSubmissionPModal from '@/components/forms/PlanSubmissionPModal.vue'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { getConstructionDetail, updateConstruction, getConstructionScaleOverviewAiGenerate } from '@/api/construction'
 
@@ -101,6 +114,9 @@ async function refreshPlanSubmissionVisibility() {
 
 const hasCurrentProject = computed(() => !!workspaceStore.currentProject?.id)
 const currentProject = computed(() => workspaceStore.currentProject)
+
+/** 送審紀錄 Modal（新版：文號帶出＋審查結果公文多份＋附件） */
+const showSubmissionModal = ref(false)
 
 const selectedDesignChangeId = ref<number | null>(null)
 const overviewText = ref('')

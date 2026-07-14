@@ -11,6 +11,12 @@
       </template>
     </PageHeader>
 
+    <PlanSubmissionPModal
+      v-model:show="showSubmissionModal"
+      plan-type="P2"
+      plan-label="P-2 整體品質計劃"
+    />
+
     <div v-if="!hasCurrentProject" class="alert alert-warning mb-0">
       <i class="fa fa-exclamation-triangle me-2"></i>
       請先於左側選擇工程案。
@@ -68,6 +74,9 @@
               </ul>
             </div>
 
+            <button type="button" class="win-btn" @click="showSubmissionModal = true">
+              <i class="fa fa-clipboard-list"></i>送審紀錄
+            </button>
             <button type="button" class="btn b2-export-btn" :disabled="isExporting" @click="exportWord">
               <i class="fa fa-file-word"></i>
               {{ isExporting ? '匯出中…' : '匯出 Word' }}
@@ -390,6 +399,7 @@ import Card from '@/components/bootstrap/Card.vue'
 import CardBody from '@/components/bootstrap/CardBody.vue'
 import RepublicDatePicker from '@/components/bootstrap/RepublicDatePicker.vue'
 import DesignChangeVersionSwitcher from '@/components/common/DesignChangeVersionSwitcher.vue'
+import PlanSubmissionPModal from '@/components/forms/PlanSubmissionPModal.vue'
 import CmAttachImageThumb from '@/components/common/CmAttachImageThumb.vue'
 import FlowGraphSyncfusionView from '@/components/diagram/FlowGraphSyncfusionView.vue'
 import { formPApi, downloadBlobAsFile, type ExportConstructionReportRequest } from '@/api/forms'
@@ -417,6 +427,9 @@ const { runWithExportLoading } = useExportLoading()
 
 const currentProject = computed(() => workspaceStore.currentProject)
 const hasCurrentProject = computed(() => !!currentProject.value?.id)
+
+/** 送審紀錄 Modal */
+const showSubmissionModal = ref(false)
 
 const selectedDesignChangeId = ref<number | null>(null)
 const dataReferenceDate = ref('')

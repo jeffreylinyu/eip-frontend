@@ -334,19 +334,6 @@ export const useAppSidebarMenuStore = defineStore("appSidebarMenu", () => {
     // 系統管理員（SUPER_ADMIN）跳過
     if (systemRole !== 'SUPER_ADMIN' && isSupervisory.value && onboardingStore.shouldUseOnboardingFlow && !onboardingStore.isCompleted) {
       const items: MenuItem[] = [
-        { text: "工程開通", is_header: true },
-        { url: "/supervisory/basic/setup-overview", icon: "bi bi-clipboard-check", text: "基本資料總表" },
-        {
-          text: "必要設定",
-          icon: "bi bi-list-check",
-          children: [
-            { text: "核心資料", url: "/supervisory/basic/basic-data" },
-            { text: "人員配置", url: "/supervisory/basic/site-personnel" },
-            { text: "工程項目標單", url: "/supervisory/basic/project-item-database" },
-            { text: "施工項目維護", url: "/forms/b-construction-maintenance" },
-            { text: "標單材料設定", url: "/forms/tender-material-settings" }
-          ]
-        },
         { text: "提示", is_header: true },
         {
           text: "為什麼我只能看到這些？",
@@ -401,6 +388,10 @@ export const useAppSidebarMenuStore = defineStore("appSidebarMenu", () => {
     // 公文中心（以工程案為單位）
     { text: "公文中心", is_header: true },
     { text: "公文列表", url: "/document-center", icon: "bi bi-folder2-open" },
+
+    // 檔案總管（系統文件彙整 + 專案文件自由區）
+    { text: "檔案總管", is_header: true },
+    { text: "檔案總管", url: "/file-explorer", icon: "bi bi-hdd-stack" },
 
     // 行事曆
     { text: "行事曆", is_header: true },

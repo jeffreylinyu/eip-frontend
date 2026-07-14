@@ -15,6 +15,12 @@
       </template>
     </PageHeader>
 
+    <PlanSubmissionPModal
+      v-model:show="showSubmissionModal"
+      plan-type="P3"
+      plan-label="P-3 職業安全衛生管理計畫"
+    />
+
     <div v-if="!hasCurrentProject" class="alert alert-warning mb-0">
       <i class="fa fa-exclamation-triangle me-2"></i>
       請先於左側選擇工程案。
@@ -65,6 +71,9 @@
                 <i class="fa fa-clock me-1"></i>修改後將自動儲存…
               </template>
             </span>
+            <button type="button" class="win-btn" @click="showSubmissionModal = true">
+              <i class="fa fa-clipboard-list"></i>送審紀錄
+            </button>
             <button type="button" class="btn b2-export-btn" :disabled="isExporting" @click="exportWord">
               <i class="fa fa-file-word"></i>
               {{ isExporting ? '匯出中…' : '匯出 Word' }}
@@ -976,6 +985,7 @@ import Card from '@/components/bootstrap/Card.vue'
 import CardBody from '@/components/bootstrap/CardBody.vue'
 import RepublicDatePicker from '@/components/bootstrap/RepublicDatePicker.vue'
 import DesignChangeVersionSwitcher from '@/components/common/DesignChangeVersionSwitcher.vue'
+import PlanSubmissionPModal from '@/components/forms/PlanSubmissionPModal.vue'
 import FileUpload from '@/components/common/FileUpload.vue'
 import { formPApi, downloadBlobAsFile, type ExportConstructionReportRequest } from '@/api/forms'
 import { extractFileNameFromResponse } from '@/utils/blobDownload'
@@ -1068,6 +1078,9 @@ function getCurrentContractorCompanyId(): string | null {
 
 const currentProject = computed(() => workspaceStore.currentProject)
 const hasCurrentProject = computed(() => !!currentProject.value?.id)
+
+/** 送審紀錄 Modal */
+const showSubmissionModal = ref(false)
 
 const selectedDesignChangeId = ref<number | null>(null)
 const dataReferenceDate = ref('')

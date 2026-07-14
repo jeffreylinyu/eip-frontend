@@ -11,6 +11,12 @@
       </template>
     </PageHeader>
 
+    <PlanSubmissionPModal
+      v-model:show="showSubmissionModal"
+      plan-type="P1"
+      plan-label="P-1 整體施工計畫"
+    />
+
     <div v-if="!hasCurrentProject" class="alert alert-warning mb-0">
       <i class="fa fa-exclamation-triangle me-2"></i>
       請先於左側選擇工程案。
@@ -75,6 +81,9 @@
             >
               <i class="fa me-2" :class="isAiGenerating ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
               <span>{{ isAiGenerating ? '生成中…' : '一鍵工程案資料建構' }}</span>
+            </button>
+            <button type="button" class="win-btn" @click="showSubmissionModal = true">
+              <i class="fa fa-clipboard-list"></i>送審紀錄
             </button>
             <button type="button" class="btn b2-export-btn" :disabled="isExporting" @click="exportWord">
               <i class="fa fa-file-word"></i>
@@ -1100,6 +1109,7 @@ import Modal from '@/components/bootstrap/Modal.vue'
 import CategoryTable from '@/components/document/CategoryTable.vue'
 import RepublicDatePicker from '@/components/bootstrap/RepublicDatePicker.vue'
 import DesignChangeVersionSwitcher from '@/components/common/DesignChangeVersionSwitcher.vue'
+import PlanSubmissionPModal from '@/components/forms/PlanSubmissionPModal.vue'
 import ConstructionLocationMapThumb from '@/components/common/ConstructionLocationMapThumb.vue'
 import P1ConstructionProcessFlowEditor from '@/components/p1/P1ConstructionProcessFlowEditor.vue'
 import P1EmergencyContactFigures from '@/components/forms/P1EmergencyContactFigures.vue'
@@ -1153,6 +1163,8 @@ const { isContractor, isSuperAdmin } = useViewPerspective()
 const { runWithExportLoading } = useExportLoading()
 const currentProject = computed(() => workspaceStore.currentProject)
 const hasCurrentProject = computed(() => !!currentProject.value?.id)
+/** 送審紀錄 Modal */
+const showSubmissionModal = ref(false)
 const selectedDesignChangeId = ref<number | null>(null)
 /** 與目前 P-1 版本一致，開啟營造端文件檔案分類表 */
 const contractorDocumentClassificationRoute = computed(() => {
