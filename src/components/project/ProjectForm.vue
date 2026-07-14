@@ -74,6 +74,8 @@ const emit = defineEmits<{
     cwaStationId: string
     cwaStationName: string
     cwaStationDistanceKm: number
+    /** 地圖標記對應的地址（同步回填「工程地點」） */
+    address?: string
   }]
 }>()
 
@@ -242,6 +244,15 @@ const formattedCompletionDate = computed(() => {
   return formatCompletionDateToRepublic(dateValue)
 })
 
+type ConstructionGeoConfirmedValue = {
+  latitude: number
+  longitude: number
+  cwaStationId: string
+  cwaStationName: string
+  cwaStationDistanceKm: number
+  address?: string
+}
+
 const constructionGeoSelection = computed({
   get: () => ({
     latitude: formData.value.construction_latitude,
@@ -250,7 +261,7 @@ const constructionGeoSelection = computed({
     cwaStationName: formData.value.cwa_station_name,
     cwaStationDistanceKm: formData.value.cwa_station_distance_km,
   }),
-  set: (value) => {
+  set: (value: ConstructionGeoConfirmedValue | null) => {
     if (!value) {
       formData.value.construction_latitude = null
       formData.value.construction_longitude = null
@@ -264,6 +275,12 @@ const constructionGeoSelection = computed({
     formData.value.cwa_station_id = value.cwaStationId
     formData.value.cwa_station_name = value.cwaStationName
     formData.value.cwa_station_distance_km = value.cwaStationDistanceKm
+    // 地圖確認的地址同步回填「工程地點」，讓文字與地圖位置保持對應
+    const confirmedAddress = value.address?.trim()
+    if (confirmedAddress && !isFieldReadonly('project_location')) {
+      formData.value.project_location = confirmedAddress
+      validation.clearFieldError('project_location')
+    }
     emit('construction-geo-confirmed', value)
   },
 })

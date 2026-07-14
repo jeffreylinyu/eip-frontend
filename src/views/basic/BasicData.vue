@@ -858,9 +858,12 @@ const saveConstructionGeoImmediately = async (geo: {
   cwaStationId: string
   cwaStationName: string
   cwaStationDistanceKm: number
+  address?: string
 }) => {
   const currentProject = workspaceStore.currentProject
   if (!currentProject?.id) return
+
+  const confirmedAddress = geo.address?.trim() || ''
 
   isUpdatingFormData.value = true
   try {
@@ -869,6 +872,7 @@ const saveConstructionGeoImmediately = async (geo: {
       {
         constructionLatitude: geo.latitude,
         constructionLongitude: geo.longitude,
+        ...(confirmedAddress ? { constructionLocation: confirmedAddress } : {}),
       } as Parameters<typeof updateConstruction>[1],
       selectedDesignChangeId.value
     )
@@ -881,11 +885,19 @@ const saveConstructionGeoImmediately = async (geo: {
       formData.value.cwa_station_name = (updatedConstruction.cwaStationName as string | null) ?? geo.cwaStationName
       formData.value.cwa_station_distance_km =
         (updatedConstruction.cwaStationDistanceKm as number | null) ?? geo.cwaStationDistanceKm
+      if (confirmedAddress) {
+        formData.value.project_location =
+          (updatedConstruction.constructionLocation as string | null) || confirmedAddress
+      }
       if (typeof updatedConstruction.version === 'number') {
         formData.value.version = updatedConstruction.version
       }
     }
     syncConstructionGeoBaseline()
+    if (confirmedAddress) {
+      // 地址已隨座標即時儲存，同步基線避免誤判為未儲存變更
+      ;(originalFormData.value as Record<string, unknown>).project_location = formData.value.project_location
+    }
 
     if (updatedConstruction) {
       workspaceStore.updateProject(currentProject.id, {
@@ -895,11 +907,14 @@ const saveConstructionGeoImmediately = async (geo: {
         cwaStationName: (updatedConstruction.cwaStationName as string | null) ?? geo.cwaStationName,
         cwaStationDistanceKm:
           (updatedConstruction.cwaStationDistanceKm as number | null) ?? geo.cwaStationDistanceKm,
+        ...(confirmedAddress
+          ? { location: (updatedConstruction.constructionLocation as string | null) || confirmedAddress }
+          : {}),
         ...(typeof updatedConstruction.version === 'number' ? { version: updatedConstruction.version } : {}),
       })
     }
 
-    proxy.$toast.success('工地座標已儲存')
+    proxy.$toast.success(confirmedAddress ? '工地位置與工程地點已儲存' : '工地座標已儲存')
   } catch (error) {
     console.error('工地座標儲存失敗:', error)
     proxy.$toast.error('工地座標儲存失敗，請重試')

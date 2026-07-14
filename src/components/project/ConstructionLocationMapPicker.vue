@@ -3,7 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { GoogleMap, Marker } from 'vue3-google-map'
 import Modal from '@/components/bootstrap/Modal.vue'
 import { findNearestCwaStation, type CwaWeatherStation } from '@/api/cwaWeather'
-import { geocodeTaiwanAddress } from '@/utils/googleGeocode'
+import { geocodeTaiwanAddress, reverseGeocodeTaiwanLatLng } from '@/utils/googleGeocode'
 
 const TAIWAN_CENTER = { lat: 23.6978, lng: 120.9605 }
 
@@ -37,6 +37,8 @@ const emit = defineEmits<{
       cwaStationId: string
       cwaStationName: string
       cwaStationDistanceKm: number
+      /** 標記位置對應的地址（確認時回填「工程地點」） */
+      address: string
     },
   ]
 }>()
@@ -44,12 +46,17 @@ const emit = defineEmits<{
 const showModal = ref(false)
 const mapRef = ref<InstanceType<typeof GoogleMap> | null>(null)
 const draftPosition = ref<{ lat: number; lng: number } | null>(null)
+const draftAddress = ref('')
 const nearestStation = ref<CwaWeatherStation | null>(null)
 const isResolvingStation = ref(false)
 const isGeocoding = ref(false)
+const isReverseGeocoding = ref(false)
 const resolveError = ref('')
 const geocodeMessage = ref('')
 const mapLoadError = ref('')
+
+/** 反查地址的請求序號，避免快速拖曳時舊結果覆蓋新結果 */
+let reverseGeocodeSeq = 0
 
 const googleMapsApiKey = (import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined)?.trim() || ''
 
@@ -96,6 +103,53 @@ const isWeatherStationConfigured = computed(
   () => hasCoordinates.value && savedStation.value != null && savedStation.value.stationName !== ''
 )
 
+/** 依座標反查地址並回填地址欄（外送平台式：釘到哪、地址跟到哪） */
+const updateAddressFromPosition = async (lat: number, lng: number) => {
+  if (!googleMapsApiKey) return
+  const seq = ++reverseGeocodeSeq
+  isReverseGeocoding.value = true
+  try {
+    const result = await reverseGeocodeTaiwanLatLng(lat, lng, googleMapsApiKey)
+    if (seq !== reverseGeocodeSeq) return
+    if (result?.formattedAddress) {
+      draftAddress.value = result.formattedAddress
+    }
+  } catch {
+    // 反查失敗不阻斷流程，保留原地址文字
+  } finally {
+    if (seq === reverseGeocodeSeq) {
+      isReverseGeocoding.value = false
+    }
+  }
+}
+
+/** 依地址欄文字定位（輸入地址 → 移動圖釘） */
+const locateByAddress = async () => {
+  const address = draftAddress.value.trim()
+  if (!address || !googleMapsApiKey || isGeocoding.value) return
+
+  isGeocoding.value = true
+  geocodeMessage.value = ''
+  try {
+    const result = await geocodeTaiwanAddress(address, googleMapsApiKey)
+    if (result) {
+      reverseGeocodeSeq++
+      draftPosition.value = { lat: result.latitude, lng: result.longitude }
+      if (result.formattedAddress) {
+        draftAddress.value = result.formattedAddress
+      }
+      geocodeMessage.value = '已依地址定位，可拖曳標記微調。'
+      resolveNearestStation(result.latitude, result.longitude)
+    } else {
+      geocodeMessage.value = `找不到地址「${address}」，請確認地址或直接在地圖上點選位置。`
+    }
+  } catch {
+    geocodeMessage.value = '地址定位失敗，請稍後再試或直接在地圖上點選位置。'
+  } finally {
+    isGeocoding.value = false
+  }
+}
+
 const resolveInitialPosition = async (): Promise<{ lat: number; lng: number } | null> => {
   if (hasCoordinates.value) {
     geocodeMessage.value = '已使用先前選定的座標，可拖曳標記微調。'
@@ -113,6 +167,9 @@ const resolveInitialPosition = async (): Promise<{ lat: number; lng: number } | 
     try {
       const result = await geocodeTaiwanAddress(address, googleMapsApiKey)
       if (result) {
+        if (result.formattedAddress) {
+          draftAddress.value = result.formattedAddress
+        }
         geocodeMessage.value = `已依地址「${address}」定位，可拖曳標記微調。`
         return { lat: result.latitude, lng: result.longitude }
       }
@@ -139,11 +196,16 @@ const openPicker = async () => {
   resolveError.value = ''
   geocodeMessage.value = ''
   draftPosition.value = null
+  draftAddress.value = props.address?.trim() ?? ''
   showModal.value = true
 
   const initialPosition = await resolveInitialPosition()
   if (initialPosition) {
     draftPosition.value = initialPosition
+    // 已有座標但沒有地址文字時，反查地址補上，讓地址與圖釘對應
+    if (!draftAddress.value) {
+      updateAddressFromPosition(initialPosition.lat, initialPosition.lng)
+    }
     await resolveNearestStation(initialPosition.lat, initialPosition.lng)
   }
 }
@@ -166,22 +228,21 @@ const resolveNearestStation = async (lat: number, lng: number) => {
   }
 }
 
-const handleMapClick = (event: { latLng: { lat: () => number; lng: () => number } | null }) => {
-  if (!event.latLng) return
-  const lat = event.latLng.lat()
-  const lng = event.latLng.lng()
+const applyPickedPosition = (lat: number, lng: number) => {
   draftPosition.value = { lat, lng }
   geocodeMessage.value = ''
+  updateAddressFromPosition(lat, lng)
   resolveNearestStation(lat, lng)
+}
+
+const handleMapClick = (event: { latLng: { lat: () => number; lng: () => number } | null }) => {
+  if (!event.latLng) return
+  applyPickedPosition(event.latLng.lat(), event.latLng.lng())
 }
 
 const handleMarkerDragEnd = (event: { latLng: { lat: () => number; lng: () => number } | null }) => {
   if (!event.latLng) return
-  const lat = event.latLng.lat()
-  const lng = event.latLng.lng()
-  draftPosition.value = { lat, lng }
-  geocodeMessage.value = ''
-  resolveNearestStation(lat, lng)
+  applyPickedPosition(event.latLng.lat(), event.latLng.lng())
 }
 
 const confirmSelection = () => {
@@ -192,6 +253,7 @@ const confirmSelection = () => {
     cwaStationId: nearestStation.value.stationId,
     cwaStationName: nearestStation.value.stationName,
     cwaStationDistanceKm: nearestStation.value.distanceKm,
+    address: draftAddress.value.trim(),
   })
   showModal.value = false
 }
@@ -291,12 +353,42 @@ watch(
           </div>
         </div>
         <p class="text-muted small mb-3">
-          若已選過位置會以該座標開啟；否則依「工程地點」地址定位。可點擊地圖或拖曳標記微調。
+          輸入地址搜尋，或點擊地圖／拖曳標記選點；標記移動時地址會自動更新，確認後將回填「工程地點」。
         </p>
         <div v-if="!googleMapsApiKey" class="alert alert-warning mb-0">
           尚未設定 <code>VITE_GOOGLE_MAPS_API_KEY</code>，無法載入地圖。
         </div>
         <div v-else class="map-picker-panel">
+          <div class="map-picker-address mb-2">
+            <label class="form-label small fw-semibold mb-1" for="map-picker-address-input">
+              <i class="fa fa-location-dot me-1"></i>
+              工程地點
+            </label>
+            <div class="input-group input-group-sm">
+              <input
+                id="map-picker-address-input"
+                v-model="draftAddress"
+                type="text"
+                class="form-control"
+                placeholder="輸入工程地址，例如：臺北市大安區新生南路一段…"
+                :disabled="isGeocoding"
+                @keydown.enter.prevent="locateByAddress"
+              />
+              <button
+                type="button"
+                class="btn btn-outline-primary"
+                :disabled="isGeocoding || !draftAddress.trim()"
+                @click="locateByAddress"
+              >
+                <i class="fa me-1" :class="isGeocoding ? 'fa-spinner fa-spin' : 'fa-search-location'"></i>
+                定位
+              </button>
+            </div>
+            <div v-if="isReverseGeocoding" class="small text-muted mt-1">
+              <i class="fa fa-spinner fa-spin me-1"></i>
+              正在取得標記位置的地址…
+            </div>
+          </div>
           <div v-if="isGeocoding" class="small text-muted mb-2">
             <i class="fa fa-spinner fa-spin me-1"></i>
             正在依地址定位…
@@ -366,7 +458,7 @@ watch(
         <button
           type="button"
           class="btn btn-primary"
-          :disabled="!draftPosition || !nearestStation || isResolvingStation || isGeocoding"
+          :disabled="!draftPosition || !nearestStation || isResolvingStation || isGeocoding || isReverseGeocoding"
           @click="confirmSelection"
         >
           <i class="fa fa-check me-1"></i>

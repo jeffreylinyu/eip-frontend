@@ -7,6 +7,7 @@ declare namespace google.maps {
     address?: string
     region?: string
     componentRestrictions?: { country: string }
+    location?: { lat: number; lng: number }
   }
 
   interface GeocoderResponse {
@@ -15,6 +16,7 @@ declare namespace google.maps {
 
   interface GeocoderResult {
     formatted_address?: string
+    types?: string[]
     geometry?: {
       location?: {
         lat(): number
