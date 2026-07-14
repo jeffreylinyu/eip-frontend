@@ -699,6 +699,21 @@ export async function deletePccesCodeRow(
 }
 
 /**
+ * 清空目前標單：刪除指定版本的標單明細、單價分析、資源統計、材料使用清單與材料試驗關聯
+ * （designChangeId 不傳或 null = 原契約）
+ */
+export async function clearConstructionPccesData(
+  constructionId: string,
+  designChangeId?: number | null
+): Promise<void> {
+  const params = new URLSearchParams({ constructionId });
+  if (designChangeId !== undefined && designChangeId !== null) {
+    params.append('designChangeId', String(designChangeId));
+  }
+  await http.delete(`/management/generate/pccesCodes?${params}`);
+}
+
+/**
  * 搜尋 PCCES 總表項目
  */
 export async function searchPccesItems(query: string, limit: number = 20): Promise<PccesCatalogItem[]> {

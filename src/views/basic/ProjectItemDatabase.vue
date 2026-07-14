@@ -223,6 +223,18 @@
                 <div class="text-muted" style="font-size:0.75rem">無 PCCES XML 時的替代方案</div>
               </a>
             </li>
+            <li><hr class="dropdown-divider" /></li>
+            <li>
+              <a
+                class="dropdown-item small text-danger"
+                :class="{ disabled: isClearingTender }"
+                style="cursor:pointer"
+                @click="openClearTenderModal"
+              >
+                <i class="fa fa-trash me-2"></i>清空目前標單
+                <div class="text-muted" style="font-size:0.75rem">刪除此版本所有標單資料（無法復原）</div>
+              </a>
+            </li>
           </ul>
         </div>
       </div>
@@ -409,6 +421,18 @@
                 <a class="dropdown-item small text-muted" style="cursor:pointer" @click="openExcelImportModal">
                   <i class="fa fa-file-excel me-2"></i>Excel 匯入（工程案資料建構解析）
                   <div class="text-muted" style="font-size:0.75rem">無 PCCES XML 時的替代方案</div>
+                </a>
+              </li>
+              <li><hr class="dropdown-divider" /></li>
+              <li>
+                <a
+                  class="dropdown-item small text-danger"
+                  :class="{ disabled: isClearingTender }"
+                  style="cursor:pointer"
+                  @click="openClearTenderModal"
+                >
+                  <i class="fa fa-trash me-2"></i>清空目前標單
+                  <div class="text-muted" style="font-size:0.75rem">刪除此版本所有標單資料（無法復原）</div>
                 </a>
               </li>
             </ul>
@@ -1395,6 +1419,60 @@
       </template>
     </Modal>
 
+    <!-- 清空目前標單確認 Modal -->
+    <Modal
+      :show="showClearTenderModal"
+      title="清空目前標單"
+      icon="fa fa-trash"
+      @update:show="showClearTenderModal = $event"
+      :hideConfirmButton="true"
+      cancelText="取消"
+    >
+      <template #body>
+        <div class="alert alert-danger">
+          <i class="fa fa-exclamation-triangle me-2"></i>
+          此操作將刪除 <strong>{{ clearTenderVersionLabel }}</strong> 的所有標單資料，<strong>無法復原</strong>：
+          <ul class="mb-0 mt-2">
+            <li>標單明細（含類型、安全衛生設施勾選）</li>
+            <li>單價分析</li>
+            <li>資源統計</li>
+            <li>材料使用清單與材料↔試驗項關聯</li>
+          </ul>
+        </div>
+        <label class="form-label" for="clearTenderConfirmInput">
+          請輸入「<strong class="text-danger">{{ CLEAR_TENDER_CONFIRM_TEXT }}</strong>」以確認執行：
+        </label>
+        <input
+          id="clearTenderConfirmInput"
+          type="text"
+          class="form-control"
+          v-model="clearTenderConfirmInput"
+          :placeholder="CLEAR_TENDER_CONFIRM_TEXT"
+          :disabled="isClearingTender"
+          autocomplete="off"
+          @keydown.enter.prevent="handleClearCurrentTender"
+        />
+      </template>
+      <template #footer>
+        <button
+          class="btn btn-outline-secondary"
+          @click="showClearTenderModal = false"
+          :disabled="isClearingTender"
+        >
+          取消
+        </button>
+        <button
+          class="btn btn-danger"
+          @click="handleClearCurrentTender"
+          :disabled="!canConfirmClearTender || isClearingTender"
+        >
+          <span v-if="isClearingTender" class="spinner-border spinner-border-sm me-2"></span>
+          <i v-else class="fa fa-trash me-2"></i>
+          {{ isClearingTender ? '清空中...' : '確認清空' }}
+        </button>
+      </template>
+    </Modal>
+
   </div>
 </template>
 
@@ -1409,6 +1487,7 @@ import { useWorkspaceStore } from '@/stores/workspace'
 import {
   importPccesFile,
   importPccesExcelFile,
+  clearConstructionPccesData,
   getConstructionPccesCodes,
   getConstructionPccesCostBreakdown,
   getConstructionPccesResources,
@@ -2492,6 +2571,45 @@ const handleImport = async () => {
     importError.value = error.message || '匯入失敗，請檢查檔案格式或稍後再試'
   } finally {
     isImporting.value = false
+  }
+}
+
+// ===== 清空目前標單 =====
+
+const CLEAR_TENDER_CONFIRM_TEXT = '清空標單'
+const showClearTenderModal = ref(false)
+const clearTenderConfirmInput = ref('')
+const isClearingTender = ref(false)
+
+const clearTenderVersionLabel = computed(() =>
+  selectedDesignChangeId.value == null ? '原契約' : '目前變更設計版本'
+)
+const canConfirmClearTender = computed(
+  () => clearTenderConfirmInput.value.trim() === CLEAR_TENDER_CONFIRM_TEXT
+)
+
+const openClearTenderModal = () => {
+  if (!constructionId.value) {
+    alert('請先選擇工程項目')
+    return
+  }
+  clearTenderConfirmInput.value = ''
+  showClearTenderModal.value = true
+}
+
+const handleClearCurrentTender = async () => {
+  if (!constructionId.value || !canConfirmClearTender.value || isClearingTender.value) return
+  isClearingTender.value = true
+  try {
+    await clearConstructionPccesData(constructionId.value, selectedDesignChangeId.value)
+    showClearTenderModal.value = false
+    alert('已清空目前標單。')
+    await loadItems()
+  } catch (error: any) {
+    console.error('清空標單失敗:', error)
+    alert('清空失敗：' + (error.message || '未知錯誤'))
+  } finally {
+    isClearingTender.value = false
   }
 }
 
