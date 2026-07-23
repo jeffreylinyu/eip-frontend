@@ -81,9 +81,12 @@ export const getLaborSafetyReportLinkedDocuments = async (
 
 export const unlinkLaborSafetyReportDocument = async (
   reportId: number,
-  referenceId: number
+  referenceId: number,
+  source: LaborSafetyReportSource = 'SUPERVISORY'
 ): Promise<void> => {
-  await http.delete(`/management/labor-safety-report/${reportId}/documents/${referenceId}`)
+  await http.delete(`/management/labor-safety-report/${reportId}/documents/${referenceId}`, {
+    params: { source }
+  })
 }
 
 export const deleteLaborSafetyReport = async (
@@ -290,4 +293,3 @@ export const exportLaborSafetyReportWord = async (
   ) as unknown as Blob
   return response instanceof Blob ? response : new Blob([response], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })
 }
-

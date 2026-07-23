@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import '@syncfusion/ej2-vue-diagrams/styles/bootstrap5-dark.css'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import {
   DiagramComponent as EjsDiagram,
@@ -351,4 +352,3 @@ defineExpose({ exportPngBlob, waitUntilReady })
   width: 100%;
 }
 </style>
-

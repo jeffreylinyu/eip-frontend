@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { authApi, type User } from '@/api/user'
+import { authApi } from '@/api/user'
 
 // 用戶基本信息接口
 export interface UserBasicInfo {
@@ -41,11 +41,10 @@ export const useUserCacheStore = defineStore('userCache', () => {
     pendingRequests.value.add(userId)
     
     try {
-      const user: User = await authApi.getCurrentUser(userId)
+      const user = await authApi.getBasicUser(userId)
       const userInfo: UserBasicInfo = {
         userId: user.userId,
-        username: user.username, // 直接使用 API 回應中的 username
-        email: user.email
+        username: user.username // 直接使用 API 回應中的 username
       }
       
       // 緩存結果
@@ -134,4 +133,4 @@ export const useUserCacheStore = defineStore('userCache', () => {
     // Getters
     cacheStats
   }
-}) 
+})

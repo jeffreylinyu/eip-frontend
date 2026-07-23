@@ -696,7 +696,7 @@ async function clearLinkedDocForReport(r: CommencementReportItem) {
   const refId = linkedRefIdByReportId.value[r.id]
   if (refId == null) return
   try {
-    await unlinkCommencementReportDocument(r.id, refId)
+    await unlinkCommencementReportDocument(r.id, refId, commencementReportSource.value)
     const { [r.id]: _, ...rest } = linkedDocByReportId.value
     linkedDocByReportId.value = rest
     const { [r.id]: __, ...restRef } = linkedRefIdByReportId.value
@@ -841,7 +841,7 @@ async function handleUnlinkDocInModal(doc: DocumentCenterListItem) {
   const ref = modalLinkedRefs.value.find(r => r.documentId === doc.id)
   if (!ref || !confirm('確定要取消關聯此公文？')) return
   try {
-    await unlinkCommencementReportDocument(currentReport.value.id, ref.referenceId)
+    await unlinkCommencementReportDocument(currentReport.value.id, ref.referenceId, commencementReportSource.value)
     const refs = await getCommencementReportLinkedDocuments(currentReport.value.id, commencementReportSource.value)
     modalLinkedRefs.value = refs.map(r => ({ referenceId: r.referenceId, documentId: r.documentId }))
     if (refs.length > 0 && docCacheMap.value.size > 0) {

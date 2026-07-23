@@ -157,9 +157,12 @@ export const getCommencementReportLinkedDocuments = async (
 /** 取消關聯公文 */
 export const unlinkCommencementReportDocument = async (
   reportId: number,
-  referenceId: number
+  referenceId: number,
+  source: CommencementReportSource = 'SUPERVISORY'
 ): Promise<void> => {
-  await http.delete(`/management/commencement-report/${reportId}/documents/${referenceId}`)
+  await http.delete(`/management/commencement-report/${reportId}/documents/${referenceId}`, {
+    params: { source }
+  })
 }
 
 /** 上傳附件 */

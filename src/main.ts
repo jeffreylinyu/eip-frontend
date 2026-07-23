@@ -93,8 +93,6 @@ import '@syncfusion/ej2-splitbuttons/styles/bootstrap5-dark.css'
 import '@syncfusion/ej2-layouts/styles/bootstrap5-dark.css'
 import '@syncfusion/ej2-grids/styles/bootstrap5-dark.css'
 import '@syncfusion/ej2-treegrid/styles/bootstrap5-dark.css'
-import '@syncfusion/ej2-vue-gantt/styles/bootstrap5-dark.css'
-import '@syncfusion/ej2-vue-diagrams/styles/bootstrap5-dark.css'
 import '@syncfusion/ej2-vue-treegrid/styles/bootstrap5-dark.css'
 // Charts 使用預設樣式，不需要額外導入
 
@@ -113,11 +111,9 @@ import CardExpandToggler from '@/components/bootstrap/CardExpandToggler.vue';
 import Modal from '@/components/bootstrap/Modal.vue';
 import Drawer from '@/components/bootstrap/Drawer.vue';
 import PageHeader from '@/components/bootstrap/PageHeader.vue';
-import { TreeGridComponent, ColumnsDirective as TreeColumns, ColumnDirective as TreeColumn } from '@syncfusion/ej2-vue-treegrid';
-import { GridComponent, ColumnsDirective as GridColumns, ColumnDirective as GridColumn } from '@syncfusion/ej2-vue-grids';
+import { TreeGridComponent } from '@syncfusion/ej2-vue-treegrid';
+import { GridComponent } from '@syncfusion/ej2-vue-grids';
 import { SignatureComponent } from '@syncfusion/ej2-vue-inputs';
-import { Edit, Toolbar, ContextMenu, Filter, Sort, Resize, Reorder } from '@syncfusion/ej2-vue-treegrid';
-import { ChartPlugin, AccumulationChartPlugin } from '@syncfusion/ej2-vue-charts';
 
 const emitter = mitt();
 const app = createApp(App);
@@ -137,10 +133,6 @@ app.component('PageHeader', PageHeader);
 app.component('ejs-treegrid', TreeGridComponent);
 app.component('ejs-grid', GridComponent);
 app.component('ejs-signature', SignatureComponent);
-
-// Syncfusion Charts 插件註冊（會自動註冊 e-column 等組件）
-app.use(ChartPlugin);
-app.use(AccumulationChartPlugin);
 
 const pinia = createPinia();
 app.use(pinia);

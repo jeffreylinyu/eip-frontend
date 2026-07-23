@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import { companyApi } from '@/api/company'
-import { userApi, type User } from '@/api/user'
+import { userApi, type UserSearchResult } from '@/api/user'
 import Card from '@/components/bootstrap/Card.vue'
 import CardHeader from '@/components/bootstrap/CardHeader.vue'
 import CardBody from '@/components/bootstrap/CardBody.vue'
@@ -30,7 +30,7 @@ const selectedUserForAuth = ref<any>(null)
 
 // 邀請相關
 const inviteKeyword = ref('')
-const inviteResults = ref<User[]>([])
+const inviteResults = ref<UserSearchResult[]>([])
 const inviteRole = ref('MEMBER')
 const isSearching = ref(false)
 
@@ -105,7 +105,7 @@ const handleSearchUsers = async () => {
   try {
     // 雖然 API 可能支援模糊搜尋，但此處強制要求精確匹配 (Exact Match)
     // 只有當輸入的關鍵字完全等於 Email 或 Username 時才顯示結果
-    const results = await userApi.search(keyword)
+    const results = await userApi.search(keyword, props.companyId)
     
     inviteResults.value = results.filter(u => 
       u.email.toLowerCase() === keyword.toLowerCase() || 
@@ -120,7 +120,7 @@ const handleSearchUsers = async () => {
   }
 }
 
-const handleInviteUser = async (user: User) => {
+const handleInviteUser = async (user: UserSearchResult) => {
   try {
     await companyApi.inviteMember({
       userId: user.userId,
@@ -239,11 +239,8 @@ const handleInviteUser = async (user: User) => {
       <div class="list-group" v-if="inviteResults.length > 0">
         <div class="list-group-item d-flex justify-content-between align-items-center" v-for="user in inviteResults" :key="user.userId">
           <div>
-              <div class="fw-bold">{{ user.username }} <span class="badge bg-secondary ms-2">{{ user.role }}</span></div>
+              <div class="fw-bold">{{ user.username }}</div>
               <div class="text-muted small">{{ user.email }}</div>
-              <div class="text-info small" v-if="user.companyIds && user.companyIds.length > 0">
-                <i class="fa fa-info-circle me-1"></i>已加入其他公司
-              </div>
           </div>
           <button class="btn btn-sm btn-outline-primary" @click="handleInviteUser(user)">
             邀請加入

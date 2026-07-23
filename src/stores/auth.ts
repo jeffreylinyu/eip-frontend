@@ -134,13 +134,9 @@ export const useAuthStore = defineStore('auth', () => {
   const logout = async () => {
     
     try {
-      // 使用 API 服務層的登出方法，傳入userId
-      if (user.value?.userId) {
-        
-        await authApi.logout(user.value.userId)
-        
-      } else {
-        
+      // 後端從 JWT principal 判定登出身分，前端不傳 userId。
+      if (token.value) {
+        await authApi.logout()
       }
     } catch (error) {
       console.error('❌ 登出 API 調用失敗:', error)
@@ -175,7 +171,7 @@ export const useAuthStore = defineStore('auth', () => {
     }
 
     try {
-      const userData: any = await authApi.getCurrentUser(targetUserId)
+      const userData: any = await authApi.getCurrentUser()
       
       // 相容 snake_case (如果後端回傳 company_id)
       if (userData.company_id && !userData.companyId) {
@@ -259,4 +255,4 @@ export const useAuthStore = defineStore('auth', () => {
     initAuth,
     fetchCurrentUser
   }
-}) 
+})

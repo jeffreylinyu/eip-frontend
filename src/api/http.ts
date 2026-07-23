@@ -14,6 +14,7 @@ import {
 } from '@/utils/authHttpErrors'
 import router from '@/router'
 import toastService from '@/components/bootstrap/ToastService.js'
+import { unwrapApiResponse } from '@/api/unwrapApiResponse'
 
 /**
  * 建立一個預設的 Axios 實例，所有 API 請求都用它
@@ -113,7 +114,7 @@ http.interceptors.response.use(
     if (response.data && typeof response.data === 'object' && 'code' in response.data) {
       if (response.data.code === 200) {
         // 對於有 data 欄位的回應，返回 data 內容
-        return response.data.data || response.data
+        return unwrapApiResponse(response.data)
       } else {
         console.warn('⚠️ API 回應非成功狀態:', response.data)
         return response.data

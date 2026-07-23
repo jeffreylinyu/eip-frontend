@@ -62,6 +62,8 @@ export interface User {
   // 可以添加更多用戶字段
 }
 
+export type UserSearchResult = Pick<User, 'userId' | 'username' | 'email'>
+
 // 個人戶註冊數據
 export interface IndividualRegisterData {
   username: string
@@ -77,7 +79,7 @@ export const userApi = {
     email: string; 
     companyId: string; 
     role?: string;
-    password?: string;
+    password: string;
     companyRole?: string;
   }): Promise<User> => {
     // 1. 建立 User (後端會回傳 userId)
@@ -85,7 +87,6 @@ export const userApi = {
         username: data.username,
         email: data.email,
         password: data.password,
-        role: data.role || 'USER',
         isPaidUser: 'N'
     });
     
@@ -107,7 +108,7 @@ export const userApi = {
         });
     }
 
-    return { userId, username: data.username, email: data.email, role: data.role || 'USER' } as User;
+    return { userId, username: data.username, email: data.email, role: 'USER' } as User;
   },
 
   // 授權專案 (User-Workspace Binding)
@@ -135,9 +136,9 @@ export const userApi = {
   },
 
   // 搜尋用戶
-  search: async (keyword: string, limit: number = 20): Promise<User[]> => {
+  search: async (keyword: string, companyId: string): Promise<UserSearchResult[]> => {
     const response = await http.get('/management/user/search', {
-      params: { keyword, limit }
+      params: { keyword, companyId }
     })
     const data = (response as any).data || response
     return Array.isArray(data) ? data : []
@@ -174,14 +175,19 @@ export const authApi = {
     return http.post('/management/user/login/firebase', { idToken })
   },
 
-  // 登出（需要傳入 userId）
-  logout: (userId: string): Promise<void> => {
-    return http.post('/management/user/logout', { userId })
+  // 登出身分由後端 JWT principal 判定。
+  logout: (): Promise<void> => {
+    return http.post('/management/user/logout')
   },
 
-  // 獲取指定用戶信息
-  getCurrentUser: (userId: string): Promise<User> => {
-    return http.get(`/management/user/${userId}`)
+  // 取得目前登入者的完整資料
+  getCurrentUser: (): Promise<User> => {
+    return http.get('/management/user/me')
+  },
+
+  // 取得畫面顯示所需的最小公開資料
+  getBasicUser: (userId: string): Promise<Pick<User, 'userId' | 'username'>> => {
+    return http.get(`/management/user/${encodeURIComponent(userId)}/basic`)
   },
 
   /** 更新個人資料（目前僅支援顯示名稱），只能更新自己的帳號 */
@@ -206,4 +212,4 @@ export const authApi = {
   registerIndividual: (data: IndividualRegisterData): Promise<any> => {
     return http.post('/management/user/register', data)
   }
-} 
+}

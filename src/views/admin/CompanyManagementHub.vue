@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed, provide } from 'vue'
 import { companyApi, type Company, type CreateCompanyRequest } from '@/api/company'
-import { userApi, type User } from '@/api/user'
+import { userApi, type UserSearchResult } from '@/api/user'
 import Card from '@/components/bootstrap/Card.vue'
 import CardHeader from '@/components/bootstrap/CardHeader.vue'
 import CardBody from '@/components/bootstrap/CardBody.vue'
@@ -183,7 +183,7 @@ const handleMembersView = (company: Company) => {
 
 // 用戶建立
 const handleCreateUser = async () => {
-  if (!selectedCompany.value || !userForm.email || !userForm.username) return
+  if (!selectedCompany.value || !userForm.email || !userForm.username || !userForm.password) return
   
   try {
     await userApi.create({
@@ -261,7 +261,7 @@ const handleRemoveMember = async (member: any) => {
 // 邀請相關狀態
 const showInviteModal = ref(false)
 const inviteKeyword = ref('')
-const inviteResults = ref<User[]>([])
+const inviteResults = ref<UserSearchResult[]>([])
 const inviteRole = ref('MEMBER')
 const isSearching = ref(false)
 
@@ -275,11 +275,14 @@ const openInviteModal = () => {
 
 // 搜尋用戶
 const handleSearchUsers = async () => {
-  if (!inviteKeyword.value.trim()) return
+  if (!inviteKeyword.value.trim() || !selectedCompany.value) return
   
   isSearching.value = true
   try {
-    inviteResults.value = await userApi.search(inviteKeyword.value)
+    inviteResults.value = await userApi.search(
+      inviteKeyword.value,
+      selectedCompany.value.companyId
+    )
   } catch (error) {
     console.error('Search failed:', error)
     toast.error('搜尋失敗')
@@ -289,7 +292,7 @@ const handleSearchUsers = async () => {
 }
 
 // 邀請用戶
-const handleInviteUser = async (user: User) => {
+const handleInviteUser = async (user: UserSearchResult) => {
   if (!selectedCompany.value) return
   
   try {
@@ -595,8 +598,18 @@ const headerActions = computed(() => {
                 <input type="email" class="form-control" v-model="userForm.email" required>
               </div>
               <div class="mb-3">
-                <label class="form-label">密碼 (選填)</label>
-                <input type="password" class="form-control" v-model="userForm.password" placeholder="若留空則由系統生成">
+                <label class="form-label">密碼 <span class="text-danger">*</span></label>
+                <input
+                  type="password"
+                  class="form-control"
+                  v-model="userForm.password"
+                  placeholder="至少8個字元，需含英文字母與數字"
+                  minlength="8"
+                  maxlength="72"
+                  pattern="(?=.*[A-Za-z])(?=.*\d).{8,72}"
+                  title="密碼需為 8 至 72 個字元，且至少包含一個英文字母與一個數字"
+                  required
+                >
               </div>
 
               <div class="mb-3">
@@ -629,7 +642,7 @@ const headerActions = computed(() => {
           <div class="modal-body">
             <!-- 搜尋區 -->
             <div class="input-group mb-3">
-              <input type="text" class="form-control" placeholder="輸入姓名或 Email 搜尋..." 
+              <input type="text" class="form-control" placeholder="輸入完整使用者名稱或 Email..."
                 v-model="inviteKeyword" @keyup.enter="handleSearchUsers">
               <button class="btn btn-primary" type="button" @click="handleSearchUsers" :disabled="isSearching">
                 <i class="fa fa-search me-1"></i> 搜尋
@@ -651,11 +664,8 @@ const headerActions = computed(() => {
             <div class="list-group" v-if="inviteResults.length > 0">
               <div class="list-group-item d-flex justify-content-between align-items-center" v-for="user in inviteResults" :key="user.userId">
                 <div>
-                   <div class="fw-bold">{{ user.username }} ({{ user.role }})</div>
+                   <div class="fw-bold">{{ user.username }}</div>
                    <div class="text-muted small">{{ user.email }}</div>
-                   <div class="text-info small" v-if="user.companyIds && user.companyIds.length > 0">
-                      已加入其他公司
-                   </div>
                 </div>
                 <button class="btn btn-sm btn-outline-theme" @click="handleInviteUser(user)">
                   邀請加入
@@ -664,7 +674,7 @@ const headerActions = computed(() => {
             </div>
             
             <div v-else-if="inviteKeyword && !isSearching" class="text-center py-4 text-muted">
-               查無相關用戶，請嘗試其他關鍵字。
+               查無帳號，請確認已輸入完整 Email 或使用者名稱。
             </div>
           </div>
         </div>

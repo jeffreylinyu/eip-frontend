@@ -227,9 +227,12 @@ onBeforeUnmount(() => {
             type="password" 
             class="form-control form-control-lg bg-white bg-opacity-5" 
             v-model="individualForm.password"
-            placeholder="請輸入密碼（至少6個字元）" 
+            placeholder="請輸入密碼（至少8個字元，需含英文字母與數字）"
             name="password"
-            minlength="6"
+            minlength="8"
+            maxlength="72"
+            pattern="(?=.*[A-Za-z])(?=.*\d).{8,72}"
+            title="密碼需為 8 至 72 個字元，且至少包含一個英文字母與一個數字"
             required
           />
         </div>
@@ -266,4 +269,4 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-</style> 
+</style>

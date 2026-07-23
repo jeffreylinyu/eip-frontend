@@ -332,11 +332,13 @@ export const getExtensionLinkedDocuments = async (
  */
 export const reorderExtensions = async (
   constructionId: string,
-  orderedExtensionIds: string[]
+  orderedExtensionIds: string[],
+  ownerType?: string
 ): Promise<any> => {
   const response = await http.put('/management/extension/reorder', {
     constructionId,
-    orderedExtensionIds
+    orderedExtensionIds,
+    ...(ownerType ? { ownerType } : {})
   })
   return response
 }
