@@ -176,22 +176,22 @@ const router = createRouter({
     {
       path: '/forms/p1-overall-construction-plan',
       component: () => import('../views/forms/type-b/FormP1OverallConstructionPlan.vue'),
-      meta: { requiresAuth: true }
+      meta: { requiresAuth: true, viewType: 'CONTRACTOR' }
     },
     {
       path: '/forms/p2-quality-plan',
       component: () => import('../views/forms/type-b/FormP2QualityPlan.vue'),
-      meta: { requiresAuth: true }
+      meta: { requiresAuth: true, viewType: 'CONTRACTOR' }
     },
     {
       path: '/forms/p3-occupational-safety-health-plan',
       component: () => import('../views/forms/type-b/FormP3OccupationalSafetyHealthPlan.vue'),
-      meta: { requiresAuth: true }
+      meta: { requiresAuth: true, viewType: 'CONTRACTOR' }
     },
     {
       path: '/forms/p-plan-dynamic',
       component: () => import('../views/forms/type-b/FormPDynamicPlan.vue'),
-      meta: { requiresAuth: true }
+      meta: { requiresAuth: true, viewType: 'CONTRACTOR' }
     },
     {
       path: '/forms/subdivision-work-items/:itemId/construction-standards',
@@ -220,7 +220,7 @@ const router = createRouter({
     {
       path: '/forms/contractor-document-classification',
       component: () => import('../views/forms/ContractorDocumentClassification.vue'),
-      meta: { requiresAuth: true }
+      meta: { requiresAuth: true, viewType: 'CONTRACTOR' }
     },
     {
       // 監造端「文件分類動態書架」共用頁殼（B/C/D/H/I/L 類，依文件檔案分類表項目 id 顯示）。

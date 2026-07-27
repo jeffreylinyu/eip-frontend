@@ -109,6 +109,26 @@ export const downloadBlob = async (options: BlobDownloadOptions): Promise<AxiosR
     response = await axios.default(config)
   } catch (error: any) {
     const status = error?.response?.status
+    if (status === 403) {
+      const parsed403 = await parseAxios401ResponseData(error?.response?.data)
+      const backendMessage =
+        parsed403 && typeof parsed403 === 'object'
+          ? String(
+              (parsed403 as Record<string, unknown>).message ??
+                (parsed403 as Record<string, unknown>).error ??
+                '無權限匯出此文件'
+            )
+          : '無權限匯出此文件'
+      const message = backendMessage === 'Access denied' ? '無權限匯出此文件' : backendMessage
+      try {
+        const toastServiceModule = await import('@/components/bootstrap/ToastService.js')
+        toastServiceModule.default?.warning?.(message)
+      } catch {
+        /* ignore */
+      }
+      throw new Error(message)
+    }
+
     if (status === 401) {
       const parsed401 = await parseAxios401ResponseData(error?.response?.data)
 

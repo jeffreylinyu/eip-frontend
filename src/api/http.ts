@@ -27,11 +27,18 @@ const http: AxiosInstance = axios.create({
   },
 })
 
+// Several components can receive 401 at the same time. Session expiry must be
+// handled once to avoid duplicate toasts and redirect loops.
+let authExpiryRedirectInProgress = false
+let authSessionGeneration = 0
+
 /**
  * 請求攔截器：每次發請求前都會進來這裡
  */
 http.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
+    ;(config as any).__authSessionGeneration = authSessionGeneration
+
     const getHeader = (name: string): string | undefined => {
       const h: any = config.headers
       if (!h) return undefined
@@ -59,10 +66,10 @@ http.interceptors.request.use(
     }
 
     // 從 localStorage 獲取 token，加到 header（若呼叫方已帶 Authorization 則不覆寫，避免時序導致漏帶）
-    if (!config.headers?.['Authorization']) {
+    if (!getHeader('Authorization')) {
       const token = storage.get<string>(StorageKeys.AUTH_TOKEN)
       if (token) {
-        config.headers!['Authorization'] = `Bearer ${token}`
+        setHeader('Authorization', `Bearer ${token}`)
       }
     }
 
@@ -110,6 +117,11 @@ http.interceptors.request.use(
  */
 http.interceptors.response.use(
   (response: AxiosResponse) => {
+    if (String(response.config?.url || '').includes('/management/user/login')) {
+      authSessionGeneration += 1
+      authExpiryRedirectInProgress = false
+    }
+
     // 如果回應有標準的 { code, message, data } 格式，檢查是否成功
     if (response.data && typeof response.data === 'object' && 'code' in response.data) {
       if (response.data.code === 200) {
@@ -130,20 +142,20 @@ http.interceptors.response.use(
     if (response) {
       switch (response.status) {
         case 401: {
+          const requestAuthGeneration = Number(
+            (error.config as any)?.__authSessionGeneration ?? authSessionGeneration
+          )
+          if (requestAuthGeneration !== authSessionGeneration) {
+            // A request started before the latest successful login. Its late 401
+            // must not clear the newly issued token.
+            return Promise.reject(error)
+          }
+
           const parsed401 = await parseAxios401ResponseData(response.data)
           // 若請求標記為 skipAuthRedirectOn401（例如核心資料 Modal）：不跳轉登入頁
           // 但「視角／權限不符」的 401 不可清 token，否則營造端會被誤導成登入過期
           const skipRedirect = (error.config as any)?.skipAuthRedirectOn401 === true
-          if (skipRedirect) {
-            if (isPerspectiveOrPermission401Payload(parsed401)) {
-              return Promise.reject(error)
-            }
-            import('@/stores/auth').then(({ useAuthStore }) => {
-              useAuthStore().clearAuthState?.()
-            }).catch(() => {
-              storage.remove(StorageKeys.AUTH_TOKEN)
-              storage.remove(StorageKeys.AUTH_USER)
-            })
+          if (skipRedirect && isPerspectiveOrPermission401Payload(parsed401)) {
             return Promise.reject(error)
           }
 
@@ -169,6 +181,11 @@ http.interceptors.response.use(
             hashPath.startsWith('/page/login') ||
             pathname === '/page/login' ||
             pathname.startsWith('/page/login')
+
+          if (authExpiryRedirectInProgress) {
+            return Promise.reject(error)
+          }
+          authExpiryRedirectInProgress = true
           
           // 使用動態 import 避免循環依賴（auth.ts -> user.ts -> http.ts）
           import('@/stores/auth').then(({ useAuthStore }) => {

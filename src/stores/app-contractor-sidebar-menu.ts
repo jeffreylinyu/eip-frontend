@@ -325,15 +325,22 @@ export const useAppContractorSidebarMenuStore = defineStore("appContractorSideba
 
   const isStale = (generationSnapshot: number) => generationSnapshot !== refreshGeneration
 
-  const clearBootstrapRetry = () => {
+  const cancelBootstrapRetry = () => {
     if (bootstrapRetryTimer != null) {
       clearTimeout(bootstrapRetryTimer)
       bootstrapRetryTimer = null
     }
+  }
+
+  const clearBootstrapRetry = () => {
+    cancelBootstrapRetry()
     bootstrapRetryCount = 0
   }
 
   const scheduleBootstrapRetry = () => {
+    // Login state changes trigger the store watchers; polling without a token
+    // only produces an endless stream of unauthorized requests.
+    if (!storage.get<string>(StorageKeys.AUTH_TOKEN)) return
     if (bootstrapRetryTimer != null) return
     if (bootstrapRetryCount >= BOOTSTRAP_RETRY_MAX) return
     bootstrapRetryTimer = setTimeout(() => {
@@ -353,6 +360,10 @@ export const useAppContractorSidebarMenuStore = defineStore("appContractorSideba
 
   const runRefreshDynamicPMenuItems = async () => {
     const requestId = ++refreshGeneration
+    if (!storage.get<string>(StorageKeys.AUTH_TOKEN)) {
+      clearBootstrapRetry()
+      return
+    }
     // 僅在營造視角下執行；監造端直接略過，避免打 contractor API 拿到 401
     const { isContractor } = useViewPerspective()
     if (!isContractor.value) {
@@ -406,7 +417,9 @@ export const useAppContractorSidebarMenuStore = defineStore("appContractorSideba
         scheduleBootstrapRetry()
         return
       }
-      clearBootstrapRetry()
+      // Keep the attempt count until a request succeeds. Resetting it before
+      // every request made the retry limit ineffective.
+      cancelBootstrapRetry()
 
       const withTimeout = async <T>(promise: Promise<T>, ms: number, label: string): Promise<T> => {
         let timer: ReturnType<typeof setTimeout> | null = null
@@ -581,6 +594,8 @@ export const useAppContractorSidebarMenuStore = defineStore("appContractorSideba
     } catch (error: any) {
       if (isStale(requestId)) return
       lastSuccessfulPMenuLoadKey = null
+      const responseStatus = Number(error?.response?.status)
+      const isAuthorizationFailure = responseStatus === 401 || responseStatus === 403
       console.warn('載入動態 P 類側邊欄失敗，改用預設選單', error)
       dynamicPMenuItems.value = [
         { text: "P-1 整體施工計畫", url: "/forms/p1-overall-construction-plan" },
@@ -598,7 +613,11 @@ export const useAppContractorSidebarMenuStore = defineStore("appContractorSideba
         `fallbackMenuItems: ${dynamicPMenuItems.value.map((i) => i.text).join(' | ')}`
       ].join('\n'))
       emitSidebarRefreshEvent()
-      scheduleBootstrapRetry()
+      if (isAuthorizationFailure) {
+        clearBootstrapRetry()
+      } else {
+        scheduleBootstrapRetry()
+      }
     }
   }
 

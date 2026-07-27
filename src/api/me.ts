@@ -1,6 +1,6 @@
 import http from './http'
 
-/** GET /me/permissions 的回應（http 攔截器已拆出 data） */
+/** GET /management/me/permissions 的回應（http 攔截器已拆出 data） */
 export interface MePermissions {
   systemRole: string | null
   viewType: string | null
@@ -25,5 +25,5 @@ export function getMyPermissions(params?: {
   workspaceId?: string
   constructionId?: string
 }): Promise<MePermissions> {
-  return http.get('/me/permissions', { params })
+  return http.get('/management/me/permissions', { params })
 }
