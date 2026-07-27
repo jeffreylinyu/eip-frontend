@@ -10,7 +10,17 @@ import CompanyFormModal from '@/components/company/CompanyFormModal.vue'
 import CompanyMemberManagement from '@/components/company/CompanyMemberManagement.vue'
 import SitePersonnelManagement from '@/components/company/SitePersonnelManagement.vue'
 import AuthorizationModal from '@/components/admin/AuthorizationModal.vue'
-import { Sort, Resize, Filter, Page, GridComponent, Toolbar } from '@syncfusion/ej2-vue-grids'
+import {
+  GridComponent as EjsGrid,
+  ColumnsDirective as EColumns,
+  ColumnDirective as EColumn,
+  Sort,
+  Resize,
+  Filter,
+  Page,
+  Toolbar
+} from '@syncfusion/ej2-vue-grids'
+import type { GridComponent } from '@syncfusion/ej2-vue-grids'
 import { getCurrentInstance } from 'vue'
 
 provide('grid', [Sort, Resize, Filter, Page, Toolbar])

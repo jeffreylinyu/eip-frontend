@@ -164,7 +164,14 @@
 
 <script setup lang="ts">
 import { computed, nextTick, provide, ref, shallowRef, watch } from 'vue'
-import { Sort, Resize, Filter } from '@syncfusion/ej2-vue-treegrid'
+import {
+  TreeGridComponent as EjsTreegrid,
+  ColumnsDirective as EColumns,
+  ColumnDirective as EColumn,
+  Sort,
+  Resize,
+  Filter
+} from '@syncfusion/ej2-vue-treegrid'
 import type { TreeGridComponent } from '@syncfusion/ej2-vue-treegrid'
 import type { ExecutionSummaryItem } from '@/types/dailyReport'
 import { buildExecutionSummaryTreeData } from '@/utils/buildExecutionSummaryTreeData'

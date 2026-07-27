@@ -165,7 +165,12 @@
 
 <script setup lang="ts">
 import { computed, provide } from 'vue'
-import { Resize } from '@syncfusion/ej2-vue-grids'
+import {
+  GridComponent as EjsGrid,
+  ColumnsDirective as EColumns,
+  ColumnDirective as EColumn,
+  Resize
+} from '@syncfusion/ej2-vue-grids'
 
 export interface SelfCheckFormItem {
   id: number

@@ -433,7 +433,16 @@ import PageHeader from '@/components/bootstrap/PageHeader.vue'
 import Modal from '@/components/bootstrap/Modal.vue'
 import Card from '@/components/bootstrap/Card.vue'
 import CardBody from '@/components/bootstrap/CardBody.vue'
-import { Sort, Resize, Filter, Page, GridComponent, ColumnsDirective, ColumnDirective } from '@syncfusion/ej2-vue-grids'
+import {
+  GridComponent as EjsGrid,
+  ColumnsDirective as EColumns,
+  ColumnDirective as EColumn,
+  Sort,
+  Resize,
+  Filter,
+  Page
+} from '@syncfusion/ej2-vue-grids'
+import type { GridComponent } from '@syncfusion/ej2-vue-grids'
 import { getCurrentInstance } from 'vue'
 
 const { proxy } = getCurrentInstance() as any

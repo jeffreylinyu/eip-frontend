@@ -5,7 +5,17 @@ import { useAuthStore } from '@/stores/auth'
 import { userApi, type User } from '@/api/user'
 import PageHeader from '@/components/bootstrap/PageHeader.vue'
 import AuthorizationModal from '@/components/admin/AuthorizationModal.vue'
-import { Sort, Resize, Filter, Page, GridComponent, ColumnsDirective, ColumnDirective, Toolbar } from '@syncfusion/ej2-vue-grids'
+import {
+  GridComponent as EjsGrid,
+  ColumnsDirective as EColumns,
+  ColumnDirective as EColumn,
+  Sort,
+  Resize,
+  Filter,
+  Page,
+  Toolbar
+} from '@syncfusion/ej2-vue-grids'
+import type { GridComponent } from '@syncfusion/ej2-vue-grids'
 
 const router = useRouter()
 const authStore = useAuthStore()

@@ -111,8 +111,6 @@ import CardExpandToggler from '@/components/bootstrap/CardExpandToggler.vue';
 import Modal from '@/components/bootstrap/Modal.vue';
 import Drawer from '@/components/bootstrap/Drawer.vue';
 import PageHeader from '@/components/bootstrap/PageHeader.vue';
-import { TreeGridComponent } from '@syncfusion/ej2-vue-treegrid';
-import { GridComponent } from '@syncfusion/ej2-vue-grids';
 import { SignatureComponent } from '@syncfusion/ej2-vue-inputs';
 
 const emitter = mitt();
@@ -130,8 +128,6 @@ app.component('Drawer', Drawer);
 app.component('PageHeader', PageHeader);
 
 // Syncfusion components
-app.component('ejs-treegrid', TreeGridComponent);
-app.component('ejs-grid', GridComponent);
 app.component('ejs-signature', SignatureComponent);
 
 const pinia = createPinia();

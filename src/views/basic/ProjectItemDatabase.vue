@@ -1521,7 +1521,14 @@ import {
 import { usePccesSafetyHealthTreeGrid } from '@/composables/usePccesSafetyHealthTreeGrid'
 import { getDesignChangeList } from '@/api/designChange'
 import { useViewPerspective } from '@/composables/useViewPerspective'
-import { Sort, Resize, Filter } from '@syncfusion/ej2-vue-treegrid'
+import {
+  TreeGridComponent as EjsTreegrid,
+  ColumnsDirective as EColumns,
+  ColumnDirective as EColumn,
+  Sort,
+  Resize,
+  Filter
+} from '@syncfusion/ej2-vue-treegrid'
 import type { TreeGridComponent } from '@syncfusion/ej2-vue-treegrid'
 
 const treeGridFilterSettings = { type: 'FilterBar', mode: 'Immediate', immediateModeDelay: 200 }
