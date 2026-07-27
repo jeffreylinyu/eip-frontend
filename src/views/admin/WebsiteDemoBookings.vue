@@ -40,6 +40,7 @@ const filteredRows = computed(() => {
       r.email,
       r.phone,
       r.perspectiveRole,
+      r.preferredContactTime,
       r.message,
       r.clientIp,
       String(r.id),
@@ -145,7 +146,7 @@ onMounted(() => {
           v-model="searchQuery"
           type="text"
           class="form-control"
-          placeholder="搜尋姓名 / 單位 / Email / 視角…"
+          placeholder="搜尋姓名 / 單位 / Email / 時段…"
         />
         <button
           class="btn btn-outline-secondary"
@@ -184,7 +185,7 @@ onMounted(() => {
           <th>單位／公司</th>
           <th>電子郵件</th>
           <th>電話</th>
-          <th>主要視角</th>
+          <th>方便聯繫時段</th>
           <th>需求說明</th>
           <th class="text-center pe-3" style="width: 5rem">詳情</th>
         </tr>
@@ -200,7 +201,7 @@ onMounted(() => {
             <a href="#" class="text-decoration-none" @click.prevent="mailto(row.email)">{{ row.email }}</a>
           </td>
           <td>{{ row.phone || '—' }}</td>
-          <td>{{ row.perspectiveRole }}</td>
+          <td>{{ row.preferredContactTime || '—' }}</td>
           <td class="small text-muted">{{ truncate(row.message) }}</td>
           <td class="text-center pe-3">
             <button type="button" class="btn btn-sm btn-outline-primary" title="查看完整內容" @click="openDetail(row)">
@@ -269,8 +270,10 @@ onMounted(() => {
           </dd>
           <dt class="col-sm-3">聯絡電話</dt>
           <dd class="col-sm-9">{{ selectedRow.phone || '—' }}</dd>
+          <dt class="col-sm-3">方便聯繫時段</dt>
+          <dd class="col-sm-9">{{ selectedRow.preferredContactTime || '—' }}</dd>
           <dt class="col-sm-3">主要視角</dt>
-          <dd class="col-sm-9">{{ selectedRow.perspectiveRole }}</dd>
+          <dd class="col-sm-9">{{ selectedRow.perspectiveRole || '—' }}</dd>
           <dt class="col-sm-3">需求說明</dt>
           <dd class="col-sm-9">
             <pre class="mb-0 text-wrap" style="white-space: pre-wrap; font-family: inherit">{{
