@@ -72,7 +72,6 @@
               </ul>
             </div>
             <button
-              v-if="isSuperAdmin"
               type="button"
               class="btn-ai-generate p1-batch-ai-btn"
               :disabled="isAiGenerating || isExporting || !currentProject?.id"
@@ -80,7 +79,7 @@
               @click="generateAllByAi"
             >
               <i class="fa me-2" :class="isAiGenerating ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
-              <span>{{ isAiGenerating ? '生成中…' : '一鍵工程案資料建構' }}</span>
+              <span>{{ isAiGenerating ? '生成中…' : '一鍵資料建構' }}</span>
             </button>
             <button type="button" class="win-btn" @click="showSubmissionModal = true">
               <i class="fa fa-clipboard-list"></i>送審紀錄
@@ -113,7 +112,6 @@
                   </div>
                   <div class="text-panel__toolbar">
                     <button
-                      v-if="isSuperAdmin"
                       type="button"
                       class="btn-ai-generate"
                       :disabled="isAiGenerating || !currentProject?.id"
@@ -123,7 +121,7 @@
                         class="fa me-2"
                         :class="aiLoading.scaleOverview ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"
                       ></i>
-                      {{ aiLoading.scaleOverview ? '生成中…' : '依標單工程案資料建構' }}
+                      {{ aiLoading.scaleOverview ? '生成中…' : '資料建構' }}
                     </button>
                   </div>
                 </div>
@@ -146,7 +144,6 @@
                   </div>
                   <div class="text-panel__toolbar">
                     <button
-                      v-if="isSuperAdmin"
                       type="button"
                       class="btn-ai-generate"
                       :disabled="isAiGenerating || !currentProject?.id"
@@ -156,7 +153,7 @@
                         class="fa me-2"
                         :class="aiLoading.executionDirection ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"
                       ></i>
-                      {{ aiLoading.executionDirection ? '生成中…' : '依標單工程案資料建構' }}
+                      {{ aiLoading.executionDirection ? '生成中…' : '資料建構' }}
                     </button>
                   </div>
                 </div>
@@ -183,14 +180,13 @@
                   <div class="text-panel__label">施工流程概述</div>
                   <div class="text-panel__toolbar">
                     <button
-                      v-if="isSuperAdmin"
                       type="button"
                       class="btn-ai-generate"
                       :disabled="isAiGenerating || !currentProject?.id"
                       @click="generateConstructionProcessOverviewByAi"
                     >
                       <i class="fa me-2" :class="aiLoading.processOverview ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'" />
-                      {{ aiLoading.processOverview ? '生成中…' : '依標單與分項工程案資料建構' }}
+                      {{ aiLoading.processOverview ? '生成中…' : '資料建構' }}
                     </button>
                   </div>
                 </div>
@@ -210,14 +206,13 @@
                   <div class="text-panel__label">施工流程圖</div>
                   <div class="text-panel__toolbar">
                     <button
-                      v-if="isSuperAdmin"
                       type="button"
                       class="btn-ai-generate"
                       :disabled="isAiGenerating || !currentProject?.id"
                       @click="generateConstructionProcessFlowByAi"
                     >
                       <i class="fa me-2" :class="aiLoading.processFlow ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'" />
-                      {{ aiLoading.processFlow ? '生成中…' : '依標單與分項工程案資料建構流程圖' }}
+                      {{ aiLoading.processFlow ? '生成中…' : '資料建構' }}
                     </button>
                   </div>
                 </div>
@@ -242,9 +237,9 @@
                   <div class="text-panel__header">
                     <div class="text-panel__label">地質概況</div>
                     <div class="text-panel__toolbar">
-                      <button v-if="isSuperAdmin" type="button" class="btn-ai-generate" :disabled="isAiGenerating || !currentProject?.id" @click="generateSiteJudgementByAi('GEOLOGY_OVERVIEW')">
+                      <button type="button" class="btn-ai-generate" :disabled="isAiGenerating || !currentProject?.id" @click="generateSiteJudgementByAi('GEOLOGY_OVERVIEW')">
                         <i class="fa me-2" :class="aiLoading.geology ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
-                        {{ aiLoading.geology ? '生成中…' : '依工程地址工程案資料建構' }}
+                        {{ aiLoading.geology ? '生成中…' : '資料建構' }}
                       </button>
                     </div>
                   </div>
@@ -257,9 +252,9 @@
                   <div class="text-panel__header">
                     <div class="text-panel__label">氣象及水文</div>
                     <div class="text-panel__toolbar">
-                      <button v-if="isSuperAdmin" type="button" class="btn-ai-generate" :disabled="isAiGenerating || !currentProject?.id" @click="generateSiteJudgementByAi('METEOROLOGY_HYDROLOGY')">
+                      <button type="button" class="btn-ai-generate" :disabled="isAiGenerating || !currentProject?.id" @click="generateSiteJudgementByAi('METEOROLOGY_HYDROLOGY')">
                         <i class="fa me-2" :class="aiLoading.meteo ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
-                        {{ aiLoading.meteo ? '生成中…' : '依工程地址工程案資料建構' }}
+                        {{ aiLoading.meteo ? '生成中…' : '資料建構' }}
                       </button>
                     </div>
                   </div>
@@ -320,14 +315,13 @@
                   <div class="text-panel__label">人力資源預定進場時間表</div>
                   <div class="text-panel__toolbar table-toolbar-inline">
                     <button
-                      v-if="isSuperAdmin"
                       type="button"
                       class="btn-ai-generate"
                       :disabled="isAiGenerating || !currentProject?.id"
                       @click="fillManpowerFromSubdivisionsByAi"
                     >
                       <i class="fa me-2" :class="isAiGenerating ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
-                      {{ isAiGenerating ? '生成中…' : '帶入分項並工程案資料建構填群組' }}
+                      {{ isAiGenerating ? '生成中…' : '資料建構' }}
                     </button>
                     <button type="button" class="btn-default-fill" @click="addManpowerRow">新增一列</button>
                     <button
@@ -611,9 +605,9 @@
                     <div class="text-panel__header">
                       <div class="text-panel__label">施工機械設備資源預定進場時間表</div>
                       <div class="text-panel__toolbar table-toolbar-inline">
-                        <button v-if="isSuperAdmin" type="button" class="btn-ai-generate" :disabled="isAiGenerating || !currentProject?.id" @click="generateMechanicalResourceNamesByAi">
+                        <button type="button" class="btn-ai-generate" :disabled="isAiGenerating || !currentProject?.id" @click="generateMechanicalResourceNamesByAi">
                           <i class="fa me-2" :class="isAiGenerating ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
-                          {{ isAiGenerating ? '生成中…' : '依標單工程案資料建構資源名稱' }}
+                          {{ isAiGenerating ? '生成中…' : '資料建構' }}
                         </button>
                         <button type="button" class="btn-default-fill" @click="addMechanicalResourceRow">新增一列</button>
                       </div>
@@ -664,9 +658,9 @@
                   <div class="text-panel__header">
                     <div class="text-panel__label">物料市場調查</div>
                     <div class="text-panel__toolbar">
-                      <button v-if="isSuperAdmin" type="button" class="btn-ai-generate" :disabled="isAiGenerating || !currentProject?.id" @click="generateMaterialMarketSurveyByAi">
+                      <button type="button" class="btn-ai-generate" :disabled="isAiGenerating || !currentProject?.id" @click="generateMaterialMarketSurveyByAi">
                         <i class="fa me-2" :class="isAiGenerating ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
-                        {{ isAiGenerating ? '生成中…' : '依標單工程案資料建構' }}
+                        {{ isAiGenerating ? '生成中…' : '資料建構' }}
                       </button>
                     </div>
                   </div>
@@ -915,7 +909,6 @@
                         <div class="text-panel__label">壹、工地周圍現有灌排水系統</div>
                         <div class="text-panel__toolbar">
                           <button
-                            v-if="isSuperAdmin"
                             type="button"
                             class="btn-ai-generate"
                             :disabled="isAiGenerating || !currentProject?.id"
@@ -925,7 +918,7 @@
                               class="fa me-2"
                               :class="aiLoading.drainageSurrounding ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"
                             ></i>
-                            {{ aiLoading.drainageSurrounding ? '生成中…' : '依工程與標單工程案資料建構' }}
+                            {{ aiLoading.drainageSurrounding ? '生成中…' : '資料建構' }}
                           </button>
                         </div>
                       </div>
@@ -944,7 +937,6 @@
                         <div class="text-panel__label">貳、施工中擋水及抽水措施</div>
                         <div class="text-panel__toolbar">
                           <button
-                            v-if="isSuperAdmin"
                             type="button"
                             class="btn-ai-generate"
                             :disabled="isAiGenerating || !currentProject?.id"
@@ -954,7 +946,7 @@
                               class="fa me-2"
                               :class="aiLoading.drainageDewatering ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"
                             ></i>
-                            {{ aiLoading.drainageDewatering ? '生成中…' : '依工程與標單工程案資料建構' }}
+                            {{ aiLoading.drainageDewatering ? '生成中…' : '資料建構' }}
                           </button>
                         </div>
                       </div>
@@ -1159,7 +1151,7 @@ import {
 } from '@/api/construction'
 
 const workspaceStore = useWorkspaceStore()
-const { isContractor, isSuperAdmin } = useViewPerspective()
+const { isContractor } = useViewPerspective()
 const { runWithExportLoading } = useExportLoading()
 const currentProject = computed(() => workspaceStore.currentProject)
 const hasCurrentProject = computed(() => !!currentProject.value?.id)

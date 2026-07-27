@@ -72,7 +72,6 @@
             </ul>
           </div>
           <button
-            v-if="isSuperAdmin"
             type="button"
             class="btn-ai-generate b2-batch-ai-btn"
             :disabled="isB2AiGenerating || !currentProject?.id"
@@ -80,7 +79,7 @@
             @click="generateAllB2TextByAi"
           >
             <i class="fa me-2" :class="isB2AiGenerating ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
-            <span>{{ isB2AiGenerating ? '生成中…' : '一鍵工程案資料建構' }}</span>
+            <span>{{ isB2AiGenerating ? '生成中…' : '一鍵資料建構' }}</span>
           </button>
           <button type="button" class="win-btn" :disabled="!currentProject?.id" @click="showSubmissionModal = true">
             <i class="fa fa-clipboard-list"></i>送審紀錄
@@ -121,7 +120,6 @@
               </div>
               <div class="text-panel__toolbar">
                 <button
-                  v-if="isSuperAdmin"
                   type="button"
                   class="btn-ai-generate"
                   :disabled="aiLoading.geo || !currentProject?.id"
@@ -129,7 +127,7 @@
                   title="依目前版本標單由工程案資料建構產出地理人文環境概述（用於 B-2 安全衛生監督查核計畫）"
                 >
                   <i class="fa me-2" :class="aiLoading.geo ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
-                  {{ aiLoading.geo ? '生成中…' : '依標單工程案資料建構' }}
+                  {{ aiLoading.geo ? '生成中…' : '資料建構' }}
                 </button>
               </div>
             </div>
@@ -151,7 +149,6 @@
               </div>
               <div class="text-panel__toolbar">
                 <button
-                  v-if="isSuperAdmin"
                   type="button"
                   class="btn-ai-generate"
                   :disabled="aiLoading.env || !currentProject?.id"
@@ -159,7 +156,7 @@
                   title="依目前版本標單由工程案資料建構產出工程地點及客觀環境（用於 B-2 安全衛生監督查核計畫）"
                 >
                   <i class="fa me-2" :class="aiLoading.env ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
-                  {{ aiLoading.env ? '生成中…' : '依標單工程案資料建構' }}
+                  {{ aiLoading.env ? '生成中…' : '資料建構' }}
                 </button>
               </div>
             </div>
@@ -181,7 +178,6 @@
               </div>
               <div class="text-panel__toolbar">
                 <button
-                  v-if="isSuperAdmin"
                   type="button"
                   class="btn-ai-generate"
                   :disabled="aiLoading.scale || !currentProject?.id"
@@ -189,7 +185,7 @@
                   title="依目前版本標單由工程案資料建構產出工程規模概述（用於 B-2 安全衛生監督查核計畫）"
                 >
                   <i class="fa me-2" :class="aiLoading.scale ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
-                  {{ aiLoading.scale ? '生成中…' : '依標單工程案資料建構' }}
+                  {{ aiLoading.scale ? '生成中…' : '資料建構' }}
                 </button>
               </div>
             </div>
@@ -211,7 +207,6 @@
               </div>
               <div class="text-panel__toolbar">
                 <button
-                  v-if="isSuperAdmin"
                   type="button"
                   class="btn-ai-generate"
                   :disabled="aiLoading.budget || !currentProject?.id"
@@ -219,7 +214,7 @@
                   title="依目前版本標單由工程案資料建構產出工程預算（用於 B-2 安全衛生監督查核計畫；固定格式）"
                 >
                   <i class="fa me-2" :class="aiLoading.budget ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
-                  {{ aiLoading.budget ? '生成中…' : '依標單工程案資料建構' }}
+                  {{ aiLoading.budget ? '生成中…' : '資料建構' }}
                 </button>
               </div>
             </div>
@@ -374,7 +369,6 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, reactive, nextTick } from 'vue'
-import { useViewPerspective } from '@/composables/useViewPerspective'
 import PageHeader from '@/components/bootstrap/PageHeader.vue'
 import Card from '@/components/bootstrap/Card.vue'
 import CardBody from '@/components/bootstrap/CardBody.vue'
@@ -404,7 +398,6 @@ import { formBApi, downloadBlobAsFile, type ExportConstructionReportRequest } fr
 import { extractFileNameFromResponse } from '@/utils/blobDownload'
 import PlanSubmissionPModal from '@/components/forms/PlanSubmissionPModal.vue'
 const workspaceStore = useWorkspaceStore()
-const { isSuperAdmin } = useViewPerspective()
 const { runWithExportLoading } = useExportLoading()
 
 const b2PageTitle = 'B-2 安全衛生監督查核計畫'
@@ -1614,4 +1607,3 @@ watch(
   min-width: 140px;
 }
 </style>
-

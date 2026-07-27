@@ -68,7 +68,6 @@
                 <i class="fa fa-plus me-1" aria-hidden="true"></i>新增一筆
               </button>
               <button
-                v-if="isSuperAdmin"
                 type="button"
                 class="btn-ai-generate btn-ai-generate--toolbar"
                 :disabled="aiGenerating || !materialInfo"
@@ -81,7 +80,7 @@
                   role="status"
                   aria-hidden="true"
                 />
-                依工程案資料建構並覆寫
+                資料建構
               </button>
             </div>
           </div>
@@ -109,7 +108,6 @@
                             <i class="fa fa-plus me-1" aria-hidden="true"></i>新增一筆
                           </button>
                           <button
-                            v-if="isSuperAdmin"
                             type="button"
                             class="btn-ai-generate btn-ai-generate--toolbar"
                             :disabled="aiGenerating || !materialInfo"
@@ -123,7 +121,7 @@
                               role="status"
                               aria-hidden="true"
                             />
-                            依工程案資料建構並覆寫
+                            資料建構
                           </button>
                           </div>
                         </div>
@@ -224,7 +222,6 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useViewPerspective } from '@/composables/useViewPerspective'
 import { 
     tenderMaterialApi, 
     type ConstructionMaterialStandardResponse,
@@ -240,7 +237,6 @@ import toastService from '@/components/bootstrap/ToastService.js'
 const route = useRoute()
 const router = useRouter()
 const workspaceStore = useWorkspaceStore()
-const { isSuperAdmin } = useViewPerspective()
 
 const pccesCode = route.params.pccesCode as string
 const constructionId = computed(() => workspaceStore.currentProject?.id || '')

@@ -157,7 +157,7 @@ export function useAiBatchEngineeringBuild() {
     }
   })
 
-  async function startAiBatchGenerate() {
+  async function startAiBatchGenerate(designChangeId: number | null = null) {
     const constructionId = currentProject.value?.id
     if (!constructionId) {
       alert('請先於左側選擇工程案')
@@ -169,8 +169,8 @@ export function useAiBatchEngineeringBuild() {
 
     try {
       const { jobId } = isSupervisory.value
-        ? await startSupervisoryAiBatchGenerate(constructionId)
-        : await startContractorAiBatchGenerate(constructionId)
+        ? await startSupervisoryAiBatchGenerate(constructionId, designChangeId)
+        : await startContractorAiBatchGenerate(constructionId, designChangeId)
 
       clearPollTimer()
       pollTimer = setInterval(async () => {

@@ -74,14 +74,13 @@
                 </div>
                 <div class="d-flex flex-wrap gap-2">
                   <button
-                    v-if="isSuperAdmin"
                     type="button"
                     class="btn-ai-generate btn-ai-generate--toolbar"
                     :disabled="isAiGenerating"
                     @click="generateByAi"
                   >
                     <i class="fa me-2" :class="isAiGenerating ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
-                    依標單工程案資料建構
+                    資料建構
                   </button>
                   <button type="button" class="btn btn-sm btn-outline-primary" @click="addStep">
                     <i class="fa fa-plus me-1"></i>新增步驟
@@ -246,7 +245,7 @@ const router = useRouter()
 const itemId = computed(() => Number(route.params.itemId))
 
 const workspaceStore = useWorkspaceStore()
-const { isContractor, isSuperAdmin } = useViewPerspective()
+const { isContractor } = useViewPerspective()
 const currentProject = computed(() => workspaceStore.currentProject)
 
 const designChangeId = computed((): number | null => {
@@ -988,4 +987,3 @@ onUnmounted(() => {
   opacity: 0;
 }
 </style>
-

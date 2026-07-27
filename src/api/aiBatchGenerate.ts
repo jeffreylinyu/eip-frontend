@@ -16,21 +16,23 @@ export interface AiBatchProgressResponse {
 }
 
 export async function startSupervisoryAiBatchGenerate(
-  constructionId: string
+  constructionId: string,
+  designChangeId: number | null
 ): Promise<AiBatchJobResponse> {
   const data = await http.post<AiBatchJobResponse>(
     `/management/construction/${encodeURIComponent(constructionId)}/ai-batch-generate/supervisory`,
-    {}
+    { designChangeId, versionSelected: true }
   )
   return data as unknown as AiBatchJobResponse
 }
 
 export async function startContractorAiBatchGenerate(
-  constructionId: string
+  constructionId: string,
+  designChangeId: number | null
 ): Promise<AiBatchJobResponse> {
   const data = await http.post<AiBatchJobResponse>(
     `/management/construction/${encodeURIComponent(constructionId)}/ai-batch-generate/contractor`,
-    {}
+    { designChangeId, versionSelected: true }
   )
   return data as unknown as AiBatchJobResponse
 }

@@ -60,7 +60,6 @@
           <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
             <label class="form-label small text-muted mb-0">此內容會帶入 B-1 監造計劃書匯出，可依版本分別維護。</label>
             <button
-              v-if="isSuperAdmin"
               type="button"
               class="btn-ai-generate"
               :disabled="aiOverviewLoading || !currentProject?.id"
@@ -68,7 +67,7 @@
               title="依目前版本標單由工程案資料建構產出工程規模概述（用於 B-1 監造計劃書）"
             >
               <i class="fa me-2" :class="aiOverviewLoading ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
-              {{ aiOverviewLoading ? '生成中…' : '依標單工程案資料建構' }}
+              {{ aiOverviewLoading ? '生成中…' : '資料建構' }}
             </button>
           </div>
           <textarea
@@ -111,7 +110,7 @@ import {
 import { extractFileNameFromResponse } from '@/utils/blobDownload'
 
 const workspaceStore = useWorkspaceStore()
-const { fetchViewType, isSuperAdmin } = useViewPerspective()
+const { fetchViewType } = useViewPerspective()
 const { runWithExportLoading } = useExportLoading()
 
 /** 送審紀錄區塊僅監造；依後端視角解析，避免與 composable 同步狀態不一致 */

@@ -212,7 +212,6 @@
           </div>
           <div class="p1-toolbar-right">
             <button
-              v-if="isSuperAdmin"
               type="button"
               class="btn-ai-generate p-dynamic-batch-ai-btn"
               :disabled="isAiGenerating || isExporting || !currentProject?.id || docId == null || !targetRow || targetRow.isDefault"
@@ -248,7 +247,6 @@
                   </div>
                   <div class="text-panel__toolbar">
                     <button
-                      v-if="isSuperAdmin"
                       type="button"
                       class="btn-ai-generate"
                       :disabled="isAiGenerating || !currentProject?.id"
@@ -258,7 +256,7 @@
                         class="fa me-2"
                         :class="aiLoadingScale ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"
                       ></i>
-                      {{ aiLoadingScale ? '生成中…' : '依標單工程案資料建構' }}
+                      {{ aiLoadingScale ? '生成中…' : '資料建構' }}
                     </button>
                   </div>
                 </div>
@@ -381,9 +379,9 @@
                       <i class="fa fa-sitemap me-2" aria-hidden="true"></i>
                       施工流程圖
                     </button>
-                    <button v-if="isSuperAdmin" type="button" class="btn-ai-generate" :disabled="aiLoadingStagePlan || !currentProject?.id" @click="generateConstructionStagePlanByAi">
+                    <button type="button" class="btn-ai-generate" :disabled="aiLoadingStagePlan || !currentProject?.id" @click="generateConstructionStagePlanByAi">
                       <i class="fa me-2" :class="aiLoadingStagePlan ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
-                      {{ aiLoadingStagePlan ? '生成中…' : '工程案資料建構完整結構' }}
+                      {{ aiLoadingStagePlan ? '生成中…' : '資料建構' }}
                     </button>
                     <button type="button" class="btn btn-sm btn-outline-light ms-2" @click="addStagePlanStage">
                       <i class="fa fa-plus me-1"></i>新增階段
@@ -519,14 +517,13 @@
                         主要工序之施工要領
                       </div>
                       <button
-                        v-if="isSuperAdmin"
                         type="button"
                         class="btn-ai-generate"
                         :disabled="aiLoadingStageEssentials || !currentProject?.id"
                         @click="generateConstructionEssentialsByAi"
                       >
                         <i class="fa me-2" :class="aiLoadingStageEssentials ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
-                        {{ aiLoadingStageEssentials ? '生成中…' : '依目前工序工程案資料建構施工要領' }}
+                        {{ aiLoadingStageEssentials ? '生成中…' : '資料建構' }}
                       </button>
                     </div>
                     <p class="text-muted small mb-2">
@@ -614,7 +611,7 @@
                     :lock-flow-structure="true"
                     :show-ai-generate-button="true"
                     :ai-generating="aiLoadingPInspectionStandards"
-                    ai-generate-button-label="依本計畫書工程案資料建構"
+                    ai-generate-button-label="資料建構"
                     ai-generate-button-title="依本計畫書名稱與目前施工方法與步驟，由工程案資料建構產出施工抽查標準明細並覆寫現有內容"
                     :show-hierarchy-search="false"
                     second-level-header-label="主要工序"
@@ -638,14 +635,13 @@
                   </div>
                   <div class="text-panel__toolbar">
                     <button
-                      v-if="isSuperAdmin"
                       type="button"
                       class="btn-ai-generate"
                       :disabled="aiLoadingChapter4 || !currentProject?.id"
                       @click="generateChapter4ByAi"
                     >
                       <i class="fa me-2" :class="aiLoadingChapter4 ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
-                      {{ aiLoadingChapter4 ? '生成中…' : '依本計畫書工程案資料建構兩表' }}
+                      {{ aiLoadingChapter4 ? '生成中…' : '資料建構' }}
                     </button>
                   </div>
                 </div>
@@ -845,14 +841,13 @@
                   </div>
                   <div class="text-panel__toolbar">
                     <button
-                      v-if="isSuperAdmin"
                       type="button"
                       class="btn-ai-generate"
                       :disabled="aiLoadingSubdivisionOrg || !currentProject?.id"
                       @click="generateSubdivisionOrgByAi"
                     >
                       <i class="fa me-2" :class="aiLoadingSubdivisionOrg ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
-                      {{ aiLoadingSubdivisionOrg ? '生成中…' : '依標單工程案資料建構' }}
+                      {{ aiLoadingSubdivisionOrg ? '生成中…' : '資料建構' }}
                     </button>
                     <button type="button" class="btn btn-sm btn-outline-light ms-2" @click="addSubdivisionOrgRow">
                       <i class="fa fa-plus me-1"></i>新增列
@@ -942,7 +937,6 @@
                   </div>
                   <div class="text-panel__toolbar">
                     <button
-                      v-if="isSuperAdmin"
                       type="button"
                       class="btn-ai-generate"
                       :disabled="aiLoadingSafetyHealthExecution || !currentProject?.id || docId == null"
@@ -952,7 +946,7 @@
                         class="fa me-2"
                         :class="aiLoadingSafetyHealthExecution ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"
                       ></i>
-                      {{ aiLoadingSafetyHealthExecution ? '生成中…' : '依計畫與工序工程案資料建構' }}
+                      {{ aiLoadingSafetyHealthExecution ? '生成中…' : '資料建構' }}
                     </button>
                   </div>
                 </div>
@@ -977,7 +971,6 @@
                   </div>
                   <div class="text-panel__toolbar">
                     <button
-                      v-if="isSuperAdmin"
                       type="button"
                       class="btn-ai-generate"
                       :disabled="aiLoadingEnvironmentProtectionNotes || !currentProject?.id || docId == null"
@@ -987,7 +980,7 @@
                         class="fa me-2"
                         :class="aiLoadingEnvironmentProtectionNotes ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"
                       ></i>
-                      {{ aiLoadingEnvironmentProtectionNotes ? '生成中…' : '依計畫與工序工程案資料建構' }}
+                      {{ aiLoadingEnvironmentProtectionNotes ? '生成中…' : '資料建構' }}
                     </button>
                   </div>
                 </div>
@@ -1151,7 +1144,7 @@ const router = useRouter()
 const workspaceStore = useWorkspaceStore()
 const companyStore = useCompanyStore()
 const authStore = useAuthStore()
-const { isContractor, isSuperAdmin } = useViewPerspective()
+const { isContractor } = useViewPerspective()
 const { runWithExportLoading } = useExportLoading()
 
 const currentProject = computed(() => workspaceStore.currentProject)
@@ -1266,7 +1259,7 @@ const batchAiButtonLabel = computed(() => {
   if (batchAiPhase.value === 'stage1') return '生成中… 階段 1/2（基礎結構）'
   if (batchAiPhase.value === 'stage2') return '生成中… 階段 2/2（依工序內容）'
   if (isAiGenerating.value) return '生成中…'
-  return '一鍵工程案資料建構'
+  return '一鍵資料建構'
 })
 
 /** 至少一筆「主要工序」有名称，才允許開啟流程圖（比照施工要領頁） */

@@ -41,7 +41,6 @@
           </div>
           <div class="d-flex flex-wrap gap-2 align-items-center justify-content-end flex-shrink-0">
             <button
-              v-if="isSuperAdmin"
               type="button"
               class="btn-ai-generate"
               :disabled="aiSuggestLoading || !constructionId"
@@ -49,7 +48,7 @@
               title="依目前版本標單由工程案資料建構產出施工大項建議，確認後僅併入新增、不覆蓋既有項目"
             >
               <i class="fa me-2" :class="aiSuggestLoading ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
-              {{ aiSuggestLoading ? '生成中...' : '依標單工程案資料建構' }}
+              {{ aiSuggestLoading ? '生成中...' : '資料建構' }}
             </button>
             <div v-if="selectedDesignChangeId != null" class="btn-group">
               <button
@@ -303,7 +302,6 @@
 </template>
 
 <script setup lang="ts">
-import { useViewPerspective } from '@/composables/useViewPerspective'
 import PageHeader from '@/components/bootstrap/PageHeader.vue'
 import Card from '@/components/bootstrap/Card.vue'
 import CardBody from '@/components/bootstrap/CardBody.vue'
@@ -330,7 +328,6 @@ import { exportSupervisorySubdivisionJson } from '@/api/subdivisionWorkItems'
 
 const router = useRouter()
 const workspaceStore = useWorkspaceStore()
-const { isSuperAdmin } = useViewPerspective()
 
 // 獲取當前工程 ID
 const constructionId = computed(() => workspaceStore.currentProject?.id || '')
@@ -936,6 +933,3 @@ onMounted(async () => {
   box-shadow: inset 0 0 0 2px rgba(96, 165, 250, 0.4);
 }
 </style>
-
-
-

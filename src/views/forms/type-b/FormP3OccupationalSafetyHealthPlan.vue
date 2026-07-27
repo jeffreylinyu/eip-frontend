@@ -103,7 +103,6 @@
                   </div>
                   <div class="text-panel__toolbar">
                     <button
-                      v-if="isSuperAdmin"
                       type="button"
                       class="btn-ai-generate"
                       :disabled="isAiGenerating || !currentProject?.id"
@@ -113,7 +112,7 @@
                         class="fa me-2"
                         :class="aiLoading.scaleOverview ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"
                       ></i>
-                      {{ aiLoading.scaleOverview ? '生成中…' : '依標單工程案資料建構' }}
+                      {{ aiLoading.scaleOverview ? '生成中…' : '資料建構' }}
                     </button>
                   </div>
                 </div>
@@ -580,7 +579,6 @@
                       <i class="fa fa-spinner fa-spin me-1"></i>圖片同步中…
                     </span>
                     <button
-                      v-if="isSuperAdmin"
                       type="button"
                       class="btn-ai-generate"
                       :disabled="isAiGenerating || !currentProject?.id"
@@ -590,7 +588,7 @@
                         class="fa me-2"
                         :class="aiLoading.subSuppliers ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"
                       ></i>
-                      {{ aiLoading.subSuppliers ? '生成中…' : '依標單工程案資料建構材料分類' }}
+                      {{ aiLoading.subSuppliers ? '生成中…' : '資料建構' }}
                     </button>
                   </div>
                 </div>
@@ -1053,7 +1051,7 @@ import PersonnelComboInput from './components/PersonnelComboInput.vue'
 const workspaceStore = useWorkspaceStore()
 const companyStore = useCompanyStore()
 const authStore = useAuthStore()
-const { isContractor, isSuperAdmin } = useViewPerspective()
+const { isContractor } = useViewPerspective()
 const { runWithExportLoading } = useExportLoading()
 
 /**
