@@ -8,13 +8,7 @@
         { text: 'B類表單', href: 'javascript:;' },
         { text: 'B-1 監造計劃書', active: true }
       ]"
-    >
-      <template v-if="hasCurrentProject && showPlanSubmissionBlock" #extra>
-        <button type="button" class="win-btn" @click="showSubmissionModal = true">
-          <i class="fa fa-clipboard-list"></i>送審紀錄
-        </button>
-      </template>
-    </PageHeader>
+    />
 
     <PlanSubmissionPModal
       v-model:show="showSubmissionModal"
@@ -30,11 +24,32 @@
             <i class="fa fa-ruler-combined report-card__icon text-primary"></i>
             <span class="report-card__title">工程規模概述</span>
           </div>
-          <DesignChangeVersionSwitcher
-            :model-value="selectedDesignChangeId"
-            :construction-id="currentProject?.id"
-            @update:model-value="onVersionChange"
-          />
+          <div class="b1-card-actions">
+            <DesignChangeVersionSwitcher
+              :model-value="selectedDesignChangeId"
+              :construction-id="currentProject?.id"
+              source-type="SUPERVISORY"
+              @update:model-value="onVersionChange"
+            />
+            <button
+              v-if="showPlanSubmissionBlock"
+              type="button"
+              class="win-btn"
+              @click="showSubmissionModal = true"
+            >
+              <i class="fa fa-clipboard-list"></i>送審紀錄
+            </button>
+            <button
+              type="button"
+              class="btn b1-export-btn"
+              :disabled="isExporting || !currentProject?.id"
+              title="匯出監造計劃書（Word）"
+              @click="exportB1Plan"
+            >
+              <i class="fa" :class="isExporting ? 'fa-spinner fa-spin' : 'fa-file-word'"></i>
+              <span>{{ isExporting ? '匯出中…' : '匯出 Word' }}</span>
+            </button>
+          </div>
         </div>
       </CardHeader>
       <CardBody class="report-card__body">
@@ -58,7 +73,7 @@
           </div>
           <textarea
             v-model="overviewText"
-            class="form-control"
+            class="form-control b1-overview-textarea"
             rows="4"
             placeholder="請輸入工程規模概述…"
             :disabled="savingOverview"
@@ -70,9 +85,6 @@
         </template>
       </CardBody>
     </Card>
-
-    <!-- 監造計畫送審紀錄：僅監造視角顯示（營造不載入元件、不發 API） -->
-    <FormBPlanSubmissionRecords v-if="showPlanSubmissionBlock" embedded />
 
     <LoadingOverlay :show="aiOverviewLoading" text="工程案資料建構中…" />
   </div>
@@ -87,13 +99,20 @@ import CardHeader from '@/components/bootstrap/CardHeader.vue'
 import CardBody from '@/components/bootstrap/CardBody.vue'
 import DesignChangeVersionSwitcher from '@/components/common/DesignChangeVersionSwitcher.vue'
 import LoadingOverlay from '@/components/common/LoadingOverlay.vue'
-import FormBPlanSubmissionRecords from '@/views/forms/type-b/FormBPlanSubmissionRecords.vue'
 import PlanSubmissionPModal from '@/components/forms/PlanSubmissionPModal.vue'
 import { useWorkspaceStore } from '@/stores/workspace'
+import { useExportLoading } from '@/composables/useExportLoading'
 import { getConstructionDetail, updateConstruction, getConstructionScaleOverviewAiGenerate } from '@/api/construction'
+import {
+  formBApi,
+  downloadBlobAsFile,
+  type ExportConstructionReportRequest
+} from '@/api/forms'
+import { extractFileNameFromResponse } from '@/utils/blobDownload'
 
 const workspaceStore = useWorkspaceStore()
 const { fetchViewType, isSuperAdmin } = useViewPerspective()
+const { runWithExportLoading } = useExportLoading()
 
 /** 送審紀錄區塊僅監造；依後端視角解析，避免與 composable 同步狀態不一致 */
 const showPlanSubmissionBlock = ref(false)
@@ -123,6 +142,7 @@ const overviewText = ref('')
 const loadingOverview = ref(false)
 const savingOverview = ref(false)
 const aiOverviewLoading = ref(false)
+const isExporting = ref(false)
 
 async function loadOverview() {
   const cid = currentProject.value?.id
@@ -182,6 +202,40 @@ async function generateOverviewByAi() {
     if (typeof (window as any).alert === 'function') (window as any).alert(msg)
   } finally {
     aiOverviewLoading.value = false
+  }
+}
+
+async function exportB1Plan() {
+  const cid = currentProject.value?.id
+  if (!cid) {
+    window.alert('請先選擇工程案')
+    return
+  }
+
+  isExporting.value = true
+  try {
+    const taskId = `b1-export-${cid}-${Date.now()}`
+    const response = await runWithExportLoading(taskId, 'B-1 監造計劃書', async (signal) => {
+      await saveOverview()
+      const reportData: ExportConstructionReportRequest['valueMap']['reportData'] = {
+        constructionId: cid,
+        designChangeId: selectedDesignChangeId.value
+      }
+      const request: ExportConstructionReportRequest = {
+        itemNumber: 0,
+        valueMap: { reportData }
+      }
+      return formBApi.exportSupervisoryPlan(request, { signal })
+    })
+    const fileName =
+      extractFileNameFromResponse(response) ||
+      `監造計劃書_B-1_${Date.now()}.docx`
+    downloadBlobAsFile(response.data, fileName)
+  } catch (e: any) {
+    if (e?.name === 'AbortError' || e?.code === 'ERR_CANCELED') return
+    window.alert(e?.response?.data?.message ?? e?.message ?? '匯出失敗')
+  } finally {
+    isExporting.value = false
   }
 }
 
@@ -354,5 +408,53 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 1rem;
+}
+
+.b1-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.b1-export-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1.2rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: #fff !important;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: linear-gradient(
+    145deg,
+    rgba(var(--bs-primary-rgb), 0.58) 0%,
+    rgba(var(--bs-primary-rgb), 0.32) 42%,
+    rgba(15, 23, 42, 0.45) 100%
+  );
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+.b1-export-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.38);
+  filter: brightness(1.05);
+}
+
+.b1-export-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.b1-overview-textarea {
+  height: 300px;
+  resize: vertical;
 }
 </style>
