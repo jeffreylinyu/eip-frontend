@@ -39,7 +39,6 @@ const filteredRows = computed(() => {
       r.organization,
       r.email,
       r.phone,
-      r.perspectiveRole,
       r.preferredContactTime,
       r.message,
       r.clientIp,
@@ -272,8 +271,6 @@ onMounted(() => {
           <dd class="col-sm-9">{{ selectedRow.phone || '—' }}</dd>
           <dt class="col-sm-3">方便聯繫時段</dt>
           <dd class="col-sm-9">{{ selectedRow.preferredContactTime || '—' }}</dd>
-          <dt class="col-sm-3">主要視角</dt>
-          <dd class="col-sm-9">{{ selectedRow.perspectiveRole || '—' }}</dd>
           <dt class="col-sm-3">需求說明</dt>
           <dd class="col-sm-9">
             <pre class="mb-0 text-wrap" style="white-space: pre-wrap; font-family: inherit">{{

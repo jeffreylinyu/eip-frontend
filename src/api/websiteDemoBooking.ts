@@ -6,7 +6,6 @@ export interface WebsiteDemoBookingListItem {
   organization: string
   email: string
   phone: string | null
-  perspectiveRole: string
   preferredContactTime: string | null
   message: string | null
   clientIp: string | null
