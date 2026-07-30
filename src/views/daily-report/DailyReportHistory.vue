@@ -1,472 +1,377 @@
 <template>
-  <div class="daily-report-history">
-    <!-- 頁面標題 -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-      <div>
-        <h4 class="mb-1">日誌歷史記錄</h4>
-        <p class="text-muted mb-0">瀏覽和管理歷史日誌</p>
-      </div>
-      <div class="d-flex gap-2">
-        <button 
-          class="btn btn-outline-primary"
-          @click="createNewReport"
-        >
-          <i class="fa fa-plus me-1"></i>新增日誌
-        </button>
-        <button 
-          class="btn btn-outline-success"
-          @click="exportSelected"
-          :disabled="selectedReports.length === 0"
-        >
-          <i class="fa fa-download me-1"></i>匯出選取
-        </button>
-      </div>
+  <div class="archive-page">
+    <PageHeader :title="pageTitle" icon="fa fa-calendar-days" :breadcrumbs="breadcrumbs" />
+
+    <div v-if="!constructionId" class="alert alert-warning mb-0">
+      <i class="fa fa-exclamation-triangle me-2"></i>請先選擇工程專案
     </div>
 
-    <!-- 搜尋和篩選 -->
-    <Card class="mb-4">
-      <CardBody>
-        <div class="row">
-          <div class="col-md-3 mb-3">
-            <label class="form-label">工程名稱</label>
-            <input
-              type="text"
-              class="form-control"
-              v-model="filters.projectName"
-              placeholder="搜尋工程名稱"
-            />
-          </div>
-          <div class="col-md-2 mb-3">
-            <label class="form-label">開始日期</label>
-            <input
-              type="date"
-              class="form-control"
-              v-model="filters.startDate"
-            />
-          </div>
-          <div class="col-md-2 mb-3">
-            <label class="form-label">結束日期</label>
-            <input
-              type="date"
-              class="form-control"
-              v-model="filters.endDate"
-            />
-          </div>
-          <div class="col-md-2 mb-3">
-            <label class="form-label">狀態</label>
-            <select class="form-select" v-model="filters.status">
-              <option value="">全部狀態</option>
-              <option value="DRAFT">草稿</option>
-              <option value="SUBMITTED">已送出</option>
-              <option value="REVIEWED">審核中</option>
-              <option value="APPROVED">已核准</option>
-              <option value="REJECTED">已退回</option>
-            </select>
-          </div>
-          <div class="col-md-3 mb-3 d-flex align-items-end">
-            <div class="d-flex gap-2 w-100">
-              <button 
-                class="btn btn-primary flex-fill"
-                @click="searchReports"
-                :disabled="isLoading"
-              >
-                <i class="fa fa-search me-1"></i>搜尋
+    <template v-else>
+      <Card class="archive-filter mb-3">
+        <CardBody>
+          <div class="filter-toolbar">
+            <div>
+              <h5 class="mb-1">{{ reportLabel }}區間總覽</h5>
+              <p class="small text-muted mb-0">集中檢視每日填報狀態，單日內容仍於原日誌頁編輯。</p>
+            </div>
+            <div class="d-flex gap-2 flex-wrap">
+              <button type="button" class="win-btn" :disabled="loading" @click="load">
+                <i :class="loading ? 'fa fa-spinner fa-spin' : 'fa fa-rotate'" class="me-1"></i>
+                查詢
               </button>
-              <button 
-                class="btn btn-outline-secondary"
-                @click="clearFilters"
+              <button
+                type="button"
+                class="win-btn win-btn-accent"
+                :disabled="exporting || !records.length"
+                @click="exportRange"
               >
-                <i class="fa fa-times me-1"></i>清除
+                <i :class="exporting ? 'fa fa-spinner fa-spin' : 'fa fa-file-zipper'" class="me-1"></i>
+                匯出區間全部日誌
               </button>
             </div>
           </div>
-        </div>
-      </CardBody>
-    </Card>
-
-    <!-- 日誌列表 -->
-    <Card>
-      <CardHeader>
-        <div class="d-flex justify-content-between align-items-center">
-          <h6 class="mb-0">
-            <i class="fa fa-list me-2"></i>日誌列表
-          </h6>
-          <div class="d-flex align-items-center gap-2">
-            <span class="text-muted fs-sm">共 {{ totalReports }} 筆記錄</span>
-            <div class="form-check">
-              <input 
-                class="form-check-input" 
-                type="checkbox" 
-                id="selectAll"
-                v-model="selectAll"
-                @change="toggleSelectAll"
-              />
-              <label class="form-check-label fs-sm" for="selectAll">
-                全選
-              </label>
+          <div class="row g-3 mt-1">
+            <div class="col-12 col-md-4">
+              <label class="form-label">開始日期</label>
+              <input v-model="filters.startDate" type="date" class="form-control" />
+            </div>
+            <div class="col-12 col-md-4">
+              <label class="form-label">結束日期</label>
+              <input v-model="filters.endDate" type="date" class="form-control" />
+            </div>
+            <div class="col-12 col-md-4">
+              <label class="form-label">填報狀態</label>
+              <select v-model="filters.status" class="form-select">
+                <option value="">全部狀態</option>
+                <option value="DRAFT">草稿</option>
+                <option value="SUBMITTED">已送出</option>
+              </select>
             </div>
           </div>
-        </div>
-      </CardHeader>
-      <CardBody>
-        <div class="table-responsive">
-          <table class="table table-hover">
-            <thead class="table-light">
-              <tr>
-                <th style="width: 40px">
-                  <input 
-                    type="checkbox" 
-                    class="form-check-input"
-                    v-model="selectAll"
-                    @change="toggleSelectAll"
-                  />
-                </th>
-                <th>工程名稱</th>
-                <th>日期</th>
-                <th>狀態</th>
-                <th>材料種類</th>
-                <th>出工人數</th>
-                <th>機具數量</th>
-                <th>製表人</th>
-                <th>建立時間</th>
-                <th style="width: 120px">操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="report in reports" :key="report.id">
-                <td>
-                  <input 
-                    type="checkbox" 
-                    class="form-check-input"
-                    :value="report.id"
-                    v-model="selectedReports"
-                  />
-                </td>
-                <td>
-                  <div class="fw-bold">{{ report.basicInfo.projectName }}</div>
-                  <small class="text-muted">{{ report.projectId }}</small>
-                </td>
-                <td>{{ formatDate(report.reportDate) }}</td>
-                <td>
-                  <span class="badge" :class="getStatusBadgeClass(report.status)">
-                    {{ getStatusText(report.status) }}
-                  </span>
-                </td>
-                <td>
-                  <span class="badge bg-primary">{{ report.materials.length }}</span>
-                </td>
-                <td>
-                  <span class="badge bg-success">
-                    {{ getTotalLabor(report) }}
-                  </span>
-                </td>
-                <td>
-                  <span class="badge bg-warning">
-                    {{ getTotalEquipment(report) }}
-                  </span>
-                </td>
-                <td>{{ report.preparer.reportingDepartment || '-' }}</td>
-                <td>{{ formatDateTime(report.createdAt) }}</td>
-                <td>
-                  <div class="btn-group btn-group-sm">
-                    <button 
-                      class="btn btn-outline-primary"
-                      @click="viewReport(report.id!)"
-                      title="檢視"
-                    >
-                      <i class="fa fa-eye"></i>
-                    </button>
-                    <button 
-                      class="btn btn-outline-secondary"
-                      @click="editReport(report.id!)"
-                      title="編輯"
-                      v-if="report.status === 'DRAFT'"
-                    >
-                      <i class="fa fa-edit"></i>
-                    </button>
-                    <button 
-                      class="btn btn-outline-success"
-                      @click="exportReport(report.id!)"
-                      title="匯出"
-                    >
-                      <i class="fa fa-download"></i>
-                    </button>
-                  </div>
-                </td>
-              </tr>
-              <tr v-if="reports.length === 0">
-                <td colspan="10" class="text-center text-muted py-4">
-                  <i class="fa fa-inbox fa-2x mb-2"></i>
-                  <p class="mb-0">沒有找到符合條件的日誌</p>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </CardBody>
-    </Card>
+          <div class="small text-muted mt-3">
+            區間匯出會產生 ZIP，內含此期間每個已建立日期的一份 {{ reportLabel }} Word。
+          </div>
+        </CardBody>
+      </Card>
 
-    <!-- 分頁 -->
-    <div class="d-flex justify-content-between align-items-center mt-4">
-      <div class="d-flex align-items-center gap-2">
-        <span class="text-muted">每頁顯示</span>
-        <select class="form-select form-select-sm" style="width: auto;" v-model="pageSize">
-          <option value="10">10</option>
-          <option value="20">20</option>
-          <option value="50">50</option>
-          <option value="100">100</option>
-        </select>
-        <span class="text-muted">筆記錄</span>
+      <div class="summary-grid mb-3">
+        <article class="summary-card">
+          <i class="fa fa-calendar-check"></i>
+          <div><strong>{{ records.length }}</strong><span>區間日誌</span></div>
+        </article>
+        <article class="summary-card">
+          <i class="fa fa-pen-ruler"></i>
+          <div><strong>{{ draftCount }}</strong><span>草稿</span></div>
+        </article>
+        <article class="summary-card">
+          <i class="fa fa-paper-plane"></i>
+          <div><strong>{{ submittedCount }}</strong><span>已送出</span></div>
+        </article>
+        <article class="summary-card">
+          <i class="fa fa-users"></i>
+          <div><strong>{{ totalPeople }}</strong><span>區間出工人次</span></div>
+        </article>
       </div>
-      
-      <nav>
-        <ul class="pagination pagination-sm mb-0">
-          <li class="page-item" :class="{ disabled: currentPage === 1 }">
-            <button class="page-link" @click="changePage(currentPage - 1)">
-              <i class="fa fa-chevron-left"></i>
-            </button>
-          </li>
-          <li 
-            v-for="page in visiblePages" 
-            :key="page"
-            class="page-item"
-            :class="{ active: page === currentPage }"
-          >
-            <button class="page-link" @click="changePage(page)">{{ page }}</button>
-          </li>
-          <li class="page-item" :class="{ disabled: currentPage === totalPages }">
-            <button class="page-link" @click="changePage(currentPage + 1)">
-              <i class="fa fa-chevron-right"></i>
-            </button>
-          </li>
-        </ul>
-      </nav>
-    </div>
 
-    <LoadingOverlay :show="isLoading" text="載入中..." />
+      <Card class="archive-list">
+        <CardHeader class="d-flex align-items-center justify-content-between gap-3 flex-wrap">
+          <div>
+            <h5 class="mb-1">{{ reportLabel }}列表</h5>
+            <div class="small text-muted">目前顯示 {{ filteredRecords.length }} 筆</div>
+          </div>
+          <button type="button" class="win-btn win-btn--sm win-btn-accent" @click="openDate(today)">
+            <i class="fa fa-plus me-1"></i>開啟今日日誌
+          </button>
+        </CardHeader>
+        <CardBody>
+          <div v-if="loading" class="text-center py-5 text-muted">
+            <i class="fa fa-spinner fa-spin fa-2x"></i>
+          </div>
+          <div v-else-if="!filteredRecords.length" class="empty-state">
+            <i class="fa fa-calendar-xmark fa-3x mb-3"></i>
+            <div>此區間沒有符合條件的{{ reportLabel }}</div>
+            <div class="small mt-2">可調整日期，或直接開啟指定日期建立日誌。</div>
+          </div>
+          <div v-else class="table-responsive">
+            <table class="table archive-table align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>日期</th>
+                  <th>狀態</th>
+                  <th>天候</th>
+                  <th class="text-center">施工項目</th>
+                  <th class="text-center">材料</th>
+                  <th class="text-center">出工人數</th>
+                  <th class="text-center">機具數量</th>
+                  <th>重要記事</th>
+                  <th>更新時間</th>
+                  <th class="action-col">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="record in filteredRecords" :key="record.reportDate">
+                  <td class="date-cell">{{ formatDate(record.reportDate) }}</td>
+                  <td>
+                    <span class="status-badge" :class="record.status.toLowerCase()">
+                      {{ record.status === 'SUBMITTED' ? '已送出' : '草稿' }}
+                    </span>
+                  </td>
+                  <td>{{ weatherText(record) }}</td>
+                  <td class="text-center">{{ record.constructionItemCount }}</td>
+                  <td class="text-center">{{ record.materialCount }}</td>
+                  <td class="text-center">{{ formatNumber(record.totalPeople) }}</td>
+                  <td class="text-center">{{ formatNumber(record.totalMachine) }}</td>
+                  <td class="important-cell" :title="record.importantMatters || ''">
+                    {{ record.importantMatters || '—' }}
+                  </td>
+                  <td>{{ formatDateTime(record.updatedAt) }}</td>
+                  <td>
+                    <div class="d-flex gap-2">
+                      <button
+                        type="button"
+                        class="win-btn win-btn--sm win-btn-accent"
+                        title="編輯單日日誌"
+                        @click="openDate(record.reportDate)"
+                      >
+                        <i class="fa fa-pen-to-square"></i>
+                      </button>
+                      <button
+                        type="button"
+                        class="win-btn win-btn--sm"
+                        title="匯出單日 Word"
+                        :disabled="exportingDate === record.reportDate"
+                        @click="exportOne(record.reportDate)"
+                      >
+                        <i
+                          :class="exportingDate === record.reportDate ? 'fa fa-spinner fa-spin' : 'fa fa-file-word'"
+                        ></i>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </CardBody>
+      </Card>
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { useDailyReportStore } from '@/stores/dailyReport'
-import { useExportLoading } from '@/composables/useExportLoading'
-import type { DailyReport } from '@/types/dailyReport'
-import LoadingOverlay from '@/components/common/LoadingOverlay.vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import Card from '@/components/bootstrap/Card.vue'
-import CardHeader from '@/components/bootstrap/CardHeader.vue'
 import CardBody from '@/components/bootstrap/CardBody.vue'
+import CardHeader from '@/components/bootstrap/CardHeader.vue'
+import PageHeader from '@/components/bootstrap/PageHeader.vue'
+import toastService from '@/components/bootstrap/ToastService.js'
+import { useWorkspaceStore } from '@/stores/workspace'
+import { useViewPerspective } from '@/composables/useViewPerspective'
+import {
+  exportDailyReportArchive,
+  exportDailyReportToWord,
+  listDailyReportArchive,
+  type DailyReportArchiveSummary,
+} from '@/api/dailyReport'
+import { downloadBlobAsFile } from '@/api/forms'
 
+const route = useRoute()
 const router = useRouter()
-const dailyReportStore = useDailyReportStore()
-const { runWithExportLoading } = useExportLoading()
+const workspaceStore = useWorkspaceStore()
+const { isSupervisory } = useViewPerspective()
+const constructionId = computed(() => workspaceStore.currentProject?.id ?? '')
+const fixedFormCode = computed(() => String(route.meta.fixedFormCode ?? ''))
+const supervisory = computed(() =>
+  fixedFormCode.value === 'C05' || (fixedFormCode.value !== 'G06' && isSupervisory.value),
+)
+const ownerType = computed<'SUPERVISORY' | 'CONTRACTOR'>(() =>
+  supervisory.value ? 'SUPERVISORY' : 'CONTRACTOR',
+)
+const formCode = computed(() => supervisory.value ? 'C-5' : 'G-6')
+const reportLabel = computed(() => supervisory.value ? '公共工程監造報表' : '公共工程施工日誌')
+const pageTitle = computed(() => `${formCode.value} ${reportLabel.value}`)
+const breadcrumbs = computed(() => [
+  { text: supervisory.value ? '監造 C 類表單' : '營造 G 類表單', href: 'javascript:;' },
+  { text: pageTitle.value, active: true as const },
+])
 
-// 響應式資料
-const reports = ref<DailyReport[]>([])
-const selectedReports = ref<string[]>([])
-const isLoading = ref(false)
-const totalReports = ref(0)
-const currentPage = ref(1)
-const pageSize = ref(20)
-
-const filters = ref({
-  projectName: '',
-  startDate: '',
-  endDate: '',
-  status: ''
+const today = new Date().toISOString().slice(0, 10)
+const filters = reactive({
+  startDate: `${today.slice(0, 8)}01`,
+  endDate: today,
+  status: '',
 })
+const records = ref<DailyReportArchiveSummary[]>([])
+const loading = ref(false)
+const exporting = ref(false)
+const exportingDate = ref<string | null>(null)
+const filteredRecords = computed(() =>
+  filters.status
+    ? records.value.filter((record) => record.status === filters.status)
+    : records.value,
+)
+const draftCount = computed(() => records.value.filter((record) => record.status === 'DRAFT').length)
+const submittedCount = computed(() => records.value.filter((record) => record.status === 'SUBMITTED').length)
+const totalPeople = computed(() =>
+  formatNumber(records.value.reduce((sum, record) => sum + Number(record.totalPeople || 0), 0)),
+)
 
-// 計算屬性
-const selectAll = computed({
-  get: () => selectedReports.value.length === reports.value.length && reports.value.length > 0,
-  set: (value: boolean) => {
-    if (value) {
-      selectedReports.value = reports.value.map(report => report.id!).filter(Boolean)
-    } else {
-      selectedReports.value = []
-    }
+async function load() {
+  if (!constructionId.value) return
+  if (!filters.startDate || !filters.endDate || filters.startDate > filters.endDate) {
+    toastService.error('請設定正確的日期區間')
+    return
   }
-})
-
-const totalPages = computed(() => Math.ceil(totalReports.value / pageSize.value))
-
-const visiblePages = computed(() => {
-  const pages: number[] = []
-  const start = Math.max(1, currentPage.value - 2)
-  const end = Math.min(totalPages.value, currentPage.value + 2)
-  
-  for (let i = start; i <= end; i++) {
-    pages.push(i)
-  }
-  
-  return pages
-})
-
-// 方法
-const formatDate = (dateString: string) => {
-  const date = new Date(dateString)
-  return date.toLocaleDateString('zh-TW')
-}
-
-const formatDateTime = (dateString?: string) => {
-  if (!dateString) return '-'
-  const date = new Date(dateString)
-  return date.toLocaleString('zh-TW')
-}
-
-const getStatusBadgeClass = (status: string) => {
-  const statusMap = {
-    DRAFT: 'bg-secondary',
-    SUBMITTED: 'bg-primary',
-    REVIEWED: 'bg-warning',
-    APPROVED: 'bg-success',
-    REJECTED: 'bg-danger'
-  }
-  return statusMap[status as keyof typeof statusMap] || 'bg-secondary'
-}
-
-const getStatusText = (status: string) => {
-  const statusMap = {
-    DRAFT: '草稿',
-    SUBMITTED: '已送出',
-    REVIEWED: '審核中',
-    APPROVED: '已核准',
-    REJECTED: '已退回'
-  }
-  return statusMap[status as keyof typeof statusMap] || '未知'
-}
-
-const getTotalLabor = (report: DailyReport) => {
-  return report.laborRecords.reduce((sum, record) => 
-    sum + (record.morning || 0) + (record.afternoon || 0) + (record.night || 0), 0
-  )
-}
-
-const getTotalEquipment = (report: DailyReport) => {
-  return report.equipmentRecords.reduce((sum, record) => 
-    sum + (record.todayUsage || 0), 0
-  )
-}
-
-const searchReports = async () => {
-  isLoading.value = true
+  loading.value = true
   try {
-    // TODO: 實作搜尋日報表的 API
-    
-    // 模擬 API 回應
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    
-    // 這裡應該要呼叫 API 搜尋資料
-    // const result = await dailyReportApi.searchReports(filters.value, currentPage.value, pageSize.value)
-    // reports.value = result.data
-    // totalReports.value = result.total
-    
+    records.value = await listDailyReportArchive(
+      constructionId.value,
+      filters.startDate,
+      filters.endDate,
+      ownerType.value,
+    )
   } catch (error) {
-    console.error('搜尋失敗:', error)
+    console.error('[DailyReportArchive] load failed', error)
+    toastService.error(`載入${reportLabel.value}總覽失敗`)
   } finally {
-    isLoading.value = false
+    loading.value = false
   }
 }
 
-const clearFilters = () => {
-  filters.value = {
-    projectName: '',
-    startDate: '',
-    endDate: '',
-    status: ''
-  }
-  currentPage.value = 1
-  searchReports()
+function openDate(date: string) {
+  void router.push({ path: '/daily-report', query: { reportDate: date } })
 }
 
-const toggleSelectAll = () => {
-  if (selectAll.value) {
-    selectedReports.value = reports.value.map(report => report.id!).filter(Boolean)
-  } else {
-    selectedReports.value = []
-  }
-}
-
-const changePage = (page: number) => {
-  if (page >= 1 && page <= totalPages.value) {
-    currentPage.value = page
-    searchReports()
-  }
-}
-
-const createNewReport = () => {
-  router.push('/daily-report')
-}
-
-const viewReport = (reportId: string) => {
-  router.push(`/daily-report/view/${reportId}`)
-}
-
-const editReport = (reportId: string) => {
-  router.push(`/daily-report/edit/${reportId}`)
-}
-
-const exportReport = async (reportId: string) => {
+async function exportOne(date: string) {
+  if (exportingDate.value) return
+  exportingDate.value = date
   try {
-    await runWithExportLoading(`daily-excel-${reportId}`, '工程日報表 Excel', async () => {
-      await dailyReportStore.exportToExcel(reportId)
-    })
+    await exportDailyReportToWord(
+      constructionId.value,
+      date,
+      supervisory.value ? 'supervision' : 'construction',
+      { ownerType: ownerType.value },
+    )
   } catch (error) {
-    if ((error as any)?.name === 'AbortError' || (error as any)?.code === 'ERR_CANCELED') return
-    console.error('匯出失敗:', error)
+    console.error('[DailyReportArchive] single export failed', error)
+    toastService.error('單日 Word 匯出失敗')
+  } finally {
+    exportingDate.value = null
   }
 }
 
-const exportSelected = async () => {
-  if (selectedReports.value.length === 0) return
-  
+async function exportRange() {
+  if (exporting.value) return
+  exporting.value = true
   try {
-    // TODO: 實作批次匯出的 API
-    
-    // 這裡應該要呼叫 API 批次匯出
-    // await dailyReportApi.exportMultiple(selectedReports.value)
-    
+    const blob = await exportDailyReportArchive(
+      constructionId.value,
+      filters.startDate,
+      filters.endDate,
+      ownerType.value,
+    )
+    downloadBlobAsFile(
+      blob,
+      `${formCode.value}_${reportLabel.value}_${filters.startDate}_${filters.endDate}.zip`,
+    )
   } catch (error) {
-    console.error('批次匯出失敗:', error)
+    console.error('[DailyReportArchive] range export failed', error)
+    toastService.error('區間日誌匯出失敗')
+  } finally {
+    exporting.value = false
   }
 }
 
-// 生命週期
-onMounted(() => {
-  searchReports()
+const formatDate = (value: string) =>
+  new Date(`${value}T00:00:00`).toLocaleDateString('zh-TW')
+const formatDateTime = (value?: string | null) =>
+  value ? new Date(value).toLocaleString('zh-TW', { hour12: false }) : '—'
+const formatNumber = (value: number) =>
+  new Intl.NumberFormat('zh-TW', { maximumFractionDigits: 2 }).format(value)
+const weatherText = (record: DailyReportArchiveSummary) => {
+  const morning = record.weatherMorning || '—'
+  const afternoon = record.weatherAfternoon || '—'
+  return `${morning} / ${afternoon}`
+}
+
+watch([constructionId, ownerType], load)
+onMounted(async () => {
+  if (!workspaceStore.currentWorkspace) await workspaceStore.initWorkspaces()
+  await load()
 })
 </script>
 
 <style scoped>
-.daily-report-history {
+.archive-page {
+  min-height: calc(100vh - 120px);
   padding: 1rem;
+  background:
+    radial-gradient(1050px 540px at 10% 0%, rgba(var(--bs-primary-rgb), 0.08), transparent 62%),
+    rgba(15, 23, 42, 0.1);
 }
-
-.gap-2 {
-  gap: 0.5rem;
+.archive-filter,
+.archive-list {
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(30, 41, 59, 0.9));
+  border: 1px solid var(--bs-border-color-translucent);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.22);
 }
-
-.fs-sm {
-  font-size: 0.875rem;
+.archive-filter :deep(.card-body),
+.archive-list :deep(.card-header),
+.archive-list :deep(.card-body) { background: transparent; }
+.filter-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.8rem;
 }
-
-.table th {
-  font-weight: 600;
-  background-color: #f8f9fa;
+.summary-card {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 1rem;
+  border: 1px solid var(--bs-border-color-translucent);
+  border-radius: 0.65rem;
+  background: #252a30;
 }
-
-.table td {
-  vertical-align: middle;
+.summary-card > i {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  color: #f4c15d;
+  border-radius: 0.55rem;
+  background: rgba(180, 120, 25, 0.2);
 }
-
-.btn-group-sm .btn {
-  padding: 0.25rem 0.5rem;
-  font-size: 0.875rem;
+.summary-card div { display: grid; }
+.summary-card strong { font-size: 1.35rem; line-height: 1.1; }
+.summary-card span { color: var(--bs-secondary-color); font-size: 0.82rem; }
+.archive-table {
+  min-width: 1180px;
+  color: var(--bs-body-color);
+  --bs-table-bg: transparent;
+  --bs-table-border-color: rgba(255, 255, 255, 0.1);
 }
-
-.pagination-sm .page-link {
-  padding: 0.25rem 0.5rem;
-  font-size: 0.875rem;
+.archive-table thead th { color: #cbd5e1; background: rgba(2, 6, 23, 0.55); white-space: nowrap; }
+.date-cell { color: #f4c15d; font-weight: 700; white-space: nowrap; }
+.important-cell { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.action-col { width: 116px; }
+.status-badge {
+  display: inline-flex;
+  padding: 0.28rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.status-badge.draft { color: #cbd5e1; background: rgba(148, 163, 184, 0.18); }
+.status-badge.submitted { color: #86efac; background: rgba(34, 197, 94, 0.16); }
+.empty-state { padding: 4rem 1rem; text-align: center; color: var(--bs-secondary-color); }
+@media (max-width: 991px) {
+  .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 575px) {
+  .archive-page { padding: 0.65rem; }
+  .summary-grid { grid-template-columns: 1fr; }
 }
 </style>

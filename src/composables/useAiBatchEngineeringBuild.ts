@@ -4,6 +4,8 @@ import { useWorkspaceStore } from '@/stores/workspace'
 import {
   startSupervisoryAiBatchGenerate,
   startContractorAiBatchGenerate,
+  startSupervisoryPlanBatchGenerate,
+  startContractorPlanBatchGenerate,
   getAiBatchProgress,
   type AiBatchProgressResponse
 } from '@/api/aiBatchGenerate'
@@ -32,12 +34,27 @@ export const ENGINEERING_PHASES: EngineeringPhaseItem[] = [
     subs: ['試驗頻率比對', '工項需求檢查', '契約內容分析']
   },
   {
-    label: '正在建立工程文件…',
-    subs: ['施工計畫生成', '分項內容整理', '文件格式配置']
+    label: '正在建立管控資料…',
+    subs: ['施工要領整理', '材料標準建立', '抽查內容配置']
   },
   {
     label: '正在進行工程邏輯校對…',
     subs: ['文件一致性檢查', '工程流程驗證', '查核風險分析']
+  }
+]
+
+export const PLAN_GENERATION_PHASES: EngineeringPhaseItem[] = [
+  {
+    label: '正在彙整計劃書資料…',
+    subs: ['版本資料載入', '標單內容分析', '分項資料整理']
+  },
+  {
+    label: '正在生成計劃書內容…',
+    subs: ['章節內容建立', '工程邏輯整合', '圖表資料建構']
+  },
+  {
+    label: '正在儲存所選計劃書…',
+    subs: ['欄位內容校對', '版本資料寫入', '完成狀態確認']
   }
 ]
 
@@ -52,6 +69,10 @@ export function useAiBatchEngineeringBuild() {
   const aiBatchModalOpen = ref(false)
   const aiBatchProgress = ref<AiBatchProgressResponse | null>(null)
   const aiBatchError = ref<string | null>(null)
+  const batchMode = ref<'engineering' | 'plan'>('engineering')
+  const activePhases = computed(() =>
+    batchMode.value === 'plan' ? PLAN_GENERATION_PHASES : ENGINEERING_PHASES
+  )
   let pollTimer: ReturnType<typeof setInterval> | null = null
 
   const displayedPercent = ref(0)
@@ -147,9 +168,9 @@ export function useAiBatchEngineeringBuild() {
     smoothPercent(pct)
     const newIdx = Math.min(
       Math.floor(
-        (progress.currentStep / Math.max(progress.totalSteps, 1)) * ENGINEERING_PHASES.length
+        (progress.currentStep / Math.max(progress.totalSteps, 1)) * activePhases.value.length
       ),
-      ENGINEERING_PHASES.length - 1
+      activePhases.value.length - 1
     )
     if (newIdx !== phaseIndex.value) {
       phaseIndex.value = newIdx
@@ -157,7 +178,7 @@ export function useAiBatchEngineeringBuild() {
     }
   })
 
-  async function startAiBatchGenerate(designChangeId: number | null = null) {
+  async function startBatch(starter: (constructionId: string) => Promise<{ jobId: string }>) {
     const constructionId = currentProject.value?.id
     if (!constructionId) {
       alert('請先於左側選擇工程案')
@@ -168,9 +189,7 @@ export function useAiBatchEngineeringBuild() {
     aiBatchProgress.value = null
 
     try {
-      const { jobId } = isSupervisory.value
-        ? await startSupervisoryAiBatchGenerate(constructionId, designChangeId)
-        : await startContractorAiBatchGenerate(constructionId, designChangeId)
+      const { jobId } = await starter(constructionId)
 
       clearPollTimer()
       pollTimer = setInterval(async () => {
@@ -191,6 +210,24 @@ export function useAiBatchEngineeringBuild() {
       const err = e as { message?: string }
       aiBatchError.value = err?.message || '啟動失敗，請稍後再試'
     }
+  }
+
+  async function startAiBatchGenerate(designChangeId: number | null = null) {
+    batchMode.value = 'engineering'
+    await startBatch((constructionId) =>
+      isSupervisory.value
+        ? startSupervisoryAiBatchGenerate(constructionId, designChangeId)
+        : startContractorAiBatchGenerate(constructionId, designChangeId)
+    )
+  }
+
+  async function startPlanBatchGenerate(designChangeId: number | null, planKeys: string[]) {
+    batchMode.value = 'plan'
+    await startBatch((constructionId) =>
+      isSupervisory.value
+        ? startSupervisoryPlanBatchGenerate(constructionId, designChangeId, planKeys)
+        : startContractorPlanBatchGenerate(constructionId, designChangeId, planKeys)
+    )
   }
 
   function closeAiBatchModal() {
@@ -214,11 +251,14 @@ export function useAiBatchEngineeringBuild() {
     aiBatchModalOpen,
     aiBatchProgress,
     aiBatchError,
+    batchMode,
+    activePhases,
     displayedPercent,
     phaseIndex,
     visibleSubs,
     coreStates,
     startAiBatchGenerate,
+    startPlanBatchGenerate,
     closeAiBatchModal
   }
 }

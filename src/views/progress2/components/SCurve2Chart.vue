@@ -12,11 +12,11 @@
           <option value="every7">每週一點</option>
           <option value="monthly">每月一點</option>
         </select>
-        <div class="btn-group btn-group-sm">
-          <button type="button" class="btn btn-outline-secondary" @click="exportSvg">
+        <div class="d-flex gap-1">
+          <button type="button" class="win-btn win-btn--sm" @click="exportSvg">
             <i class="fa fa-download me-1"></i>SVG
           </button>
-          <button type="button" class="btn btn-outline-secondary" @click="exportPng">
+          <button type="button" class="win-btn win-btn--sm" @click="exportPng">
             <i class="fa fa-image me-1"></i>PNG
           </button>
         </div>
@@ -53,7 +53,7 @@
         @mouseleave="hoverPoint = null"
       >
         <!-- 背景 -->
-        <rect x="0" y="0" :width="size.width" :height="size.height" fill="#ffffff" />
+        <rect x="0" y="0" :width="size.width" :height="size.height" fill="#0f172a" />
 
         <!-- Y 左軸格線與標籤（累計 %） -->
         <g v-for="tick in yTicks" :key="'y' + tick">
@@ -62,7 +62,7 @@
             :x2="plot.right"
             :y1="yScale(tick)"
             :y2="yScale(tick)"
-            stroke="#e4e7ec"
+            stroke="#334155"
             stroke-width="1"
           />
           <text :x="plot.left - 8" :y="yScale(tick) + 4" text-anchor="end" class="sc-axis-text">
@@ -84,7 +84,7 @@
             :x2="xScale(p.dayIndex)"
             :y1="plot.bottom"
             :y2="plot.bottom + 4"
-            stroke="#98a2b3"
+            stroke="#64748b"
           />
           <text
             v-if="showXLabel(i)"
@@ -145,9 +145,9 @@
         </g>
 
         <!-- 軸線 -->
-        <line :x1="plot.left" :x2="plot.left" :y1="plot.top" :y2="plot.bottom" stroke="#667085" />
-        <line :x1="plot.right" :x2="plot.right" :y1="plot.top" :y2="plot.bottom" stroke="#667085" />
-        <line :x1="plot.left" :x2="plot.right" :y1="plot.bottom" :y2="plot.bottom" stroke="#667085" />
+        <line :x1="plot.left" :x2="plot.left" :y1="plot.top" :y2="plot.bottom" stroke="#94a3b8" />
+        <line :x1="plot.right" :x2="plot.right" :y1="plot.top" :y2="plot.bottom" stroke="#94a3b8" />
+        <line :x1="plot.left" :x2="plot.right" :y1="plot.bottom" :y2="plot.bottom" stroke="#94a3b8" />
 
         <!-- 軸標題 -->
         <text :x="plot.left" :y="16" class="sc-axis-title">累計進度 (%)</text>
@@ -507,14 +507,18 @@ const svgMarkup = (): string | null => {
   clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
   clone.setAttribute('width', String(size.value.width))
   clone.setAttribute('height', String(size.value.height))
+  // 畫面採暗黑模式，但下載與 Word 套版維持適合列印的白底圖。
+  clone.querySelector('rect')?.setAttribute('fill', '#ffffff')
+  clone.querySelectorAll('line[stroke="#334155"]').forEach((line) => line.setAttribute('stroke', '#e4e7ec'))
+  clone.querySelectorAll('line[stroke="#94a3b8"]').forEach((line) => line.setAttribute('stroke', '#667085'))
   // 內嵌樣式（scoped class 匯出後會失效，改為固定樣式）
   const style = document.createElementNS('http://www.w3.org/2000/svg', 'style')
   style.textContent = `
-    .sc-axis-text { font: 10px "Noto Sans TC", sans-serif; fill: #344054; }
-    .sc-axis-title { font: 600 11px "Noto Sans TC", sans-serif; fill: #344054; }
+    .sc-axis-text { font: 16px "Noto Sans TC", sans-serif; fill: #344054; }
+    .sc-axis-title { font: 600 18px "Noto Sans TC", sans-serif; fill: #344054; }
     .sc-axis-text-inc { fill: #0d6efd; }
     .sc-today-text { fill: #dc3545; }
-    .sc-actual-text { fill: #fd7e14; font-weight: 600; }
+    .sc-actual-text { fill: #fd7e14; font-size: 17px; font-weight: 600; }
   `
   clone.insertBefore(style, clone.firstChild)
   return new XMLSerializer().serializeToString(clone)
@@ -535,43 +539,69 @@ const exportSvg = () => {
   downloadBlob(new Blob([markup], { type: 'image/svg+xml;charset=utf-8' }), `${exportFileName()}.svg`)
 }
 
-const exportPng = () => {
+const renderPngBlob = (): Promise<Blob | null> => {
   const markup = svgMarkup()
-  if (!markup) return
-  const img = new Image()
-  const svgUrl = URL.createObjectURL(new Blob([markup], { type: 'image/svg+xml;charset=utf-8' }))
-  img.onload = () => {
-    const scale = 2
-    const canvas = document.createElement('canvas')
-    canvas.width = size.value.width * scale
-    canvas.height = size.value.height * scale
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-    ctx.scale(scale, scale)
-    ctx.fillStyle = '#ffffff'
-    ctx.fillRect(0, 0, size.value.width, size.value.height)
-    ctx.drawImage(img, 0, 0, size.value.width, size.value.height)
-    URL.revokeObjectURL(svgUrl)
-    canvas.toBlob((blob) => {
-      if (blob) downloadBlob(blob, `${exportFileName()}.png`)
-    }, 'image/png')
-  }
-  img.src = svgUrl
+  if (!markup) return Promise.resolve(null)
+  return new Promise((resolve) => {
+    const img = new Image()
+    const svgUrl = URL.createObjectURL(new Blob([markup], { type: 'image/svg+xml;charset=utf-8' }))
+    img.onload = () => {
+      const scale = 2
+      const canvas = document.createElement('canvas')
+      canvas.width = size.value.width * scale
+      canvas.height = size.value.height * scale
+      const ctx = canvas.getContext('2d')
+      if (!ctx) {
+        URL.revokeObjectURL(svgUrl)
+        resolve(null)
+        return
+      }
+      ctx.scale(scale, scale)
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(0, 0, size.value.width, size.value.height)
+      ctx.drawImage(img, 0, 0, size.value.width, size.value.height)
+      URL.revokeObjectURL(svgUrl)
+      canvas.toBlob((blob) => resolve(blob), 'image/png')
+    }
+    img.onerror = () => {
+      URL.revokeObjectURL(svgUrl)
+      resolve(null)
+    }
+    img.src = svgUrl
+  })
 }
+
+const exportPng = async () => {
+  const blob = await renderPngBlob()
+  if (blob) downloadBlob(blob, `${exportFileName()}.png`)
+}
+
+defineExpose({ renderPngBlob })
 </script>
 
 <style scoped>
 .scurve2-wrapper {
   min-height: 420px;
+  color: rgba(226, 232, 240, 0.92);
+  background-color: #0f172a;
+}
+
+.scurve2-wrapper > .border-bottom {
+  background-color: #1e293b;
+  border-bottom-color: rgba(255, 255, 255, 0.12) !important;
 }
 
 .scurve2-density {
   width: 140px;
+  color: rgba(255, 255, 255, 0.92);
+  background-color: rgba(2, 6, 23, 0.72);
+  border-color: rgba(255, 255, 255, 0.16);
+  color-scheme: dark;
 }
 
 .scurve2-body {
   overflow: hidden;
-  background: #ffffff;
+  background-color: #0f172a;
   min-height: 320px;
 }
 
@@ -583,13 +613,13 @@ const exportPng = () => {
 
 .sc-axis-text {
   font-size: 10px;
-  fill: #344054;
+  fill: #cbd5e1;
 }
 
 .sc-axis-title {
   font-size: 11px;
   font-weight: 600;
-  fill: #344054;
+  fill: #e2e8f0;
 }
 
 .sc-axis-text-inc {
@@ -608,14 +638,14 @@ const exportPng = () => {
 .scurve2-tooltip {
   position: absolute;
   z-index: 20;
-  background: rgba(255, 255, 255, 0.98);
-  color: #333;
-  border: 1px solid rgba(0, 0, 0, 0.2);
+  background: rgba(15, 23, 42, 0.98);
+  color: #e2e8f0;
+  border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 6px;
   padding: 6px 10px;
   font-size: 0.75rem;
   pointer-events: none;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
   white-space: nowrap;
 }
 

@@ -16,6 +16,12 @@ interface Props {
   visibleSubs: number
   coreStates: boolean[]
   phases: PhaseItem[]
+  title?: string
+  subtitle?: string
+  completionTitle?: string
+  completionSubtitle?: string
+  doneBadge?: string
+  workingText?: string
 }
 
 const props = defineProps<Props>()
@@ -132,8 +138,8 @@ onBeforeUnmount(stopCanvas)
             <i class="fa fa-microchip"></i>
           </div>
           <div class="ai-header-text">
-            <div class="ai-header-title">工程核心啟動中</div>
-            <div class="ai-header-sub">Engineering Intelligence System</div>
+            <div class="ai-header-title">{{ title || '工程核心啟動中' }}</div>
+            <div class="ai-header-sub">{{ subtitle || 'Engineering Intelligence System' }}</div>
           </div>
           <button
             v-if="progress?.status === 'DONE' || !!error"
@@ -157,8 +163,17 @@ onBeforeUnmount(stopCanvas)
             <template v-if="progress?.status === 'DONE'">
               <div class="ai-complete-block">
                 <div class="ai-complete-icon"><i class="fa fa-circle-check"></i></div>
-                <div class="ai-complete-title">工程文件建立完成</div>
-                <div class="ai-complete-sub">已完成公共工程邏輯整合</div>
+                <div class="ai-complete-title">{{ completionTitle || '工程資料建立完成' }}</div>
+                <div class="ai-complete-sub">{{ completionSubtitle || '已完成公共工程邏輯整合' }}</div>
+                <div
+                  v-if="progress.failedItems?.length"
+                  class="alert alert-warning text-start mt-3 mb-0"
+                >
+                  <div class="fw-semibold mb-1">部分項目未完成，可稍後單獨重試：</div>
+                  <ul class="mb-0 ps-3">
+                    <li v-for="item in progress.failedItems" :key="item">{{ item }}</li>
+                  </ul>
+                </div>
               </div>
             </template>
 
@@ -225,7 +240,7 @@ onBeforeUnmount(stopCanvas)
                 <span class="ai-core-label">CORE LOAD</span>
               </template>
               <span v-else class="ai-badge-done">
-                <i class="fa fa-check me-1"></i>公共工程邏輯建構完成
+                <i class="fa fa-check me-1"></i>{{ doneBadge || '公共工程邏輯建構完成' }}
               </span>
             </div>
           </template>
@@ -235,7 +250,7 @@ onBeforeUnmount(stopCanvas)
         <div class="ai-batch-modal__footer">
           <small class="text-muted">
             <template v-if="progress?.status === 'DONE' || error">可關閉此視窗</template>
-            <template v-else>系統正在建構中，請稍候…</template>
+            <template v-else>{{ workingText || '系統正在建構中，請稍候…' }}</template>
           </small>
         </div>
       </div>

@@ -77,11 +77,13 @@
         :category="cat.code"
         :title="cat.name"
         :items="groupedItems[cat.code] || []"
+        :allow-add="cat.code !== 'C'"
+        :allow-reorder="cat.code !== 'C'"
         :is-dynamic="cat.code === 'D'"
         :sync-label="cat.code === 'D' ? '同步施工大項' : undefined"
         :sync-title="
           cat.code === 'D'
-            ? '依目前版本施工大項重新同步 D 類（{施工大項名稱}自主檢查表；覆寫既有項目）'
+            ? '依目前版本施工大項重新同步 D／L 類共用的自主檢查來源（{施工大項名稱}自主檢查表；覆寫既有 D 類項目）'
             : undefined
         "
         :header-note="
@@ -114,9 +116,9 @@ const categories = [
   { code: 'B', name: 'B類' },
   { code: 'C', name: 'C類' },
   { code: 'D', name: 'D類 (動態/自主檢查)' },
+  { code: 'L', name: 'L類' },
   { code: 'H', name: 'H類' },
-  { code: 'I', name: 'I類' },
-  { code: 'L', name: 'L類' }
+  { code: 'I', name: 'I類' }
 ]
 
 const workspaceStore = useWorkspaceStore()
@@ -256,10 +258,14 @@ async function handleDelete(id: number) {
 async function handleSyncD() {
   const cid = constructionId.value
   if (!cid) return
-  if (!confirm('確定要根據施工大項重新同步 D 類別嗎？將以「{施工大項名稱}自主檢查表」覆寫目前 D 類自訂內容。')) return
+  if (
+    !confirm(
+      '確定要根據施工大項同步 D／L 類嗎？D 類自主檢查項目將重新建立；L 類會更新對應的安全衛生抽查項目，原有 L 類文件會保留。'
+    )
+  ) return
   try {
     await documentClassificationApi.syncCategoryD(cid, selectedDesignChangeId.value)
-    if (proxy?.$toast) proxy.$toast.success('D 類別同步完成')
+    if (proxy?.$toast) proxy.$toast.success('D／L 類同步完成')
     await loadData()
     // D 類項目大幅變動，通知 sidebar 重整
     requestSupervisoryDocClassSidebarRefresh()

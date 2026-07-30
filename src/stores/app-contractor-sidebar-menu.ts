@@ -10,6 +10,7 @@ import {
 import { getDesignChangeList } from '@/api/designChange';
 import { storage, StorageKeys } from '@/utils/storage';
 import type { SidebarMenuItem as MenuItem } from '@/types/sidebar-menu'
+import { CONTRACTOR_G_FIXED_FORMS } from '@/config/fixedDocumentForms'
 
 export const useAppContractorSidebarMenuStore = defineStore("appContractorSidebarMenu", () => {
   const debugInstanceId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -43,8 +44,8 @@ export const useAppContractorSidebarMenuStore = defineStore("appContractorSideba
    * - 排序：依 `itemNumber` 自然排序。
    * - 視角守：僅在「營造視角 + 已選工程案」時載入。
    */
-  type ContractorDocClassCategory = 'B' | 'E' | 'G' | 'R' | 'T' | 'Q'
-  const CONTRACTOR_DOC_CLASS_CATEGORIES: readonly ContractorDocClassCategory[] = ['B', 'E', 'G', 'R', 'T', 'Q']
+  type ContractorDocClassCategory = 'B' | 'E' | 'G' | 'R' | 'S' | 'T' | 'Q'
+  const CONTRACTOR_DOC_CLASS_CATEGORIES: readonly ContractorDocClassCategory[] = ['B', 'E', 'G', 'R', 'S', 'T', 'Q']
 
   const contractorDocClassRows = ref<ContractorDocumentClassification[]>([])
   let contractorDocClassLoadAbortFlag = 0
@@ -95,6 +96,24 @@ export const useAppContractorSidebarMenuStore = defineStore("appContractorSideba
       text: formatDocClassSidebarText(cat, i.itemNumber, i.documentName),
       url: `/contractor/forms/doc-class/${cat}/${i.id}`,
     }))
+  }
+
+  const buildSChildren = (): MenuItem[] => {
+    const sRows = getDocClassRowsByCategory('S')
+    const eRows = getDocClassRowsByCategory('E')
+    return sRows.map((item) => {
+        const source = eRows.find(
+          (row) =>
+            row.subdivisionWorkItemId != null &&
+            row.subdivisionWorkItemId === item.subdivisionWorkItemId,
+        )
+        return {
+          text: formatDocClassSidebarText('S', item.itemNumber, item.documentName),
+          url: source
+            ? `/contractor/forms/doc-class/S/safety-inspections?classificationId=${source.id}`
+            : `/contractor/forms/doc-class/S/safety-inspections?classificationItemId=${item.id}`,
+        }
+      })
   }
 
   const loadContractorDocClassRows = async () => {
@@ -331,6 +350,18 @@ export const useAppContractorSidebarMenuStore = defineStore("appContractorSideba
       bootstrapRetryTimer = null
     }
   }
+
+  const buildFixedGChildren = (): MenuItem[] =>
+    CONTRACTOR_G_FIXED_FORMS.map((form) => {
+      const row = contractorDocClassRows.value.find((item) =>
+        item.fixedFormCode === form.code ||
+        (item.category === 'G' && item.itemNumber === form.itemNumber)
+      )
+      return {
+        text: formatDocClassSidebarText('G', form.itemNumber, row?.documentName || form.fallbackName),
+        url: form.path,
+      }
+    })
 
   const clearBootstrapRetry = () => {
     cancelBootstrapRetry()
@@ -800,9 +831,14 @@ export const useAppContractorSidebarMenuStore = defineStore("appContractorSideba
                 children: buildDocClassChildrenOrPlaceholder('E'),
               },
               {
+                text: "S類表單",
+                visible: !isSupervisory.value,
+                children: buildSChildren(),
+              },
+              {
                 text: "G類表單",
                 visible: !isSupervisory.value,
-                children: buildDocClassChildrenOrPlaceholder('G'),
+                children: buildFixedGChildren(),
               },
               {
                 text: "R類表單",

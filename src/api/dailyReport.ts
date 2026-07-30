@@ -636,6 +636,48 @@ export const exportDailyReportToWord = async (
   }
 };
 
+export interface DailyReportArchiveSummary {
+  id?: number | null
+  reportDate: string
+  status: 'DRAFT' | 'SUBMITTED'
+  weatherMorning?: string | null
+  weatherAfternoon?: string | null
+  constructionItemCount: number
+  materialCount: number
+  totalPeople: number
+  totalMachine: number
+  importantMatters?: string | null
+  updatedAt?: string | null
+}
+
+export async function listDailyReportArchive(
+  constructionId: string,
+  startDate: string,
+  endDate: string,
+  ownerType: 'SUPERVISORY' | 'CONTRACTOR',
+): Promise<DailyReportArchiveSummary[]> {
+  return await http.get(
+    `/management/constructions/${constructionId}/daily-reports/archive`,
+    { params: { startDate, endDate, ownerType } },
+  ) as unknown as DailyReportArchiveSummary[]
+}
+
+export async function exportDailyReportArchive(
+  constructionId: string,
+  startDate: string,
+  endDate: string,
+  ownerType: 'SUPERVISORY' | 'CONTRACTOR',
+): Promise<Blob> {
+  return await http.get(
+    `/management/constructions/${constructionId}/daily-reports/archive/export`,
+    {
+      params: { startDate, endDate, ownerType },
+      responseType: 'blob',
+      timeout: 300000,
+    },
+  ) as unknown as Blob
+}
+
 export default {
   getDailyReport,
   saveDailyReport,

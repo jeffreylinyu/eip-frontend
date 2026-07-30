@@ -1,41 +1,84 @@
 <script setup lang="ts">
 import SidebarNav from '@/components/app/SidebarNav.vue';
-import { useRouter, useRoute } from 'vue-router'
+import { nextTick, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 
-defineProps<{
+type SidebarMenu = {
+	icon?: string,
+	text?: string,
+	url?: string,
+	highlight?: boolean,
+	children?: SidebarMenu[],
+	label?: string
+}
+
+const props = defineProps<{
   menu: {
   	icon?: string,
   	text?: string,
   	url?: string,
   	highlight?: boolean,
-  	children?: any,
+  	children?: SidebarMenu[],
   	label?: string
   };
 }>();
 
 const route = useRoute();
+const menuRoot = ref<HTMLElement | null>(null);
+let wasAutoExpanded = false;
 
-function subIsActive(urls: { url?: string }[]) {
-	// 有 query 的連結要用 fullPath 比對，否則用 path（與下方 leaf 邏輯一致）
-	const currentFull = route.fullPath;
-	const currentPath = route.path;
-	let match = false;
-	for (let x = 0; x < urls.length; x++) {
-		const u = urls[x].url ?? '';
-		if (u.includes('?')) {
-			if (currentFull === u) match = true;
-		} else {
-			if (currentPath === u) match = true;
+function matchesMenuUrl(menuUrl: string | undefined): boolean {
+	if (!menuUrl) return false;
+	if (menuUrl.includes('?')) {
+		const [menuPath, queryString = ''] = menuUrl.split('?');
+		if (route.path !== menuPath && !route.path.startsWith(`${menuPath.replace(/\/+$/, '')}/`)) {
+			return false;
 		}
+		const expected = new URLSearchParams(queryString);
+		let queryMatches = true;
+		expected.forEach((value, key) => {
+			const actual = route.query[key];
+			const actualValue = Array.isArray(actual) ? actual[0] : actual;
+			if (String(actualValue ?? '') !== value) queryMatches = false;
+		});
+		return queryMatches;
 	}
-	return match;
+	return route.path === menuUrl || route.path.startsWith(`${menuUrl.replace(/\/+$/, '')}/`);
+}
+
+function menuTreeIsActive(items: SidebarMenu[] | undefined): boolean {
+	if (!items) return false;
+	return items.some((item) =>
+		matchesMenuUrl(item.url) || menuTreeIsActive(item.children)
+	);
+}
+
+function subIsActive(items: SidebarMenu[] | undefined) {
+	return menuTreeIsActive(items);
+}
+
+async function syncExpandedStateWithRoute() {
+	await nextTick();
+	const root = menuRoot.value;
+	if (!root || !props.menu.children) return;
+	const submenu = root.querySelector(':scope > .menu-submenu') as HTMLElement | null;
+	const active = menuTreeIsActive(props.menu.children);
+	if (active) {
+		root.classList.add('expand');
+		if (submenu) submenu.style.display = 'block';
+		wasAutoExpanded = true;
+	} else if (wasAutoExpanded) {
+		root.classList.remove('expand');
+		if (submenu) submenu.style.display = 'none';
+		wasAutoExpanded = false;
+	}
 }
 
 /** 葉子選單是否為當前頁：Vue Router 4 的 isActive 不考慮 query，故改為用 fullPath 比對 */
 function leafIsActive(menuUrl: string | undefined, slotIsActive: boolean): boolean {
 	if (!menuUrl) return slotIsActive;
-	if (menuUrl.includes('?')) return route.fullPath === menuUrl;
-	return slotIsActive;
+	if (menuUrl.includes('?')) return matchesMenuUrl(menuUrl);
+	return matchesMenuUrl(menuUrl) || slotIsActive;
 }
 
 function toggleSubmenu(e: MouseEvent) {
@@ -68,10 +111,21 @@ function toggleSubmenu(e: MouseEvent) {
 		submenu.style.display = 'block';
 	}
 }
+
+watch(
+	() => [route.fullPath, props.menu.children] as const,
+	() => { void syncExpandedStateWithRoute(); },
+	{ immediate: true, deep: true }
+);
 </script>
 <template>
 	<!-- menu with submenu -->
-	<div v-if="menu.children" class="menu-item has-sub" v-bind:class="{ 'active': subIsActive(menu.children) }">
+	<div
+		v-if="menu.children"
+		ref="menuRoot"
+		class="menu-item has-sub"
+		v-bind:class="{ 'active': subIsActive(menu.children) }"
+	>
 		<a class="menu-link" href="#" @click="toggleSubmenu">
 			<span class="menu-icon" v-if="menu.icon">
 				<i v-bind:class="menu.icon"></i>

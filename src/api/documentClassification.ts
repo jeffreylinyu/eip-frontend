@@ -8,6 +8,7 @@ export interface DocumentClassification {
   category: string // 'A' | 'B' | 'C' | 'D' | 'H' | 'I' | 'L'
   categoryDisplayName: string
   itemNumber: string
+  fixedFormCode?: string | null
   documentName: string
   retentionYears: number | null
   /** B 類（監造）／P 類（營造複製後）：規定提送日程 */

@@ -216,6 +216,7 @@ const props = defineProps<{
   planType: string
   /** 例：P-2 整體品質計劃 */
   planLabel: string
+  contextRecordId?: number
 }>()
 
 const emit = defineEmits<{ 'update:show': [value: boolean] }>()
@@ -237,7 +238,7 @@ async function loadRecords() {
   loading.value = true
   try {
     const [list] = await Promise.all([
-      getPlanSubmissionPRecords(constructionId.value, props.planType),
+      getPlanSubmissionPRecords(constructionId.value, props.planType, props.contextRecordId),
       refreshDocCache()
     ])
     records.value = list
@@ -293,7 +294,11 @@ async function refreshDocCache() {
 
 async function doAdd() {
   try {
-    await createPlanSubmissionPRecord(constructionId.value, props.planType)
+    await createPlanSubmissionPRecord(
+      constructionId.value,
+      props.planType,
+      props.contextRecordId,
+    )
     await loadRecords()
   } catch (e) {
     console.error('[PlanSubmissionP] 新增失敗', e)

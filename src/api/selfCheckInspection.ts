@@ -135,6 +135,20 @@ export const selfCheckInspectionApi = {
     return unwrap<SelfCheckInspectionRecord[]>(res) ?? []
   },
 
+  async listAll(
+    constructionId: string,
+    ownerType: SelfCheckOwnerType,
+    standardKind: SelfCheckStandardKind
+  ): Promise<SelfCheckInspectionRecord[]> {
+    const res = await http.get('/management/self-check-inspections/all', {
+      params: {
+        ...ownerParams(ownerType, constructionId),
+        standardKind
+      }
+    })
+    return unwrap<SelfCheckInspectionRecord[]>(res) ?? []
+  },
+
   async get(
     constructionId: string,
     recordId: number,

@@ -156,6 +156,8 @@
         :category="cat.code"
         :title="cat.name"
         :items="groupedItems[cat.code] || []"
+        :allow-add="cat.code !== 'G'"
+        :allow-reorder="cat.code !== 'G'"
         :allow-null-retention="true"
         :schedule-column-categories="cat.code === 'P' ? ['P'] : []"
         :plan-schedule-extras="cat.code === 'P'"
@@ -167,7 +169,7 @@
         :sync-label="cat.code === 'E' ? '同步分項工程' : undefined"
         :sync-title="
           cat.code === 'E'
-            ? '依目前版本分項工程重新同步 E 類（{分項名稱}自主檢查表；覆寫既有項目）'
+            ? '依目前版本分項工程重新同步 E／S 類共用的自主檢查來源（{分項名稱}自主檢查表；覆寫既有 E 類項目）'
             : undefined
         "
         @add="(data) => handleAdd(cat.code, data)"
@@ -269,6 +271,7 @@ const categories = [
   { code: 'P', name: 'P類-計畫書' },
   { code: 'B', name: 'B類-估驗' },
   { code: 'E', name: 'E類-自主檢查' },
+  { code: 'S', name: 'S類-施工安全衛生抽查' },
   { code: 'G', name: 'G類-進度報告' },
   { code: 'R', name: 'R類-會議紀錄' },
   { code: 'T', name: 'T類-試驗報告' },
@@ -681,14 +684,14 @@ async function handleSyncE() {
   if (!cid) return
   if (
     !confirm(
-      '確定要根據分項工程重新同步 E 類別嗎？將以「{分項名稱}自主檢查表」覆寫目前 E 類內容。'
+      '確定要根據分項工程同步 E／S 類嗎？E 類自主檢查表與 S 類安全衛生抽查表都會依目前分項工程重新建立。'
     )
   ) {
     return
   }
   try {
     await contractorDocumentClassificationApi.syncCategoryE(cid, selectedDesignChangeId.value)
-    if (proxy?.$toast) proxy.$toast.success('E 類別同步完成')
+    if (proxy?.$toast) proxy.$toast.success('E／S 類同步完成')
     await loadData()
     refreshContractorSidebar()
   } catch (error: any) {

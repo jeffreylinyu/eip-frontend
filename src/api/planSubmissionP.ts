@@ -51,17 +51,21 @@ function unwrap<T>(data: unknown): T | null {
 
 export async function getPlanSubmissionPRecords(
   constructionId: string,
-  planType: string
+  planType: string,
+  contextRecordId?: number,
 ): Promise<PlanSubmissionPRecord[]> {
-  const data = await http.get(`${base(constructionId)}/records`, { params: { planType } })
+  const data = await http.get(`${base(constructionId)}/records`, {
+    params: { planType, contextRecordId },
+  })
   return unwrap<PlanSubmissionPRecord[]>(data) ?? []
 }
 
 export async function createPlanSubmissionPRecord(
   constructionId: string,
-  planType: string
+  planType: string,
+  contextRecordId?: number,
 ): Promise<PlanSubmissionPRecord | null> {
-  const data = await http.post(`${base(constructionId)}/records`, { planType })
+  const data = await http.post(`${base(constructionId)}/records`, { planType, contextRecordId })
   return unwrap<PlanSubmissionPRecord>(data)
 }
 

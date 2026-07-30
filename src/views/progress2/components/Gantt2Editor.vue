@@ -2,28 +2,28 @@
   <div class="gantt2-wrapper d-flex flex-column h-100">
     <!-- 甘特圖工具列 -->
     <div class="gantt2-toolbar d-flex align-items-center gap-2 p-2 border-bottom flex-wrap">
-      <div class="btn-group btn-group-sm" role="group" aria-label="時間刻度">
+      <div class="d-flex gap-1" role="group" aria-label="時間刻度">
         <button
           v-for="z in zoomOptions"
           :key="z.key"
           type="button"
-          class="btn"
-          :class="zoom === z.key ? 'btn-primary' : 'btn-outline-secondary'"
+          class="win-btn win-btn--sm"
+          :class="{ 'win-btn-accent': zoom === z.key }"
           @click="zoom = z.key"
         >
           {{ z.label }}
         </button>
       </div>
-      <button type="button" class="btn btn-sm btn-outline-secondary" @click="scrollToToday">
+      <button type="button" class="win-btn win-btn--sm" @click="scrollToToday">
         <i class="fa fa-crosshairs me-1"></i>回到今天
       </button>
-      <button type="button" class="btn btn-sm btn-outline-secondary" @click="gridCollapsed = !gridCollapsed">
+      <button type="button" class="win-btn win-btn--sm" @click="gridCollapsed = !gridCollapsed">
         <i class="fa me-1" :class="gridCollapsed ? 'fa-table-columns' : 'fa-minimize'"></i>
         {{ gridCollapsed ? '展開欄位' : '收合欄位' }}
       </button>
       <button
         type="button"
-        class="btn btn-sm btn-outline-secondary"
+        class="win-btn win-btn--sm"
         :disabled="!tasks.length"
         title="將甘特圖匯出為 PNG 圖片"
         @click="exportPng"
@@ -42,7 +42,16 @@
         <div class="gantt2-header d-flex">
           <div class="gantt2-left gantt2-left-header d-flex" :style="{ width: leftWidth + 'px' }">
             <div class="g2-cell g2-col-index">#</div>
-            <div class="g2-cell g2-col-name">項目名稱</div>
+            <div class="g2-cell g2-col-name" :style="{ width: nameColumnWidth + 'px' }">
+              項目名稱
+              <button
+                type="button"
+                class="g2-column-resizer"
+                title="拖曳調整項目名稱欄寬"
+                aria-label="拖曳調整項目名稱欄寬"
+                @mousedown.stop.prevent="startNameColumnResize"
+              ></button>
+            </div>
             <template v-if="!gridCollapsed">
               <div class="g2-cell g2-col-date">開始日期</div>
               <div class="g2-cell g2-col-date">結束日期</div>
@@ -129,7 +138,7 @@
                   </button>
                 </span>
               </div>
-              <div class="g2-cell g2-col-name">
+              <div class="g2-cell g2-col-name" :style="{ width: nameColumnWidth + 'px' }">
                 <input
                   type="text"
                   class="form-control form-control-sm g2-input"
@@ -273,10 +282,39 @@ const zoom = ref<ZoomKey>('day')
 const gridCollapsed = ref(false)
 const selectedId = ref<string | null>(null)
 const scrollEl = ref<HTMLElement | null>(null)
+const nameColumnWidth = ref(220)
 
 const dayWidth = computed(() => (zoom.value === 'day' ? 28 : zoom.value === 'week' ? 9 : 3.2))
 
-const leftWidth = computed(() => (gridCollapsed.value ? 260 : 780))
+const expandedFixedWidth = 64 + 140 * 2 + 78 * 3 + 40
+const collapsedFixedWidth = 64
+const leftWidth = computed(
+  () => nameColumnWidth.value + (gridCollapsed.value ? collapsedFixedWidth : expandedFixedWidth),
+)
+
+let nameResizeStartX = 0
+let nameResizeStartWidth = 0
+
+const onNameColumnResize = (event: MouseEvent) => {
+  nameColumnWidth.value = Math.min(
+    600,
+    Math.max(140, nameResizeStartWidth + event.clientX - nameResizeStartX),
+  )
+}
+
+const stopNameColumnResize = () => {
+  document.removeEventListener('mousemove', onNameColumnResize)
+  document.removeEventListener('mouseup', stopNameColumnResize)
+  document.body.classList.remove('gantt2-column-resizing')
+}
+
+const startNameColumnResize = (event: MouseEvent) => {
+  nameResizeStartX = event.clientX
+  nameResizeStartWidth = nameColumnWidth.value
+  document.addEventListener('mousemove', onNameColumnResize)
+  document.addEventListener('mouseup', stopNameColumnResize)
+  document.body.classList.add('gantt2-column-resizing')
+}
 
 // ---------- 時間範圍 ----------
 const today = startOfDay(new Date())
@@ -561,6 +599,7 @@ onUnmounted(() => {
   document.removeEventListener('mousemove', onDragMove)
   document.removeEventListener('mouseup', onDragEnd)
   document.body.classList.remove('gantt2-no-select')
+  stopNameColumnResize()
 })
 
 /** 未排程項目：點擊時間軸直接排入（預設 7 天） */
@@ -631,13 +670,13 @@ interface ExportColumn {
 }
 
 const exportColumns: ExportColumn[] = [
-  { label: '#', width: 40, align: 'center', value: (_t, i) => String(i + 1) },
+  { label: '#', width: 48, align: 'center', value: (_t, i) => String(i + 1) },
   { label: '項目名稱', width: 240, align: 'left', value: (t) => t.name },
-  { label: '開始日期', width: 96, align: 'center', value: (t) => t.startDate || '-' },
-  { label: '結束日期', width: 96, align: 'center', value: (t) => t.endDate || '-' },
-  { label: '工期', width: 52, align: 'center', value: (t) => (durationOf(t) ? `${durationOf(t)}天` : '-') },
-  { label: '權重%', width: 60, align: 'center', value: (t) => String(t.costRatio ?? 0) },
-  { label: '進度%', width: 60, align: 'center', value: (t) => String(clampPercent(t.progress)) }
+  { label: '開始日期', width: 120, align: 'center', value: (t) => t.startDate || '-' },
+  { label: '結束日期', width: 120, align: 'center', value: (t) => t.endDate || '-' },
+  { label: '工期', width: 64, align: 'center', value: (t) => (durationOf(t) ? `${durationOf(t)}天` : '-') },
+  { label: '權重%', width: 72, align: 'center', value: (t) => String(t.costRatio ?? 0) },
+  { label: '進度%', width: 72, align: 'center', value: (t) => String(clampPercent(t.progress)) }
 ]
 
 const drawClippedText = (
@@ -650,7 +689,7 @@ const drawClippedText = (
 ) => {
   ctx.save()
   ctx.beginPath()
-  ctx.rect(x, y - 12, maxWidth, 24)
+  ctx.rect(x, y - 18, maxWidth, 36)
   ctx.clip()
   ctx.textAlign = align
   const tx = align === 'center' ? x + maxWidth / 2 : x + 6
@@ -676,20 +715,23 @@ const drawRoundedRect = (
   ctx.closePath()
 }
 
-const exportPng = () => {
-  if (!props.tasks.length) return
+const renderPngBlobAtCurrentZoom = (
+  renderTasks: Progress2Task[] = props.tasks,
+): Promise<Blob | null> => {
+  if (!renderTasks.length) return Promise.resolve(null)
+  exportColumns[1].width = nameColumnWidth.value
   const C = EXPORT_COLORS
-  const pad = 16
-  const titleH = 34
-  const groupH = 22
-  const tickH = 20
-  const rowH = 40
+  const pad = 22
+  const titleH = 58
+  const groupH = 32
+  const tickH = 30
+  const rowH = 62
   const exportLeftW = exportColumns.reduce((sum, c) => sum + c.width, 0)
   const chartW = chartWidth.value
   const width = pad * 2 + exportLeftW + chartW
   const headerTop = pad + titleH
   const bodyTop = headerTop + groupH + tickH
-  const height = bodyTop + props.tasks.length * rowH + pad
+  const height = bodyTop + renderTasks.length * rowH + pad
   const chartX = pad + exportLeftW
 
   const scale = Math.min(2, Math.max(1, 6000 / width))
@@ -697,7 +739,7 @@ const exportPng = () => {
   canvas.width = Math.round(width * scale)
   canvas.height = Math.round(height * scale)
   const ctx = canvas.getContext('2d')
-  if (!ctx) return
+  if (!ctx) return Promise.resolve(null)
   ctx.scale(scale, scale)
   ctx.textBaseline = 'middle'
 
@@ -705,20 +747,20 @@ const exportPng = () => {
   ctx.fillStyle = C.bg
   ctx.fillRect(0, 0, width, height)
   ctx.fillStyle = C.text
-  ctx.font = '600 15px "Noto Sans TC", sans-serif'
+  ctx.font = '600 30px "Noto Sans TC", sans-serif'
   ctx.textAlign = 'left'
-  ctx.fillText(`${props.title ? props.title + '｜' : ''}施工進度甘特圖`, pad, pad + 12)
-  ctx.font = '11px "Noto Sans TC", sans-serif'
+  ctx.fillText(`${props.title ? props.title + '｜' : ''}施工進度甘特圖`, pad, pad + 22)
+  ctx.font = '16px "Noto Sans TC", sans-serif'
   ctx.fillStyle = C.muted
   ctx.textAlign = 'right'
-  ctx.fillText(`匯出日期：${formatDisplay(new Date())}`, width - pad, pad + 12)
+  ctx.fillText(`匯出日期：${formatDisplay(new Date())}`, width - pad, pad + 22)
 
   // 表頭底色
   ctx.fillStyle = C.selectedHeaderBg
   ctx.fillRect(pad, headerTop, exportLeftW + chartW, groupH + tickH)
 
   // 時間軸表頭：群組列
-  ctx.font = '600 11px "Noto Sans TC", sans-serif'
+  ctx.font = '600 17px "Noto Sans TC", sans-serif'
   ctx.fillStyle = C.text
   let gx = chartX
   headerGroups.value.forEach((g) => {
@@ -732,7 +774,7 @@ const exportPng = () => {
   })
 
   // 時間軸表頭：刻度列
-  ctx.font = '10px "Noto Sans TC", sans-serif'
+  ctx.font = '15px "Noto Sans TC", sans-serif'
   let tx = chartX
   headerTicks.value.forEach((t) => {
     if (t.weekend) {
@@ -747,7 +789,7 @@ const exportPng = () => {
   })
 
   // 左表格表頭
-  ctx.font = '600 11px "Noto Sans TC", sans-serif'
+  ctx.font = '600 17px "Noto Sans TC", sans-serif'
   ctx.fillStyle = C.text
   let cx = pad
   exportColumns.forEach((col) => {
@@ -756,7 +798,7 @@ const exportPng = () => {
   })
 
   // 圖區背景：週末底色與月（年）分界線
-  const bodyHeight = props.tasks.length * rowH
+  const bodyHeight = renderTasks.length * rowH
   weekendBands.value.forEach((band) => {
     ctx.fillStyle = C.weekend
     ctx.fillRect(chartX + band.left, bodyTop, band.width, bodyHeight)
@@ -770,12 +812,12 @@ const exportPng = () => {
   })
 
   // 各列
-  props.tasks.forEach((task, index) => {
+  renderTasks.forEach((task, index) => {
     const rowY = bodyTop + index * rowH
     const centerY = rowY + rowH / 2
 
     // 左表格文字
-    ctx.font = '11px "Noto Sans TC", sans-serif'
+    ctx.font = '18px "Noto Sans TC", sans-serif'
     ctx.fillStyle = C.text
     let colX = pad
     exportColumns.forEach((col) => {
@@ -790,27 +832,28 @@ const exportPng = () => {
       const end = parseYmd(task.endDate)
       const delayed = !done && end != null && end < today
       const barX = chartX + geo.left
-      const barY = rowY + (rowH - 24) / 2
+      const barHeight = 34
+      const barY = rowY + (rowH - barHeight) / 2
       ctx.fillStyle = done ? C.barDone : delayed ? C.barDelayed : C.barNormal
-      drawRoundedRect(ctx, barX, barY, geo.width, 24, 5)
+      drawRoundedRect(ctx, barX, barY, geo.width, barHeight, 6)
       ctx.fill()
       // 進度覆蓋
       const progressW = (geo.width * clampPercent(task.progress)) / 100
       if (progressW > 0) {
         ctx.save()
-        drawRoundedRect(ctx, barX, barY, geo.width, 24, 5)
+        drawRoundedRect(ctx, barX, barY, geo.width, barHeight, 6)
         ctx.clip()
         ctx.fillStyle = C.progressOverlay
-        ctx.fillRect(barX, barY, progressW, 24)
+        ctx.fillRect(barX, barY, progressW, barHeight)
         ctx.restore()
       }
       // 名稱
       ctx.fillStyle = '#ffffff'
-      ctx.font = '10px "Noto Sans TC", sans-serif'
-      drawClippedText(ctx, task.name, barX, barY + 12, Math.max(0, geo.width - 8), 'left')
+      ctx.font = '16px "Noto Sans TC", sans-serif'
+      drawClippedText(ctx, task.name, barX, barY + barHeight / 2, Math.max(0, geo.width - 8), 'left')
     } else {
       ctx.fillStyle = C.muted
-      ctx.font = '10px "Noto Sans TC", sans-serif'
+      ctx.font = '16px "Noto Sans TC", sans-serif'
       ctx.textAlign = 'left'
       ctx.fillText('（未排程）', chartX + 8, centerY)
     }
@@ -852,23 +895,59 @@ const exportPng = () => {
     ctx.setLineDash([])
     ctx.lineWidth = 1
     ctx.fillStyle = C.today
-    ctx.font = '10px "Noto Sans TC", sans-serif'
+    ctx.font = '14px "Noto Sans TC", sans-serif'
     ctx.textAlign = 'left'
-    ctx.fillText('今天', x + 4, bodyTop + 10)
+    ctx.fillText('今天', x + 5, bodyTop + 14)
   }
 
-  // 下載
+  return new Promise((resolve) => {
+    canvas.toBlob((blob) => resolve(blob), 'image/png')
+  })
+}
+
+const renderPngBlob = (exportZoom: ZoomKey = 'month'): Promise<Blob | null> => {
+  const previousZoom = zoom.value
+  zoom.value = exportZoom
+  try {
+    return renderPngBlobAtCurrentZoom()
+  } finally {
+    zoom.value = previousZoom
+  }
+}
+
+const renderPngBlobs = async (
+  exportZoom: ZoomKey = 'month',
+  pageSize = 15,
+): Promise<Blob[]> => {
+  if (!props.tasks.length) return []
+  const normalizedPageSize = Math.max(1, Math.floor(pageSize))
+  const previousZoom = zoom.value
+  zoom.value = exportZoom
+  try {
+    const blobs: Blob[] = []
+    for (let index = 0; index < props.tasks.length; index += normalizedPageSize) {
+      const blob = await renderPngBlobAtCurrentZoom(
+        props.tasks.slice(index, index + normalizedPageSize),
+      )
+      if (blob) blobs.push(blob)
+    }
+    return blobs
+  } finally {
+    zoom.value = previousZoom
+  }
+}
+
+const exportPng = async () => {
+  const blob = await renderPngBlob()
+  if (!blob) return
   const base = (props.title || '施工進度').replace(/[\\/:*?"<>|]+/g, '_')
   const fileName = `${base}_甘特圖_${new Date().toISOString().slice(0, 10)}.png`
-  canvas.toBlob((blob) => {
-    if (!blob) return
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = fileName
-    a.click()
-    URL.revokeObjectURL(url)
-  }, 'image/png')
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = fileName
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 // ---------- 捲動 ----------
@@ -879,17 +958,25 @@ const scrollToToday = () => {
   el.scrollLeft = Math.max(0, todayOffsetPx.value - viewport / 2)
 }
 
-defineExpose({ scrollToToday })
+defineExpose({ scrollToToday, renderPngBlob, renderPngBlobs })
 </script>
 
 <style scoped>
 .gantt2-wrapper {
   min-height: 420px;
+  color: rgba(226, 232, 240, 0.92);
+  background-color: #0f172a;
+}
+
+.gantt2-toolbar {
+  background-color: #1e293b;
+  border-bottom-color: rgba(255, 255, 255, 0.12) !important;
 }
 
 .gantt2-scroll {
   overflow: auto;
   position: relative;
+  background-color: #0f172a;
 }
 
 .gantt2-inner {
@@ -901,16 +988,16 @@ defineExpose({ scrollToToday })
   position: sticky;
   top: 0;
   z-index: 6;
-  background: var(--bs-body-bg);
-  border-bottom: 1px solid var(--bs-border-color);
+  background-color: #1e293b;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
 }
 
 .gantt2-left {
   position: sticky;
   left: 0;
   z-index: 5;
-  background: var(--bs-body-bg);
-  border-right: 2px solid var(--bs-border-color);
+  background-color: #111827;
+  border-right: 2px solid rgba(255, 255, 255, 0.14);
   flex-shrink: 0;
 }
 
@@ -930,7 +1017,7 @@ defineExpose({ scrollToToday })
   font-size: 0.75rem;
   font-weight: 600;
   text-align: center;
-  border-right: 1px solid var(--bs-border-color);
+  border-right: 1px solid rgba(255, 255, 255, 0.14);
   overflow: hidden;
   padding: 2px 0;
   flex-shrink: 0;
@@ -939,8 +1026,8 @@ defineExpose({ scrollToToday })
 .g2-tl-tick {
   font-size: 0.68rem;
   text-align: center;
-  color: var(--bs-secondary-color);
-  border-right: 1px solid var(--bs-border-color-translucent);
+  color: rgba(203, 213, 225, 0.72);
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
   overflow: hidden;
   padding: 1px 0;
   flex-shrink: 0;
@@ -956,13 +1043,20 @@ defineExpose({ scrollToToday })
   padding: 4px 6px;
   display: flex;
   align-items: center;
-  border-right: 1px solid var(--bs-border-color-translucent);
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
   overflow: hidden;
   flex-shrink: 0;
 }
 
 .g2-col-index { width: 64px; font-size: 0.75rem; }
-.g2-col-name { flex: 1 1 auto; min-width: 140px; position: relative; }
+.g2-col-name {
+  flex: 0 0 auto;
+  min-width: 140px;
+  position: relative;
+}
+.gantt2-left-header .g2-col-name {
+  overflow: visible;
+}
 .g2-col-date { width: 140px; }
 .g2-col-num { width: 78px; font-size: 0.78rem; justify-content: center; }
 .g2-col-op { width: 40px; justify-content: center; }
@@ -970,6 +1064,17 @@ defineExpose({ scrollToToday })
 .g2-input {
   font-size: 0.78rem;
   padding: 2px 6px;
+  color: rgba(255, 255, 255, 0.92);
+  background-color: rgba(2, 6, 23, 0.72);
+  border-color: rgba(255, 255, 255, 0.16);
+  color-scheme: dark;
+}
+
+.g2-input:focus {
+  color: #fff;
+  background-color: rgba(2, 6, 23, 0.9);
+  border-color: rgba(var(--bs-primary-rgb), 0.65);
+  box-shadow: 0 0 0 0.15rem rgba(var(--bs-primary-rgb), 0.16);
 }
 
 .g2-source-icon {
@@ -978,6 +1083,35 @@ defineExpose({ scrollToToday })
   font-size: 0.65rem;
   color: var(--bs-secondary-color);
   pointer-events: none;
+}
+
+.g2-column-resizer {
+  position: absolute;
+  z-index: 3;
+  top: 0;
+  right: -1px;
+  bottom: 0;
+  width: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: col-resize;
+}
+
+.g2-column-resizer::after {
+  content: '';
+  position: absolute;
+  top: 20%;
+  right: 3px;
+  bottom: 20%;
+  width: 2px;
+  border-radius: 2px;
+  background: rgba(148, 163, 184, 0.45);
+  transition: background 0.12s ease;
+}
+
+.g2-column-resizer:hover::after {
+  background: #60a5fa;
 }
 
 .g2-order-btns {
@@ -998,7 +1132,7 @@ defineExpose({ scrollToToday })
 
 /* ---------- 內容列 ---------- */
 .gantt2-row {
-  border-bottom: 1px solid var(--bs-border-color-translucent);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   height: 40px;
 }
 
@@ -1008,13 +1142,14 @@ defineExpose({ scrollToToday })
 
 .g2-row-selected .gantt2-left {
   /* 需維持不透明：以底色打底再疊選取色，避免長條捲到左側表格下方時透出 */
-  background-color: var(--bs-body-bg);
+  background-color: #172554;
   background-image: linear-gradient(rgba(13, 110, 253, 0.12), rgba(13, 110, 253, 0.12));
 }
 
 .gantt2-row-chart {
   flex-shrink: 0;
   height: 100%;
+  background-color: #0f172a;
 }
 
 /* ---------- 覆蓋層 ---------- */
@@ -1030,7 +1165,7 @@ defineExpose({ scrollToToday })
   position: absolute;
   top: 0;
   bottom: 0;
-  background: rgba(128, 128, 128, 0.08);
+  background: rgba(148, 163, 184, 0.07);
 }
 
 .g2-boundary-line {
@@ -1038,7 +1173,7 @@ defineExpose({ scrollToToday })
   top: 0;
   bottom: 0;
   width: 1px;
-  background: var(--bs-border-color);
+  background: rgba(255, 255, 255, 0.14);
 }
 
 .g2-today-line {
@@ -1161,6 +1296,10 @@ defineExpose({ scrollToToday })
 <style>
 /* 拖曳期間停用文字選取（掛在 body 上，需全域樣式） */
 body.gantt2-no-select {
+  user-select: none !important;
+}
+body.gantt2-column-resizing {
+  cursor: col-resize !important;
   user-select: none !important;
 }
 </style>

@@ -1,112 +1,142 @@
 <template>
-  <div class="self-check-inspection-list">
-    <div class="alert alert-info mb-4">
-      <h5 class="alert-heading">
-        <i class="fa fa-clipboard-check me-2"></i>自主檢查表
-      </h5>
-      <p class="mb-0 small">
-        請先選擇「施工抽查」或「安全衛生抽查」分頁，再建立對應類型的抽查紀錄；每筆紀錄僅含一種抽查標準快照。
-      </p>
+  <div class="self-check-list">
+    <div class="inspection-hero">
+      <div>
+        <div class="inspection-hero__eyebrow">
+          <i class="fa fa-shield-halved me-2"></i>
+          {{ aggregate ? '全工程抽查總覽' : '施工品質紀錄' }}
+        </div>
+        <h2 class="inspection-hero__title">{{ tabLabel }}</h2>
+        <p class="inspection-hero__description">
+          {{
+            aggregate
+              ? '集中管理所有施工項目的抽查紀錄，資料與原自主檢查分類同步。'
+              : '抽查項目會在建立紀錄時保留快照，後續標準調整不影響既有紀錄。'
+          }}
+        </p>
+      </div>
+      <div class="inspection-hero__metric">
+        <strong>{{ filteredRecords.length }}</strong>
+        <span>筆紀錄</span>
+      </div>
     </div>
 
-    <ul class="nav nav-tabs mb-3">
-      <li class="nav-item">
+    <div class="inspection-toolbar">
+      <div class="inspection-tabs" role="tablist" aria-label="抽查類型">
         <button
           type="button"
-          class="nav-link"
+          class="inspection-tab"
           :class="{ active: activeTab === 'CONSTRUCTION' }"
           @click="switchTab('CONSTRUCTION')"
         >
+          <i class="fa fa-helmet-safety"></i>
           施工抽查
         </button>
-      </li>
-      <li class="nav-item">
         <button
           type="button"
-          class="nav-link"
+          class="inspection-tab"
           :class="{ active: activeTab === 'SAFETY' }"
           @click="switchTab('SAFETY')"
         >
+          <i class="fa fa-shield-heart"></i>
           安全衛生抽查
         </button>
-      </li>
-    </ul>
-
-    <div class="d-flex justify-content-between align-items-center gap-3 mb-3 flex-wrap">
-      <div class="text-muted small">
-        共 {{ records.length }} 筆{{ tabLabel }}紀錄
       </div>
-      <button
-        type="button"
-        class="btn btn-sm btn-primary"
-        :disabled="creating || !constructionId || !documentClassificationId"
-        @click="createRecord"
-      >
-        <i v-if="creating" class="fa fa-spinner fa-spin me-1"></i>
-        <i v-else class="fa fa-plus me-1"></i>
-        新增{{ tabLabel }}紀錄
-      </button>
+
+      <div class="inspection-actions">
+        <select
+          v-if="aggregate"
+          v-model="filterClassificationId"
+          class="form-select form-select-sm inspection-select"
+          aria-label="篩選施工項目"
+        >
+          <option value="">全部施工項目</option>
+          <option v-for="option in classificationOptions" :key="option.id" :value="String(option.id)">
+            {{ option.label }}
+          </option>
+        </select>
+        <button
+          type="button"
+          class="btn btn-primary"
+          :disabled="creating || !canCreate"
+          @click="requestCreate"
+        >
+          <i v-if="creating" class="fa fa-spinner fa-spin me-1"></i>
+          <i v-else class="fa fa-plus me-1"></i>
+          新增{{ tabLabel }}
+        </button>
+      </div>
     </div>
 
-    <div v-if="loading" class="text-center py-4 text-muted">
-      <i class="fa fa-spinner fa-spin me-2"></i>載入中…
+    <div v-if="loading" class="inspection-state">
+      <i class="fa fa-spinner fa-spin"></i>
+      <span>載入紀錄中…</span>
     </div>
 
-    <div v-else-if="records.length === 0" class="text-center py-4 text-muted border rounded">
-      <i class="fa fa-inbox fa-2x mb-2 d-block"></i>
-      尚無{{ tabLabel }}紀錄
-      <div class="small mt-1">點擊「新增{{ tabLabel }}紀錄」開始建立</div>
+    <div v-else-if="filteredRecords.length === 0" class="inspection-state inspection-state--empty">
+      <i class="fa fa-folder-open"></i>
+      <strong>目前沒有{{ tabLabel }}紀錄</strong>
+      <span>{{ aggregate ? '可先選擇施工項目後建立第一筆紀錄。' : `按「新增${tabLabel}」開始填寫。` }}</span>
     </div>
 
-    <div v-else class="table-responsive">
-      <table class="table table-hover align-middle mb-0 a4-table">
+    <div v-else class="inspection-table-wrap">
+      <table class="table align-middle mb-0 inspection-table">
         <thead>
           <tr>
-            <th style="width: 56px">#</th>
-            <th style="min-width: 120px">抽查日期</th>
-            <th style="min-width: 200px">分項工程名稱</th>
-            <th style="width: 90px" class="text-center">檢查項</th>
-            <th style="min-width: 120px">抽查位置</th>
-            <th style="width: 140px" class="text-center">操作</th>
+            <th class="inspection-table__index">#</th>
+            <th>抽查日期</th>
+            <th v-if="aggregate">施工項目</th>
+            <th>分項工程名稱</th>
+            <th class="text-center">項目數</th>
+            <th>抽查位置</th>
+            <th class="text-center">操作</th>
           </tr>
         </thead>
         <tbody>
           <tr
-            v-for="(r, idx) in records"
-            :key="r.id"
-            class="cursor-pointer"
-            @click="openRecord(r.id)"
+            v-for="(record, index) in filteredRecords"
+            :key="record.id"
+            class="inspection-row"
+            @click="openRecord(record.id)"
           >
-            <td>{{ idx + 1 }}</td>
-            <td>{{ formatDate(r.inspectionDate) }}</td>
+            <td class="text-muted">{{ index + 1 }}</td>
+            <td class="text-nowrap">{{ formatDate(record.inspectionDate) }}</td>
+            <td v-if="aggregate">
+              <span class="inspection-project-tag">
+                {{ classificationLabel(record.documentClassificationId) }}
+              </span>
+            </td>
             <td>
-              <span class="fw-semibold">{{ r.subdivisionProjectName || r.title || '（未命名）' }}</span>
+              <span class="fw-semibold">
+                {{ record.subdivisionProjectName || record.title || '未命名紀錄' }}
+              </span>
             </td>
             <td class="text-center">
-              <span class="badge bg-secondary">{{ r.itemCount ?? 0 }}</span>
+              <span class="badge rounded-pill text-bg-secondary">{{ record.itemCount ?? 0 }}</span>
             </td>
-            <td class="text-truncate" style="max-width: 10rem">
-              {{ r.inspectionLocation || '—' }}
-            </td>
+            <td>{{ record.inspectionLocation || '—' }}</td>
             <td class="text-center" @click.stop>
               <div class="btn-group btn-group-sm">
-                <button type="button" class="btn btn-outline-primary" title="填寫明細" @click="openRecord(r.id)">
+                <button type="button" class="btn btn-outline-primary" title="編輯" @click="openRecord(record.id)">
                   <i class="fa fa-pen-to-square"></i>
                 </button>
                 <button
                   type="button"
                   class="btn btn-outline-secondary"
                   title="匯出 Word"
-                  :disabled="exportingId === r.id"
-                  @click="exportRecord(r)"
+                  :disabled="exportingId === record.id"
+                  @click="exportRecord(record)"
                 >
-                  <i class="fa" :class="exportingId === r.id ? 'fa-spinner fa-spin' : 'fa-file-word'"></i>
+                  <i
+                    class="fa"
+                    :class="exportingId === record.id ? 'fa-spinner fa-spin' : 'fa-file-word'"
+                  ></i>
                 </button>
                 <button
                   type="button"
                   class="btn btn-outline-danger"
                   title="刪除"
-                  @click="removeRecord(r)"
+                  @click="removeRecord(record)"
                 >
                   <i class="fa fa-trash"></i>
                 </button>
@@ -116,12 +146,34 @@
         </tbody>
       </table>
     </div>
+
+    <Modal
+      :show="showCreateModal"
+      title="選擇施工項目"
+      icon="fa fa-list-check"
+      modal-id="self-check-create-record"
+      :is-loading="creating"
+      @update:show="showCreateModal = $event"
+      @confirm="createRecord"
+    >
+      <label class="form-label">施工項目</label>
+      <select v-model="createClassificationId" class="form-select">
+        <option value="" disabled>請選擇施工項目</option>
+        <option v-for="option in classificationOptions" :key="option.id" :value="String(option.id)">
+          {{ option.label }}
+        </option>
+      </select>
+      <p class="small text-muted mt-2 mb-0">
+        新紀錄會使用此施工項目目前維護的{{ tabLabel }}標準建立快照。
+      </p>
+    </Modal>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import Modal from '@/components/bootstrap/Modal.vue'
 import toastService from '@/components/bootstrap/ToastService.js'
 import { formatRepublicDateFromIso } from '@/utils/format'
 import {
@@ -131,25 +183,59 @@ import {
   type SelfCheckStandardKind
 } from '@/api/selfCheckInspection'
 
-const props = defineProps<{
+export interface SelfCheckClassificationOption {
+  id: number
+  label: string
+}
+
+const props = withDefaults(defineProps<{
   constructionId: string
-  documentClassificationId: number
+  documentClassificationId?: number
+  classificationOptions?: SelfCheckClassificationOption[]
   ownerType: SelfCheckOwnerType
-  /** 列表頁路由前綴，如 /supervisory/forms/doc-class/D/12 */
   basePath: string
-}>()
+  defaultStandardKind?: SelfCheckStandardKind
+  aggregate?: boolean
+  initialDocumentClassificationId?: number
+}>(), {
+  documentClassificationId: undefined,
+  classificationOptions: () => [],
+  defaultStandardKind: 'CONSTRUCTION',
+  aggregate: false,
+  initialDocumentClassificationId: undefined
+})
 
 const router = useRouter()
 const loading = ref(false)
 const creating = ref(false)
 const exportingId = ref<number | null>(null)
-const activeTab = ref<SelfCheckStandardKind>('CONSTRUCTION')
+const activeTab = ref<SelfCheckStandardKind>(props.defaultStandardKind)
 const records = ref<SelfCheckInspectionRecord[]>([])
+const filterClassificationId = ref(
+  props.initialDocumentClassificationId ? String(props.initialDocumentClassificationId) : ''
+)
+const createClassificationId = ref('')
+const showCreateModal = ref(false)
 
 const tabLabel = computed(() => (activeTab.value === 'CONSTRUCTION' ? '施工抽查' : '安全衛生抽查'))
+const canCreate = computed(() =>
+  props.aggregate ? props.classificationOptions.length > 0 : !!props.documentClassificationId
+)
+const filteredRecords = computed(() => {
+  if (!props.aggregate || !filterClassificationId.value) return records.value
+  const id = Number(filterClassificationId.value)
+  return records.value.filter((record) => record.documentClassificationId === id)
+})
+const classificationLabelMap = computed(
+  () => new Map(props.classificationOptions.map((option) => [option.id, option.label]))
+)
 
 function formatDate(iso: string): string {
   return formatRepublicDateFromIso(iso)
+}
+
+function classificationLabel(id: number): string {
+  return classificationLabelMap.value.get(id) ?? `施工項目 #${id}`
 }
 
 function switchTab(tab: SelfCheckStandardKind) {
@@ -159,95 +245,328 @@ function switchTab(tab: SelfCheckStandardKind) {
 }
 
 async function loadRecords() {
-  if (!props.constructionId || !props.documentClassificationId) {
+  if (!props.constructionId || (!props.aggregate && !props.documentClassificationId)) {
     records.value = []
     return
   }
   loading.value = true
   try {
-    records.value = await selfCheckInspectionApi.list(
-      props.constructionId,
-      props.documentClassificationId,
-      props.ownerType,
-      activeTab.value
-    )
-  } catch (e) {
-    console.error(e)
+    records.value = props.aggregate
+      ? await selfCheckInspectionApi.listAll(props.constructionId, props.ownerType, activeTab.value)
+      : await selfCheckInspectionApi.list(
+          props.constructionId,
+          props.documentClassificationId!,
+          props.ownerType,
+          activeTab.value
+        )
+  } catch (error) {
+    console.error(error)
     records.value = []
+    toastService.error('載入抽查紀錄失敗')
   } finally {
     loading.value = false
   }
 }
 
+function requestCreate() {
+  if (!props.aggregate) {
+    void createRecord()
+    return
+  }
+  createClassificationId.value =
+    filterClassificationId.value ||
+    (props.classificationOptions.length === 1 ? String(props.classificationOptions[0].id) : '')
+  showCreateModal.value = true
+}
+
 async function createRecord() {
-  if (!props.constructionId) return
+  if (creating.value) return
+  const documentClassificationId = props.aggregate
+    ? Number(createClassificationId.value)
+    : props.documentClassificationId
+  if (!props.constructionId || !documentClassificationId) {
+    toastService.error('請先選擇施工項目')
+    return
+  }
   creating.value = true
   try {
-    const today = new Date().toISOString().slice(0, 10)
     const created = await selfCheckInspectionApi.create(props.constructionId, props.ownerType, {
-      documentClassificationId: props.documentClassificationId,
+      documentClassificationId,
       standardKind: activeTab.value,
-      inspectionDate: today
+      inspectionDate: new Date().toISOString().slice(0, 10)
     })
-    await loadRecords()
+    showCreateModal.value = false
     openRecord(created.id)
-  } catch (e: unknown) {
-    console.error(e)
-    const msg =
-      (e as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-      (e as Error)?.message ??
-      '建立失敗'
-    alert(msg)
+  } catch (error: unknown) {
+    console.error(error)
+    const message =
+      (error as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+      (error as Error)?.message ??
+      '建立紀錄失敗'
+    toastService.error(message)
   } finally {
     creating.value = false
   }
 }
 
 function openRecord(recordId: number) {
-  void router.push(`${props.basePath}/records/${recordId}`)
+  void router.push({
+    path: `${props.basePath}/records/${recordId}`,
+    query:
+      props.aggregate && filterClassificationId.value
+        ? { classificationId: filterClassificationId.value }
+        : undefined
+  })
 }
 
-async function exportRecord(r: SelfCheckInspectionRecord) {
+async function exportRecord(record: SelfCheckInspectionRecord) {
   if (!props.constructionId || exportingId.value != null) return
-  exportingId.value = r.id
+  exportingId.value = record.id
   try {
-    await selfCheckInspectionApi.export(props.constructionId, r.id, props.ownerType)
+    await selfCheckInspectionApi.export(props.constructionId, record.id, props.ownerType)
     toastService.success('已匯出')
-  } catch (e: unknown) {
-    console.error(e)
-    const msg = (e as Error)?.message ?? '匯出失敗'
-    toastService.error(msg.includes('樣板') ? msg : '匯出失敗')
+  } catch (error: unknown) {
+    console.error(error)
+    const message = (error as Error)?.message ?? '匯出失敗'
+    toastService.error(message.includes('樣板') ? message : '匯出失敗')
   } finally {
     exportingId.value = null
   }
 }
 
-async function removeRecord(r: SelfCheckInspectionRecord) {
-  if (!confirm(`確定刪除「${r.subdivisionProjectName || r.title || formatDate(r.inspectionDate)}」？`)) return
+async function removeRecord(record: SelfCheckInspectionRecord) {
+  const name = record.subdivisionProjectName || record.title || formatDate(record.inspectionDate)
+  if (!confirm(`確定要刪除「${name}」？`)) return
   try {
-    await selfCheckInspectionApi.delete(props.constructionId, r.id, props.ownerType)
+    await selfCheckInspectionApi.delete(props.constructionId, record.id, props.ownerType)
     await loadRecords()
-  } catch (e) {
-    console.error(e)
-    alert('刪除失敗')
+  } catch (error) {
+    console.error(error)
+    toastService.error('刪除失敗')
   }
 }
 
 watch(
-  () => [props.constructionId, props.documentClassificationId, props.ownerType] as const,
+  () => [
+    props.constructionId,
+    props.documentClassificationId,
+    props.ownerType,
+    props.aggregate
+  ] as const,
   () => { void loadRecords() },
   { immediate: true }
+)
+
+watch(
+  () => props.defaultStandardKind,
+  (kind) => {
+    if (activeTab.value === kind) return
+    activeTab.value = kind
+    void loadRecords()
+  }
+)
+
+watch(
+  () => props.initialDocumentClassificationId,
+  (id) => {
+    filterClassificationId.value = id ? String(id) : ''
+  }
 )
 
 defineExpose({ reload: loadRecords })
 </script>
 
 <style scoped>
-.cursor-pointer {
+.self-check-list {
+  color: var(--bs-body-color);
+}
+
+.inspection-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 1.4rem 1.5rem;
+  border: 1px solid rgba(var(--bs-primary-rgb), 0.34);
+  border-radius: 0.85rem;
+  background:
+    radial-gradient(circle at 88% 0%, rgba(var(--bs-primary-rgb), 0.2), transparent 34%),
+    linear-gradient(135deg, rgba(18, 31, 49, 0.98), rgba(12, 22, 36, 0.98));
+}
+
+.inspection-hero__eyebrow {
+  color: var(--bs-info);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.inspection-hero__title {
+  margin: 0.35rem 0;
+  font-size: clamp(1.4rem, 2vw, 2rem);
+  font-weight: 800;
+}
+
+.inspection-hero__description {
+  margin: 0;
+  color: var(--bs-secondary-color);
+}
+
+.inspection-hero__metric {
+  min-width: 92px;
+  text-align: center;
+}
+
+.inspection-hero__metric strong,
+.inspection-hero__metric span {
+  display: block;
+}
+
+.inspection-hero__metric strong {
+  color: var(--bs-info);
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.inspection-hero__metric span {
+  margin-top: 0.35rem;
+  color: var(--bs-secondary-color);
+  font-size: 0.8rem;
+}
+
+.inspection-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.inspection-tabs {
+  display: inline-flex;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 0.65rem;
+  background: rgba(8, 16, 28, 0.72);
+}
+
+.inspection-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.52rem 0.85rem;
+  border: 0;
+  border-radius: 0.45rem;
+  color: var(--bs-secondary-color);
+  background: transparent;
+  font-weight: 700;
+}
+
+.inspection-tab.active {
+  color: #fff;
+  background: var(--bs-primary);
+  box-shadow: 0 0.35rem 1rem rgba(var(--bs-primary-rgb), 0.25);
+}
+
+.inspection-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.inspection-select {
+  min-width: 230px;
+}
+
+.inspection-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 0.75rem;
+  background: rgba(10, 19, 32, 0.84);
+}
+
+.inspection-table {
+  min-width: 850px;
+}
+
+.inspection-table th {
+  padding: 0.8rem 0.9rem;
+  border-bottom-color: var(--bs-border-color);
+  color: var(--bs-secondary-color);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.inspection-table td {
+  padding: 0.85rem 0.9rem;
+}
+
+.inspection-table__index {
+  width: 54px;
+}
+
+.inspection-row {
   cursor: pointer;
 }
 
-.nav-tabs .nav-link {
-  cursor: pointer;
+.inspection-row:hover td {
+  background: rgba(var(--bs-primary-rgb), 0.08);
+}
+
+.inspection-project-tag {
+  display: inline-block;
+  max-width: 260px;
+  overflow: hidden;
+  padding: 0.25rem 0.55rem;
+  border: 1px solid rgba(var(--bs-info-rgb), 0.3);
+  border-radius: 999px;
+  color: var(--bs-info);
+  background: rgba(var(--bs-info-rgb), 0.09);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inspection-state {
+  display: grid;
+  place-items: center;
+  gap: 0.5rem;
+  min-height: 180px;
+  border: 1px dashed var(--bs-border-color);
+  border-radius: 0.75rem;
+  color: var(--bs-secondary-color);
+  background: rgba(10, 19, 32, 0.52);
+}
+
+.inspection-state > i {
+  font-size: 1.75rem;
+  color: var(--bs-info);
+}
+
+@media (max-width: 767.98px) {
+  .inspection-hero,
+  .inspection-toolbar,
+  .inspection-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .inspection-hero__metric {
+    text-align: left;
+  }
+
+  .inspection-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .inspection-tab {
+    justify-content: center;
+  }
+
+  .inspection-select {
+    min-width: 0;
+  }
 }
 </style>

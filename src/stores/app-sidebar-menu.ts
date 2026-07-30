@@ -7,6 +7,7 @@ import { useOnboardingStore } from '@/stores/onboarding'
 import type { SidebarMenuItem as MenuItem } from '@/types/sidebar-menu'
 import { documentClassificationApi, type DocumentClassification } from '@/api/documentClassification'
 import { getDesignChangeList } from '@/api/designChange'
+import { SUPERVISORY_C_FIXED_FORMS } from '@/config/fixedDocumentForms'
 
 export const useAppSidebarMenuStore = defineStore("appSidebarMenu", () => {
   // 隱藏的教學頁面 URL 列表（從 localStorage 讀取）
@@ -151,8 +152,11 @@ export const useAppSidebarMenuStore = defineStore("appSidebarMenu", () => {
   const buildDocClassChildrenOrPlaceholder = (
     cat: SupervisoryDocClassCategory,
     skipItemNumbers: string[] = [],
+    includeItem: (item: DocumentClassification) => boolean = () => true,
   ): MenuItem[] => {
-    const list = getDocClassRowsByCategory(cat).filter(i => !skipItemNumbers.includes(i.itemNumber || ''))
+    const list = getDocClassRowsByCategory(cat)
+      .filter(i => !skipItemNumbers.includes(i.itemNumber || ''))
+      .filter(includeItem)
     if (list.length === 0) {
       // placeholder 可點擊：導至「文件檔案分類表」由使用者去新增該分類的項目。
       // 注意：URL 需「每類不同」（加 `?focus={letter}`），否則一旦進入該頁，
@@ -169,6 +173,40 @@ export const useAppSidebarMenuStore = defineStore("appSidebarMenu", () => {
       url: `/supervisory/forms/doc-class/${cat}/${i.id}`,
     }))
   }
+
+  const buildLChildren = (): MenuItem[] => {
+    const lRows = getDocClassRowsByCategory('L')
+    const dRows = getDocClassRowsByCategory('D')
+    return lRows.map((item) => {
+        if (item.constructionMajorItemId != null) {
+          const source = dRows.find(
+            (row) => row.constructionMajorItemId === item.constructionMajorItemId,
+          )
+          return {
+            text: formatDocClassSidebarText('L', item.itemNumber, item.documentName),
+            url: source
+              ? `/supervisory/forms/doc-class/L/safety-inspections?classificationId=${source.id}`
+              : `/supervisory/forms/doc-class/L/safety-inspections?classificationItemId=${item.id}`,
+          }
+        }
+        return {
+          text: formatDocClassSidebarText('L', item.itemNumber, item.documentName),
+          url: `/supervisory/forms/doc-class/L/${item.id}`,
+        }
+      })
+  }
+
+  const buildFixedCChildren = (): MenuItem[] =>
+    SUPERVISORY_C_FIXED_FORMS.map((form) => {
+      const row = supervisoryDocClassRows.value.find((item) =>
+        item.fixedFormCode === form.code ||
+        (item.category === 'C' && item.itemNumber === form.itemNumber)
+      )
+      return {
+        text: formatDocClassSidebarText('C', form.itemNumber, row?.documentName || form.fallbackName),
+        url: form.path,
+      }
+    })
 
   /** B 類 hardcoded 兩個固定頁：名稱依分類表帶入；找不到對應 itemNumber 則 fallback 預設名 */
   const buildBHardcodedItem = (
@@ -468,12 +506,17 @@ export const useAppSidebarMenuStore = defineStore("appSidebarMenu", () => {
         {
           text: "C類表單",
           visible: isSupervisory.value,
-          children: buildDocClassChildrenOrPlaceholder('C'),
+          children: buildFixedCChildren(),
         },
         {
           text: "D類表單",
           visible: isSupervisory.value,
           children: buildDocClassChildrenOrPlaceholder('D'),
+        },
+        {
+          text: "L類表單",
+          visible: isSupervisory.value,
+          children: buildLChildren(),
         },
         {
           text: "H類表單",
@@ -484,11 +527,6 @@ export const useAppSidebarMenuStore = defineStore("appSidebarMenu", () => {
           text: "I類表單",
           visible: isSupervisory.value,
           children: buildDocClassChildrenOrPlaceholder('I'),
-        },
-        {
-          text: "L類表單",
-          visible: isSupervisory.value,
-          children: buildDocClassChildrenOrPlaceholder('L'),
         },
         {
           text: "P類(計劃書)表單",

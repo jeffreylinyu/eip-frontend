@@ -13,6 +13,13 @@ export interface AiBatchProgressResponse {
   totalSteps: number
   stepLabel: string
   errorMessage?: string | null
+  failedItems?: string[]
+}
+
+export interface PlanGenerationOption {
+  key: string
+  label: string
+  hasExistingData: boolean
 }
 
 export async function startSupervisoryAiBatchGenerate(
@@ -45,4 +52,45 @@ export async function getAiBatchProgress(
     `/management/construction/${encodeURIComponent(constructionId)}/ai-batch-generate/status/${encodeURIComponent(jobId)}`
   )
   return data as unknown as AiBatchProgressResponse
+}
+
+export async function getPlanGenerationOptions(
+  constructionId: string,
+  perspective: 'SUPERVISORY' | 'CONTRACTOR',
+  designChangeId: number | null
+): Promise<PlanGenerationOption[]> {
+  const data = await http.get<PlanGenerationOption[]>(
+    `/management/construction/${encodeURIComponent(constructionId)}/plan-batch-generate/options/${perspective.toLowerCase()}`,
+    { params: { designChangeId } }
+  )
+  return data as unknown as PlanGenerationOption[]
+}
+
+async function startPlanBatchGenerate(
+  constructionId: string,
+  perspective: 'supervisory' | 'contractor',
+  designChangeId: number | null,
+  planKeys: string[]
+): Promise<AiBatchJobResponse> {
+  const data = await http.post<AiBatchJobResponse>(
+    `/management/construction/${encodeURIComponent(constructionId)}/plan-batch-generate/${perspective}`,
+    { designChangeId, versionSelected: true, planKeys }
+  )
+  return data as unknown as AiBatchJobResponse
+}
+
+export function startSupervisoryPlanBatchGenerate(
+  constructionId: string,
+  designChangeId: number | null,
+  planKeys: string[]
+) {
+  return startPlanBatchGenerate(constructionId, 'supervisory', designChangeId, planKeys)
+}
+
+export function startContractorPlanBatchGenerate(
+  constructionId: string,
+  designChangeId: number | null,
+  planKeys: string[]
+) {
+  return startPlanBatchGenerate(constructionId, 'contractor', designChangeId, planKeys)
 }

@@ -15,6 +15,7 @@ export interface ContractorDocumentClassification {
   category: string
   categoryDisplayName: string
   itemNumber: string
+  fixedFormCode?: string | null
   documentName: string
   retentionYears: number | null
   requiredSubmissionSchedule?: string | null

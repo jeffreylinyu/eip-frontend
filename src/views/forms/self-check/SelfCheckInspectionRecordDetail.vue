@@ -163,6 +163,8 @@ import SelfCheckInspectionSignPanel from '@/components/self-check/SelfCheckInspe
 const props = defineProps<{
   ownerType: SelfCheckOwnerType
   category: string
+  sourceCategory?: string
+  listPath?: string
 }>()
 
 const route = useRoute()
@@ -237,6 +239,14 @@ const itemsTableEmptyText = computed(() =>
 )
 
 const listBasePath = computed(() => {
+  if (props.listPath) {
+    const raw = Array.isArray(route.query.classificationId)
+      ? route.query.classificationId[0]
+      : route.query.classificationId
+    return raw
+      ? `${props.listPath}?classificationId=${encodeURIComponent(String(raw))}`
+      : props.listPath
+  }
   const prefix = props.ownerType === 'SUPERVISORY' ? '/supervisory' : '/contractor'
   return `${prefix}/forms/doc-class/${props.category}/${itemId.value}`
 })
@@ -365,7 +375,7 @@ async function persistRecord() {
 
 async function loadDocTitle() {
   const cid = constructionId.value
-  const id = itemId.value
+  const id = itemId.value ?? record.value?.documentClassificationId
   if (!cid || !id) return
   try {
     if (props.ownerType === 'SUPERVISORY') {
@@ -427,6 +437,11 @@ async function onExport() {
 }
 
 watch([constructionId, recordId], () => { void loadRecord() }, { immediate: true })
+
+watch(
+  () => record.value?.documentClassificationId,
+  () => { void loadDocTitle() }
+)
 
 watch(
   () => ({

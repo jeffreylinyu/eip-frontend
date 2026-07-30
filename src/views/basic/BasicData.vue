@@ -84,6 +84,25 @@ const copySupervisoryBasicButtonText = computed(() => {
   return `複製：監造「${s}」→ 營造「${c}」`
 })
 
+const DEFAULT_SIGN_LEVELS = [
+  { level: 1, title: '局長' },
+  { level: 2, title: '副局長' },
+  { level: 3, title: '技正' },
+  { level: 4, title: '課長' },
+  { level: 5, title: '承辦' },
+  { level: 6, title: '協辦' },
+]
+
+function defaultSignLevels() {
+  return DEFAULT_SIGN_LEVELS.map((item) => ({ ...item }))
+}
+
+function signLevelsOrDefault(value: unknown) {
+  if (value == null) return defaultSignLevels()
+  if (!Array.isArray(value)) return defaultSignLevels()
+  return value.map((item) => ({ ...item }))
+}
+
 // 表單數據
 const formData = ref({
   // 工程基本資料
@@ -123,7 +142,7 @@ const formData = ref({
   completion_acceptance: false,
   // 保險已拆分為獨立頁面（多筆 + 附件/檔案夾）
   // 簽核層級
-  signLevel: [],
+  signLevel: defaultSignLevels(),
   // 樂觀鎖版本
   version: 0,
 })
@@ -705,7 +724,7 @@ const clearFormData = () => {
       partial_acceptance: false,
       completion_acceptance: false,
       // 保險已拆分為獨立頁面（多筆 + 附件/檔案夾）
-      signLevel: [],
+      signLevel: defaultSignLevels(),
       version: 0,
     }
     originalFormData.value = JSON.parse(JSON.stringify(formData.value))
@@ -784,7 +803,7 @@ const mapProjectDataToForm = (project: any) => {
       completion_acceptance: project.completionAcceptance || false,
       // 保險已拆分為獨立頁面（多筆 + 附件/檔案夾）
       // 簽核層級
-      signLevel: project.signLevel || [],
+      signLevel: signLevelsOrDefault(project.signLevel),
       // 映射版本號 (若無則預設 0)
       version: project.version || 0
     }

@@ -62,6 +62,7 @@
             tag="tbody" 
             item-key="id"
             handle=".drag-handle"
+            :disabled="!allowReorder"
             @end="onDragEnd"
           >
             <template #item="{ element: item, index }">
@@ -70,8 +71,13 @@
                 :class="{ 'table-active': dragIndex === index }"
               >
                 <!-- 拖拉手把 -->
-                <td class="text-center text-muted drag-handle cursor-move" title="拖拉排序">
-                  <i class="bi bi-grip-vertical"></i>
+                <td
+                  class="text-center text-muted"
+                  :class="{ 'drag-handle cursor-move': allowReorder }"
+                  :title="allowReorder ? '拖拉排序' : '固定表單順序'"
+                >
+                  <i v-if="allowReorder" class="bi bi-grip-vertical"></i>
+                  <i v-else class="bi bi-lock-fill"></i>
                 </td>
                 
                 <!-- 編號 -->
@@ -251,7 +257,7 @@
           
           <!-- 表尾新增區 -->
           <tfoot>
-            <tr v-if="isAdding" class="add-row">
+            <tr v-if="allowAdd && isAdding" class="add-row">
               <td></td>
               <td><span class="badge bg-warning text-dark">New</span></td>
               <td>
@@ -311,7 +317,7 @@
                 </div>
               </td>
             </tr>
-            <tr v-else>
+            <tr v-else-if="allowAdd">
               <td :colspan="tableColSpan">
                 <button class="btn btn-sm btn-link text-decoration-none" @click="startAdd">
                   <i class="bi bi-plus-lg"></i> 新增項目
@@ -358,6 +364,10 @@ const props = withDefaults(
     lockDefaultDocumentName?: boolean
     /** 顯示「套用到側邊欄」欄位（營造端 P 類） */
     showApplySidebarColumn?: boolean
+    /** 是否允許新增分類項目 */
+    allowAdd?: boolean
+    /** 是否允許拖拉變更編號與順序 */
+    allowReorder?: boolean
   }>(),
   {
     allowNullRetention: false,
@@ -368,7 +378,9 @@ const props = withDefaults(
     inlineEditNonDefault: false,
     darkInputs: false,
     lockDefaultDocumentName: false,
-    showApplySidebarColumn: false
+    showApplySidebarColumn: false,
+    allowAdd: true,
+    allowReorder: true
   }
 )
 
@@ -516,6 +528,7 @@ const addForm = ref({
 const addInput = ref<HTMLInputElement | null>(null)
 
 const startAdd = async () => {
+  if (!props.allowAdd) return
   isAdding.value = true
   addForm.value = {
     documentName: '',
@@ -616,6 +629,7 @@ const deleteItem = (item: DocumentClassification) => {
 const dragIndex = ref<number | null>(null)
 
 const onDragEnd = () => {
+  if (!props.allowReorder) return
   recalculateItemNumbers()
   emit('reorder', localItems.value)
   dragIndex.value = null

@@ -13,6 +13,7 @@ import { requestSupervisoryDocClassSidebarRefresh } from '@/utils/supervisoryBPl
 import { requestContractorDocClassSidebarRefresh } from '@/utils/contractorDocClassSidebar';
 import { requestContractorPMenuSidebarRefresh } from '@/utils/contractorPMenuSidebar';
 import { dailyReportRoutes } from './dailyReport';
+import { FIXED_DOCUMENT_FORMS } from '@/config/fixedDocumentForms';
 
 const router = createRouter({
   history: createWebHashHistory(import.meta.env.BASE_URL),
@@ -223,13 +224,120 @@ const router = createRouter({
       meta: { requiresAuth: true, viewType: 'CONTRACTOR' }
     },
     {
-      // 監造端「文件分類動態書架」共用頁殼（B/C/D/H/I/L 類，依文件檔案分類表項目 id 顯示）。
+      path: '/forms/c1-public-supervision-case/records/:recordId',
+      component: () => import('../views/forms/CitizenInspectionForm.vue'),
+      meta: { requiresAuth: true, requiresSupervisory: true, fixedFormCode: 'C01' }
+    },
+    {
+      path: '/forms/g1-public-supervision-case/records/:recordId',
+      component: () => import('../views/forms/CitizenInspectionForm.vue'),
+      meta: { requiresAuth: true, viewType: 'CONTRACTOR', fixedFormCode: 'G01' }
+    },
+    {
+      path: '/forms/g2-construction-network-diagram/records/:recordId',
+      component: () => import('../views/forms/G2ScheduleFormEditor.vue'),
+      meta: { requiresAuth: true, viewType: 'CONTRACTOR', fixedFormCode: 'G02' }
+    },
+    {
+      path: '/forms/c2-supervision-periodic-report/records/:recordId',
+      component: () => import('../views/forms/C3SupervisionPeriodicReportEditor.vue'),
+      meta: { requiresAuth: true, requiresSupervisory: true, fixedFormCode: 'C02' }
+    },
+    {
+      path: '/forms/c3-construction-coordination-meeting/records/:recordId',
+      component: () => import('../views/forms/CoordinationMeetingRecordEditor.vue'),
+      meta: { requiresAuth: true, requiresSupervisory: true, fixedFormCode: 'C03' }
+    },
+    {
+      path: '/forms/g3-construction-coordination-meeting/records/:recordId',
+      component: () => import('../views/forms/CoordinationMeetingRecordEditor.vue'),
+      meta: { requiresAuth: true, viewType: 'CONTRACTOR', fixedFormCode: 'G03' }
+    },
+    {
+      path: '/forms/c4-site-inspection-record/records/:recordId',
+      component: () => import('../views/forms/SiteInspectionRecordEditor.vue'),
+      meta: { requiresAuth: true, requiresSupervisory: true, fixedFormCode: 'C04' }
+    },
+    {
+      path: '/forms/g4-site-inspection-record/records/:recordId',
+      component: () => import('../views/forms/SiteInspectionRecordEditor.vue'),
+      meta: { requiresAuth: true, viewType: 'CONTRACTOR', fixedFormCode: 'G04' }
+    },
+    ...FIXED_DOCUMENT_FORMS.map((form) => ({
+      path: form.path,
+      component: form.code === 'C01' || form.code === 'G01'
+        ? () => import('../views/forms/CitizenInspectionList.vue')
+        : form.code === 'G02'
+          ? () => import('../views/forms/G2ScheduleFormList.vue')
+          : form.code === 'C02'
+            ? () => import('../views/forms/C3SupervisionPeriodicReportList.vue')
+            : form.code === 'C03' || form.code === 'G03'
+              ? () => import('../views/forms/CoordinationMeetingRecordList.vue')
+            : form.code === 'C04' || form.code === 'G04'
+              ? () => import('../views/forms/SiteInspectionRecordList.vue')
+            : form.code === 'G05'
+              ? () => import('../views/forms/G5SoilManagementRecordList.vue')
+            : form.code === 'C05' || form.code === 'G06'
+              ? () => import('../views/daily-report/DailyReportHistory.vue')
+            : () => import('../views/forms/FixedDocumentFormEntry.vue'),
+      meta: {
+        requiresAuth: true,
+        fixedFormCode: form.code,
+        ...(form.ownerType === 'SUPERVISORY'
+          ? { requiresSupervisory: true }
+          : { viewType: 'CONTRACTOR' })
+      }
+    })),
+    {
+      path: '/supervisory/forms/doc-class/C/:itemId',
+      redirect: '/forms/document-classification?focus=C'
+    },
+    {
+      path: '/contractor/forms/doc-class/G/:itemId',
+      redirect: '/forms/contractor-document-classification?focus=G'
+    },
+    {
+      path: '/supervisory/forms/doc-class/L/safety-inspections',
+      component: () => import('../views/forms/self-check/SelfCheckInspectionOverview.vue'),
+      props: { ownerType: 'SUPERVISORY', category: 'L' },
+      meta: { requiresAuth: true, requiresSupervisory: true }
+    },
+    {
+      path: '/contractor/forms/doc-class/S/safety-inspections',
+      component: () => import('../views/forms/self-check/SelfCheckInspectionOverview.vue'),
+      props: { ownerType: 'CONTRACTOR', category: 'S' },
+      meta: { requiresAuth: true, viewType: 'CONTRACTOR' }
+    },
+    {
+      path: '/supervisory/forms/doc-class/L/safety-inspections/records/:recordId',
+      component: () => import('../views/forms/self-check/SelfCheckInspectionRecordDetail.vue'),
+      props: {
+        ownerType: 'SUPERVISORY',
+        category: 'L',
+        sourceCategory: 'D',
+        listPath: '/supervisory/forms/doc-class/L/safety-inspections'
+      },
+      meta: { requiresAuth: true, requiresSupervisory: true }
+    },
+    {
+      path: '/contractor/forms/doc-class/S/safety-inspections/records/:recordId',
+      component: () => import('../views/forms/self-check/SelfCheckInspectionRecordDetail.vue'),
+      props: {
+        ownerType: 'CONTRACTOR',
+        category: 'S',
+        sourceCategory: 'E',
+        listPath: '/contractor/forms/doc-class/S/safety-inspections'
+      },
+      meta: { requiresAuth: true, viewType: 'CONTRACTOR' }
+    },
+    {
+      // 監造端動態文件分類（固定 C 類由上方固定路由處理）。
       path: '/supervisory/forms/doc-class/:category/:itemId',
       component: () => import('../views/forms/type-b/SupervisoryDocClassShelf.vue'),
       meta: { requiresAuth: true, requiresSupervisory: true }
     },
     {
-      // 營造端「文件分類動態書架」共用頁殼（B/E/G/R/T/Q 類，依文件檔案分類表項目 id 顯示）。
+      // 營造端動態文件分類（固定 G 類由上方固定路由處理）。
       path: '/contractor/forms/doc-class/:category/:itemId',
       component: () => import('../views/forms/type-b/ContractorDocClassShelf.vue'),
       meta: { requiresAuth: true }
@@ -546,6 +654,14 @@ router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore();
   const workspaceStore = useWorkspaceStore();
   const appOptionStore = useAppOptionStore();
+
+  // 在任何路由守衛 API 或頁面 watcher 啟動前先切換有效視角。
+  // 若等到 afterEach，從監造切到無前綴的 P 類路由時，監造側邊欄會先以舊視角
+  // 送出請求，而營造頁面又同時開始載入，造成兩種視角 API 交錯及錯誤的 401。
+  if (authStore.isAuthenticated) {
+    syncViewPerspectiveFromRouteMeta(to.meta);
+  }
+
   // onboarding gate（監造端）
   const { useOnboardingStore } = await import('@/stores/onboarding')
   const onboardingStore = useOnboardingStore()
