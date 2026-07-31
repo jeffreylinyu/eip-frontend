@@ -1,1090 +1,801 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import Card from '@/components/bootstrap/Card.vue'
 import CardBody from '@/components/bootstrap/CardBody.vue'
 import CardHeader from '@/components/bootstrap/CardHeader.vue'
 import apexchart from '@/components/plugins/Apexcharts.vue'
-
-import CalendarWidget from '@/components/dashboard/CalendarWidget.vue'
-import WeatherWidget from '@/components/dashboard/WeatherWidget.vue'
+import {
+  getDashboardEnvironment,
+  getDashboardProgressTrend,
+  type DashboardEnvironmentResponse,
+  type DashboardProgressTrendResponse,
+} from '@/api/dashboard'
 import { useAppVariableStore } from '@/stores/app-variable'
+import { useWorkspaceStore } from '@/stores/workspace'
 
+const router = useRouter()
+const workspaceStore = useWorkspaceStore()
 const appVariable = useAppVariableStore()
+const loading = ref(false)
+const errorMessage = ref('')
+const trend = ref<DashboardProgressTrendResponse | null>(null)
+const environmentLoading = ref(false)
+const environmentError = ref('')
+const environment = ref<DashboardEnvironmentResponse | null>(null)
+let loadSequence = 0
+let environmentLoadSequence = 0
+let environmentRefreshTimer: ReturnType<typeof window.setInterval> | null = null
 
-// 狀態
-const isLoading = ref(false)
-const currentTime = ref(new Date())
-const refreshTimer = ref<number | null>(null)
+const constructionId = computed(() => workspaceStore.currentProject?.id ?? '')
+const projectName = computed(() => workspaceStore.currentProject?.name ?? '目前工程')
+const hasAnyData = computed(() => (trend.value?.points.length ?? 0) > 0)
+const isDashboardLoading = computed(() => loading.value || environmentLoading.value)
 
-// 當前專案儀表板數據
-const dashboardData = ref({
-  // 專案基本資訊
-  projectInfo: null,
-  // 工程進度
-  constructionProgress: 0,
-  budgetProgress: 0,
-  scheduleProgress: 0,
-  // 預算資訊
-  totalBudget: 0,
-  usedBudget: 0,
-  remainingBudget: 0,
-  // 工程階段
-  currentPhase: '',
-  totalPhases: 0,
-  completedPhases: 0,
-  // 人員統計
-  totalWorkers: 0,
-  onSiteWorkers: 0,
-  // 材料設備
-  materialDelivered: 0,
-  equipmentStatus: 0,
-  // 品質安全
-  qualityScore: 0,
-  safetyIncidents: 0,
-  safetyDays: 0,
-  // 近期活動
-  recentActivities: [],
-  // 專案警示
-  alerts: []
+function toTimestamp(date: string): number {
+  return new Date(`${date}T00:00:00`).getTime()
+}
+
+function todayLocalDate(): string {
+  const now = new Date()
+  const localTime = new Date(now.getTime() - now.getTimezoneOffset() * 60_000)
+  return localTime.toISOString().slice(0, 10)
+}
+
+function formatPercent(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(Number(value))) return '—'
+  return `${Number(value).toFixed(2).replace(/\.?0+$/, '')}%`
+}
+
+function formatReading(
+  value: number | null | undefined,
+  unit: string,
+  maximumFractionDigits = 1,
+): string {
+  if (value == null || !Number.isFinite(Number(value))) return '—'
+  return `${Number(value).toLocaleString('zh-TW', { maximumFractionDigits })}${unit}`
+}
+
+function formatObservedAt(value: string | null | undefined): string {
+  if (!value) return '尚無觀測時間'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return new Intl.DateTimeFormat('zh-TW', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date)
+}
+
+function formatWindDirection(degrees: number | null | undefined): string {
+  if (degrees == null || !Number.isFinite(Number(degrees))) return ''
+  const directions = ['北', '東北', '東', '東南', '南', '西南', '西', '西北']
+  const normalized = ((Number(degrees) % 360) + 360) % 360
+  return `${directions[Math.round(normalized / 45) % 8]}風`
+}
+
+const currentPoint = computed(() => {
+  const points = trend.value?.points ?? []
+  const today = todayLocalDate()
+  return [...points].reverse().find((point) => point.date <= today) ?? points[0] ?? null
 })
 
-// 計算屬性 - 移除專案依賴，直接使用假資料
+const chartSeries = computed(() => {
+  const points = trend.value?.points ?? []
+  const mapSeries = (key: 'actualProgress' | 'budgetUsage' | 'plannedProgress') =>
+    points.map((point) => ({
+      x: toTimestamp(point.date),
+      y: point[key] == null ? null : Number(point[key]),
+    }))
 
-const projectProgressPercentage = computed(() => {
-  return dashboardData.value.constructionProgress || 0
+  return [
+    { name: '工程進度', data: mapSeries('actualProgress') },
+    { name: '預算使用', data: mapSeries('budgetUsage') },
+    { name: '計畫進度', data: mapSeries('plannedProgress') },
+  ]
 })
 
-const budgetUtilizationRate = computed(() => {
-  return dashboardData.value.budgetProgress || 0
-})
-
-const scheduleStatus = computed(() => {
-  const construction = dashboardData.value.constructionProgress
-  const schedule = dashboardData.value.scheduleProgress
-  const variance = construction - schedule
-  
-  if (variance > 5) return { status: 'ahead', text: '超前', color: 'success' }
-  if (variance < -5) return { status: 'behind', text: '落後', color: 'danger' }
-  return { status: 'ontrack', text: '正常', color: 'info' }
-})
-
-const phaseProgress = computed(() => {
-  if (!dashboardData.value.totalPhases || dashboardData.value.totalPhases === 0) return 0
-  return Math.round((dashboardData.value.completedPhases / dashboardData.value.totalPhases) * 100)
-})
-
-// 工程進度趨勢圖表（ApexCharts）
-const projectProgressChart = computed(() => {
-  const currentProgress = dashboardData.value?.constructionProgress || 0
-  const budgetProgress = dashboardData.value?.budgetProgress || 0
-  const scheduleProgress = dashboardData.value?.scheduleProgress || 0
-  
-  return {
-    height: 350,
-    series: [{
-      name: '工程進度',
-      data: [
-        Math.max(0, currentProgress - 30),
-        Math.max(0, currentProgress - 25),
-        Math.max(0, currentProgress - 20),
-        Math.max(0, currentProgress - 15),
-        Math.max(0, currentProgress - 10),
-        Math.max(0, currentProgress - 5),
-        currentProgress
-      ]
-    }, {
-      name: '預算使用',
-      data: [
-        Math.max(0, budgetProgress - 25),
-        Math.max(0, budgetProgress - 20),
-        Math.max(0, budgetProgress - 15),
-        Math.max(0, budgetProgress - 12),
-        Math.max(0, budgetProgress - 8),
-        Math.max(0, budgetProgress - 4),
-        budgetProgress
-      ]
-    }, {
-      name: '計畫進度',
-      data: [
-        Math.max(0, scheduleProgress - 30),
-        Math.max(0, scheduleProgress - 25),
-        Math.max(0, scheduleProgress - 20),
-        Math.max(0, scheduleProgress - 15),
-        Math.max(0, scheduleProgress - 10),
-        Math.max(0, scheduleProgress - 5),
-        scheduleProgress
-      ]
-    }],
-    options: {
-      chart: {
-        type: 'line',
-        toolbar: { show: false },
-        sparkline: { enabled: false }
-      },
-      title: {
-        text: '工程進度追蹤',
-        align: 'left'
-      },
-      colors: [
-        appVariable.color?.primary || '#007bff',
-        appVariable.color?.warning || '#ffc107',
-        appVariable.color?.success || '#28a745'
-      ],
-      dataLabels: { enabled: false },
-      stroke: { 
-        curve: 'smooth', 
-        width: [3, 3, 2],
-        dashArray: [0, 0, 5] // 計畫進度使用虛線
-      },
-      xaxis: {
-        categories: ['第1週', '第2週', '第3週', '第4週', '第5週', '第6週', '第7週']
-      },
-      yaxis: {
-        min: 0,
-        max: 100,
-        labels: {
-          formatter: function (value) {
-            return Math.round(value) + '%'
-          }
-        }
-      },
-      legend: {
-        position: 'top'
-      },
-      tooltip: {
-        y: {
-          formatter: function (value) {
-            return Math.round(value) + '%'
-          }
-        }
-      }
-    }
-  }
-})
-
-// 工程階段分佈圖表（ApexCharts donut；SVG 較不易在長截圖縮成小塊）
-const phaseDistributionChart = computed(() => {
-  const completedPhases = dashboardData.value?.completedPhases || 0
-  const totalPhases = dashboardData.value?.totalPhases || 6
-  const remainingPhases = Math.max(0, totalPhases - completedPhases - 1)
-  const bodyColor = appVariable.color?.bodyColor || '#e2e8f0'
-  const borderColor = appVariable.color?.borderColor || 'rgba(255,255,255,0.2)'
+const chartOptions = computed(() => {
+  const points = trend.value?.points ?? []
+  const maximum = points.reduce((value, point) => {
+    return Math.max(
+      value,
+      Number(point.actualProgress ?? 0),
+      Number(point.budgetUsage ?? 0),
+      Number(point.plannedProgress ?? 0),
+    )
+  }, 100)
+  const yAxisMaximum = Math.max(100, Math.ceil(maximum / 10) * 10)
+  const reportMarkers = points.flatMap((point, index) =>
+    point.hasDailyReport
+      ? [{
+          seriesIndex: 0,
+          dataPointIndex: index,
+          fillColor: appVariable.color?.primary || '#348fe2',
+          strokeColor: '#ffffff',
+          size: 5,
+          shape: 'circle',
+        }]
+      : [],
+  )
 
   return {
-    height: 300,
-    series: [completedPhases, 1, remainingPhases],
-    options: {
-      chart: {
-        type: 'donut',
-        toolbar: { show: false },
-      },
-      labels: ['已完成階段', '進行中階段', '未開始階段'],
-      colors: [
-        appVariable.color?.success || '#28a745',
-        appVariable.color?.warning || '#ffc107',
-        appVariable.color?.gray300 || '#dee2e6',
-      ],
-      title: {
-        text: '工程階段進度',
-        align: 'center',
-        style: {
-          fontSize: '14px',
-          fontWeight: '600',
-          color: bodyColor,
-        },
-      },
-      legend: {
-        position: 'bottom',
-        labels: { colors: bodyColor },
-      },
-      plotOptions: {
-        pie: {
-          donut: {
-            size: '62%',
-          },
-        },
-      },
-      dataLabels: { enabled: false },
-      stroke: {
+    chart: {
+      id: 'dashboard-progress-trend',
+      type: 'line',
+      background: 'transparent',
+      animations: { enabled: true },
+      toolbar: {
         show: true,
-        width: 2,
-        colors: [borderColor],
-      },
-      tooltip: {
-        theme: 'dark',
-        y: {
-          formatter: (value: number) => `${value} 階段`,
+        tools: {
+          download: true,
+          selection: false,
+          zoom: true,
+          zoomin: true,
+          zoomout: true,
+          pan: true,
+          reset: true,
         },
       },
+      events: {
+        dataPointSelection: (_event: unknown, _chartContext: unknown, config: { dataPointIndex: number }) => {
+          const point = points[config.dataPointIndex]
+          if (point?.hasDailyReport) {
+            void router.push({ path: '/daily-report', query: { reportDate: point.date } })
+          }
+        },
+      },
+    },
+    colors: [
+      appVariable.color?.primary || '#348fe2',
+      appVariable.color?.warning || '#f59c1a',
+      appVariable.color?.success || '#00acac',
+    ],
+    stroke: {
+      curve: 'smooth',
+      width: [3, 3, 2],
+      dashArray: [0, 0, 6],
+      connectNullData: false,
+    },
+    markers: {
+      size: 0,
+      hover: { sizeOffset: 4 },
+      discrete: reportMarkers,
+    },
+    dataLabels: { enabled: false },
+    grid: {
+      borderColor: appVariable.color?.borderColor || 'rgba(255, 255, 255, 0.15)',
+      strokeDashArray: 0,
+    },
+    legend: {
+      position: 'top',
+      horizontalAlign: 'center',
+    },
+    xaxis: {
+      type: 'datetime',
+      tickAmount: 7,
+      labels: {
+        datetimeUTC: false,
+        format: 'yyyy/MM/dd',
+        style: { colors: appVariable.color?.bodyColor },
+      },
+      axisBorder: {
+        color: appVariable.color?.borderColor,
+      },
+      axisTicks: {
+        color: appVariable.color?.borderColor,
+      },
+    },
+    yaxis: {
+      min: 0,
+      max: yAxisMaximum,
+      tickAmount: Math.max(5, yAxisMaximum / 20),
+      labels: {
+        formatter: (value: number) => `${Math.round(value)}%`,
+        style: { colors: appVariable.color?.bodyColor },
+      },
+    },
+    tooltip: {
+      shared: true,
+      intersect: false,
+      x: { format: 'yyyy/MM/dd' },
+      y: {
+        formatter: (value: number | null) => formatPercent(value),
+      },
+    },
+    noData: {
+      text: '目前沒有可顯示的進度資料',
     },
   }
 })
 
-// 資源使用狀況圖表（ApexCharts）
-const resourceUsageChart = computed(() => {
-  const onSiteWorkers = dashboardData.value?.onSiteWorkers || 0
-  const totalWorkers = dashboardData.value?.totalWorkers || 0
-  const materialDelivered = dashboardData.value?.materialDelivered || 0
-  const equipmentStatus = dashboardData.value?.equipmentStatus || 0
-  
-  return {
-    height: 300,
-    series: [{
-      name: '使用中',
-      data: [onSiteWorkers, materialDelivered, equipmentStatus]
-    }, {
-      name: '未使用/待命',
-      data: [
-        Math.max(0, totalWorkers - onSiteWorkers),
-        Math.max(0, 100 - materialDelivered),
-        Math.max(0, 100 - equipmentStatus)
-      ]
-    }],
-    options: {
-      chart: {
-        type: 'bar',
-        stacked: true,
-        toolbar: { show: false },
-        background: 'transparent'
-      },
-            colors: [
-        appVariable.color?.primary || '#007bff',
-        appVariable.color?.gray300 || '#dee2e6'
-      ],
-      theme: {
-        mode: 'dark'
-      },
-      plotOptions: {
-        bar: {
-          horizontal: true,
-          barHeight: '60%'
-        }
-      },
-      dataLabels: {
-        enabled: true,
-        style: {
-          colors: ['#ffffff', '#ffffff']
-        }
-      },
-      xaxis: {
-        categories: ['人力配置', '材料到貨', '設備運作'],
-        max: Math.max(100, totalWorkers),
-        labels: {
-          style: {
-            colors: '#ffffff'
-          }
-        }
-      },
-      yaxis: {
-        labels: {
-          style: {
-            colors: '#ffffff'
-          },
-          formatter: function (value, index) {
-            const labels = ['人力配置', '材料到貨', '設備運作']
-            return labels[index] || value
-          }
-        }
-      },
-      tooltip: {
-        theme: 'dark',
-        y: {
-          formatter: function (value, { seriesIndex, dataPointIndex }) {
-            if (dataPointIndex === 0) { // 人力
-              return value + ' 人'
-            }
-            return value + '%'
-          }
-        }
-      },
-      legend: {
-        position: 'top',
-        labels: {
-          colors: '#ffffff'
-        }
-      }
-    }
-  }
-})
+async function loadTrend() {
+  const id = constructionId.value
+  const sequence = ++loadSequence
+  trend.value = null
+  errorMessage.value = ''
+  if (!id) return
 
-// 方法
-const loadDashboardData = async () => {
-  isLoading.value = true
+  loading.value = true
   try {
-    // 使用假資料，不依賴專案選擇
-    dashboardData.value = {
-      // 專案基本資訊
-      projectInfo: {
-        name: '台北市內湖區新辦公大樓興建工程',
-        location: '台北市內湖區行善路123號',
-        contractor: '大同營造股份有限公司',
-        startDate: '2024-01-15',
-        endDate: '2025-12-31',
-        budget: 50000000
-      },
-      // 工程進度
-      constructionProgress: 72,
-      budgetProgress: 68,
-      scheduleProgress: 75,
-      // 預算資訊
-      totalBudget: 50000000,
-      usedBudget: 34000000,
-      remainingBudget: 16000000,
-      // 工程階段
-      currentPhase: '結構工程',
-      totalPhases: 6,
-      completedPhases: 3,
-      // 人員統計
-      totalWorkers: 45,
-      onSiteWorkers: 38,
-      // 材料設備
-      materialDelivered: 85,
-      equipmentStatus: 92,
-      // 品質安全
-      qualityScore: 94,
-      safetyIncidents: 0,
-      safetyDays: 127,
-      // 近期活動
-      recentActivities: [
-        { time: '10分鐘前', action: '混凝土澆置完成', area: '3樓樓板', type: 'success' },
-        { time: '1小時前', action: '鋼筋檢驗通過', area: '4樓結構', type: 'success' },
-        { time: '3小時前', action: '材料進場', area: '工地現場', type: 'info' },
-        { time: '今天上午', action: '安全巡檢完成', area: '全工地', type: 'info' },
-        { time: '昨天', action: '進度會議', area: '會議室', type: 'warning' }
-      ],
-      // 工地提醒（非跨專案警示）
-      alerts: [
-        { 
-          type: 'warning', 
-          message: '本週雨天較多，需注意戶外作業安全', 
-          time: '2小時前',
-          category: 'weather'
-        },
-        { 
-          type: 'info', 
-          message: '下週材料供應商將送達預製構件', 
-          time: '4小時前',
-          category: 'material'
-        },
-        { 
-          type: 'success', 
-          message: '第3階段結構工程已完成驗收', 
-          time: '1天前',
-          category: 'milestone'
-        }
-      ]
-    }
+    const response = await getDashboardProgressTrend(id)
+    if (sequence === loadSequence) trend.value = response
   } catch (error) {
-    console.error('載入儀表板數據失敗:', error)
+    console.error('[Dashboard] progress trend load failed', error)
+    if (sequence === loadSequence) {
+      errorMessage.value = '工程進度資料載入失敗，請稍後再試。'
+    }
   } finally {
-    isLoading.value = false
+    if (sequence === loadSequence) loading.value = false
   }
 }
 
-const updateCurrentTime = () => {
-  currentTime.value = new Date()
-}
+async function loadEnvironment() {
+  const id = constructionId.value
+  const sequence = ++environmentLoadSequence
+  environment.value = null
+  environmentError.value = ''
+  if (!id) return
 
-const getStatusColor = (status: string) => {
-  const colors = {
-    success: 'success',
-    warning: 'warning',
-    danger: 'danger',
-    info: 'info'
+  environmentLoading.value = true
+  try {
+    const response = await getDashboardEnvironment(id)
+    if (sequence === environmentLoadSequence) environment.value = response
+  } catch (error) {
+    console.error('[Dashboard] environment load failed', error)
+    if (sequence === environmentLoadSequence) {
+      environmentError.value = '目前無法取得環境資訊'
+    }
+  } finally {
+    if (sequence === environmentLoadSequence) environmentLoading.value = false
   }
-  return colors[status] || 'secondary'
 }
 
-const getAlertIcon = (category: string) => {
-  const icons = {
-    weather: 'fa-cloud-rain',
-    material: 'fa-truck',
-    safety: 'fa-hard-hat',
-    quality: 'fa-check-circle',
-    schedule: 'fa-clock',
-    budget: 'fa-dollar-sign'
-  }
-  return icons[category] || 'fa-exclamation-triangle'
+async function loadDashboard() {
+  await Promise.all([loadTrend(), loadEnvironment()])
 }
 
-const getCategoryText = (category: string) => {
-  const texts = {
-    weather: '天候',
-    material: '材料',
-    safety: '安全',
-    quality: '品質',
-    schedule: '進度',
-    budget: '預算'
-  }
-  return texts[category] || '其他'
+function goToSchedule() {
+  void router.push('/schedule/progress')
 }
 
-// 生命週期
-onMounted(async () => {
-  await loadDashboardData()
-  
-  // 設定時間更新定時器
-  refreshTimer.value = setInterval(updateCurrentTime, 60000) as unknown as number // 每分鐘更新一次
+function goToDailyReport() {
+  void router.push('/daily-report')
+}
+
+function goToEstimate() {
+  void router.push('/forms/o3-estimate')
+}
+
+watch(constructionId, () => {
+  void loadDashboard()
+}, { immediate: true })
+
+onMounted(() => {
+  environmentRefreshTimer = window.setInterval(() => {
+    if (constructionId.value && !environmentLoading.value) {
+      void loadEnvironment()
+    }
+  }, 10 * 60 * 1000)
 })
 
 onBeforeUnmount(() => {
-  if (refreshTimer.value) {
-    clearInterval(refreshTimer.value)
+  if (environmentRefreshTimer != null) {
+    window.clearInterval(environmentRefreshTimer)
   }
 })
 </script>
 
 <template>
-  <div class="dashboard-container">
-    <div class="dashboard-content">
-        
-        <!-- 儀表板內容 -->
-        <div>
-          
-          <!-- 頂部工具列 -->
-          <div class="d-flex justify-content-end align-items-center mb-4">
-            <WeatherWidget />
-          </div>
-          
-          <!-- 專案關鍵指標卡片 -->
-          <div class="row g-4 mb-4">
-            <div class="col-xl-3 col-md-6">
-              <Card>
-                <CardBody>
-                  <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h6 class="text-muted mb-0 text-uppercase">工程進度</h6>
-                    <i class="fa fa-tasks text-muted"></i>
-                  </div>
-                  <h2 class="mb-2">72%</h2>
-                  <div class="d-flex align-items-center">
-                    <i class="fa fa-arrow-up text-success me-1"></i>
-                    <span class="small text-success">5.2% 比上週</span>
-                  </div>
-                  <div class="progress mt-3" style="height: 4px;">
-                    <div class="progress-bar bg-primary" style="width: 72%"></div>
-                  </div>
-                </CardBody>
-              </Card>
-            </div>
-            
-            <div class="col-xl-3 col-md-6">
-              <Card>
-                <CardBody>
-                  <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h6 class="text-muted mb-0 text-uppercase">現場人力</h6>
-                    <i class="fa fa-users text-muted"></i>
-                  </div>
-                  <h2 class="mb-2">38/45</h2>
-                  <div class="d-flex align-items-center">
-                    <i class="fa fa-arrow-up text-success me-1"></i>
-                    <span class="small text-success">84% 出勤率</span>
-                  </div>
-                  <div class="progress mt-3" style="height: 4px;">
-                    <div class="progress-bar bg-success" style="width: 84%"></div>
-                  </div>
-                </CardBody>
-              </Card>
-            </div>
-            
-            <div class="col-xl-3 col-md-6">
-              <Card>
-                <CardBody>
-                  <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h6 class="text-muted mb-0 text-uppercase">預算使用</h6>
-                    <i class="fa fa-dollar-sign text-muted"></i>
-                  </div>
-                  <h2 class="mb-2">68%</h2>
-                  <div class="d-flex align-items-center">
-                    <i class="fa fa-minus text-warning me-1"></i>
-                    <span class="small text-warning">按計畫執行</span>
-                  </div>
-                  <div class="progress mt-3" style="height: 4px;">
-                    <div class="progress-bar bg-warning" style="width: 68%"></div>
-                  </div>
-                </CardBody>
-              </Card>
-            </div>
-            
-            <div class="col-xl-3 col-md-6">
-              <Card>
-                <CardBody>
-                  <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h6 class="text-muted mb-0 text-uppercase">安全天數</h6>
-                    <i class="fa fa-shield-alt text-muted"></i>
-                  </div>
-                  <h2 class="mb-2">127</h2>
-                  <div class="d-flex align-items-center">
-                    <i class="fa fa-check text-success me-1"></i>
-                    <span class="small text-success">無事故記錄</span>
-                  </div>
-                  <div class="progress mt-3" style="height: 4px;">
-                    <div class="progress-bar bg-info" style="width: 95%"></div>
-                  </div>
-                </CardBody>
-              </Card>
-            </div>
-          </div>
-
-          <!-- 圖表區域 -->
-          <div class="row g-4 mb-4">
-            <!-- 專案進度趨勢 -->
-            <div class="col-xl-8">
-              <Card>
-                <CardHeader>
-                  <h5 class="mb-0">
-                    <i class="fa fa-chart-line me-2"></i>
-                    工程進度追蹤
-                  </h5>
-                </CardHeader>
-                <CardBody>
-                  <apexchart 
-                    v-if="projectProgressChart"
-                    :height="projectProgressChart.height" 
-                    :options="projectProgressChart.options" 
-                    :series="projectProgressChart.series"
-                  />
-                </CardBody>
-              </Card>
-            </div>
-            
-            <!-- 專案狀態分佈 -->
-            <div class="col-xl-4">
-              <Card>
-                <CardHeader>
-                  <h5 class="mb-0">
-                    <i class="fa fa-chart-pie me-2"></i>
-                    專案狀態分佈
-                  </h5>
-                </CardHeader>
-                <CardBody>
-                  <div v-if="phaseDistributionChart" class="phase-distribution-chart-host">
-                    <apexchart
-                      :height="phaseDistributionChart.height"
-                      :options="phaseDistributionChart.options"
-                      :series="phaseDistributionChart.series"
-                    />
-                  </div>
-                </CardBody>
-              </Card>
-            </div>
-          </div>
-
-          <!-- 資源使用和預算分析 -->
-          <div class="row g-4 mb-4">
-            <!-- 資源使用狀況 -->
-            <div class="col-xl-6">
-              <Card>
-                <CardHeader>
-                  <h5 class="mb-0">
-                    <i class="fa fa-cogs me-2"></i>
-                    資源使用狀況
-                  </h5>
-                </CardHeader>
-                <CardBody>
-                  <apexchart 
-                    v-if="resourceUsageChart"
-                    :height="resourceUsageChart.height" 
-                    :options="resourceUsageChart.options" 
-                    :series="resourceUsageChart.series"
-                  />
-                  <div class="mt-3">
-                    <div class="row text-center">
-                      <div class="col-4">
-                        <h6 class="text-muted mb-1">人力</h6>
-                        <h5 class="text-primary mb-0">{{ dashboardData.onSiteWorkers }}/{{ dashboardData.totalWorkers }}</h5>
-                      </div>
-                      <div class="col-4">
-                        <h6 class="text-muted mb-1">材料</h6>
-                        <h5 class="text-warning mb-0">{{ dashboardData.materialDelivered }}%</h5>
-                      </div>
-                      <div class="col-4">
-                        <h6 class="text-muted mb-1">設備</h6>
-                        <h5 class="text-success mb-0">{{ dashboardData.equipmentStatus }}%</h5>
-                      </div>
-                    </div>
-                  </div>
-                </CardBody>
-              </Card>
-            </div>
-            
-            <!-- 工地提醒與今日任務 -->
-            <div class="col-xl-6">
-              <Card>
-                <CardHeader>
-                  <h5 class="mb-0">
-                    <i class="fa fa-bell me-2"></i>
-                    工地提醒
-                  </h5>
-                </CardHeader>
-                <CardBody>
-                  <div class="notifications-list">
-                    <div 
-                      v-for="(alert, index) in dashboardData.alerts" 
-                      :key="index"
-                      :class="`alert alert-${alert.type} d-flex align-items-start mb-3`"
-                    >
-                      <i :class="`fa ${getAlertIcon(alert.category)} me-2 mt-1`"></i>
-                      <div class="flex-grow-1">
-                        <div class="fw-semibold mb-1">{{ alert.message }}</div>
-                        <small class="text-muted">
-                          <i class="fa fa-clock me-1"></i>{{ alert.time }}
-                        </small>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <!-- 今日工作重點 -->
-                  <div class="mt-4 pt-3 border-top">
-                    <h6 class="text-muted mb-3">
-                      <i class="fa fa-clipboard-list me-2"></i>
-                      今日工作重點
-                    </h6>
-                    <div class="work-items">
-                      <div class="d-flex align-items-center mb-2">
-                        <span class="badge border border-success text-success rounded-pill me-2" style="width: 8px; height: 8px; padding: 0;"></span>
-                        <span class="small">混凝土澆置 - 3樓樓板</span>
-                      </div>
-                      <div class="d-flex align-items-center mb-2">
-                        <span class="badge border border-warning text-warning rounded-pill me-2" style="width: 8px; height: 8px; padding: 0;"></span>
-                        <span class="small">鋼筋檢驗 - 4樓結構</span>
-                      </div>
-                      <div class="d-flex align-items-center mb-2">
-                        <span class="badge border border-secondary text-secondary rounded-pill me-2" style="width: 8px; height: 8px; padding: 0;"></span>
-                        <span class="small">安全巡檢 - 全工地</span>
-                      </div>
-                    </div>
-                  </div>
-                </CardBody>
-              </Card>
-            </div>
-          </div>
-
-          <!-- 工程預算管理 -->
-          <div class="row g-4 mb-4">
-            <!-- 預算概況 -->
-            <div class="col-xl-4">
-              <Card>
-                <CardHeader>
-                  <h5 class="mb-0">
-                    <i class="fa fa-money-bill-wave me-2"></i>
-                    工程預算概況
-                  </h5>
-                </CardHeader>
-                <CardBody>
-                  <div class="budget-overview">
-                    <!-- 總預算 -->
-                    <div class="budget-item mb-4">
-                      <div class="d-flex justify-content-between align-items-center mb-2">
-                        <span class="text-muted">總工程預算</span>
-                        <i class="fa fa-wallet text-primary"></i>
-                      </div>
-                      <h3 class="text-primary mb-0">NT$ 50,000,000</h3>
-                      <small class="text-muted">原始契約金額</small>
-                    </div>
-                    
-                    <!-- 已使用預算 -->
-                    <div class="budget-item mb-4">
-                      <div class="d-flex justify-content-between align-items-center mb-2">
-                        <span class="text-muted">已使用預算</span>
-                        <i class="fa fa-chart-line text-warning"></i>
-                      </div>
-                      <h3 class="text-warning mb-0">NT$ 34,000,000</h3>
-                      <div class="progress mt-2" style="height: 6px;">
-                        <div class="progress-bar bg-warning" style="width: 68%"></div>
-                      </div>
-                      <small class="text-muted">使用率: 68%</small>
-                    </div>
-                    
-                    <!-- 剩餘預算 -->
-                    <div class="budget-item mb-4">
-                      <div class="d-flex justify-content-between align-items-center mb-2">
-                        <span class="text-muted">剩餘預算</span>
-                        <i class="fa fa-piggy-bank text-success"></i>
-                      </div>
-                      <h3 class="text-success mb-0">NT$ 16,000,000</h3>
-                      <div class="progress mt-2" style="height: 6px;">
-                        <div class="progress-bar bg-success" style="width: 32%"></div>
-                      </div>
-                      <small class="text-muted">剩餘率: 32%</small>
-                    </div>
-                    
-                    <!-- 預算狀態 -->
-                    <div class="budget-status p-3 bg-light rounded">
-                      <div class="d-flex align-items-center">
-                        <i class="fa fa-check-circle text-success me-2"></i>
-                        <span class="fw-semibold">預算執行狀況良好</span>
-                      </div>
-                      <small class="text-muted mt-1 d-block">目前進度符合預算規劃</small>
-                    </div>
-                  </div>
-                </CardBody>
-              </Card>
-            </div>
-            
-            <!-- 預算變更紀錄 -->
-            <div class="col-xl-8">
-              <Card>
-                <CardHeader>
-                  <div class="d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">
-                      <i class="fa fa-history me-2"></i>
-                      預算變更紀錄
-                    </h5>
-                    <button class="btn btn-outline-primary btn-sm">
-                      <i class="fa fa-plus me-1"></i>
-                      新增變更
-                    </button>
-                  </div>
-                </CardHeader>
-                <CardBody>
-                  <div class="budget-changes">
-                    <div class="table-responsive">
-                      <table class="table table-hover">
-                        <thead class="table-light">
-                          <tr>
-                            <th>變更日期</th>
-                            <th>變更原因</th>
-                            <th>變更前金額</th>
-                            <th>變更金額</th>
-                            <th>變更後金額</th>
-                            <th>操作人</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr>
-                            <td>2024-08-15</td>
-                            <td>材料價格上漲調整</td>
-                            <td>NT$ 45,000,000</td>
-                            <td>
-                              <span class="text-success">+NT$ 5,000,000</span>
-                            </td>
-                            <td>NT$ 50,000,000</td>
-                            <td>張工程師</td>
-                          </tr>
-                          <tr>
-                            <td>2024-06-20</td>
-                            <td>設計變更追加工程</td>
-                            <td>NT$ 42,000,000</td>
-                            <td>
-                              <span class="text-success">+NT$ 3,000,000</span>
-                            </td>
-                            <td>NT$ 45,000,000</td>
-                            <td>李技師</td>
-                          </tr>
-                          <tr>
-                            <td>2024-04-10</td>
-                            <td>原物料成本降低</td>
-                            <td>NT$ 45,000,000</td>
-                            <td>
-                              <span class="text-danger">-NT$ 3,000,000</span>
-                            </td>
-                            <td>NT$ 42,000,000</td>
-                            <td>王主任</td>
-                          </tr>
-                          <tr>
-                            <td>2024-02-28</td>
-                            <td>原始契約金額</td>
-                            <td>-</td>
-                            <td>
-                              <span class="text-primary">NT$ 45,000,000</span>
-                            </td>
-                            <td>NT$ 45,000,000</td>
-                            <td>系統</td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                    
-                    <!-- 預算變更統計 -->
-                    <div class="row mt-4 pt-3 border-top">
-                      <div class="col-md-3 text-center">
-                        <div class="fw-bold text-success">+NT$ 8,000,000</div>
-                        <small class="text-muted">總增加金額</small>
-                      </div>
-                      <div class="col-md-3 text-center">
-                        <div class="fw-bold text-danger">-NT$ 3,000,000</div>
-                        <small class="text-muted">總減少金額</small>
-                      </div>
-                      <div class="col-md-3 text-center">
-                        <div class="fw-bold text-primary">3</div>
-                        <small class="text-muted">變更次數</small>
-                      </div>
-                      <div class="col-md-3 text-center">
-                        <div class="fw-bold text-warning">11.1%</div>
-                        <small class="text-muted">變更幅度</small>
-                      </div>
-                    </div>
-                  </div>
-                </CardBody>
-              </Card>
-            </div>
-          </div>
-
-          <!-- 專案詳細資訊 -->
-          <div class="row g-4 mb-4">
-            <!-- 工程階段進度 -->
-            <div class="col-xl-6">
-              <Card>
-                <CardHeader>
-                  <h5 class="mb-0">
-                    <i class="fa fa-tasks me-2"></i>
-                    工程階段進度
-                  </h5>
-                </CardHeader>
-                <CardBody>
-                  <div class="mb-4">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                      <span class="fw-semibold">當前階段：結構工程</span>
-                      <span class="badge border border-primary text-primary">第 3/6 階段</span>
-                    </div>
-                    <div class="progress mb-3" style="height: 8px;">
-                      <div class="progress-bar bg-primary" style="width: 50%"></div>
-                    </div>
-                  </div>
-                  
-                  <div class="stages-list">
-                    <div class="stage-item d-flex align-items-center mb-3">
-                      <i class="fa fa-check-circle text-success me-3"></i>
-                      <div class="flex-grow-1">
-                        <div class="fw-semibold">基礎工程</div>
-                        <small class="text-muted">已完成 - 2024/03/15</small>
-                      </div>
-                    </div>
-                    <div class="stage-item d-flex align-items-center mb-3">
-                      <i class="fa fa-check-circle text-success me-3"></i>
-                      <div class="flex-grow-1">
-                        <div class="fw-semibold">地下室工程</div>
-                        <small class="text-muted">已完成 - 2024/05/20</small>
-                      </div>
-                    </div>
-                    <div class="stage-item d-flex align-items-center mb-3">
-                      <i class="fa fa-clock text-warning me-3"></i>
-                      <div class="flex-grow-1">
-                        <div class="fw-semibold">結構工程</div>
-                        <small class="text-muted">進行中 - 預計 2024/09/30</small>
-                      </div>
-                    </div>
-                    <div class="stage-item d-flex align-items-center mb-3">
-                      <i class="fa fa-circle text-muted me-3"></i>
-                      <div class="flex-grow-1">
-                        <div class="fw-semibold text-muted">機電工程</div>
-                        <small class="text-muted">待開始</small>
-                      </div>
-                    </div>
-                    <div class="stage-item d-flex align-items-center mb-3">
-                      <i class="fa fa-circle text-muted me-3"></i>
-                      <div class="flex-grow-1">
-                        <div class="fw-semibold text-muted">裝修工程</div>
-                        <small class="text-muted">待開始</small>
-                      </div>
-                    </div>
-                    <div class="stage-item d-flex align-items-center">
-                      <i class="fa fa-circle text-muted me-3"></i>
-                      <div class="flex-grow-1">
-                        <div class="fw-semibold text-muted">驗收交付</div>
-                        <small class="text-muted">待開始</small>
-                      </div>
-                    </div>
-                  </div>
-                </CardBody>
-              </Card>
-            </div>
-            
-            <!-- 材料與設備狀況 -->
-            <div class="col-xl-6">
-              <Card>
-                <CardHeader>
-                  <h5 class="mb-0">
-                    <i class="fa fa-truck me-2"></i>
-                    材料與設備狀況
-                  </h5>
-                </CardHeader>
-                <CardBody>
-                  <div class="material-list">
-                    <div class="material-item d-flex justify-content-between align-items-center mb-3 p-3 border rounded">
-                      <div class="d-flex align-items-center">
-                        <i class="fa fa-cube text-primary me-3"></i>
-                        <div>
-                          <div class="fw-semibold">混凝土</div>
-                          <small class="text-muted">210kgf 結構用</small>
-                        </div>
-                      </div>
-                      <div class="text-end">
-                        <span class="badge border border-success text-success">充足</span>
-                        <div class="small text-muted">庫存: 850m³</div>
-                      </div>
-                    </div>
-                    
-                    <div class="material-item d-flex justify-content-between align-items-center mb-3 p-3 border rounded">
-                      <div class="d-flex align-items-center">
-                        <i class="fa fa-weight-hanging text-secondary me-3"></i>
-                        <div>
-                          <div class="fw-semibold">鋼筋</div>
-                          <small class="text-muted">#4 & #6</small>
-                        </div>
-                      </div>
-                      <div class="text-end">
-                        <span class="badge border border-warning text-warning">補貨中</span>
-                        <div class="small text-muted">庫存: 12噸</div>
-                      </div>
-                    </div>
-                    
-                    <div class="material-item d-flex justify-content-between align-items-center mb-3 p-3 border rounded">
-                      <div class="d-flex align-items-center">
-                        <i class="fa fa-tools text-warning me-3"></i>
-                        <div>
-                          <div class="fw-semibold">塔式起重機</div>
-                          <small class="text-muted">主吊裝設備</small>
-                        </div>
-                      </div>
-                      <div class="text-end">
-                        <span class="badge border border-success text-success">正常</span>
-                        <div class="small text-muted">運行時數: 1,250h</div>
-                      </div>
-                    </div>
-                    
-                    <div class="material-item d-flex justify-content-between align-items-center p-3 border rounded">
-                      <div class="d-flex align-items-center">
-                        <i class="fa fa-hard-hat text-info me-3"></i>
-                        <div>
-                          <div class="fw-semibold">安全設備</div>
-                          <small class="text-muted">防護網、安全帶等</small>
-                        </div>
-                      </div>
-                      <div class="text-end">
-                        <span class="badge border border-success text-success">完備</span>
-                        <div class="small text-muted">檢查: 合格</div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div class="mt-4 pt-3 border-top">
-                    <div class="row text-center">
-                      <div class="col-4">
-                        <div class="fw-bold text-success">85%</div>
-                        <small class="text-muted">材料到貨率</small>
-                      </div>
-                      <div class="col-4">
-                        <div class="fw-bold text-primary">92%</div>
-                        <small class="text-muted">設備可用率</small>
-                      </div>
-                      <div class="col-4">
-                        <div class="fw-bold text-warning">3</div>
-                        <small class="text-muted">待補貨項目</small>
-                      </div>
-                    </div>
-                  </div>
-                </CardBody>
-              </Card>
-            </div>
-          </div>
-
-          <!-- 行事曆和重要事件 -->
-          <div class="row g-4">
-            <div class="col-12">
-              <CalendarWidget />
-            </div>
-          </div>
-
-        </div>
+  <div class="dashboard-page">
+    <div class="dashboard-heading">
+      <div>
+        <h1 class="dashboard-title">工程進度儀表板</h1>
+        <p class="dashboard-subtitle mb-0">{{ projectName }}</p>
+      </div>
+      <button
+        type="button"
+        class="btn btn-outline-primary btn-sm"
+        :disabled="isDashboardLoading || !constructionId"
+        @click="loadDashboard"
+      >
+        <i class="fa fa-rotate me-1" :class="{ 'fa-spin': isDashboardLoading }"></i>
+        重新整理
+      </button>
     </div>
+
+    <div v-if="!constructionId" class="alert alert-warning">
+      <i class="fa fa-triangle-exclamation me-2"></i>
+      請先選擇工程專案。
+    </div>
+
+    <Card v-else class="environment-card mb-3">
+      <CardHeader class="environment-card__header">
+        <div>
+          <h5 class="mb-1">
+            <i class="fa fa-cloud-sun me-2"></i>
+            當前環境資訊
+          </h5>
+          <div class="small text-muted">依工程位置對應最近測站，顯示最新公開觀測資料</div>
+        </div>
+        <span class="environment-live-badge">
+          <span class="environment-live-dot"></span>
+          最新觀測
+        </span>
+      </CardHeader>
+      <CardBody>
+        <div v-if="environmentLoading" class="environment-loading">
+          <i class="fa fa-spinner fa-spin"></i>
+          正在取得測站資料…
+        </div>
+        <div v-else-if="environmentError" class="environment-loading text-danger">
+          <i class="fa fa-circle-exclamation"></i>
+          {{ environmentError }}
+        </div>
+        <template v-else>
+          <div class="environment-grid">
+            <div class="environment-metric environment-metric--temperature">
+              <div class="environment-metric__icon"><i class="fa fa-temperature-half"></i></div>
+              <div class="environment-metric__content">
+                <span>當前溫度</span>
+                <strong>{{ formatReading(environment?.weather.temperatureCelsius, '°C') }}</strong>
+                <small>{{ environment?.weather.message || '氣象署觀測' }}</small>
+              </div>
+            </div>
+
+            <div class="environment-metric environment-metric--humidity">
+              <div class="environment-metric__icon"><i class="fa fa-droplet"></i></div>
+              <div class="environment-metric__content">
+                <span>當前濕度</span>
+                <strong>{{ formatReading(environment?.weather.relativeHumidityPercent, '%', 0) }}</strong>
+                <small>{{ environment?.weather.message || '相對濕度' }}</small>
+              </div>
+            </div>
+
+            <div class="environment-metric environment-metric--air">
+              <div class="environment-metric__icon"><i class="fa fa-smog"></i></div>
+              <div class="environment-metric__content">
+                <span>PM2.5</span>
+                <strong>{{ formatReading(environment?.airQuality.pm25, ' μg/m³', 0) }}</strong>
+                <small>{{ environment?.airQuality.message || '環境部空品觀測' }}</small>
+              </div>
+            </div>
+
+            <div class="environment-metric environment-metric--wind">
+              <div class="environment-metric__icon"><i class="fa fa-wind"></i></div>
+              <div class="environment-metric__content">
+                <span>風力</span>
+                <strong>{{ formatReading(environment?.weather.windSpeedMs, ' m/s') }}</strong>
+                <small>
+                  {{ formatWindDirection(environment?.weather.windDirectionDegrees)
+                    || environment?.weather.message
+                    || '即時風速' }}
+                </small>
+              </div>
+            </div>
+
+            <div class="environment-metric environment-metric--noise">
+              <div class="environment-metric__icon"><i class="fa fa-volume-high"></i></div>
+              <div class="environment-metric__content">
+                <span>噪音</span>
+                <strong>{{ formatReading(environment?.noise.decibels, ' dB', 0) }}</strong>
+                <small>{{ environment?.noise.message || '工地監測設備' }}</small>
+              </div>
+            </div>
+          </div>
+
+          <div class="environment-sources">
+            <div>
+              <i class="fa fa-location-dot"></i>
+              氣象站：{{ environment?.weather.stationName || '尚未設定' }}
+              <span>{{ formatObservedAt(environment?.weather.observedAt) }}</span>
+            </div>
+            <div>
+              <i class="fa fa-leaf"></i>
+              空品站：{{ environment?.airQuality.stationName || '尚未取得' }}
+              <span>{{ formatObservedAt(environment?.airQuality.observedAt) }}</span>
+            </div>
+          </div>
+        </template>
+      </CardBody>
+    </Card>
+
+    <Card v-if="constructionId" class="progress-card">
+      <CardHeader class="progress-card-header">
+        <div>
+          <h5 class="mb-1">
+            <i class="fa fa-chart-line me-2"></i>
+            工程進度追蹤
+          </h5>
+          <div class="small text-muted">
+            預定：施工進度排程｜實際：營造日報工項完成金額加權｜預算：營造端核定估驗累計
+          </div>
+        </div>
+      </CardHeader>
+      <CardBody>
+        <div v-if="loading" class="dashboard-state">
+          <i class="fa fa-spinner fa-spin fa-2x mb-3"></i>
+          <span>正在彙整工程進度資料…</span>
+        </div>
+
+        <div v-else-if="errorMessage" class="dashboard-state text-danger">
+          <i class="fa fa-circle-exclamation fa-2x mb-3"></i>
+          <span>{{ errorMessage }}</span>
+        </div>
+
+        <div v-else-if="!hasAnyData" class="dashboard-state">
+          <i class="fa fa-chart-line fa-2x mb-3"></i>
+          <strong>目前沒有可顯示的進度資料</strong>
+          <span class="small">建立施工進度排程、填寫營造日報或新增核定估驗後即可顯示。</span>
+        </div>
+
+        <template v-else>
+          <div class="progress-summary">
+            <div class="summary-item">
+              <span>工程進度</span>
+              <strong class="text-primary">{{ formatPercent(currentPoint?.actualProgress) }}</strong>
+            </div>
+            <div class="summary-item">
+              <span>預算使用</span>
+              <strong class="text-warning">{{ formatPercent(currentPoint?.budgetUsage) }}</strong>
+            </div>
+            <div class="summary-item">
+              <span>計畫進度</span>
+              <strong class="text-success">{{ formatPercent(currentPoint?.plannedProgress) }}</strong>
+            </div>
+          </div>
+
+          <apexchart
+            :height="430"
+            :options="chartOptions"
+            :series="chartSeries"
+          />
+
+          <div class="chart-help">
+            <i class="fa fa-circle-info me-1"></i>
+            工程進度線上的圓點代表有營造日報，點擊可開啟該日日報。
+          </div>
+
+          <div class="data-status">
+            <button type="button" :class="{ missing: !trend?.hasPlanData }" @click="goToSchedule">
+              <i :class="trend?.hasPlanData ? 'fa fa-check' : 'fa fa-minus'"></i>
+              {{ trend?.hasPlanData ? '已有排程資料' : '尚未建立排程' }}
+            </button>
+            <button type="button" :class="{ missing: !trend?.hasDailyReportData }" @click="goToDailyReport">
+              <i :class="trend?.hasDailyReportData ? 'fa fa-check' : 'fa fa-minus'"></i>
+              {{ trend?.hasDailyReportData ? '已有營造日報' : '尚無營造日報' }}
+            </button>
+            <button
+              type="button"
+              :class="{ missing: !trend?.hasEstimateData || !trend?.hasBudgetBaselineData }"
+              @click="goToEstimate"
+            >
+              <i
+                :class="trend?.hasEstimateData && trend?.hasBudgetBaselineData
+                  ? 'fa fa-check'
+                  : 'fa fa-minus'"
+              ></i>
+              {{
+                !trend?.hasEstimateData
+                  ? '尚無核定估驗'
+                  : trend?.hasBudgetBaselineData
+                    ? '已有核定估驗'
+                    : '已有核定估驗，請補契約金額'
+              }}
+            </button>
+          </div>
+        </template>
+      </CardBody>
+    </Card>
   </div>
 </template>
 
 <style scoped>
-.dashboard-container {
-  min-height: 100vh;
-  background: transparent;
-  padding: 0;
+.dashboard-page {
+  padding: 1.5rem;
+}
+
+.dashboard-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.dashboard-title {
   margin: 0;
+  font-size: 1.55rem;
+  font-weight: 700;
 }
 
-.dashboard-content {
-  padding: 2rem;
-  max-width: none;
+.dashboard-subtitle {
+  color: var(--bs-secondary-color);
 }
 
-/* 專案狀態分佈（ApexCharts donut） */
-.phase-distribution-chart-host {
-  position: relative;
-  width: 100%;
-  min-height: 300px;
-}
-.phase-distribution-chart-host :deep(.apexcharts-canvas) {
-  margin: 0 auto;
+.environment-card {
+  overflow: hidden;
+  border-color: rgba(var(--bs-primary-rgb), 0.2);
+  background:
+    radial-gradient(circle at 8% 0%, rgba(var(--bs-primary-rgb), 0.1), transparent 30%),
+    var(--bs-card-bg);
 }
 
-.page-header {
-  font-size: 1.75rem;
+.environment-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 72px;
+  border-bottom-color: rgba(var(--bs-primary-rgb), 0.16);
+  background: rgba(var(--bs-body-bg-rgb), 0.36);
+}
+
+.environment-live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.32rem 0.7rem;
+  border: 1px solid rgba(var(--bs-success-rgb), 0.3);
+  border-radius: 999px;
+  color: var(--bs-success);
+  background: rgba(var(--bs-success-rgb), 0.08);
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.environment-live-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 0 4px rgba(var(--bs-success-rgb), 0.12);
+}
+
+.environment-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  min-height: 132px;
+  color: var(--bs-secondary-color);
+}
+
+.environment-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.environment-metric {
+  --environment-accent: var(--bs-primary-rgb);
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  min-width: 0;
+  padding: 0.95rem;
+  border: 1px solid rgba(var(--environment-accent), 0.22);
+  border-radius: 0.75rem;
+  background: linear-gradient(
+    145deg,
+    rgba(var(--environment-accent), 0.1),
+    rgba(var(--bs-body-bg-rgb), 0.55)
+  );
+}
+
+.environment-metric--temperature {
+  --environment-accent: 245, 156, 26;
+}
+
+.environment-metric--humidity {
+  --environment-accent: 52, 143, 226;
+}
+
+.environment-metric--air {
+  --environment-accent: 0, 172, 172;
+}
+
+.environment-metric--wind {
+  --environment-accent: 73, 182, 214;
+}
+
+.environment-metric--noise {
+  --environment-accent: 145, 151, 163;
+}
+
+.environment-metric__icon {
+  display: grid;
+  flex: 0 0 2.6rem;
+  width: 2.6rem;
+  height: 2.6rem;
+  place-items: center;
+  border-radius: 0.7rem;
+  color: rgb(var(--environment-accent));
+  background: rgba(var(--environment-accent), 0.14);
+  font-size: 1.05rem;
+}
+
+.environment-metric__content {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.environment-metric__content > span {
+  color: var(--bs-secondary-color);
+  font-size: 0.78rem;
   font-weight: 600;
 }
 
-.project-info {
-  font-size: 0.9rem;
+.environment-metric__content strong {
+  overflow: hidden;
+  color: var(--bs-body-color);
+  font-size: 1.3rem;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-/* 預算管理樣式 */
-.budget-overview .budget-item {
-  padding: 1rem;
-  border-radius: 8px;
-  background: rgba(0, 123, 255, 0.05);
-  border-left: 4px solid var(--bs-primary);
+.environment-metric__content small {
+  overflow: hidden;
+  color: var(--bs-secondary-color);
+  font-size: 0.7rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.budget-overview .budget-item:nth-child(2) {
-  background: rgba(255, 193, 7, 0.05);
-  border-left-color: var(--bs-warning);
+.environment-sources {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  margin-top: 0.85rem;
+  padding: 0.65rem 0.8rem 0;
+  border-top: 1px solid var(--bs-border-color);
+  color: var(--bs-secondary-color);
+  font-size: 0.75rem;
 }
 
-.budget-overview .budget-item:nth-child(3) {
-  background: rgba(40, 167, 69, 0.05);
-  border-left-color: var(--bs-success);
+.environment-sources div {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
-.budget-status {
-  border: 1px solid rgba(40, 167, 69, 0.2);
-  background: rgba(40, 167, 69, 0.05) !important;
+.environment-sources i {
+  color: var(--bs-primary);
 }
 
-.budget-changes .table th {
-  font-weight: 600;
+.environment-sources span {
+  padding-left: 0.25rem;
+  color: var(--bs-tertiary-color);
+}
+
+.progress-card {
+  overflow: hidden;
+}
+
+.progress-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 72px;
+}
+
+.dashboard-state {
+  min-height: 430px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  color: var(--bs-secondary-color);
+  text-align: center;
+}
+
+.progress-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.summary-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 0.5rem;
+  background: rgba(var(--bs-body-color-rgb), 0.025);
+}
+
+.summary-item span {
+  color: var(--bs-secondary-color);
   font-size: 0.875rem;
-  color: var(--bs-gray-700);
-  border-bottom: 2px solid var(--bs-gray-200);
 }
 
-.budget-changes .table td {
-  vertical-align: middle;
-  font-size: 0.875rem;
+.summary-item strong {
+  font-size: 1.15rem;
 }
 
-.budget-changes .table tbody tr:hover {
-  background-color: rgba(0, 123, 255, 0.05);
+.chart-help {
+  color: var(--bs-secondary-color);
+  font-size: 0.82rem;
+  text-align: center;
+  margin-top: 0.25rem;
 }
 
-/* 響應式設計 */
-@media (max-width: 768px) {
-  .dashboard-content {
+.data-status {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+
+.data-status button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.28rem 0.65rem;
+  border: 0;
+  border-radius: 999px;
+  color: var(--bs-success);
+  background: rgba(var(--bs-success-rgb), 0.1);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.data-status button:hover {
+  filter: brightness(1.08);
+}
+
+.data-status button:focus-visible {
+  outline: 2px solid var(--bs-primary);
+  outline-offset: 2px;
+}
+
+.data-status button.missing {
+  color: var(--bs-secondary-color);
+  background: rgba(var(--bs-secondary-rgb), 0.1);
+}
+
+@media (max-width: 767.98px) {
+  .dashboard-page {
     padding: 1rem;
   }
-  
-  .page-header {
-    font-size: 1.5rem;
+
+  .dashboard-heading {
+    align-items: flex-start;
   }
-  
-  .d-flex.justify-content-between {
+
+  .progress-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .environment-card__header {
+    align-items: flex-start;
+  }
+
+  .environment-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .environment-sources {
+    align-items: flex-start;
     flex-direction: column;
-    align-items: flex-start !important;
-    gap: 1rem;
-  }
-  
-  .budget-overview .budget-item {
-    padding: 0.75rem;
-  }
-  
-  .budget-changes .table-responsive {
-    font-size: 0.8rem;
   }
 }
 
+@media (min-width: 768px) and (max-width: 1199.98px) {
+  .environment-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
 </style>

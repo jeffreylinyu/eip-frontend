@@ -18,9 +18,13 @@ import { FIXED_DOCUMENT_FORMS } from '@/config/fixedDocumentForms';
 const router = createRouter({
   history: createWebHashHistory(import.meta.env.BASE_URL),
   routes: [
-    { 
-      path: '/', 
-      component: () => import('../views/Dashboard.vue'),
+    {
+      path: '/',
+      redirect: '/project-overview'
+    },
+    {
+      path: '/project-overview',
+      component: () => import('../views/ProjectOverview.vue'),
       meta: { requiresAuth: true }
     },
     {

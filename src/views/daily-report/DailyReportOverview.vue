@@ -1664,6 +1664,8 @@ const saveButtonTitle = computed(() => {
 })
 /** 上次成功儲存（或載入）時的請求快照，用於避免儲存回寫觸發無限自動儲存 */
 let lastPersistedSnapshot = ''
+/** 儲存請求必須依序執行，避免較舊的請求晚完成後覆蓋較新的資料。 */
+let activeSavePromise: Promise<void> | null = null
 
 function getSaveSnapshot(forDate?: string): string {
   try {
@@ -2318,7 +2320,7 @@ const clearForm = () => {
   customCopyDate.value = ''
 }
 
-async function persistDailyReport(showSuccessAlert = false, targetDate?: string) {
+async function persistDailyReportRequest(showSuccessAlert = false, targetDate?: string) {
   if (!constructionId.value) {
     if (showSuccessAlert) alert('找不到工程 ID，無法儲存')
     throw new Error('missing constructionId')
@@ -2333,6 +2335,7 @@ async function persistDailyReport(showSuccessAlert = false, targetDate?: string)
 
   try {
     const saveRequest = convertToSaveRequest({ ...report.value, reportDate: saveDate })
+    const requestSnapshot = JSON.stringify(saveRequest)
     const response = await saveDailyReport(
       constructionId.value,
       saveDate,
@@ -2341,7 +2344,16 @@ async function persistDailyReport(showSuccessAlert = false, targetDate?: string)
     )
 
     if (saveDate === report.value.reportDate) {
-      await applyHydratedReport(convertFromDetailResponse(response, report.value))
+      const currentSnapshot = getSaveSnapshot()
+      if (currentSnapshot === requestSnapshot) {
+        await applyHydratedReport(convertFromDetailResponse(response, report.value))
+      } else {
+        // 使用者在請求期間仍有輸入：記住伺服器已存到哪一版，但不可用舊回應覆蓋畫面。
+        lastPersistedSnapshot = requestSnapshot
+        autoSaveStatus.value = 'pending'
+        debouncedAutoSave()
+        return
+      }
     }
 
     autoSaveStatus.value = 'idle'
@@ -2362,7 +2374,35 @@ async function persistDailyReport(showSuccessAlert = false, targetDate?: string)
   }
 }
 
+async function persistDailyReport(showSuccessAlert = false, targetDate?: string) {
+  // 等前一筆儲存完成後才建立下一筆請求內容，確保送出的順序也是伺服器寫入順序。
+  while (activeSavePromise) {
+    try {
+      await activeSavePromise
+    } catch {
+      // 前一筆失敗不應阻止最新修改再次嘗試儲存。
+    }
+  }
+
+  const savePromise = persistDailyReportRequest(showSuccessAlert, targetDate)
+  activeSavePromise = savePromise
+  try {
+    await savePromise
+  } finally {
+    if (activeSavePromise === savePromise) {
+      activeSavePromise = null
+    }
+  }
+}
+
 async function performAutoSave() {
+  if (activeSavePromise) {
+    try {
+      await activeSavePromise
+    } catch {
+      // 前一次失敗後，仍以目前最新內容重新判斷是否需要儲存。
+    }
+  }
   if (getSaveSnapshot() === lastPersistedSnapshot) {
     if (autoSaveStatus.value === 'pending') autoSaveStatus.value = 'idle'
     return

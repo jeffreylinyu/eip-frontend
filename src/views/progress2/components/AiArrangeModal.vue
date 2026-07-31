@@ -1,7 +1,7 @@
 <template>
   <Modal
     :show="show"
-    title="AI 智慧編排施工進度"
+    title="智慧編排施工進度"
     icon="fa fa-wand-magic-sparkles"
     size="xl"
     hide-footer
@@ -138,6 +138,7 @@ import Modal from '@/components/bootstrap/Modal.vue'
 import RepublicDatePicker from '@/components/bootstrap/RepublicDatePicker.vue'
 import { assistantAsk } from '@/api/ai'
 import type { Progress2Task } from '@/stores/progress2'
+import { useWorkspaceStore } from '@/stores/workspace'
 import { addDays, inclusiveDays, parseYmd, toYmd } from '@/utils/progress2/date'
 
 interface Props {
@@ -152,6 +153,7 @@ const props = withDefaults(defineProps<Props>(), {
   sourceLabel: '施工項目'
 })
 
+const workspaceStore = useWorkspaceStore()
 const sourceLabel = computed(() => props.sourceLabel || '施工項目')
 
 const emit = defineEmits<{
@@ -180,12 +182,30 @@ const canGenerate = computed(
   () => arrangeTargets.value.length > 0 && !!parseYmd(form.startDate)
 )
 
+const toDateOnly = (value?: string | null): string => value?.match(/^\d{4}-\d{2}-\d{2}/)?.[0] ?? ''
+
+const toPositiveDays = (value: unknown): number | null => {
+  const days = Number(value)
+  return Number.isFinite(days) && days > 0 ? Math.round(days) : null
+}
+
+/** 每次開啟時以目前工程的基本資料作為 AI 編排預設條件。 */
+const applyBasicDataDefaults = () => {
+  const project = workspaceStore.currentProject
+  if (!project || project.id !== props.constructionId) return
+
+  form.startDate = toDateOnly(project.startDate) || toYmd(new Date())
+  form.endDate = toDateOnly(project.endDate)
+  form.totalDays = toPositiveDays(project.workDay) ?? toPositiveDays(project.constructionPeriod)
+}
+
 watch(
   () => props.show,
   (show) => {
     if (show) {
       step.value = 'form'
       errorMessage.value = ''
+      applyBasicDataDefaults()
     }
   }
 )
@@ -280,14 +300,14 @@ const generate = async () => {
       message: buildUserMessage(),
       systemPrompt: buildSystemPrompt(),
       constructionId: props.constructionId || undefined,
-      userQuestion: 'AI 智慧編排施工進度'
+      userQuestion: '智慧編排施工進度'
     })
     if (!response?.content) {
-      throw new Error('AI 沒有回覆內容，請稍後再試')
+      throw new Error('沒有回覆內容，請稍後再試')
     }
     const parsed = extractJson(response.content)
     if (!parsed || !Array.isArray(parsed.tasks)) {
-      throw new Error('AI 回覆格式無法解析，請重試或調整補充指示')
+      throw new Error('回覆格式無法解析，請重試或調整補充指示')
     }
     aiRemark.value = typeof parsed.remark === 'string' ? parsed.remark : ''
 

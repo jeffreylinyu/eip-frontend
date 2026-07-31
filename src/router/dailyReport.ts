@@ -4,7 +4,7 @@ export const dailyReportRoutes: RouteRecordRaw[] = [
   {
     path: '/daily-report',
     name: 'DailyReport',
-    component: () => import('@/views/daily-report/DailyReportOverview.vue'),
+    component: () => import('@/views/daily-report/DailyReportEntry.vue'),
     meta: {
       title: '施工日誌',
       requiresAuth: true
@@ -13,7 +13,7 @@ export const dailyReportRoutes: RouteRecordRaw[] = [
   {
     path: '/daily-report/overview',
     name: 'DailyReportOverview',
-    component: () => import('@/views/daily-report/DailyReportOverview.vue'),
+    component: () => import('@/views/daily-report/DailyReportEntry.vue'),
     meta: {
       title: '日誌總覽',
       requiresAuth: true

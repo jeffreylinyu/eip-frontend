@@ -39,7 +39,7 @@
               :disabled="!tasks.length"
               @click="showAiModal = true"
             >
-              <i class="fa fa-wand-magic-sparkles me-1"></i>AI 智慧編排
+              <i class="fa fa-wand-magic-sparkles me-1"></i>智慧編排
             </button>
           </div>
 

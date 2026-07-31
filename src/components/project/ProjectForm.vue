@@ -286,9 +286,16 @@ const constructionGeoSelection = computed({
 })
 
 
-// 新增：處理公司編輯跳轉（目前僅為佔位符）
-const handleEditCompany = (type: string) => {
-  // TODO: 實作跳轉至編輯公司畫面的邏輯
+// 導向目前視角的參與單位管理頁面。
+const handleEditCompany = (_type: string) => {
+  const currentPath = router.currentRoute.value.path
+  const participationUnitsPath = currentPath.startsWith('/supervisory/')
+    ? '/supervisory/basic/participation-units'
+    : currentPath.startsWith('/contractor/')
+      ? '/contractor/basic/participation-units'
+      : '/basic/participation-units'
+
+  router.push(participationUnitsPath)
 }
 
 // 使用監造公司作為設計公司

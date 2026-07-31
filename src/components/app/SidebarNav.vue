@@ -29,6 +29,7 @@ let wasAutoExpanded = false;
 
 function matchesMenuUrl(menuUrl: string | undefined): boolean {
 	if (!menuUrl) return false;
+	if (menuUrl === '/') return route.path === '/';
 	if (menuUrl.includes('?')) {
 		const [menuPath, queryString = ''] = menuUrl.split('?');
 		if (route.path !== menuPath && !route.path.startsWith(`${menuPath.replace(/\/+$/, '')}/`)) {

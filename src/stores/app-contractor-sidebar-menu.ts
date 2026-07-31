@@ -731,6 +731,7 @@ export const useAppContractorSidebarMenuStore = defineStore("appContractorSideba
       // 工程儀表板
       { text: "工程儀表板", is_header: true },
       { url: getViewUrl("/"), icon: "bi bi-speedometer2", text: "首頁 (Dashboard)" },
+      { url: "/project-overview", icon: "bi bi-grid-1x2", text: "專案總覽" },
 
       // 基本資料維護
       { text: "基本資料維護", is_header: true },

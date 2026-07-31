@@ -392,6 +392,7 @@ export const useAppSidebarMenuStore = defineStore("appSidebarMenu", () => {
     // 工程儀表板
     { text: "工程儀表板", is_header: true },
     { url: getViewUrl("/"), icon: "bi bi-speedometer2", text: "首頁 (Dashboard)" },
+    { url: "/project-overview", icon: "bi bi-grid-1x2", text: "專案總覽" },
 
     //基本資料維護
     { text: "基本資料維護", is_header: true },
@@ -443,23 +444,13 @@ export const useAppSidebarMenuStore = defineStore("appSidebarMenu", () => {
       children: scheduleChildren.value,
     },
 
-    // 監造報表管理（與營造端共用 daily-report 頁面，僅選單／標題文案不同）
+    // 監造報表使用獨立內容；營造日誌子頁不應出現在監造側邊欄。
     { text: "監造報表管理", is_header: true },
     {
       text: "監造報表管理",
       icon: "bi bi-journal-text",
       children: [
-        { text: "監造報表", url: "/daily-report" },
-        { text: "材料進場", url: "/daily-report/materials" },
-        { text: "出工紀錄", url: "/daily-report/labor" },
-        { text: "機具出工", url: "/daily-report/equipment" },
-        { text: "進場紀錄", url: "/daily-report/incoming" },
-        { text: "材料檢驗", url: "/daily-report/inspection" },
-        { text: "安全衛生", url: "/daily-report/safety" },
-        { text: "施工記錄", url: "/daily-report/construction" },
-        { text: "重要記事", url: "/daily-report/notes" },
-        { text: "明日進度", url: "/daily-report/tomorrow" },
-        { text: "製表人", url: "/daily-report/preparer" },
+        { text: "公共工程監造報表", url: "/daily-report" },
         { text: "日誌歷史", url: "/daily-report/history" },
       ],
     },

@@ -342,6 +342,8 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
 const BASIC_DATA_EXCLUDED_CHANGE_KEYS = new Set([
   'version',
   'contractor_name',
+  // 完工日期由開工日期、工期與計算模式自動推導，不是可獨立儲存的使用者輸入。
+  'completion_date',
   'construction_latitude',
   'construction_longitude',
   'cwa_station_id',
