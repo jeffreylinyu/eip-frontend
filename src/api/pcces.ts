@@ -848,6 +848,47 @@ export async function copyConstructionMajorItemsFromPrevious(
   return response as unknown as { copiedCount: number };
 }
 
+export interface ContractorMajorItemPreview {
+  itemCount: number;
+  constructionStandardCount: number;
+  safetyStandardCount: number;
+  contractorVersionAvailable: boolean;
+  supervisoryVersionLabel?: string | null;
+  resolvedContractorVersionLabel?: string | null;
+}
+
+/** 預覽依版次序位對應的營造分項工程與標準筆數。 */
+export async function getContractorMajorItemPreview(
+  constructionId: string,
+  supervisoryDesignChangeId?: number | null
+): Promise<ContractorMajorItemPreview> {
+  const params = new URLSearchParams({ constructionId });
+  if (supervisoryDesignChangeId != null) {
+    params.append('supervisoryDesignChangeId', String(supervisoryDesignChangeId));
+  }
+  const response = await http.get(
+    `/management/construction-major-items/contractor-preview?${params}`
+  );
+  return response as unknown as ContractorMajorItemPreview;
+}
+
+/** 將對應營造版本的分項工程與抽查標準匯入目前監造版本。 */
+export async function copyConstructionMajorItemsFromContractor(
+  constructionId: string,
+  supervisoryDesignChangeId: number | null,
+  overwrite: boolean
+): Promise<{ copiedCount: number }> {
+  const response = await http.post(
+    '/management/construction-major-items/copy-from-contractor',
+    {
+      constructionId,
+      supervisoryDesignChangeId,
+      overwrite,
+    }
+  );
+  return response as unknown as { copiedCount: number };
+}
+
 /**
  * 更新施工大項
  */

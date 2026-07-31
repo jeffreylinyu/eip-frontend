@@ -520,7 +520,7 @@ const router = createRouter({
     },
     {
       path: '/supervisory/',
-      component: () => import('../views/Dashboard.vue'),
+      component: () => import('../views/ProjectOverview.vue'),
       meta: { requiresAuth: true, viewType: 'SUPERVISORY' }
     },
     {
@@ -591,7 +591,7 @@ const router = createRouter({
     },
     {
       path: '/contractor/',
-      component: () => import('../views/Dashboard.vue'),
+      component: () => import('../views/ProjectOverview.vue'),
       meta: { requiresAuth: true, viewType: 'CONTRACTOR' }
     },
     {

@@ -36,7 +36,7 @@
             <i class="fa fa-info-circle construction-intro-icon flex-shrink-0" aria-hidden="true"></i>
             <span class="construction-intro-pill flex-shrink-0">說明</span>
             <span class="construction-intro-line small min-w-0">
-              依版本維護<strong class="construction-kw">施工大項</strong>與<strong class="construction-kw">施工／安全衛生抽查標準</strong>；可依標單工程案資料建構建議、複製前一版或匯出加密分項檔供營造<strong class="construction-hl">分項工程維護</strong>匯入。
+              依版本維護<strong class="construction-kw">施工大項</strong>與<strong class="construction-kw">施工／安全衛生抽查標準</strong>；可依標單工程案資料建構建議、複製前一版或自營造<strong class="construction-hl">分項工程維護</strong>匯入。
             </span>
           </div>
           <div class="d-flex flex-wrap gap-2 align-items-center justify-content-end flex-shrink-0">
@@ -87,13 +87,13 @@
             </div>
             <button
               type="button"
-              class="btn btn-sm btn-outline-secondary"
-              :disabled="isExportingSubdivision || !constructionId"
-              title="匯出目前版本施工項目（名稱、順序與施工／安全衛生抽查標準明細）加密檔，供營造端「分項工程」匯入（僅同工程案可用）"
-              @click="handleExportSubdivisionJson"
+              class="btn btn-sm btn-outline-primary"
+              :disabled="isCopyingFromContractor || !constructionId"
+              title="自營造對應版本匯入分項工程與施工／安全衛生抽查標準"
+              @click="openContractorImportModal"
             >
-              <i class="fa me-1" :class="isExportingSubdivision ? 'fa-spinner fa-spin' : 'fa-file-export'"></i>
-              {{ isExportingSubdivision ? '匯出中…' : '匯出營造分項對照檔' }}
+              <i class="fa me-1" :class="isCopyingFromContractor ? 'fa-spinner fa-spin' : 'fa-file-import'"></i>
+              {{ isCopyingFromContractor ? '匯入中…' : '匯入營造' }}
             </button>
             <button type="button" class="btn btn-sm btn-success" @click="createItem">
               <i class="fa fa-plus me-1"></i>新增施工大項
@@ -298,6 +298,95 @@
             </div>
         </div>
     </div>
+
+    <AppModal
+      :show="showContractorImportModal"
+      title=""
+      icon=""
+      size="lg"
+      modal-id="major-item-contractor-import"
+      :hide-confirm-button="true"
+      :hide-cancel-button="true"
+      @update:show="showContractorImportModal = $event"
+    >
+      <template #header>
+        <span class="fw-bold">匯入營造分項工程</span>
+      </template>
+      <p class="text-muted small mb-2">
+        依版次序位對應營造版本，匯入分項工程名稱與施工／安衛抽查標準明細至目前監造施工項目（不含施工要領）。
+      </p>
+      <div
+        class="alert py-2 px-3 mb-3 small"
+        :class="contractorImportPreview.contractorVersionAvailable ? 'alert-light border' : 'alert-warning'"
+        role="status"
+      >
+        <div class="fw-semibold mb-1">匯入版本對照</div>
+        <div>
+          <span class="text-muted">監造目前版本：</span>
+          <span class="fw-semibold">{{ contractorImportPreview.supervisoryVersionLabel || '—' }}</span>
+        </div>
+        <div class="mt-1">
+          <span class="text-muted">匯入來源（營造）：</span>
+          <span
+            class="fw-semibold"
+            :class="{ 'text-warning': !contractorImportPreview.contractorVersionAvailable }"
+          >
+            {{ contractorImportPreview.resolvedContractorVersionLabel || '無對應版本' }}
+          </span>
+        </div>
+      </div>
+      <div v-if="contractorImportPreviewLoading" class="text-center py-4 text-muted">
+        <i class="fa fa-spinner fa-spin me-2"></i>載入中…
+      </div>
+      <div v-else class="list-group list-group-flush border rounded">
+        <div class="list-group-item d-flex justify-content-between align-items-center">
+          <span>分項工程（施工項目）</span>
+          <span class="fw-semibold">{{ contractorImportPreview.itemCount }} 筆</span>
+        </div>
+        <div class="list-group-item d-flex justify-content-between align-items-center">
+          <span>施工抽查標準明細</span>
+          <span class="fw-semibold">{{ contractorImportPreview.constructionStandardCount }} 筆</span>
+        </div>
+        <div class="list-group-item d-flex justify-content-between align-items-center">
+          <span>安衛抽查標準明細</span>
+          <span class="fw-semibold">{{ contractorImportPreview.safetyStandardCount }} 筆</span>
+        </div>
+      </div>
+      <template #footer>
+        <button type="button" class="btn btn-outline-secondary" @click="showContractorImportModal = false">
+          關閉
+        </button>
+        <div class="btn-group">
+          <button
+            type="button"
+            class="btn btn-primary dropdown-toggle"
+            :disabled="
+              isCopyingFromContractor ||
+              !contractorImportPreview.contractorVersionAvailable ||
+              contractorImportPreview.itemCount === 0
+            "
+            data-bs-toggle="dropdown"
+            aria-expanded="false"
+          >
+            <i v-if="isCopyingFromContractor" class="fa fa-spinner fa-spin me-1"></i>
+            <i v-else class="fa fa-file-import me-1"></i>
+            {{ isCopyingFromContractor ? '匯入中…' : '匯入至監造' }}
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li>
+              <button type="button" class="dropdown-item" @click="copyFromContractor(false)">
+                合併到目前版本（保留既有項目）
+              </button>
+            </li>
+            <li>
+              <button type="button" class="dropdown-item text-danger" @click="copyFromContractor(true)">
+                覆寫目前版本（先清空再匯入）
+              </button>
+            </li>
+          </ul>
+        </div>
+      </template>
+    </AppModal>
   </div>
 </template>
 
@@ -307,10 +396,11 @@ import Card from '@/components/bootstrap/Card.vue'
 import CardBody from '@/components/bootstrap/CardBody.vue'
 import DesignChangeVersionSwitcher from '@/components/common/DesignChangeVersionSwitcher.vue'
 import LoadingOverlay from '@/components/common/LoadingOverlay.vue'
+import AppModal from '@/components/bootstrap/Modal.vue'
 import { ref, onMounted, reactive, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useWorkspaceStore } from '@/stores/workspace'
-import { Modal } from 'bootstrap'
+import { Modal as BsModal } from 'bootstrap'
 import {
   getConstructionMajorItems,
   getConstructionMajorItemById,
@@ -318,13 +408,15 @@ import {
   createConstructionMajorItem,
   getConstructionMajorItemAiSuggest,
   copyConstructionMajorItemsFromPrevious,
+  copyConstructionMajorItemsFromContractor,
+  getContractorMajorItemPreview,
+  type ContractorMajorItemPreview,
   updateConstructionMajorItem,
   reorderConstructionMajorItems,
   type ConstructionMajorItem,
   type MajorItemSuggestionItem
 } from '@/api/pcces'
 import { getDesignChangeList } from '@/api/designChange'
-import { exportSupervisorySubdivisionJson } from '@/api/subdivisionWorkItems'
 
 const router = useRouter()
 const workspaceStore = useWorkspaceStore()
@@ -336,7 +428,17 @@ const selectedDesignChangeId = ref<number | null>(null)
 const items = ref<ConstructionMajorItem[]>([])
 const loading = ref(false)
 const isCopying = ref(false)
-const isExportingSubdivision = ref(false)
+const showContractorImportModal = ref(false)
+const contractorImportPreviewLoading = ref(false)
+const isCopyingFromContractor = ref(false)
+const contractorImportPreview = ref<ContractorMajorItemPreview>({
+  itemCount: 0,
+  constructionStandardCount: 0,
+  safetyStandardCount: 0,
+  contractorVersionAvailable: false,
+  supervisoryVersionLabel: null,
+  resolvedContractorVersionLabel: null
+})
 /** 清單一次載入筆數上限（需完整載入才能拖曳排序） */
 const MAJOR_LIST_PAGE_SIZE = 1000
 const majorListTruncated = ref(false)
@@ -348,7 +450,7 @@ const designChangeList = ref<{ id: number; effectiveDate: string }[]>([])
 
 // Modal related
 const itemModalElement = ref<HTMLElement | null>(null)
-let bsModal: Modal | null = null
+let bsModal: BsModal | null = null
 const isEditMode = ref(false)
 const formData = reactive<{ id?: string; name: string; description?: string }>({
     name: '',
@@ -367,9 +469,9 @@ const sourceDesignChangeIdForCopy = computed(() => {
 
 // 依標單工程案資料建構
 const aiConfirmModalElement = ref<HTMLElement | null>(null)
-let bsAiConfirmModal: Modal | null = null
+let bsAiConfirmModal: BsModal | null = null
 const aiSuggestModalElement = ref<HTMLElement | null>(null)
-let bsAiSuggestModal: Modal | null = null
+let bsAiSuggestModal: BsModal | null = null
 const aiSuggestLoading = ref(false)
 const aiSuggestSaving = ref(false)
 const aiSuggestError = ref('')
@@ -616,33 +718,65 @@ function onVersionChange(designChangeId: number | null) {
   loadItems()
 }
 
-async function handleExportSubdivisionJson() {
-  const cid = constructionId.value
-  if (!cid) {
-    alert('請先選擇工程案')
+async function openContractorImportModal() {
+  if (!constructionId.value) return
+  showContractorImportModal.value = true
+  contractorImportPreviewLoading.value = true
+  try {
+    contractorImportPreview.value = await getContractorMajorItemPreview(
+      constructionId.value,
+      selectedDesignChangeId.value
+    )
+  } catch (e) {
+    console.error(e)
+    contractorImportPreview.value = {
+      itemCount: 0,
+      constructionStandardCount: 0,
+      safetyStandardCount: 0,
+      contractorVersionAvailable: false,
+      supervisoryVersionLabel: null,
+      resolvedContractorVersionLabel: null
+    }
+    alert('無法載入營造分項工程預覽')
+  } finally {
+    contractorImportPreviewLoading.value = false
+  }
+}
+
+async function copyFromContractor(overwrite: boolean) {
+  if (!constructionId.value) return
+  if (!contractorImportPreview.value.contractorVersionAvailable) {
+    alert('營造無對應版本，無法匯入')
     return
   }
-  isExportingSubdivision.value = true
+  if (contractorImportPreview.value.itemCount === 0) {
+    alert('營造此版本尚無分項工程可匯入')
+    return
+  }
+  const message = overwrite
+    ? '「覆寫」將先刪除目前監造版本全部施工項目與其施工／安全衛生抽查標準，再依營造分項工程完整匯入。\n\n此動作無法復原，確定嗎？'
+    : '將營造分項工程（含施工與安全衛生抽查標準）匯入目前監造版本；目前既有施工項目會保留。\n\n確定嗎？'
+  if (!confirm(message)) return
+
+  isCopyingFromContractor.value = true
   try {
-    const payload = await exportSupervisorySubdivisionJson(cid, selectedDesignChangeId.value)
-    const text = JSON.stringify(payload)
-    const blob = new Blob([text], { type: 'application/octet-stream' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    const ver =
-      selectedDesignChangeId.value == null ? '原契約' : `變更設計_${selectedDesignChangeId.value}`
-    const safeCid = cid.replace(/[^\w\-.]+/g, '_')
-    a.download = `分項對照_施工項目_${safeCid}_${ver}.cmx`
-    a.click()
-    URL.revokeObjectURL(url)
-    alert('匯出完成：此檔案僅可匯入相同工程案。')
-  } catch (e: unknown) {
+    const result = await copyConstructionMajorItemsFromContractor(
+      constructionId.value,
+      selectedDesignChangeId.value,
+      overwrite
+    )
+    showContractorImportModal.value = false
+    alert(
+      overwrite
+        ? `已覆寫並匯入 ${result.copiedCount} 筆施工項目`
+        : `已匯入 ${result.copiedCount} 筆施工項目（合併至目前版本）`
+    )
+    await loadItems()
+  } catch (e) {
     console.error(e)
-    const err = e as { response?: { data?: { message?: string } }; message?: string }
-    alert('匯出失敗：' + (err?.response?.data?.message ?? err?.message ?? '未知錯誤'))
+    alert('匯入失敗，請稍後再試')
   } finally {
-    isExportingSubdivision.value = false
+    isCopyingFromContractor.value = false
   }
 }
 
@@ -702,9 +836,9 @@ watch(constructionId, async () => {
 onMounted(async () => {
   if (constructionId.value) await fetchDesignChangeList()
   loadItems()
-  if (itemModalElement.value) bsModal = new Modal(itemModalElement.value)
-  if (aiConfirmModalElement.value) bsAiConfirmModal = new Modal(aiConfirmModalElement.value)
-  if (aiSuggestModalElement.value) bsAiSuggestModal = new Modal(aiSuggestModalElement.value)
+  if (itemModalElement.value) bsModal = new BsModal(itemModalElement.value)
+  if (aiConfirmModalElement.value) bsAiConfirmModal = new BsModal(aiConfirmModalElement.value)
+  if (aiSuggestModalElement.value) bsAiSuggestModal = new BsModal(aiSuggestModalElement.value)
 })
 </script>
 
