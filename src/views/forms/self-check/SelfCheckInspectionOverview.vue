@@ -1,7 +1,7 @@
 <template>
   <div class="self-check-overview-page a4-dark">
     <PageHeader
-      :title="`${category}類 施工安全衛生抽查`"
+      :title="`${category}類 ${pageLabel}`"
       icon="fa fa-shield-halved"
       :breadcrumbs="breadcrumbs"
     />
@@ -70,10 +70,16 @@ const basePath = computed(() =>
     : '/contractor/forms/doc-class/S/safety-inspections'
 )
 
+const pageLabel = computed(() =>
+  props.ownerType === 'CONTRACTOR'
+    ? '施工安全衛生自主檢查'
+    : '施工安全衛生抽查'
+)
+
 const breadcrumbs = computed(() => [
   { text: '表單生成與管理', href: 'javascript:;' },
   { text: `${props.category}類表單`, href: 'javascript:;' },
-  { text: '施工安全衛生抽查', active: true as const }
+  { text: pageLabel.value, active: true as const }
 ])
 
 function parseSequence(itemNumber: string | null | undefined): string {

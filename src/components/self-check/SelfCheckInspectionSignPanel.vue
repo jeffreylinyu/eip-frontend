@@ -279,7 +279,7 @@ watch(
 
     <Modal
       v-model:show="showSettingsModal"
-      title="施工抽查簽名設定"
+      :title="props.ownerType === 'CONTRACTOR' ? '施工自主檢查簽名設定' : '施工抽查簽名設定'"
       icon="fa fa-cog"
       :hide-confirm-button="true"
       :hide-cancel-button="true"

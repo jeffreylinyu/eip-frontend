@@ -93,9 +93,9 @@ const sidebarRenderKey = computed(() => {
   const effectiveViewType = routeViewType.value ?? viewType.value;
   const isOnboardingMenu =
     !isAdminPage.value &&
-    effectiveViewType === ViewType.SUPERVISORY &&
+    (effectiveViewType === ViewType.SUPERVISORY || effectiveViewType === ViewType.CONTRACTOR) &&
     Array.isArray(currentSidebarMenu.value) &&
-    currentSidebarMenu.value.some((m: any) => m?.is_header && m?.text === '工程開通');
+    currentSidebarMenu.value.some((m: any) => m?.is_header && (m?.text === '工程開通' || m?.text === '提示'));
 
   return `${isAdminPage.value ? 'admin' : 'app'}:${effectiveViewType}:${isOnboardingMenu ? 'onboarding' : 'normal'}`;
 });

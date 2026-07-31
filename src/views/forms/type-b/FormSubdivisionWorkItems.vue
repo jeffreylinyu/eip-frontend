@@ -32,12 +32,12 @@
         >
           <div
             class="construction-intro-box d-flex align-items-center gap-2 flex-grow-1 min-w-0"
-            title="名稱將用於施工要領、品質管理、施工檢驗、自主檢查表等表單；資料依變更設計版本分開維護，可複製前一版或匯入監造匯出之加密分項檔（含抽查標準明細）。"
+            title="名稱將用於施工要領、品質管理、施工檢驗、自主檢查表等表單；資料依變更設計版本分開維護，可複製前一版或匯入監造匯出之加密分項檔（含自主檢查標準明細）。"
           >
             <i class="fa fa-info-circle construction-intro-icon flex-shrink-0" aria-hidden="true"></i>
             <span class="construction-intro-pill flex-shrink-0">說明</span>
             <span class="construction-intro-line small min-w-0">
-              依版本維護<strong class="construction-kw">分項工程</strong>與<strong class="construction-kw">抽查標準表</strong>（施工／安衛於標準頁內切換；由監造匯入或複製前一版帶入）；名稱用於各表單之
+              依版本維護<strong class="construction-kw">分項工程</strong>與<strong class="construction-kw">自主檢查標準表</strong>（施工／安衛於標準頁內切換；由監造匯入或複製前一版帶入）；名稱用於各表單之
               <strong class="construction-hl">名稱＋後綴</strong>。
             </span>
           </div>
@@ -53,7 +53,7 @@
               type="button"
               class="btn btn-sm btn-outline-primary"
               :disabled="saving || loading || isCopying || isImportingSubdivision || isCopyingFromSupervisory"
-              title="自監造對應版本複製施工項目與抽查標準明細至目前營造版本"
+              title="自監造對應版本複製施工項目與自主檢查標準明細至目前營造版本"
               @click="openSupervisoryCopyModal"
             >
               <i class="fa fa-copy me-1"></i>
@@ -66,7 +66,7 @@
                 :disabled="!canCopyPrevious || saving || loading || isCopying || isImportingSubdivision"
                 data-bs-toggle="dropdown"
                 aria-expanded="false"
-                title="自前一個變更設計版本複製分項工程（含施工與安全衛生抽查標準明細）"
+                title="自前一個變更設計版本複製分項工程（含施工與安全衛生自主檢查標準明細）"
               >
                 <i class="fa me-1" :class="isCopying ? 'fa-spinner fa-spin' : 'fa-copy'"></i>
                 {{ isCopying ? '複製中...' : '複製前一個版本' }}
@@ -165,10 +165,10 @@
                       <button
                         type="button"
                         class="standards-status-hit"
-                        title="開啟抽查標準表（頁內以分頁切換施工／安衛）"
+                        title="開啟自主檢查標準表（頁內以分頁切換施工／安衛）"
                         @click="goToSubdivisionStandards(item)"
                       >
-                        <span class="text-muted">抽查標準表</span>
+                        <span class="text-muted">自主檢查標準表</span>
                         <span
                           :class="[
                             'standards-pill',
@@ -215,7 +215,7 @@
                       class="btn btn-sm btn-outline-primary me-2"
                       @click="goToSubdivisionStandards(item)"
                     >
-                      <i class="fa fa-clipboard-list me-1"></i>抽查標準表
+                      <i class="fa fa-clipboard-list me-1"></i>自主檢查標準表
                     </button>
                     <button
                       v-if="isContractor"
@@ -293,7 +293,7 @@
         <span class="fw-bold">複製監造施工項目</span>
       </template>
       <p class="text-muted small mb-2">
-        依版次序位對應監造版本，複製施工項目名稱與施工／安衛抽查標準明細至目前營造分項工程（不含施工要領）。
+        依版次序位對應監造版本，複製施工項目名稱與施工／安衛自主檢查標準明細至目前營造分項工程（不含施工要領）。
       </p>
       <div
         class="alert py-2 px-3 mb-3 small"
@@ -324,11 +324,11 @@
           <span class="fw-semibold">{{ supervisoryCopyPreview.itemCount }} 筆</span>
         </div>
         <div class="list-group-item d-flex justify-content-between align-items-center">
-          <span>施工抽查標準明細</span>
+          <span>施工自主檢查標準明細</span>
           <span class="fw-semibold">{{ supervisoryCopyPreview.constructionStandardCount }} 筆</span>
         </div>
         <div class="list-group-item d-flex justify-content-between align-items-center">
-          <span>安衛抽查標準明細</span>
+          <span>安衛自主檢查標準明細</span>
           <span class="fw-semibold">{{ supervisoryCopyPreview.safetyStandardCount }} 筆</span>
         </div>
       </div>
@@ -603,7 +603,7 @@ function extractSubdivisionImportItems(parsed: unknown): {
 function triggerSubdivisionImport() {
   if (
     !window.confirm(
-      '匯入將覆寫「目前選中版本」既有分項工程與其抽查標準明細（備註清空）。\n僅可匯入相同工程案匯出的檔案。確定嗎？'
+      '匯入將覆寫「目前選中版本」既有分項工程與其自主檢查標準明細（備註清空）。\n僅可匯入相同工程案匯出的檔案。確定嗎？'
     )
   ) {
     return
@@ -695,7 +695,7 @@ async function copyFromSupervisory(overwrite: boolean) {
   if (overwrite) {
     if (
       !window.confirm(
-        '「覆寫」將先刪除目前版本全部分項工程與其施工／安全衛生抽查標準，再自監造複製。\n\n此動作無法復原，確定嗎？'
+        '「覆寫」將先刪除目前版本全部分項工程與其施工／安全衛生自主檢查標準，再自監造複製。\n\n此動作無法復原，確定嗎？'
       )
     ) {
       return
@@ -703,7 +703,7 @@ async function copyFromSupervisory(overwrite: boolean) {
   } else {
     if (
       !window.confirm(
-        '將監造對應版本的施工項目（含施工與安全衛生抽查標準明細）複製到目前版本末尾；若目前版本已有項目則一併保留。\n\n確定嗎？'
+        '將監造對應版本的施工項目（含施工與安全衛生自主檢查標準明細）複製到目前版本末尾；若目前版本已有項目則一併保留。\n\n確定嗎？'
       )
     ) {
       return
@@ -717,7 +717,7 @@ async function copyFromSupervisory(overwrite: boolean) {
     showSupervisoryCopyModal.value = false
     window.alert(
       overwrite
-        ? `已覆寫並複製 ${copiedCount} 筆分項工程（含抽查標準明細）`
+        ? `已覆寫並複製 ${copiedCount} 筆分項工程（含自主檢查標準明細）`
         : `已複製 ${copiedCount} 筆分項工程（合併至目前版本）`
     )
     await loadList()
@@ -736,7 +736,7 @@ async function copyFromPrevious(overwrite: boolean) {
   if (overwrite) {
     if (
       !window.confirm(
-        '「覆寫」將先刪除目前版本全部分項工程與其施工／安全衛生抽查標準，再依前一個版本完整複製。\n\n此動作無法復原，確定嗎？'
+        '「覆寫」將先刪除目前版本全部分項工程與其施工／安全衛生自主檢查標準，再依前一個版本完整複製。\n\n此動作無法復原，確定嗎？'
       )
     ) {
       return
@@ -744,7 +744,7 @@ async function copyFromPrevious(overwrite: boolean) {
   } else {
     if (
       !window.confirm(
-        '將前一個版本的分項工程（含施工與安全衛生抽查標準）複製到目前版本末尾；若目前版本已有項目則會一併保留、不覆寫。\n\n確定嗎？'
+        '將前一個版本的分項工程（含施工與安全衛生自主檢查標準）複製到目前版本末尾；若目前版本已有項目則會一併保留、不覆寫。\n\n確定嗎？'
       )
     ) {
       return
@@ -933,7 +933,7 @@ watch(
 async function removeItem(item: SubdivisionWorkItem) {
   if (
     !window.confirm(
-      `確定刪除「${item.name}」及其施工抽查與安全衛生抽查標準明細？此動作無法復原。`
+      `確定刪除「${item.name}」及其施工自主檢查與安全衛生自主檢查標準明細？此動作無法復原。`
     )
   ) {
     return

@@ -19,14 +19,14 @@ const authStore = useAuthStore();
 const router = useRouter();
 const notificationData = [];
 const workspaceStore = useWorkspaceStore();
-const { viewType, isSupervisory } = useViewPerspective();
+const { viewType } = useViewPerspective();
 const aiAssistantStore = useAiAssistantStore()
 const onboardingStore = useOnboardingStore();
 
-// 監造端未開通：隱藏工程案資料建構／核心資料填寫狀況／AI 助理（條件與開通專用側邊欄一致）
+// 監造或營造端未開通：隱藏工程案資料建構／核心資料填寫狀況／AI 助理
 const isOnboardingLocked = computed(() => {
 	const systemRole = authStore.user?.systemRole || authStore.user?.role;
-	return systemRole !== 'SUPER_ADMIN' && isSupervisory.value && onboardingStore.shouldUseOnboardingFlow && !onboardingStore.isCompleted;
+	return systemRole !== 'SUPER_ADMIN' && onboardingStore.shouldUseOnboardingFlow && !onboardingStore.isCompleted;
 });
 
 // 個人資料 Modal（編輯顯示名稱）

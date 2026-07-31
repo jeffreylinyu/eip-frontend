@@ -5,6 +5,9 @@ export interface AdminConstructionSpecialSettings {
   supervisoryOnboardingCompleted: boolean
   supervisoryOnboardingCompletedAt: string | null
   supervisoryOnboardingCompletedBy: string | null
+  contractorOnboardingCompleted: boolean
+  contractorOnboardingCompletedAt: string | null
+  contractorOnboardingCompletedBy: string | null
 }
 
 export const adminConstructionApi = {
@@ -15,10 +18,12 @@ export const adminConstructionApi = {
 
   updateSpecialSettings: async (
     constructionId: string,
-    payload: { supervisoryOnboardingCompleted: boolean }
+    payload: {
+      supervisoryOnboardingCompleted: boolean
+      contractorOnboardingCompleted: boolean
+    }
   ): Promise<AdminConstructionSpecialSettings> => {
     const data = await http.patch(`/management/admin/construction/${constructionId}/special-settings`, payload)
     return data as unknown as AdminConstructionSpecialSettings
   }
 }
-

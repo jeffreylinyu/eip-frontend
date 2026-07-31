@@ -63,7 +63,8 @@ const selectedConstruction = ref<Construction | null>(null)
 const specialSettings = ref<AdminConstructionSpecialSettings | null>(null)
 const isSpecialSettingsLoading = ref(false)
 const isSpecialSettingsSaving = ref(false)
-const specialSettingsOnboardingCompleted = ref(false)
+const supervisoryOnboardingCompleted = ref(false)
+const contractorOnboardingCompleted = ref(false)
 
 const openSpecialSettings = async (data: Construction) => {
   if (!data.constructionId) {
@@ -79,7 +80,8 @@ const openSpecialSettings = async (data: Construction) => {
   try {
     const res = await adminConstructionApi.getSpecialSettings(data.constructionId)
     specialSettings.value = res
-    specialSettingsOnboardingCompleted.value = !!res.supervisoryOnboardingCompleted
+    supervisoryOnboardingCompleted.value = !!res.supervisoryOnboardingCompleted
+    contractorOnboardingCompleted.value = !!res.contractorOnboardingCompleted
   } catch (e: any) {
     proxy?.$toast?.error?.(e?.response?.data?.message || '載入特殊設定失敗')
   } finally {
@@ -94,7 +96,8 @@ const saveSpecialSettings = async () => {
   isSpecialSettingsSaving.value = true
   try {
     const res = await adminConstructionApi.updateSpecialSettings(cid, {
-      supervisoryOnboardingCompleted: specialSettingsOnboardingCompleted.value
+      supervisoryOnboardingCompleted: supervisoryOnboardingCompleted.value,
+      contractorOnboardingCompleted: contractorOnboardingCompleted.value
     })
     specialSettings.value = res
     proxy?.$toast?.success?.('特殊設定已更新')
@@ -365,21 +368,21 @@ const formatDate = (value: any) => {
                     <i class="fa fa-spinner fa-spin me-2"></i>載入中...
                 </div>
                 <div v-else>
-                    <div class="card border-0 shadow-sm">
+                    <div class="card border-0 shadow-sm mb-3">
                         <div class="card-body">
                             <div class="d-flex align-items-center justify-content-between">
                                 <div>
-                                    <div class="fw-semibold">基本資料通過（工程開通）</div>
+                                    <div class="fw-semibold">監造工程開通</div>
                                     <div class="text-muted small">
-                                        這會影響監造端「工程開通擋路」是否放行（等同設定工程已開通）。
+                                        未通過時，監造端會顯示工程開通畫面並限制其他功能。
                                     </div>
                                 </div>
                                 <div class="form-check form-switch mb-0">
                                     <input
                                         class="form-check-input"
                                         type="checkbox"
-                                        id="onboardingCompletedSwitch"
-                                        v-model="specialSettingsOnboardingCompleted"
+                                        id="supervisoryOnboardingCompletedSwitch"
+                                        v-model="supervisoryOnboardingCompleted"
                                         :disabled="isSpecialSettingsSaving"
                                     />
                                 </div>
@@ -388,8 +391,8 @@ const formatDate = (value: any) => {
                             <div v-if="specialSettings" class="mt-3 small text-muted">
                                 <div>
                                     目前狀態：
-                                    <span :class="specialSettingsOnboardingCompleted ? 'text-success fw-semibold' : 'text-danger fw-semibold'">
-                                        {{ specialSettingsOnboardingCompleted ? '通過' : '未通過' }}
+                                    <span :class="supervisoryOnboardingCompleted ? 'text-success fw-semibold' : 'text-danger fw-semibold'">
+                                        {{ supervisoryOnboardingCompleted ? '通過' : '未通過' }}
                                     </span>
                                 </div>
                                 <div v-if="specialSettings.supervisoryOnboardingCompletedAt">
@@ -397,6 +400,43 @@ const formatDate = (value: any) => {
                                 </div>
                                 <div v-if="specialSettings.supervisoryOnboardingCompletedBy">
                                     設定者：{{ specialSettings.supervisoryOnboardingCompletedBy }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div>
+                                    <div class="fw-semibold">營造工程開通</div>
+                                    <div class="text-muted small">
+                                        未通過時，營造端會顯示工程開通畫面並限制其他功能。
+                                    </div>
+                                </div>
+                                <div class="form-check form-switch mb-0">
+                                    <input
+                                        class="form-check-input"
+                                        type="checkbox"
+                                        id="contractorOnboardingCompletedSwitch"
+                                        v-model="contractorOnboardingCompleted"
+                                        :disabled="isSpecialSettingsSaving"
+                                    />
+                                </div>
+                            </div>
+
+                            <div v-if="specialSettings" class="mt-3 small text-muted">
+                                <div>
+                                    目前狀態：
+                                    <span :class="contractorOnboardingCompleted ? 'text-success fw-semibold' : 'text-danger fw-semibold'">
+                                        {{ contractorOnboardingCompleted ? '通過' : '未通過' }}
+                                    </span>
+                                </div>
+                                <div v-if="specialSettings.contractorOnboardingCompletedAt">
+                                    設定時間：{{ specialSettings.contractorOnboardingCompletedAt }}
+                                </div>
+                                <div v-if="specialSettings.contractorOnboardingCompletedBy">
+                                    設定者：{{ specialSettings.contractorOnboardingCompletedBy }}
                                 </div>
                             </div>
                         </div>

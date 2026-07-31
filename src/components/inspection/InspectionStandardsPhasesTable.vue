@@ -14,7 +14,7 @@
       >
         <slot name="bulk-left">
           <div v-if="showHierarchySearch" class="hierarchy-bulk-toolbar__search flex-grow-1 min-w-0">
-            <label class="visually-hidden" for="hierarchy-search-input">搜尋抽查標準階層</label>
+            <label class="visually-hidden" for="hierarchy-search-input">搜尋{{ inspectionLabel }}標準階層</label>
             <div class="hierarchy-search-merge d-flex align-items-center gap-2 min-w-0">
               <i class="fa fa-search hierarchy-search-merge__icon flex-shrink-0" aria-hidden="true"></i>
               <input
@@ -22,7 +22,7 @@
                 v-model="hierarchySearch"
                 type="search"
                 class="form-control form-control-sm hierarchy-search-input"
-                placeholder="搜尋階段、流程、管理項目、檢查點與抽查內容…"
+                :placeholder="`搜尋階段、流程、管理項目、檢查點與${inspectionLabel}內容…`"
                 autocomplete="off"
                 enterkeyhint="search"
               />
@@ -206,10 +206,10 @@
                       <tr>
                         <th style="width: 180px">管理項目</th>
                         <th style="width: 100px">施工檢查點</th>
-                        <th style="width: 250px">抽查標準</th>
-                        <th style="width: 120px">抽查時機</th>
-                        <th style="width: 150px">抽查頻率</th>
-                        <th style="width: 200px">抽查方法</th>
+                        <th style="width: 250px">{{ inspectionLabel }}標準</th>
+                        <th style="width: 120px">{{ inspectionLabel }}時機</th>
+                        <th style="width: 150px">{{ inspectionLabel }}頻率</th>
+                        <th style="width: 200px">{{ inspectionLabel }}方法</th>
                         <th>不合格之處理</th>
                         <th
                           v-if="interactive && !hideRemoveRowButton"
@@ -423,6 +423,8 @@ const props = withDefaults(
     aiGenerateButtonLabel?: string
     /** 工程案資料建構按鈕 title 提示 */
     aiGenerateButtonTitle?: string
+    /** 使用者介面的檢查用語；監造預設「抽查」，營造可傳「自主檢查」 */
+    inspectionLabel?: string
   }>(),
   {
     interactive: false,
@@ -436,7 +438,8 @@ const props = withDefaults(
     hideAddMgmtItem: false,
     hideRemoveRowButton: false,
     aiGenerateButtonLabel: '依資料庫工程案資料建構',
-    aiGenerateButtonTitle: '依資料庫內容由工程案資料建構產出抽查標準並覆寫'
+    aiGenerateButtonTitle: '依資料庫內容由工程案資料建構產出抽查標準並覆寫',
+    inspectionLabel: '抽查'
   }
 )
 

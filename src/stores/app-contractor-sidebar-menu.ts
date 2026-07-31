@@ -3,6 +3,7 @@ import { computed, ref, watch } from "vue";
 import { useAuthStore } from '@/stores/auth';
 import { useWorkspaceStore } from '@/stores/workspace';
 import { useViewPerspective } from '@/composables/useViewPerspective';
+import { useOnboardingStore } from '@/stores/onboarding';
 import {
   contractorDocumentClassificationApi,
   type ContractorDocumentClassification,
@@ -726,6 +727,29 @@ export const useAppContractorSidebarMenuStore = defineStore("appContractorSideba
     
     // 確保追蹤 workspace 的變化
     void workspaceStore.currentWorkspace?.id
+
+    const onboardingStore = useOnboardingStore()
+    const systemRole = authStore.user?.systemRole || authStore.user?.role
+    if (
+      systemRole !== 'SUPER_ADMIN' &&
+      onboardingStore.shouldUseOnboardingFlow &&
+      !onboardingStore.isCompleted
+    ) {
+      return filterMenuItems([
+        { text: "提示", is_header: true },
+        {
+          text: "為什麼我只能看到這些？",
+          icon: "bi bi-info-circle",
+          children: [
+            {
+              text: "完成一次工程開通後，才會解鎖全部功能",
+              url: "/contractor/basic/setup-overview",
+              isTutorial: true
+            }
+          ]
+        }
+      ])
+    }
     
     const items: MenuItem[] = [
       // 工程儀表板
@@ -782,16 +806,6 @@ export const useAppContractorSidebarMenuStore = defineStore("appContractorSideba
         children: [
           { text: "施工日誌", url: "/daily-report" },
           { text: "材料進場", url: "/daily-report/materials" },
-          { text: "出工紀錄", url: "/daily-report/labor" },
-          { text: "機具出工", url: "/daily-report/equipment" },
-          { text: "進場紀錄", url: "/daily-report/incoming" },
-          { text: "材料檢驗", url: "/daily-report/inspection" },
-          { text: "安全衛生", url: "/daily-report/safety" },
-          { text: "施工記錄", url: "/daily-report/construction" },
-          { text: "重要記事", url: "/daily-report/notes" },
-          { text: "明日進度", url: "/daily-report/tomorrow" },
-          { text: "製表人", url: "/daily-report/preparer" },
-          { text: "日誌歷史", url: "/daily-report/history" },
         ],
       },
 

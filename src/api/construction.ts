@@ -1285,7 +1285,12 @@ export const getP1MechanicalResourcesAiGenerate = async (
   if (designChangeId !== undefined && designChangeId !== null) {
     params.designChangeId = String(designChangeId)
   }
-  const data = await http.get('/management/construction/p1-mechanical-resources/ai-generate', { params })
+  const data = await http.get('/management/construction/p1-mechanical-resources/ai-generate', {
+    params,
+    // This endpoint waits for the LLM synchronously. Keep it aligned with the
+    // other long-running data-construction requests instead of the global 50s timeout.
+    timeout: 300000
+  })
   return data as unknown as { names: string[] }
 }
 

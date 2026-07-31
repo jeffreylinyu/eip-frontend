@@ -17,7 +17,7 @@ export function onboardingCacheKey(constructionId: string, ownerType?: string) {
 
 export const useOnboardingStore = defineStore('onboarding', () => {
   const workspaceStore = useWorkspaceStore()
-  const { isSupervisory, viewType } = useViewPerspective()
+  const { viewType } = useViewPerspective()
 
   const statusByConstructionId = ref<Record<string, SupervisoryOnboardingStatus | undefined>>({})
   const isLoading = ref(false)
@@ -40,8 +40,10 @@ export const useOnboardingStore = defineStore('onboarding', () => {
   const isCompleted = computed(() => !!currentStatus.value?.completed)
 
   const shouldUseOnboardingFlow = computed(() => {
-    // 只針對監造視角
-    if (!isSupervisory.value) return false
+    // 監造與營造各自使用獨立的工程開通狀態
+    if (viewType.value !== ViewType.SUPERVISORY && viewType.value !== ViewType.CONTRACTOR) {
+      return false
+    }
     // 必須有選擇工程
     if (!currentConstructionId.value) return false
     return true
@@ -91,12 +93,15 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     return p
   }
 
-  const complete = async (constructionId: string): Promise<SupervisoryOnboardingStatus> => {
+  const complete = async (
+    constructionId: string,
+    ownerType: 'SUPERVISORY' | 'CONTRACTOR'
+  ): Promise<SupervisoryOnboardingStatus> => {
     if (!constructionId) throw new Error('constructionId is required')
-    const key = onboardingCacheKey(constructionId, 'SUPERVISORY')
+    const key = onboardingCacheKey(constructionId, ownerType)
     isLoading.value = true
     try {
-      const res = await onboardingApi.complete(constructionId)
+      const res = await onboardingApi.complete(constructionId, ownerType)
       statusByConstructionId.value[key] = res
       lastFetchedAt.value[key] = Date.now()
       return res

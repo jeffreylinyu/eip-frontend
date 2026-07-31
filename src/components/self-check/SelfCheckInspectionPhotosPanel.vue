@@ -34,7 +34,7 @@
     </div>
 
     <p v-if="recordItems.length === 0" class="text-muted small mb-3">
-      尚無抽查項目，無法上傳照片。
+      尚無{{ inspectionNoun }}項目，無法上傳照片。
     </p>
     <p v-else class="text-muted small mb-3">
       可一次選擇多張照片，選取後即自動上傳；下方欄位可直接修改，變更後自動儲存。縮圖右下角會顯示日期。
@@ -76,7 +76,7 @@
                       class="form-select form-select-sm photo-field-control"
                       @change="schedulePhotoSave(photo.id)"
                     >
-                      <option :value="null" disabled>請選擇抽查項目</option>
+                      <option :value="null" disabled>請選擇{{ inspectionNoun }}項目</option>
                       <option v-for="opt in itemOptions" :key="opt.id" :value="opt.id">
                         {{ opt.label }}
                       </option>
@@ -110,7 +110,7 @@
                         :disabled="!drafts[photo.id].recordItemId"
                         @click="fillDescriptionFromActualSituation(photo.id)"
                       >
-                        帶入抽查情形
+                        帶入{{ inspectionNoun }}情形
                       </button>
                     </div>
                     <textarea
@@ -178,6 +178,7 @@ const props = defineProps<{
 
 const instance = getCurrentInstance()
 const proxy = instance?.proxy as { $toast?: { success: (m: string) => void; error: (m: string) => void } } | undefined
+const inspectionNoun = computed(() => props.ownerType === 'CONTRACTOR' ? '自主檢查' : '抽查')
 
 interface PhotoDraft {
   recordItemId: number | null
@@ -285,13 +286,13 @@ function schedulePhotoSave(photoId: number) {
 function fillDescriptionFromActualSituation(photoId: number) {
   const draft = drafts[photoId]
   if (!draft?.recordItemId) {
-    proxy?.$toast?.error('請先選擇抽查項目')
+    proxy?.$toast?.error(`請先選擇${inspectionNoun.value}項目`)
     return
   }
   const item = props.recordItems.find((it) => it.id === draft.recordItemId)
   const text = item?.actualSituation?.trim() ?? ''
   if (!text) {
-    proxy?.$toast?.error('該項目尚無實際抽查情形')
+    proxy?.$toast?.error(`該項目尚無實際${inspectionNoun.value}情形`)
     return
   }
   draft.description = text
@@ -304,7 +305,7 @@ async function persistPhoto(photoId: number) {
   if (!photo || !draft) return
   if (photoEqualsDraft(photo, draft)) return
   if (!draft.recordItemId) {
-    proxy?.$toast?.error('請選擇對應抽查項目')
+    proxy?.$toast?.error(`請選擇對應${inspectionNoun.value}項目`)
     return
   }
 
@@ -343,7 +344,7 @@ async function onFilesPicked(event: Event) {
 
   const meta = defaultMetadata()
   if (!meta) {
-    proxy?.$toast?.error('尚無抽查項目，無法上傳照片')
+    proxy?.$toast?.error(`尚無${inspectionNoun.value}項目，無法上傳照片`)
     return
   }
 

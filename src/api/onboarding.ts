@@ -35,8 +35,14 @@ export const onboardingApi = {
     if (ownerType) params.ownerType = ownerType
     return await http.get(`/management/constructions/${constructionId}/onboarding/status`, { params, ...config })
   },
-  complete: async (constructionId: string): Promise<SupervisoryOnboardingStatus> => {
-    return await http.post(`/management/constructions/${constructionId}/onboarding/complete`)
+  complete: async (
+    constructionId: string,
+    ownerType: 'SUPERVISORY' | 'CONTRACTOR'
+  ): Promise<SupervisoryOnboardingStatus> => {
+    return await http.post(
+      `/management/constructions/${constructionId}/onboarding/complete`,
+      undefined,
+      { params: { ownerType } }
+    )
   }
 }
-

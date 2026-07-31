@@ -271,7 +271,7 @@ const categories = [
   { code: 'P', name: 'P類-計畫書' },
   { code: 'B', name: 'B類-估驗' },
   { code: 'E', name: 'E類-自主檢查' },
-  { code: 'S', name: 'S類-施工安全衛生抽查' },
+  { code: 'S', name: 'S類-施工安全衛生自主檢查' },
   { code: 'G', name: 'G類-進度報告' },
   { code: 'R', name: 'R類-會議紀錄' },
   { code: 'T', name: 'T類-試驗報告' },
@@ -684,7 +684,7 @@ async function handleSyncE() {
   if (!cid) return
   if (
     !confirm(
-      '確定要根據分項工程同步 E／S 類嗎？E 類自主檢查表與 S 類安全衛生抽查表都會依目前分項工程重新建立。'
+      '確定要根據分項工程同步 E／S 類嗎？E 類自主檢查表與 S 類安全衛生自主檢查表都會依目前分項工程重新建立。'
     )
   ) {
     return

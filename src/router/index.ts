@@ -626,6 +626,11 @@ const router = createRouter({
       meta: { requiresAuth: true, viewType: 'CONTRACTOR' }
     },
     {
+      path: '/contractor/basic/setup-overview',
+      component: () => import('../views/supervisory/basic/SetupOverview.vue'),
+      meta: { requiresAuth: true, viewType: 'CONTRACTOR' }
+    },
+    {
       path: '/contractor/design-changes',
       component: () => import('../views/design-change/DesignChangeList.vue'),
       meta: { requiresAuth: true, viewType: 'CONTRACTOR' }
@@ -670,7 +675,7 @@ router.beforeEach(async (to, from, next) => {
   const { useOnboardingStore } = await import('@/stores/onboarding')
   const onboardingStore = useOnboardingStore()
   const { useViewPerspective, ViewType } = await import('@/composables/useViewPerspective')
-  const { isSupervisory, viewType } = useViewPerspective()
+  const { viewType } = useViewPerspective()
   
   // 視角路由檢查（在認證檢查之後）
   if (to.meta.viewType && authStore.isAuthenticated) {
@@ -895,9 +900,15 @@ router.beforeEach(async (to, from, next) => {
      }
   }
 
-  // 5. 監造端工程開通擋路（方案 A：未開通前只能進入必要頁面與總表）
+  // 5. 監造／營造工程開通擋路（兩端各自獨立）
   try {
-    if (authStore.isAuthenticated && isSupervisory.value) {
+    const onboardingOwner =
+      viewType.value === ViewType.CONTRACTOR
+        ? 'CONTRACTOR'
+        : viewType.value === ViewType.SUPERVISORY
+          ? 'SUPERVISORY'
+          : undefined
+    if (authStore.isAuthenticated && onboardingOwner) {
       // 系統管理員（SUPER_ADMIN）跳過此檢查
       const systemRole = authStore.user?.systemRole || authStore.user?.role
       if (systemRole !== 'SUPER_ADMIN') {
@@ -905,6 +916,7 @@ router.beforeEach(async (to, from, next) => {
         const constructionId = workspaceStore.currentProject?.id
         if (constructionId) {
           // 允許通行的路由（含總表 + 5 個必要頁面）
+          const viewPrefix = onboardingOwner === 'CONTRACTOR' ? '/contractor' : '/supervisory'
           const allowedPrefixes = [
             '/page/', // 已在 publicRoutes 擋掉，這裡保險
             '/access-status-guide',
@@ -913,10 +925,10 @@ router.beforeEach(async (to, from, next) => {
             '/my-projects',
             '/company/management',
             '/company/site-personnel',
-            '/supervisory/basic/setup-overview',
-            '/supervisory/basic/basic-data',
-            '/supervisory/basic/site-personnel',
-            '/supervisory/basic/project-item-database',
+            `${viewPrefix}/basic/setup-overview`,
+            `${viewPrefix}/basic/basic-data`,
+            `${viewPrefix}/basic/site-personnel`,
+            `${viewPrefix}/basic/project-item-database`,
             // 共用路由也允許（避免沒有視角前綴時進不了）
             '/basic/basic-data',
             '/basic/site-personnel',
@@ -927,16 +939,9 @@ router.beforeEach(async (to, from, next) => {
           ]
 
           const isAllowed = allowedPrefixes.some((p) => to.path === p || to.path.startsWith(p))
-          const vt = viewType.value
-          const onboardingOwner =
-            vt === ViewType.CONTRACTOR
-              ? 'CONTRACTOR'
-              : vt === ViewType.SUPERVISORY
-                ? 'SUPERVISORY'
-                : undefined
           const status = await onboardingStore.fetchStatus(constructionId, false, onboardingOwner)
           if (!status.completed && !isAllowed) {
-            next('/supervisory/basic/setup-overview')
+            next(`${viewPrefix}/basic/setup-overview`)
             return
           }
         }

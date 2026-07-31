@@ -20,22 +20,39 @@
         </div>
 
         <div class="row g-3">
-          <div class="col-md-4">
-            <label class="form-label">預計開工日期 <span class="text-danger">*</span></label>
-            <RepublicDatePicker v-model="form.startDate" input-class="form-control" />
+          <div class="col-lg-3 col-md-6">
+            <label class="form-label">開工日期</label>
+            <RepublicDatePicker
+              :model-value="basicSchedule.startDate"
+              input-class="form-control"
+              disabled
+            />
           </div>
-          <div class="col-md-4">
-            <label class="form-label">預計完工日期</label>
-            <RepublicDatePicker v-model="form.endDate" input-class="form-control" />
-          </div>
-          <div class="col-md-4">
-            <label class="form-label">或 總工期（日曆天）</label>
+          <div class="col-lg-3 col-md-6">
+            <label class="form-label">契約工期（天）</label>
             <input
-              v-model.number="form.totalDays"
+              :value="basicSchedule.totalDays ?? ''"
               type="number"
-              min="1"
               class="form-control"
-              placeholder="例：180"
+              readonly
+              placeholder="未設定"
+            />
+          </div>
+          <div class="col-lg-3 col-md-6">
+            <label class="form-label">工期計算模式</label>
+            <input
+              :value="basicSchedule.durationTypeLabel"
+              type="text"
+              class="form-control"
+              readonly
+            />
+          </div>
+          <div class="col-lg-3 col-md-6">
+            <label class="form-label">完工日期</label>
+            <RepublicDatePicker
+              :model-value="basicSchedule.endDate"
+              input-class="form-control"
+              disabled
             />
           </div>
           <div class="col-12">
@@ -47,6 +64,10 @@
               placeholder="例：假設施工、基礎工程需在前 2 個月完成；裝修與機電可平行作業；避開農曆春節前後一週…"
             ></textarea>
           </div>
+        </div>
+
+        <div v-if="basicDataIncomplete" class="alert alert-warning mt-3 mb-0">
+          工期基本資料尚未完整，請先至「基本資料」完成開工日期、契約工期與完工日期設定。
         </div>
 
         <div class="border rounded p-2 mt-3">
@@ -139,7 +160,7 @@ import RepublicDatePicker from '@/components/bootstrap/RepublicDatePicker.vue'
 import { assistantAsk } from '@/api/ai'
 import type { Progress2Task } from '@/stores/progress2'
 import { useWorkspaceStore } from '@/stores/workspace'
-import { addDays, inclusiveDays, parseYmd, toYmd } from '@/utils/progress2/date'
+import { inclusiveDays, parseYmd, toYmd } from '@/utils/progress2/date'
 
 interface Props {
   show: boolean
@@ -169,18 +190,11 @@ const errorMessage = ref('')
 const aiRemark = ref('')
 
 const form = reactive({
-  startDate: toYmd(new Date()),
-  endDate: '',
-  totalDays: null as number | null,
   notes: ''
 })
 
 /** 送交 AI 的項目（全部目前清單） */
 const arrangeTargets = computed(() => props.tasks.map((t) => ({ id: t.id, name: t.name })))
-
-const canGenerate = computed(
-  () => arrangeTargets.value.length > 0 && !!parseYmd(form.startDate)
-)
 
 const toDateOnly = (value?: string | null): string => value?.match(/^\d{4}-\d{2}-\d{2}/)?.[0] ?? ''
 
@@ -189,15 +203,39 @@ const toPositiveDays = (value: unknown): number | null => {
   return Number.isFinite(days) && days > 0 ? Math.round(days) : null
 }
 
-/** 每次開啟時以目前工程的基本資料作為 AI 編排預設條件。 */
-const applyBasicDataDefaults = () => {
+/** AI 編排的工期條件直接沿用工程基本資料，不在此視窗建立可覆寫的副本。 */
+const basicSchedule = computed(() => {
   const project = workspaceStore.currentProject
-  if (!project || project.id !== props.constructionId) return
+  if (!project || project.id !== props.constructionId) {
+    return {
+      startDate: '',
+      endDate: '',
+      totalDays: null,
+      durationType: 'WORKING_DAYS' as const,
+      durationTypeLabel: '工作天'
+    }
+  }
 
-  form.startDate = toDateOnly(project.startDate) || toYmd(new Date())
-  form.endDate = toDateOnly(project.endDate)
-  form.totalDays = toPositiveDays(project.workDay) ?? toPositiveDays(project.constructionPeriod)
-}
+  const durationType = project.durationType === 'CALENDAR_DAYS' ? 'CALENDAR_DAYS' : 'WORKING_DAYS'
+  return {
+    startDate: toDateOnly(project.startDate),
+    endDate: toDateOnly(project.endDate),
+    totalDays: toPositiveDays(project.workDay) ?? toPositiveDays(project.constructionPeriod),
+    durationType,
+    durationTypeLabel: durationType === 'CALENDAR_DAYS' ? '日曆天' : '工作天'
+  }
+})
+
+const basicDataIncomplete = computed(
+  () =>
+    !parseYmd(basicSchedule.value.startDate) ||
+    !parseYmd(basicSchedule.value.endDate) ||
+    !basicSchedule.value.totalDays
+)
+
+const canGenerate = computed(
+  () => arrangeTargets.value.length > 0 && !basicDataIncomplete.value
+)
 
 watch(
   () => props.show,
@@ -205,7 +243,6 @@ watch(
     if (show) {
       step.value = 'form'
       errorMessage.value = ''
-      applyBasicDataDefaults()
     }
   }
 )
@@ -252,16 +289,16 @@ const buildUserMessage = () => {
   arrangeTargets.value.forEach((t, i) => lines.push(`${i + 1}. ${t.name}`))
   lines.push('')
   lines.push('【工期條件】')
-  lines.push(`開工日期：${form.startDate}`)
-  const start = parseYmd(form.startDate)
-  const end = parseYmd(form.endDate)
+  lines.push(`開工日期：${basicSchedule.value.startDate}`)
+  lines.push(`契約工期：${basicSchedule.value.totalDays} 天`)
+  lines.push(`工期計算模式：${basicSchedule.value.durationTypeLabel}`)
+  const start = parseYmd(basicSchedule.value.startDate)
+  const end = parseYmd(basicSchedule.value.endDate)
   if (end && start && end >= start) {
-    lines.push(`完工日期：${form.endDate}（總工期 ${inclusiveDays(start, end)} 日曆天）`)
-  } else if (form.totalDays && form.totalDays > 0 && start) {
-    const calcEnd = addDays(start, Math.round(form.totalDays) - 1)
-    lines.push(`總工期：${Math.round(form.totalDays)} 日曆天（完工日期約 ${toYmd(calcEnd)}）`)
+    lines.push(`完工日期：${basicSchedule.value.endDate}`)
+    lines.push(`日期範圍：共 ${inclusiveDays(start, end)} 個日曆日`)
   } else {
-    lines.push('總工期：未指定，請依項目性質估算合理總工期（並於 remark 說明估算依據）')
+    lines.push('完工日期：未設定')
   }
   if (form.notes.trim()) {
     lines.push('')

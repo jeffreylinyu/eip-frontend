@@ -4,14 +4,14 @@
       <div>
         <div class="inspection-hero__eyebrow">
           <i class="fa fa-shield-halved me-2"></i>
-          {{ aggregate ? '全工程抽查總覽' : '施工品質紀錄' }}
+          {{ aggregate ? aggregateOverviewLabel : '施工品質紀錄' }}
         </div>
         <h2 class="inspection-hero__title">{{ tabLabel }}</h2>
         <p class="inspection-hero__description">
           {{
             aggregate
-              ? '集中管理所有施工項目的抽查紀錄，資料與原自主檢查分類同步。'
-              : '抽查項目會在建立紀錄時保留快照，後續標準調整不影響既有紀錄。'
+              ? aggregateDescription
+              : `${inspectionNoun}項目會在建立紀錄時保留快照，後續標準調整不影響既有紀錄。`
           }}
         </p>
       </div>
@@ -22,7 +22,7 @@
     </div>
 
     <div class="inspection-toolbar">
-      <div class="inspection-tabs" role="tablist" aria-label="抽查類型">
+      <div class="inspection-tabs" role="tablist" :aria-label="`${inspectionNoun}類型`">
         <button
           type="button"
           class="inspection-tab"
@@ -30,7 +30,7 @@
           @click="switchTab('CONSTRUCTION')"
         >
           <i class="fa fa-helmet-safety"></i>
-          施工抽查
+          {{ constructionTabLabel }}
         </button>
         <button
           type="button"
@@ -39,7 +39,7 @@
           @click="switchTab('SAFETY')"
         >
           <i class="fa fa-shield-heart"></i>
-          安全衛生抽查
+          {{ safetyTabLabel }}
         </button>
       </div>
 
@@ -84,11 +84,11 @@
         <thead>
           <tr>
             <th class="inspection-table__index">#</th>
-            <th>抽查日期</th>
+            <th>{{ inspectionNoun }}日期</th>
             <th v-if="aggregate">施工項目</th>
             <th>分項工程名稱</th>
             <th class="text-center">項目數</th>
-            <th>抽查位置</th>
+            <th>{{ inspectionNoun }}位置</th>
             <th class="text-center">操作</th>
           </tr>
         </thead>
@@ -217,7 +217,21 @@ const filterClassificationId = ref(
 const createClassificationId = ref('')
 const showCreateModal = ref(false)
 
-const tabLabel = computed(() => (activeTab.value === 'CONSTRUCTION' ? '施工抽查' : '安全衛生抽查'))
+const isContractor = computed(() => props.ownerType === 'CONTRACTOR')
+const inspectionNoun = computed(() => isContractor.value ? '自主檢查' : '抽查')
+const constructionTabLabel = computed(() => isContractor.value ? '施工自主檢查' : '施工抽查')
+const safetyTabLabel = computed(() => isContractor.value ? '安全衛生自主檢查' : '安全衛生抽查')
+const tabLabel = computed(() =>
+  activeTab.value === 'CONSTRUCTION' ? constructionTabLabel.value : safetyTabLabel.value
+)
+const aggregateOverviewLabel = computed(() =>
+  isContractor.value ? '全工程自主檢查總覽' : '全工程抽查總覽'
+)
+const aggregateDescription = computed(() =>
+  isContractor.value
+    ? '集中管理所有施工項目的自主檢查紀錄，資料與自主檢查分類同步。'
+    : '集中管理所有施工項目的抽查紀錄，資料與原自主檢查分類同步。'
+)
 const canCreate = computed(() =>
   props.aggregate ? props.classificationOptions.length > 0 : !!props.documentClassificationId
 )
@@ -262,7 +276,7 @@ async function loadRecords() {
   } catch (error) {
     console.error(error)
     records.value = []
-    toastService.error('載入抽查紀錄失敗')
+    toastService.error(`載入${inspectionNoun.value}紀錄失敗`)
   } finally {
     loading.value = false
   }

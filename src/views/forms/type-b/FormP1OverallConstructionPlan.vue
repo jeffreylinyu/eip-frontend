@@ -606,8 +606,8 @@
                       <div class="text-panel__label">施工機械設備資源預定進場時間表</div>
                       <div class="text-panel__toolbar table-toolbar-inline">
                         <button type="button" class="btn-ai-generate" :disabled="isAiGenerating || !currentProject?.id" @click="generateMechanicalResourceNamesByAi">
-                          <i class="fa me-2" :class="isAiGenerating ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
-                          {{ isAiGenerating ? '生成中…' : '資料建構' }}
+                          <i class="fa me-2" :class="aiLoading.mechanicalResources ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'"></i>
+                          {{ aiLoading.mechanicalResources ? '建構中…' : '資料建構' }}
                         </button>
                         <button type="button" class="btn-default-fill" @click="addMechanicalResourceRow">新增一列</button>
                       </div>
@@ -1105,6 +1105,7 @@ import PlanSubmissionPModal from '@/components/forms/PlanSubmissionPModal.vue'
 import ConstructionLocationMapThumb from '@/components/common/ConstructionLocationMapThumb.vue'
 import P1ConstructionProcessFlowEditor from '@/components/p1/P1ConstructionProcessFlowEditor.vue'
 import P1EmergencyContactFigures from '@/components/forms/P1EmergencyContactFigures.vue'
+import toastService from '@/components/bootstrap/ToastService.js'
 import {
   defaultP1EmergencyContactBundle,
   parseP1EmergencyContactBundle,
@@ -1306,7 +1307,8 @@ const aiLoading = ref({
   processOverview: false,
   processFlow: false,
   drainageSurrounding: false,
-  drainageDewatering: false
+  drainageDewatering: false,
+  mechanicalResources: false
 })
 let autosaveTimer: number | null = null
 let skipAutoSave = false
@@ -2418,13 +2420,18 @@ function removeMechanicalResourceRow(index: number) {
 
 async function generateMechanicalResourceNamesByAi() {
   const cid = currentProject.value?.id
-  if (!cid) return
+  if (!cid) {
+    toastService.warning('請先選擇工程案')
+    return
+  }
+  if (isAiGenerating.value) return
   isAiGenerating.value = true
+  aiLoading.value.mechanicalResources = true
   try {
     const res = await getP1MechanicalResourcesAiGenerate(cid, selectedDesignChangeId.value)
     const names = (res?.names || []).map((v) => (v ?? '').toString().trim()).filter((v) => v.length > 0)
     if (names.length === 0) {
-      window.alert('目前版本無標單資料，或 工程案資料建構未產出內容。')
+      toastService.warning('目前版本無標單資料，或工程案資料建構未產出內容')
       return
     }
     p1MechanicalResources.value = names.map((name) => ({
@@ -2434,10 +2441,15 @@ async function generateMechanicalResourceNamesByAi() {
       endDate: ''
     }))
     await saveP1Texts()
+    toastService.success(`已建構並儲存 ${names.length} 筆施工機械設備資源`)
   } catch (e: any) {
-    const msg = e?.response?.data?.error || e?.response?.data?.detail || e?.message || '生成失敗，請稍後再試。'
-    window.alert(msg)
+    const isTimeout = e?.code === 'ECONNABORTED' || /timeout/i.test(String(e?.message || ''))
+    const msg = isTimeout
+      ? '資料建構逾時，請稍後再試'
+      : e?.response?.data?.error || e?.response?.data?.detail || e?.message || '資料建構失敗，請稍後再試'
+    toastService.error(msg)
   } finally {
+    aiLoading.value.mechanicalResources = false
     isAiGenerating.value = false
   }
 }
@@ -2502,6 +2514,7 @@ async function generateAllByAi() {
   aiLoading.value.meteo = true
   aiLoading.value.drainageSurrounding = true
   aiLoading.value.drainageDewatering = true
+  aiLoading.value.mechanicalResources = true
 
   type AiLoadingKey = keyof typeof aiLoading.value
   type BatchResult = { ok: boolean; reason?: string }
@@ -2634,6 +2647,7 @@ async function generateAllByAi() {
     },
     {
       label: '施工機械設備資源',
+      loadingKey: 'mechanicalResources',
       run: async () => {
         const res = await getP1MechanicalResourcesAiGenerate(cid, dcid)
         const names = (res?.names || [])
@@ -2711,6 +2725,7 @@ async function generateAllByAi() {
     aiLoading.value.meteo = false
     aiLoading.value.drainageSurrounding = false
     aiLoading.value.drainageDewatering = false
+    aiLoading.value.mechanicalResources = false
     isAiGenerating.value = false
   }
 }

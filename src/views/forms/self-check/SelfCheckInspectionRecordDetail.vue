@@ -39,16 +39,16 @@
               />
             </div>
             <div class="col-md-6">
-              <label class="form-label small text-muted mb-1">抽查位置</label>
+              <label class="form-label small text-muted mb-1">{{ inspectionNoun }}位置</label>
               <input
                 v-model="form.inspectionLocation"
                 type="text"
                 class="form-control form-control-sm record-field-control"
-                placeholder="抽查位置"
+                :placeholder="`${inspectionNoun}位置`"
               />
             </div>
             <div class="col-md-6">
-              <label class="form-label small text-muted mb-1">抽查日期</label>
+              <label class="form-label small text-muted mb-1">{{ inspectionNoun }}日期</label>
               <RepublicDatePicker
                 v-model="form.inspectionDate"
                 input-class="form-control form-control-sm record-field-control record-date-input"
@@ -56,7 +56,7 @@
               />
             </div>
             <div class="col-12">
-              <label class="form-label small text-muted mb-1">抽查時機</label>
+              <label class="form-label small text-muted mb-1">{{ inspectionNoun }}時機</label>
               <div class="d-flex flex-wrap gap-3">
                 <label
                   v-for="opt in inspectionTimingOptions"
@@ -102,6 +102,7 @@
             :description="itemsTableDescription"
             :empty-text="itemsTableEmptyText"
             :items="form.items"
+            :inspection-label="inspectionNoun"
             @change="scheduleAutoSave"
           />
         </CardBody>
@@ -206,11 +207,14 @@ const form = reactive({
   items: [] as SelfCheckFormItem[]
 })
 
-const inspectionTimingOptions: Array<{ value: SelfCheckInspectionTiming; label: string }> = [
+const isContractor = computed(() => props.ownerType === 'CONTRACTOR')
+const inspectionNoun = computed(() => isContractor.value ? '自主檢查' : '抽查')
+
+const inspectionTimingOptions = computed<Array<{ value: SelfCheckInspectionTiming; label: string }>>(() => [
   { value: 'INSPECTION_STOP', label: '檢驗停留點★' },
   { value: 'SAFETY_INSPECTION', label: '安衛查驗點※' },
-  { value: 'IRREGULAR', label: '不定期抽查' }
-]
+  { value: 'IRREGULAR', label: isContractor.value ? '不定期自主檢查' : '不定期抽查' }
+])
 
 const constructionProcessOptions: Array<{ value: SelfCheckConstructionProcess; label: string }> = [
   { value: 'BEFORE', label: '施工前' },
@@ -219,23 +223,27 @@ const constructionProcessOptions: Array<{ value: SelfCheckConstructionProcess; l
 ]
 
 const recordKindLabel = computed(() =>
-  record.value?.standardKind === 'SAFETY' ? '安全衛生抽查' : '施工抽查'
+  record.value?.standardKind === 'SAFETY'
+    ? `安全衛生${inspectionNoun.value}`
+    : `施工${inspectionNoun.value}`
 )
 
 const itemsTableTitle = computed(() =>
-  record.value?.standardKind === 'SAFETY' ? '安全衛生抽查項目' : '施工抽查項目'
+  record.value?.standardKind === 'SAFETY'
+    ? `安全衛生${inspectionNoun.value}項目`
+    : `施工${inspectionNoun.value}項目`
 )
 
 const itemsTableDescription = computed(() =>
   record.value?.standardKind === 'SAFETY'
-    ? '建立紀錄時自「安全衛生抽查標準」快照；請填寫實際抽查情形與結果，可按「複製抽查標準」帶入；關閉「匯出」開關的項目將灰階顯示且不納入 Word 匯出。'
-    : '建立紀錄時自「施工抽查標準」快照；請填寫實際抽查情形與結果，可按「複製抽查標準」帶入；關閉「匯出」開關的項目將灰階顯示且不納入 Word 匯出。'
+    ? `建立紀錄時自「安全衛生${inspectionNoun.value}標準」快照；請填寫實際${inspectionNoun.value}情形與結果，可按「複製${inspectionNoun.value}標準」帶入；關閉「匯出」開關的項目將灰階顯示且不納入 Word 匯出。`
+    : `建立紀錄時自「施工${inspectionNoun.value}標準」快照；請填寫實際${inspectionNoun.value}情形與結果，可按「複製${inspectionNoun.value}標準」帶入；關閉「匯出」開關的項目將灰階顯示且不納入 Word 匯出。`
 )
 
 const itemsTableEmptyText = computed(() =>
   record.value?.standardKind === 'SAFETY'
-    ? '尚無安全衛生抽查項目（請先於施工項目／分項工程維護安衛抽查標準）'
-    : '尚無施工抽查項目（請先於施工項目／分項工程維護施工抽查標準）'
+    ? `尚無安全衛生${inspectionNoun.value}項目（請先於施工項目／分項工程維護安衛${inspectionNoun.value}標準）`
+    : `尚無施工${inspectionNoun.value}項目（請先於施工項目／分項工程維護施工${inspectionNoun.value}標準）`
 )
 
 const listBasePath = computed(() => {

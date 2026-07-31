@@ -56,7 +56,7 @@
           />
           <e-column
             field="checkStandard"
-            headerText="抽查標準"
+            :headerText="`${inspectionLabel}標準`"
             width="180"
             textAlign="Left"
             clipMode="EllipsisWithTooltip"
@@ -64,14 +64,14 @@
           />
           <e-column
             field="actualSituation"
-            headerText="實際抽查情形"
+            :headerText="`實際${inspectionLabel}情形`"
             width="220"
             textAlign="Left"
             :template="'actualSituationTemplate'"
           />
           <e-column
             field="inspectionResult"
-            headerText="抽查結果"
+            :headerText="`${inspectionLabel}結果`"
             width="120"
             textAlign="Center"
             :template="'inspectionResultTemplate'"
@@ -117,16 +117,16 @@
               type="button"
               class="btn btn-outline-secondary btn-sm actual-copy-btn"
               :disabled="!hasCheckStandard(data.id)"
-              title="將此列抽查標準複製到實際抽查情形"
+              :title="`將此列${inspectionLabel}標準複製到實際${inspectionLabel}情形`"
               @click.stop="onCopyCheckStandard(data.id)"
             >
-              <i class="fa fa-copy me-1"></i>複製抽查標準
+              <i class="fa fa-copy me-1"></i>複製{{ inspectionLabel }}標準
             </button>
             <textarea
               :value="resolveItem(data.id)?.actualSituation ?? ''"
               class="form-control form-control-sm self-check-cell-input"
               rows="2"
-              placeholder="實際抽查情形"
+              :placeholder="`實際${inspectionLabel}情形`"
               @click.stop
               @input="onActualSituationInput(data.id, $event)"
             />
@@ -184,12 +184,17 @@ export interface SelfCheckFormItem {
   exportEnabled: boolean
 }
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   title: string
   description?: string
   emptyText: string
   items: SelfCheckFormItem[]
-}>()
+  inspectionLabel?: string
+}>(), {
+  inspectionLabel: '抽查'
+})
+
+const inspectionLabel = computed(() => props.inspectionLabel)
 
 const emit = defineEmits<{
   change: []

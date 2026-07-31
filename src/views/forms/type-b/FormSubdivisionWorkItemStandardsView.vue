@@ -5,7 +5,7 @@
         <CardBody class="report-card__body" data-bs-theme="dark">
           <div class="alert alert-info mb-0" role="alert">
             <i class="fa fa-info-circle me-2"></i>
-            此頁僅供營造端編輯分項工程之抽查標準明細。
+            此頁僅供營造端編輯分項工程之自主檢查標準明細。
           </div>
         </CardBody>
       </Card>
@@ -20,7 +20,7 @@
           <ol class="breadcrumb mb-0">
             <li class="breadcrumb-item text-muted">分項工程維護</li>
             <li class="breadcrumb-item text-muted">{{ currentItem?.name || '載入中...' }}</li>
-            <li class="breadcrumb-item active" aria-current="page">抽查標準表</li>
+            <li class="breadcrumb-item active" aria-current="page">自主檢查標準表</li>
           </ol>
         </nav>
       </div>
@@ -57,6 +57,7 @@
               :show-ai-generate-button="false"
               :empty-text="emptyPhaseText"
               :persistence-key="collapsePersistenceKey"
+              inspection-label="自主檢查"
               @edit-field="editField"
               @edit-flow="editFlowItem"
               @add-flow="onAddFlow"
@@ -73,7 +74,7 @@
                   <div
                     class="inspection-standards-kind-switch min-w-0"
                     role="tablist"
-                    aria-label="抽查標準分頁切換"
+                    aria-label="自主檢查標準分頁切換"
                   >
                     <button
                       type="button"
@@ -84,7 +85,7 @@
                       @click="setStandardsTab('construction')"
                     >
                       <i class="fa fa-clipboard-check me-2" aria-hidden="true"></i>
-                      施工抽查標準
+                      施工自主檢查標準
                     </button>
                     <button
                       type="button"
@@ -95,7 +96,7 @@
                       @click="setStandardsTab('safety')"
                     >
                       <i class="fa fa-hard-hat me-2" aria-hidden="true"></i>
-                      安全衛生抽查標準
+                      安全衛生自主檢查標準
                     </button>
                   </div>
                 </div>
@@ -163,7 +164,7 @@
           <textarea v-model="editValue.current" class="form-control" rows="5"></textarea>
         </div>
         <div v-else-if="editingField === '施工檢查點'">
-          <label class="form-label">{{ editingField }}</label>
+          <label class="form-label">{{ displayEditingField }}</label>
           <select v-model="editValue.current" class="form-select">
             <option value="">(無)</option>
             <option value="★">★</option>
@@ -237,7 +238,7 @@ const activeStandardsTab = ref<InspectionStandardsKind>('construction')
 const isSafetyMode = computed(() => activeStandardsTab.value === 'safety')
 
 const masterKindLabel = computed(() =>
-  isSafetyMode.value ? '安全衛生抽查標準來源（主檔）' : '施工抽查標準來源（主檔）'
+  isSafetyMode.value ? '安全衛生自主檢查標準來源（主檔）' : '施工自主檢查標準來源（主檔）'
 )
 
 const emptyPhaseText = computed(() => `目前尚無${masterKindLabel.value}資料`)
@@ -280,6 +281,7 @@ const itemData = ref<{ phases: Record<string, InspectionPhaseBlock> }>({ phases:
 const showEditModal = ref(false)
 const editModalTitle = ref('')
 const editingField = ref('')
+const displayEditingField = computed(() => editingField.value.replace('抽查', '自主檢查'))
 const editTarget = ref<{
   phase: string
   flowIdx: number
@@ -702,7 +704,7 @@ function editField(
   fieldName: string
 ) {
   editingField.value = fieldName
-  editModalTitle.value = `編輯 ${fieldName}`
+  editModalTitle.value = `編輯 ${fieldName.replace('抽查', '自主檢查')}`
   editTarget.value = { phase: phaseKey, flowIdx, mgmtIdx, subIdx }
 
   const subItem = getRowByMgmtSub(phaseKey, flowIdx, mgmtIdx, subIdx)

@@ -110,7 +110,7 @@
                   title="基本資料"
                   icon="fa fa-building"
                   :result="status.checks.basicData"
-                  :to="toSupervisory('/basic/basic-data')"
+                  :to="toViewPath('/basic/basic-data')"
                 />
               </div>
               <div class="col-md-6">
@@ -118,7 +118,7 @@
                   title="工地人員"
                   icon="fa fa-users"
                   :result="status.checks.sitePersonnel"
-                  :to="toSupervisory('/basic/site-personnel')"
+                  :to="toViewPath('/basic/site-personnel')"
                 />
               </div>
               <div class="col-md-6">
@@ -126,7 +126,7 @@
                   title="工程項目標單"
                   icon="fa fa-database"
                   :result="status.checks.projectItemDatabase"
-                  :to="toSupervisory('/basic/project-item-database')"
+                  :to="toViewPath('/basic/project-item-database')"
                 />
               </div>
             </div>
@@ -175,18 +175,24 @@ import { useWorkspaceStore } from '@/stores/workspace'
 import PageHeader from '@/components/bootstrap/PageHeader.vue'
 import AiBatchModalEngineering from '@/components/dashboard/AiBatchModalEngineering.vue'
 import { ENGINEERING_PHASES, useAiBatchEngineeringBuild } from '@/composables/useAiBatchEngineeringBuild'
+import { useViewPerspective, ViewType } from '@/composables/useViewPerspective'
 
 const router = useRouter()
 const proxy = getCurrentInstance()?.proxy as any
 const store = useOnboardingStore()
 const workspaceStore = useWorkspaceStore()
+const { viewType } = useViewPerspective()
 
 const constructionId = computed(() => workspaceStore.currentProject?.id || '')
-/** 開通頁固定為監造流程，與 fetchStatus(..., 'SUPERVISORY') 寫入的快取鍵一致（避免目前視角為營造時讀錯鍵） */
+const ownerType = computed<'SUPERVISORY' | 'CONTRACTOR'>(() =>
+  viewType.value === ViewType.CONTRACTOR ? 'CONTRACTOR' : 'SUPERVISORY'
+)
+
+/** 依目前視角讀取各自獨立的工程開通狀態。 */
 const status = computed(() => {
   const id = constructionId.value
   if (!id) return undefined
-  return store.statusByConstructionId[onboardingCacheKey(id, 'SUPERVISORY')]
+  return store.statusByConstructionId[onboardingCacheKey(id, ownerType.value)]
 })
 
 const passedCount = computed(() => {
@@ -213,12 +219,11 @@ const allPassed = computed(() => {
 
 const refresh = async () => {
   if (!constructionId.value) return
-  await store.fetchStatus(constructionId.value, true, 'SUPERVISORY')
+  await store.fetchStatus(constructionId.value, true, ownerType.value)
 }
 
 const goDashboard = () => {
-  // 監造視角的儀表板（帶 viewType）
-  router.replace('/supervisory/')
+  router.replace(ownerType.value === 'CONTRACTOR' ? '/contractor/' : '/supervisory/')
 }
 
 const {
@@ -236,22 +241,23 @@ const {
 /** 完成開通後直接啟動工程案資料建構批次（建構完成關閉 Modal 會重新整理，解鎖全部功能） */
 const complete = async () => {
   if (!constructionId.value) return
-  const res = await store.complete(constructionId.value)
+  const res = await store.complete(constructionId.value, ownerType.value)
   if (res?.completed) {
     proxy?.$toast?.success('恭喜完成維護，工程已開通完成')
     await startAiBatchGenerate()
   }
 }
 
-const toSupervisory = (baseUrl: string) => {
-  if (baseUrl.startsWith('/supervisory/')) return baseUrl
-  if (baseUrl.startsWith('/basic/')) return `/supervisory${baseUrl}`
+const toViewPath = (baseUrl: string) => {
+  const prefix = ownerType.value === 'CONTRACTOR' ? '/contractor' : '/supervisory'
+  if (baseUrl.startsWith(`${prefix}/`)) return baseUrl
+  if (baseUrl.startsWith('/basic/')) return `${prefix}${baseUrl}`
   return baseUrl
 }
 
 onMounted(async () => {
   if (!constructionId.value) return
-  await store.fetchStatus(constructionId.value, true, 'SUPERVISORY')
+  await store.fetchStatus(constructionId.value, true, ownerType.value)
 })
 
 const CheckCard = defineComponent({
@@ -413,4 +419,3 @@ const CheckCard = defineComponent({
   border-color: rgba(var(--bs-danger-rgb), 0.2);
 }
 </style>
-
