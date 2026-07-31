@@ -1,6 +1,6 @@
 import http from './http'
 
-export type DocumentShelfType = 'A1' | 'A2' | 'A6'
+export type DocumentShelfType = 'A1' | 'A2' | 'A6' | 'DYNAMIC'
 
 /** 與 A-5 估驗 ownerType 一致，A-6 書架分離監造／營造資料 */
 export type DocumentShelfOwnerType = 'SUPERVISORY' | 'SUPERVISION_COMPANY' | 'CONTRACTOR'
@@ -10,6 +10,7 @@ export interface DocumentShelfRecord {
   constructionId: string
   shelfType: string
   ownerType?: string
+  classificationKey?: string | null
   sortOrder: number
   createdAt?: string | null
 }
@@ -33,7 +34,10 @@ export interface DocumentShelfLinkedDocument {
   targetName: string
 }
 
-const shelfTypeParam = (shelfType: DocumentShelfType) => ({ shelfType })
+const shelfTypeParam = (shelfType: DocumentShelfType, classificationKey?: string) => ({
+  shelfType,
+  ...(classificationKey ? { classificationKey } : {})
+})
 
 const withOwnerType = (ownerType?: DocumentShelfOwnerType) =>
   ownerType ? { ownerType } : {}
@@ -42,10 +46,11 @@ export const documentShelfApi = {
   listRecords: async (
     constructionId: string,
     shelfType: DocumentShelfType,
-    ownerType?: DocumentShelfOwnerType
+    ownerType?: DocumentShelfOwnerType,
+    classificationKey?: string
   ): Promise<DocumentShelfRecord[]> => {
     const response = await http.get('/management/document-shelf/records', {
-      params: { constructionId, ...shelfTypeParam(shelfType), ...withOwnerType(ownerType) }
+      params: { constructionId, ...shelfTypeParam(shelfType, classificationKey), ...withOwnerType(ownerType) }
     })
     const data = (response as any)?.data ?? response
     return Array.isArray(data) ? data : []
@@ -54,12 +59,13 @@ export const documentShelfApi = {
   createRecord: async (
     constructionId: string,
     shelfType: DocumentShelfType,
-    ownerType?: DocumentShelfOwnerType
+    ownerType?: DocumentShelfOwnerType,
+    classificationKey?: string
   ): Promise<DocumentShelfRecord> => {
     const response = await http.post(
       '/management/document-shelf/records',
       { constructionId },
-      { params: { ...shelfTypeParam(shelfType), ...withOwnerType(ownerType) } }
+      { params: { ...shelfTypeParam(shelfType, classificationKey), ...withOwnerType(ownerType) } }
     )
     const data = (response as any)?.data ?? response
     return data as DocumentShelfRecord

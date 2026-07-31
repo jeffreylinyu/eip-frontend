@@ -30,42 +30,27 @@
       找不到對應的 {{ supportedCategory }} 類項目（id={{ itemIdParam || '—' }}），可能已被刪除或變更。請回到「文件檔案分類表」確認。
     </div>
 
-    <Card v-else>
+    <Card v-else-if="supportedCategory === 'D'">
       <CardBody>
         <SelfCheckInspectionList
-          v-if="supportedCategory === 'D' && targetItem"
           :construction-id="currentProject?.id ?? ''"
           :document-classification-id="targetItem.id"
           owner-type="SUPERVISORY"
           :base-path="`/supervisory/forms/doc-class/D/${targetItem.id}`"
         />
-
-        <template v-else>
-          <div class="alert alert-info mb-4">
-            <h5 class="alert-heading">
-              <i class="fa fa-info-circle me-2"></i>說明
-            </h5>
-            <p class="mb-0">
-              {{ supportedCategory }} 類書架：可建立多筆紀錄，每筆可關聯一個公文並上傳多個附件。
-            </p>
-          </div>
-
-          <div class="d-flex justify-content-between align-items-center gap-3 mb-3 flex-wrap">
-            <div></div>
-            <button type="button" class="btn btn-sm btn-primary" disabled>
-              <i class="fa fa-plus me-1"></i>
-              新增紀錄
-            </button>
-          </div>
-
-          <div class="text-center py-4 text-muted border rounded">
-            <i class="fa fa-inbox fa-2x mb-2 d-block"></i>
-            尚無紀錄
-            <div class="small mt-1">點擊「新增紀錄」開始建立</div>
-          </div>
-        </template>
       </CardBody>
     </Card>
+
+    <DocumentShelf
+      v-else
+      shelf-type="DYNAMIC"
+      owner-type="SUPERVISORY"
+      :classification-key="classificationKey"
+      :title="pageTitle"
+      :description="`${supportedCategory} 類書架：可建立多筆紀錄，每筆可關聯一個公文並上傳多個附件。`"
+      :category-label="`${supportedCategory}類表單`"
+      hide-page-header
+    />
   </div>
 </template>
 
@@ -74,10 +59,8 @@
  * 監造端「文件檔案分類表 — 各類動態項目」共用書架頁殼。
  *
  * - URL：`/supervisory/forms/doc-class/:category/:itemId`，category ∈ B/C/D/H/I/L。
- * - PageHeader 統一格式（與 B 類書架殼相同）；body 為 A-1 工程契約風格表格（DocumentShelf.vue），
- *   但**後端尚未支援動態分類項目**的 documentShelfApi，因此第一階段僅做 UI 殼：
- *     - 「新增紀錄」按鈕 disabled
- *     - 表格採視覺示意（opacity 降低 + 提示文字）
+ * - 非 D 類項目使用共用 DocumentShelf，依「分類＋項目 ID＋視角」隔離紀錄。
+ * - D 類維持施工抽查專用頁面。
  * - sidebar 入口由 `useAppSidebarMenuStore` 依分類表動態列出。
  */
 import { computed, ref, watch } from 'vue'
@@ -90,6 +73,7 @@ import { useViewPerspective } from '@/composables/useViewPerspective'
 import { documentClassificationApi, type DocumentClassification } from '@/api/documentClassification'
 import { getDesignChangeList } from '@/api/designChange'
 import SelfCheckInspectionList from '@/components/self-check/SelfCheckInspectionList.vue'
+import DocumentShelf from '@/views/forms/DocumentShelf.vue'
 
 const SUPPORTED_CATEGORIES = ['B', 'C', 'D', 'H', 'I', 'L'] as const
 type SupportedCategory = typeof SUPPORTED_CATEGORIES[number]
@@ -129,6 +113,12 @@ const targetItem = computed(() => {
   if (id == null) return null
   return allItemsInCategory.value.find(i => i.id === id) ?? null
 })
+
+const classificationKey = computed(() =>
+  supportedCategory.value && targetItemId.value
+    ? `${supportedCategory.value}:${targetItemId.value}`
+    : '',
+)
 
 /** 將分類表 itemNumber（"01", "02", "03"…）轉成顯示用編號，如 "03" → 3 */
 function parseItemNumberDigit(itemNumber: string | null | undefined): string {

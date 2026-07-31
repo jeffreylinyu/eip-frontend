@@ -1,6 +1,7 @@
 <template>
   <div class="document-shelf-page a4-dark">
     <PageHeader
+      v-if="!hidePageHeader"
       :title="pageTitle"
       icon="fa fa-folder-open"
       :breadcrumbs="pageBreadcrumbs"
@@ -219,9 +220,31 @@ const { isSupervisory } = useViewPerspective()
 const isSupervisoryUser = computed(() => isSupervisory.value)
 const constructionId = computed(() => workspaceStore.currentProject?.id ?? '')
 
+interface Props {
+  shelfType?: DocumentShelfType
+  ownerType?: DocumentShelfOwnerType
+  classificationKey?: string
+  title?: string
+  description?: string
+  categoryLabel?: string
+  hidePageHeader?: boolean
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  shelfType: undefined,
+  ownerType: undefined,
+  classificationKey: '',
+  title: '',
+  description: '',
+  categoryLabel: '',
+  hidePageHeader: false,
+})
+const hidePageHeader = computed(() => props.hidePageHeader)
+
 const isContractorRoute = computed(() => (route.path || '').toLowerCase().includes('/forms/o6-insurance'))
 
 const shelfType = computed<DocumentShelfType>(() => {
+  if (props.shelfType) return props.shelfType
   const path = (route.path || '').toLowerCase()
   if (path.includes('a1-contract')) return 'A1'
   if (path.includes('a2-budget')) return 'A2'
@@ -244,6 +267,7 @@ const switchTab = (tab: DocumentShelfOwnerType) => {
 
 /** A-6 書架 API 使用的 ownerType：O-6=營造、監造 A-6 依 Tab */
 const requestOwnerType = computed((): DocumentShelfOwnerType | undefined => {
+  if (props.ownerType) return props.ownerType
   if (!isA6Shelf.value) return undefined
   if (isContractorRoute.value) return 'CONTRACTOR'
   if (!isSupervisoryUser.value) return 'CONTRACTOR'
@@ -255,6 +279,12 @@ function apiOwnerType(): DocumentShelfOwnerType | undefined {
 }
 
 const shelfConfig = computed(() => {
+  if (props.title) {
+    return {
+      title: props.title,
+      description: props.description || '可建立多筆紀錄，每筆可關聯一個公文並上傳多個附件。',
+    }
+  }
   const t = shelfType.value
   const map = {
     A1: { title: 'A-1 工程契約', description: '工程契約書架：可建立多筆紀錄，每筆可關聯一個公文並上傳多個附件。' },
@@ -264,7 +294,11 @@ const shelfConfig = computed(() => {
       description: isContractorRoute.value
         ? '營造端工程保險書架：可建立多筆紀錄，每筆可關聯一個公文並上傳多個附件。'
         : '監造端工程保險書架：可分「工程端」與「監造端」維護資料，每筆可關聯公文並上傳附件。'
-    }
+    },
+    DYNAMIC: {
+      title: '文件分類書架',
+      description: '可建立多筆紀錄，每筆可關聯一個公文並上傳多個附件。',
+    },
   }
   return map[t]
 })
@@ -272,6 +306,13 @@ const shelfConfig = computed(() => {
 const pageTitle = computed(() => shelfConfig.value.title)
 const pageBreadcrumbs = computed(() => {
   const last = { text: pageTitle.value, active: true as const }
+  if (shelfType.value === 'DYNAMIC') {
+    return [
+      { text: '表單生成與管理', href: 'javascript:;' },
+      { text: props.categoryLabel || '文件分類書架', href: 'javascript:;' },
+      last,
+    ]
+  }
   if (isContractorRoute.value) {
     return [
       { text: '表單匯出', href: 'javascript:;' },
@@ -313,7 +354,12 @@ async function loadRecords() {
   if (!constructionId.value) return
   isLoading.value = true
   try {
-    records.value = await documentShelfApi.listRecords(constructionId.value, shelfType.value, apiOwnerType())
+    records.value = await documentShelfApi.listRecords(
+      constructionId.value,
+      shelfType.value,
+      apiOwnerType(),
+      props.classificationKey || undefined,
+    )
     const docList = await getDocumentCenterList(constructionId.value)
     const map = new Map<number, DocumentCenterListItem>()
     docList.forEach(d => map.set(d.id, d))
@@ -339,13 +385,22 @@ async function loadRecords() {
   }
 }
 
-watch([constructionId, shelfType, requestOwnerType], loadRecords, { immediate: true })
+watch(
+  [constructionId, shelfType, requestOwnerType, () => props.classificationKey],
+  loadRecords,
+  { immediate: true },
+)
 
 async function addRecord() {
   if (!constructionId.value) return
   isCreating.value = true
   try {
-    const created = await documentShelfApi.createRecord(constructionId.value, shelfType.value, apiOwnerType())
+    const created = await documentShelfApi.createRecord(
+      constructionId.value,
+      shelfType.value,
+      apiOwnerType(),
+      props.classificationKey || undefined,
+    )
     records.value = [...records.value, created]
     attachmentCountByRecordId.value = { ...attachmentCountByRecordId.value, [created.id!]: 0 }
   } finally {
